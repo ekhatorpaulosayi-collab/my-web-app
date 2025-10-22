@@ -1,0 +1,1577 @@
+import { useState, useEffect } from 'react';
+import './App.css';
+
+function App() {
+  // Utility function to format number with commas
+  const formatNumberWithCommas = (value) => {
+    // Remove all non-digit characters
+    const cleanValue = value.replace(/\D/g, '');
+    // Add commas for thousands
+    return cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  // Utility function to parse number from formatted string
+  const parseFormattedNumber = (value) => {
+    return value.replace(/,/g, '');
+  };
+
+  // Settings state - completely isolated
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('smartstock-settings');
+    return saved ? JSON.parse(saved) : {
+      businessName: '',
+      ownerName: '',
+      phoneNumber: ''
+    };
+  });
+  const [settingsForm, setSettingsForm] = useState({ ...settings });
+
+  const [items, setItems] = useState(() => {
+    const saved = localStorage.getItem('smartstock-items');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    // Default items if no saved data
+    return [
+      {
+        id: 1,
+        name: 'Samsung Galaxy A54',
+        category: 'Electronics & Accessories',
+        qty: 12,
+        purchasePrice: 185000,
+        sellingPrice: 210000,
+        profit: 25000,
+        margin: 11.9,
+        status: 'In Stock'
+      },
+      {
+        id: 2,
+        name: 'Nike Air Max Sneakers',
+        category: 'Fashion & Clothing',
+        qty: 5,
+        purchasePrice: 25000,
+        sellingPrice: 35000,
+        profit: 10000,
+        margin: 28.57,
+        status: 'Low Stock'
+      },
+      {
+        id: 3,
+        name: 'POP Ceiling Sheets',
+        category: 'Building Materials',
+        qty: 45,
+        purchasePrice: 1200,
+        sellingPrice: 1500,
+        profit: 300,
+        margin: 20,
+        status: 'In Stock'
+      },
+      {
+        id: 4,
+        name: 'Face Moisturizer Cream',
+        category: 'Beauty & Personal Care',
+        qty: 8,
+        purchasePrice: 2500,
+        sellingPrice: 3500,
+        profit: 1000,
+        margin: 28.57,
+        status: 'Low Stock'
+      },
+      {
+        id: 5,
+        name: 'Garden Hose 50ft',
+        category: 'Home & Garden',
+        qty: 15,
+        purchasePrice: 8000,
+        sellingPrice: 12000,
+        profit: 4000,
+        margin: 33.33,
+        status: 'In Stock'
+      },
+      {
+        id: 6,
+        name: 'A4 Paper Ream',
+        category: 'Books & Stationery',
+        qty: 3,
+        purchasePrice: 2000,
+        sellingPrice: 2500,
+        profit: 500,
+        margin: 20,
+        status: 'Low Stock'
+      },
+    ];
+  });
+
+  const [showModal, setShowModal] = useState(false);
+  const [showRecordSale, setShowRecordSale] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showSalesData, setShowSalesData] = useState(true); // Renamed for clarity - true = revealed, false = hidden
+  const [searchQuery, setSearchQuery] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    category: 'General Merchandise',
+    qty: '',
+    purchasePrice: '',
+    sellingPrice: ''
+  });
+
+  // State for formatted price displays
+  const [formattedPrices, setFormattedPrices] = useState({
+    purchasePrice: '',
+    sellingPrice: ''
+  });
+
+  // Calculate profit and margin when prices change
+  const [calculatedProfit, setCalculatedProfit] = useState({ profit: 0, margin: 0 });
+
+  // Sales tracking state
+  const [sales, setSales] = useState(() => {
+    const saved = localStorage.getItem('smartstock-sales');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Record sale form state
+  const [saleForm, setSaleForm] = useState({
+    itemId: '',
+    quantity: '',
+    sellPrice: '',
+    paymentMethod: 'cash',
+    customerName: ''
+  });
+
+  // Toast state for undo
+  const [showToast, setShowToast] = useState(false);
+  const [lastSale, setLastSale] = useState(null);
+
+  // Calculator state
+  const [calcForm, setCalcForm] = useState({
+    itemId: '',
+    itemName: '',
+    price: '',
+    quantity: '',
+    total: 0
+  });
+
+  // Low Stock modal state
+  const [showLowStock, setShowLowStock] = useState(false);
+  const [stockUpdateForm, setStockUpdateForm] = useState({});
+  const [stockSearchQuery, setStockSearchQuery] = useState('');
+
+  // Debt/Credit tracking state
+  const [showDebts, setShowDebts] = useState(false);
+  const [debts, setDebts] = useState(() => {
+    const saved = localStorage.getItem('smartstock-debts');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [debtSearchQuery, setDebtSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all'); // all, unpaid, paid
+
+  // Save items to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('smartstock-items', JSON.stringify(items));
+  }, [items]);
+
+  // Save debts to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('smartstock-debts', JSON.stringify(debts));
+  }, [debts]);
+
+  useEffect(() => {
+    if (formData.purchasePrice && formData.sellingPrice) {
+      const purchase = parseFloat(formData.purchasePrice);
+      const selling = parseFloat(formData.sellingPrice);
+
+      if (purchase > 0 && selling > 0) {
+        const profit = selling - purchase;
+        const margin = ((profit / selling) * 100);
+
+        setCalculatedProfit({
+          profit: profit,
+          margin: margin
+        });
+      } else {
+        setCalculatedProfit({ profit: 0, margin: 0 });
+      }
+    } else {
+      setCalculatedProfit({ profit: 0, margin: 0 });
+    }
+  }, [formData.purchasePrice, formData.sellingPrice]);
+
+  // Calculate today's sales from actual sales data
+  const getTodaysSales = () => {
+    const today = new Date().toDateString();
+    const todaySales = sales.filter(sale => sale.date === today);
+
+    const cashSales = todaySales
+      .filter(sale => sale.paymentMethod === 'cash')
+      .reduce((sum, sale) => sum + sale.totalAmount, 0);
+
+    const creditSales = todaySales
+      .filter(sale => sale.paymentMethod === 'credit')
+      .reduce((sum, sale) => sum + sale.totalAmount, 0);
+
+    const totalSales = cashSales + creditSales;
+    const transactions = todaySales.length;
+
+    // Calculate profit from today's sales
+    const profit = todaySales.reduce((sum, sale) => {
+      const item = items.find(i => i.id === sale.itemId);
+      if (item) {
+        return sum + ((sale.sellPrice - item.purchasePrice) * sale.quantity);
+      }
+      return sum;
+    }, 0);
+
+    return {
+      total: totalSales,
+      cash: cashSales,
+      credit: creditSales,
+      profit: profit,
+      transactions: transactions
+    };
+  };
+
+  const todaysSales = getTodaysSales();
+
+  // Handle form changes
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+
+    // Handle price fields with formatting
+    if (name === 'purchasePrice' || name === 'sellingPrice') {
+      const formattedValue = formatNumberWithCommas(value);
+      const rawValue = parseFormattedNumber(formattedValue);
+
+      setFormattedPrices({
+        ...formattedPrices,
+        [name]: formattedValue
+      });
+
+      setFormData({
+        ...formData,
+        [name]: rawValue
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
+  };
+
+  // Save new item
+  const handleSave = () => {
+    if (formData.name && formData.qty && formData.purchasePrice && formData.sellingPrice) {
+      const purchase = parseFloat(formData.purchasePrice);
+      const selling = parseFloat(formData.sellingPrice);
+      const profit = selling - purchase;
+      const margin = ((profit / selling) * 100);
+
+      const newItem = {
+        id: Date.now(),
+        name: formData.name,
+        category: formData.category,
+        qty: parseInt(formData.qty),
+        purchasePrice: purchase,
+        sellingPrice: selling,
+        profit: profit,
+        margin: margin,
+        status: parseInt(formData.qty) < 10 ? 'Low Stock' : 'In Stock'
+      };
+
+      const updatedItems = [...items, newItem];
+      setItems(updatedItems);
+      localStorage.setItem('smartstock-items', JSON.stringify(updatedItems));
+      setShowModal(false);
+      setFormData({ name: '', category: 'General Merchandise', qty: '', purchasePrice: '', sellingPrice: '' });
+      setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+      setCalculatedProfit({ profit: 0, margin: 0 });
+      alert('Item added successfully!');
+    } else {
+      alert('Please fill all fields');
+    }
+  };
+
+  // Quick Add from search
+  const handleQuickAdd = () => {
+    if (searchQuery.trim()) {
+      setFormData({ ...formData, name: searchQuery });
+      setShowModal(true);
+      setSearchQuery('');
+    }
+  };
+
+  // Calculate stats
+  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+  const lowStockItems = items.filter(item => item.qty < 10).length;
+  const totalPotentialProfit = items.reduce((sum, item) => sum + (item.profit * item.qty), 0);
+
+  // Get today's date
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  // Button handlers
+  const handleRecordSale = () => {
+    setShowRecordSale(true);
+    // Reset form when opening
+    setSaleForm({
+      itemId: '',
+      quantity: '',
+      sellPrice: '',
+      paymentMethod: 'cash',
+      customerName: ''
+    });
+  };
+
+  const handleLowStock = () => {
+    setShowLowStock(true);
+    // Initialize stock update form for all low stock items
+    const initialForm = {};
+    items.filter(item => item.qty < 10).forEach(item => {
+      initialForm[item.id] = '';
+    });
+    setStockUpdateForm(initialForm);
+    setStockSearchQuery('');
+  };
+
+  const handleCalculator = () => {
+    setShowCalculator(true);
+    // Reset calculator form
+    setCalcForm({
+      itemId: '',
+      itemName: '',
+      price: '',
+      quantity: '',
+      total: 0
+    });
+  };
+
+  // Calculator handlers
+  const handleCalcItemSelect = (e) => {
+    const selectedId = e.target.value;
+    if (selectedId) {
+      const selectedItem = items.find(item => item.id === parseInt(selectedId));
+      if (selectedItem) {
+        setCalcForm({
+          ...calcForm,
+          itemId: selectedId,
+          itemName: selectedItem.name,
+          price: selectedItem.sellingPrice.toString()
+        });
+      }
+    } else {
+      setCalcForm({
+        ...calcForm,
+        itemId: '',
+        itemName: '',
+        price: ''
+      });
+    }
+  };
+
+  const handleCalcChange = (e) => {
+    const { name, value } = e.target;
+    setCalcForm({
+      ...calcForm,
+      [name]: value
+    });
+  };
+
+  // Calculate total whenever price or quantity changes
+  useEffect(() => {
+    const price = parseFloat(calcForm.price) || 0;
+    const quantity = parseFloat(calcForm.quantity) || 0;
+    setCalcForm(prev => ({
+      ...prev,
+      total: price * quantity
+    }));
+  }, [calcForm.price, calcForm.quantity]);
+
+  const handleUseInSale = () => {
+    if (calcForm.itemId && calcForm.quantity && calcForm.price) {
+      // Pre-fill the Record Sale form
+      setSaleForm({
+        itemId: calcForm.itemId,
+        quantity: calcForm.quantity,
+        sellPrice: calcForm.price,
+        paymentMethod: 'cash',
+        customerName: ''
+      });
+
+      // Close calculator and open Record Sale
+      setShowCalculator(false);
+      setShowRecordSale(true);
+    }
+  };
+
+  // Settings handlers - completely isolated
+  const handleSettingsChange = (e) => {
+    const { name, value } = e.target;
+
+    // Character limits enforced
+    if (name === 'businessName' && value.length > 50) return;
+    if (name === 'ownerName' && value.length > 30) return;
+    if (name === 'phoneNumber' && value.length > 15) return;
+
+    setSettingsForm({
+      ...settingsForm,
+      [name]: value
+    });
+  };
+
+  const validateNigerianPhone = (phone) => {
+    // Nigerian phone format: +234 or 0 followed by 10 digits
+    const regex = /^(\+234|0)[789][01]\d{8}$/;
+    return regex.test(phone.replace(/\s/g, ''));
+  };
+
+  const handleSaveSettings = () => {
+    if (settingsForm.phoneNumber && !validateNigerianPhone(settingsForm.phoneNumber)) {
+      alert('Please enter a valid Nigerian phone number');
+      return;
+    }
+
+    setSettings(settingsForm);
+    localStorage.setItem('smartstock-settings', JSON.stringify(settingsForm));
+    setShowSettings(false);
+    alert('Settings saved successfully!');
+  };
+
+  // Record Sale handlers
+  const handleSaleFormChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === 'itemId' && value) {
+      // When item is selected, prefill the price
+      const selectedItem = items.find(item => item.id === parseInt(value));
+      if (selectedItem) {
+        setSaleForm({
+          ...saleForm,
+          itemId: value,
+          sellPrice: selectedItem.sellingPrice.toString()
+        });
+      }
+    } else {
+      setSaleForm({
+        ...saleForm,
+        [name]: value
+      });
+    }
+  };
+
+  const handlePaymentMethodChange = (method) => {
+    setSaleForm({
+      ...saleForm,
+      paymentMethod: method,
+      customerName: method === 'cash' ? '' : saleForm.customerName
+    });
+  };
+
+  const handleSaveSale = () => {
+    const selectedItem = items.find(item => item.id === parseInt(saleForm.itemId));
+    const quantity = parseInt(saleForm.quantity);
+
+    if (!selectedItem || !quantity || !saleForm.sellPrice) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    if (quantity > selectedItem.qty) {
+      alert(`Cannot sell ${quantity} items. Only ${selectedItem.qty} in stock.`);
+      return;
+    }
+
+    if (saleForm.paymentMethod === 'credit' && !saleForm.customerName.trim()) {
+      alert('Please enter customer name for credit sales');
+      return;
+    }
+
+    // Create sale record
+    const newSale = {
+      id: Date.now(),
+      itemId: parseInt(saleForm.itemId),
+      itemName: selectedItem.name,
+      quantity: quantity,
+      sellPrice: parseFloat(saleForm.sellPrice),
+      totalAmount: quantity * parseFloat(saleForm.sellPrice),
+      paymentMethod: saleForm.paymentMethod,
+      customerName: saleForm.paymentMethod === 'credit' ? saleForm.customerName : '',
+      timestamp: new Date().toISOString(),
+      date: new Date().toDateString()
+    };
+
+    // Update sales
+    const updatedSales = [...sales, newSale];
+    setSales(updatedSales);
+    localStorage.setItem('smartstock-sales', JSON.stringify(updatedSales));
+
+    // Create debt entry for credit sales (idempotent - uses sale ID)
+    if (saleForm.paymentMethod === 'credit') {
+      const newDebt = {
+        id: newSale.id, // Use sale ID to prevent duplicates
+        saleId: newSale.id, // Link back to original sale for audit trail
+        customerName: saleForm.customerName.trim(),
+        customerPhone: '', // Can be added later
+        amount: newSale.totalAmount,
+        itemName: selectedItem.name,
+        quantity: quantity,
+        saleDate: new Date().toISOString(),
+        dueDate: '', // Optional: can add due date functionality
+        status: 'unpaid',
+        paidDate: null,
+        paidAmount: 0
+      };
+
+      // Prevent duplicate debt entries (idempotent)
+      const debtExists = debts.some(debt => debt.saleId === newSale.id);
+      if (!debtExists) {
+        const updatedDebts = [...debts, newDebt];
+        setDebts(updatedDebts);
+        localStorage.setItem('smartstock-debts', JSON.stringify(updatedDebts));
+      }
+    }
+
+    // Update inventory
+    const updatedItems = items.map(item =>
+      item.id === selectedItem.id
+        ? { ...item, qty: item.qty - quantity, status: (item.qty - quantity) < 10 ? 'Low Stock' : 'In Stock' }
+        : item
+    );
+    setItems(updatedItems);
+    localStorage.setItem('smartstock-items', JSON.stringify(updatedItems));
+
+    // Store for undo
+    setLastSale(newSale);
+    setShowToast(true);
+
+    // Show success message
+    const paymentType = saleForm.paymentMethod === 'credit'
+      ? ` on credit to ${saleForm.customerName}`
+      : ' for cash';
+
+    setTimeout(() => {
+      setShowToast(false);
+      setLastSale(null);
+    }, 5000);
+
+    // Close modal
+    setShowRecordSale(false);
+    setSaleForm({
+      itemId: '',
+      quantity: '',
+      sellPrice: '',
+      paymentMethod: 'cash',
+      customerName: ''
+    });
+  };
+
+  const handleUndoSale = () => {
+    if (!lastSale) return;
+
+    // Remove the sale from sales
+    const updatedSales = sales.filter(sale => sale.id !== lastSale.id);
+    setSales(updatedSales);
+    localStorage.setItem('smartstock-sales', JSON.stringify(updatedSales));
+
+    // Remove associated debt if it was a credit sale
+    if (lastSale.paymentMethod === 'credit') {
+      const updatedDebts = debts.filter(debt => debt.saleId !== lastSale.id);
+      setDebts(updatedDebts);
+      localStorage.setItem('smartstock-debts', JSON.stringify(updatedDebts));
+    }
+
+    // Restore inventory
+    const updatedItems = items.map(item =>
+      item.id === lastSale.itemId
+        ? { ...item, qty: item.qty + lastSale.quantity, status: (item.qty + lastSale.quantity) < 10 ? 'Low Stock' : 'In Stock' }
+        : item
+    );
+    setItems(updatedItems);
+    localStorage.setItem('smartstock-items', JSON.stringify(updatedItems));
+
+    setShowToast(false);
+    setLastSale(null);
+  };
+
+  // Low Stock handlers
+  const handleStockUpdateChange = (itemId, value) => {
+    // Only allow positive numbers
+    const numValue = value.replace(/\D/g, '');
+    setStockUpdateForm({
+      ...stockUpdateForm,
+      [itemId]: numValue
+    });
+  };
+
+  const handleAddStock = (itemId) => {
+    const addAmount = parseInt(stockUpdateForm[itemId]);
+
+    if (!addAmount || addAmount <= 0) {
+      alert('Please enter a valid quantity to add');
+      return;
+    }
+
+    // Find the item before updating
+    const item = items.find(i => i.id === itemId);
+    const oldQty = item.qty;
+    const newQty = oldQty + addAmount;
+
+    const updatedItems = items.map(item => {
+      if (item.id === itemId) {
+        return {
+          ...item,
+          qty: newQty,
+          status: newQty < 10 ? 'Low Stock' : 'In Stock'
+        };
+      }
+      return item;
+    });
+
+    // Update state and localStorage
+    setItems(updatedItems);
+    localStorage.setItem('smartstock-items', JSON.stringify(updatedItems));
+
+    // Clear the input for this item
+    setStockUpdateForm({
+      ...stockUpdateForm,
+      [itemId]: ''
+    });
+
+    // Show success message with new quantity
+    const statusChange = oldQty < 10 && newQty >= 10 ? ' (Now in stock!)' : '';
+    alert(`✓ Added ${addAmount} units to ${item.name}\nNew quantity: ${newQty}${statusChange}`);
+  };
+
+  // Filter low stock items based on search
+  const getLowStockItems = () => {
+    let lowStock = items.filter(item => item.qty < 10);
+
+    if (stockSearchQuery) {
+      lowStock = lowStock.filter(item =>
+        item.name.toLowerCase().includes(stockSearchQuery.toLowerCase()) ||
+        item.category.toLowerCase().includes(stockSearchQuery.toLowerCase())
+      );
+    }
+
+    return lowStock;
+  };
+
+  // Debt/Credit tracking handlers
+  const handleShowDebts = () => {
+    setShowDebts(true);
+    setDebtSearchQuery('');
+    setFilterStatus('all');
+  };
+
+  const getFilteredDebts = () => {
+    let filtered = debts;
+
+    // Filter by status
+    if (filterStatus === 'unpaid') {
+      filtered = filtered.filter(debt => debt.status === 'unpaid');
+    } else if (filterStatus === 'paid') {
+      filtered = filtered.filter(debt => debt.status === 'paid');
+    }
+
+    // Filter by search query
+    if (debtSearchQuery) {
+      filtered = filtered.filter(debt =>
+        debt.customerName.toLowerCase().includes(debtSearchQuery.toLowerCase()) ||
+        debt.itemName.toLowerCase().includes(debtSearchQuery.toLowerCase())
+      );
+    }
+
+    // Sort by date (newest first)
+    return filtered.sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate));
+  };
+
+  const handleMarkAsPaid = (debtId) => {
+    // Atomic transaction: update debt status
+    const updatedDebts = debts.map(debt => {
+      if (debt.id === debtId && debt.status === 'unpaid') {
+        return {
+          ...debt,
+          status: 'paid',
+          paidDate: new Date().toISOString(),
+          paidAmount: debt.amount
+        };
+      }
+      return debt;
+    });
+
+    setDebts(updatedDebts);
+    localStorage.setItem('smartstock-debts', JSON.stringify(updatedDebts));
+  };
+
+  const handleSendWhatsAppReminder = (debt) => {
+    // Show confirmation before sending
+    const confirmSend = window.confirm(
+      `Send WhatsApp reminder to ${debt.customerName}?\n\n` +
+      `Amount: ₦${debt.amount.toLocaleString()}\n` +
+      `Item: ${debt.itemName} (x${debt.quantity})\n` +
+      `Sale Date: ${new Date(debt.saleDate).toLocaleDateString()}`
+    );
+
+    if (!confirmSend) return;
+
+    // Create WhatsApp message
+    const message = encodeURIComponent(
+      `Hello ${debt.customerName},\n\n` +
+      `This is a friendly reminder about your outstanding balance:\n\n` +
+      `Item: ${debt.itemName} (x${debt.quantity})\n` +
+      `Amount: ₦${debt.amount.toLocaleString()}\n` +
+      `Sale Date: ${new Date(debt.saleDate).toLocaleDateString()}\n\n` +
+      `Please let us know when you can settle this amount.\n\n` +
+      `Thank you!\n` +
+      `${settings.businessName || 'SmartStock'}`
+    );
+
+    // Open WhatsApp with pre-filled message
+    const phone = debt.customerPhone || '';
+    const whatsappUrl = phone
+      ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`
+      : `https://wa.me/?text=${message}`;
+
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // Calculate total receivables (money owed)
+  const getTotalReceivables = () => {
+    return debts
+      .filter(debt => debt.status === 'unpaid')
+      .reduce((sum, debt) => sum + debt.amount, 0);
+  };
+
+  return (
+    <div className="app">
+      {/* Header */}
+      <header className="dashboard-header">
+        <div className="header-left">
+          <div className="business-name">
+            {settings.businessName || 'SmartStock'}
+          </div>
+          <div className="date-display">{today}</div>
+        </div>
+        <div className="header-right">
+          <button
+            className={`sales-toggle ${showSalesData ? 'revealed' : 'hidden'}`}
+            onClick={() => setShowSalesData(!showSalesData)}
+            title={showSalesData ? 'Click to hide sales data' : 'Click to show sales data'}
+          >
+            {showSalesData ? (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span>Sales ({todaysSales.transactions})</span>
+              </>
+            ) : (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+                <span>Hidden</span>
+              </>
+            )}
+          </button>
+          <button
+            className="settings-btn"
+            onClick={() => setShowSettings(true)}
+            aria-label="Business Settings"
+            title="Business Settings"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* CTA Buttons */}
+      <div className="cta-buttons">
+        <button
+          className="cta-btn accent"
+          onClick={() => setShowModal(true)}
+        >
+          <span className="cta-icon">+</span>
+          Add Item
+        </button>
+        <button
+          className="cta-btn primary"
+          onClick={handleRecordSale}
+        >
+          <span className="cta-icon">₦</span>
+          Record Sale
+        </button>
+        <button
+          className="cta-btn primary-2"
+          onClick={handleLowStock}
+        >
+          <span className="cta-icon">⚠</span>
+          Low Stock
+        </button>
+        <button
+          className="cta-btn credit"
+          onClick={handleShowDebts}
+        >
+          <span className="cta-icon">💳</span>
+          Credit & Debts
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="search-section">
+        <div className="search-container">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleQuickAdd();
+              }
+            }}
+          />
+          <button className="quick-add-btn" onClick={handleQuickAdd}>
+            Quick Add
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="kpi-container">
+        <div className="kpi-card sales">
+          <div className="kpi-header">Today's Sales</div>
+          <div className="kpi-value">
+            {showSalesData ? `₦${todaysSales.total.toLocaleString()}` : '₦—'}
+          </div>
+          <div className="kpi-subtext">
+            {!showSalesData ? (
+              <>Sales data hidden</>
+            ) : todaysSales.total === 0 ? (
+              <>No sales yet today</>
+            ) : todaysSales.credit > 0 ? (
+              <>Cash: ₦{todaysSales.cash.toLocaleString()} | Credit: ₦{todaysSales.credit.toLocaleString()}</>
+            ) : (
+              <>Profit: ₦{todaysSales.profit.toLocaleString()} | {todaysSales.transactions} sales</>
+            )}
+          </div>
+        </div>
+        <div className="kpi-card stock">
+          <div className="kpi-header">Items in Stock</div>
+          <div className="kpi-value">{totalItems}</div>
+          <div className="kpi-subtext">Total quantity</div>
+        </div>
+        <div className="kpi-card low-stock">
+          <div className="kpi-header">Low Stock</div>
+          <div className="kpi-value">{lowStockItems}</div>
+          <div className="kpi-subtext">Items below 10</div>
+        </div>
+        <div className="kpi-card receivables">
+          <div className="kpi-header">Receivables</div>
+          <div className="kpi-value">
+            {showSalesData ? `₦${getTotalReceivables().toLocaleString()}` : '₦—'}
+          </div>
+          <div className="kpi-subtext">
+            {debts.filter(d => d.status === 'unpaid').length} customer{debts.filter(d => d.status === 'unpaid').length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory Table */}
+      <div className="inventory-section">
+        <table className="inventory-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Buy Price</th>
+              <th>Sell Price</th>
+              <th>Profit/Unit</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => (
+              <tr key={item.id}>
+                <td className="item-name">{item.name}</td>
+                <td className="item-qty">{item.qty}</td>
+                <td className="item-price-purchase">
+                  {showSalesData ? `₦${item.purchasePrice.toLocaleString()}` : '₦—'}
+                </td>
+                <td className="item-price-selling">
+                  {showSalesData ? `₦${item.sellingPrice.toLocaleString()}` : '₦—'}
+                </td>
+                <td className="item-profit">
+                  <div className="profit-display">
+                    <span className="profit-amount">
+                      {showSalesData ? `₦${item.profit.toLocaleString()}` : '₦—'}
+                    </span>
+                    <span className="profit-margin">
+                      {showSalesData ? `(${item.margin.toFixed(1)}%)` : '(—%)'}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <span className={`status-badge ${item.qty < 10 ? 'low' : 'in-stock'}`}>
+                    {item.qty < 10 ? 'Low Stock' : 'In Stock'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="bottom-bar">
+        <button className="calculator-btn" onClick={handleCalculator}>
+          <span className="calc-icon">🧮</span>
+          Calculator
+        </button>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowModal(false);
+          setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+        }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Add New Item</h2>
+              <button className="modal-close" onClick={() => {
+                setShowModal(false);
+                setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+              }}>×</button>
+            </div>
+
+            <div className="form-group">
+              <label>Item Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="Enter item name"
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Category</label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleInputChange}
+                className="form-input"
+              >
+                <option value="Fashion & Clothing">Fashion & Clothing</option>
+                <option value="Electronics & Accessories">Electronics & Accessories</option>
+                <option value="Building Materials">Building Materials</option>
+                <option value="Beauty & Personal Care">Beauty & Personal Care</option>
+                <option value="Home & Garden">Home & Garden</option>
+                <option value="Sports & Recreation">Sports & Recreation</option>
+                <option value="Books & Stationery">Books & Stationery</option>
+                <option value="Automotive">Automotive</option>
+                <option value="Health & Pharmacy">Health & Pharmacy</option>
+                <option value="General Merchandise">General Merchandise</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Quantity</label>
+              <input
+                type="number"
+                name="qty"
+                value={formData.qty}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Purchase Price (₦)</label>
+                <input
+                  type="text"
+                  name="purchasePrice"
+                  value={formattedPrices.purchasePrice}
+                  onChange={handleInputChange}
+                  placeholder="What you paid"
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Selling Price (₦)</label>
+                <input
+                  type="text"
+                  name="sellingPrice"
+                  value={formattedPrices.sellingPrice}
+                  onChange={handleInputChange}
+                  placeholder="Customer pays"
+                  className="form-input"
+                />
+              </div>
+            </div>
+
+            {/* Profit Calculation Display */}
+            {calculatedProfit.profit > 0 && (
+              <div className="profit-calculator-display">
+                <div className="profit-info">
+                  <span className="profit-label">Profit per unit:</span>
+                  <span className="profit-value">
+                    ₦{calculatedProfit.profit.toFixed(2)}
+                    <span className="profit-percentage">
+                      ({calculatedProfit.margin.toFixed(1)}% margin)
+                    </span>
+                  </span>
+                </div>
+                {formData.qty && (
+                  <div className="total-profit-info">
+                    <span className="profit-label">Total potential profit:</span>
+                    <span className="profit-value-total">
+                      ₦{(calculatedProfit.profit * parseInt(formData.qty || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {calculatedProfit.profit < 0 && (
+              <div className="profit-calculator-display loss">
+                <div className="profit-info">
+                  <span className="profit-label">⚠ Loss per unit:</span>
+                  <span className="profit-value loss">
+                    -₦{Math.abs(calculatedProfit.profit).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="modal-footer">
+              <button className="btn-save" onClick={handleSave}>
+                Save Item
+              </button>
+              <button className="btn-cancel" onClick={() => {
+                setShowModal(false);
+                setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+              }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record Sale Modal */}
+      {showRecordSale && (
+        <div className="sale-overlay" onClick={() => setShowRecordSale(false)}>
+          <div className="sale-modal" onClick={e => e.stopPropagation()}>
+            <div className="sale-header">
+              <h2>Record Sale</h2>
+              <button className="sale-close" onClick={() => setShowRecordSale(false)}>×</button>
+            </div>
+
+            <div className="sale-form">
+              <div className="form-group">
+                <label>Select Item</label>
+                <select
+                  name="itemId"
+                  value={saleForm.itemId}
+                  onChange={handleSaleFormChange}
+                  className="form-input"
+                >
+                  <option value="">Choose an item...</option>
+                  {items.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} (Stock: {item.qty})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {saleForm.itemId && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Quantity</label>
+                      <input
+                        type="number"
+                        name="quantity"
+                        value={saleForm.quantity}
+                        onChange={handleSaleFormChange}
+                        placeholder="0"
+                        min="1"
+                        max={items.find(i => i.id === parseInt(saleForm.itemId))?.qty || 0}
+                        className="form-input"
+                      />
+                      {saleForm.quantity && (
+                        <span className="stock-info">
+                          Stock left after sale: {(items.find(i => i.id === parseInt(saleForm.itemId))?.qty || 0) - parseInt(saleForm.quantity || 0)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>Your Price (₦)</label>
+                      <input
+                        type="number"
+                        name="sellPrice"
+                        value={saleForm.sellPrice}
+                        onChange={handleSaleFormChange}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="form-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Payment Method</label>
+                    <div className="payment-toggle">
+                      <button
+                        type="button"
+                        className={`payment-btn ${saleForm.paymentMethod === 'cash' ? 'active' : ''}`}
+                        onClick={() => handlePaymentMethodChange('cash')}
+                      >
+                        💵 Cash
+                      </button>
+                      <button
+                        type="button"
+                        className={`payment-btn ${saleForm.paymentMethod === 'credit' ? 'active' : ''}`}
+                        onClick={() => handlePaymentMethodChange('credit')}
+                      >
+                        💳 Credit
+                      </button>
+                    </div>
+                  </div>
+
+                  {saleForm.paymentMethod === 'credit' && (
+                    <div className="form-group">
+                      <label>Customer Name</label>
+                      <input
+                        type="text"
+                        name="customerName"
+                        value={saleForm.customerName}
+                        onChange={handleSaleFormChange}
+                        placeholder="Enter customer name"
+                        className="form-input"
+                      />
+                    </div>
+                  )}
+
+                  {saleForm.quantity && saleForm.sellPrice && (
+                    <div className="sale-total">
+                      <span>Total Amount:</span>
+                      <span className="total-value">
+                        ₦{(parseInt(saleForm.quantity || 0) * parseFloat(saleForm.sellPrice || 0)).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="sale-footer">
+              <button
+                className="btn-save-sale"
+                onClick={handleSaveSale}
+                disabled={!saleForm.itemId || !saleForm.quantity || !saleForm.sellPrice}
+              >
+                Complete Sale
+              </button>
+              <button className="btn-cancel-sale" onClick={() => setShowRecordSale(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calculator Bottom Sheet */}
+      {showCalculator && (
+        <>
+          <div className="calculator-backdrop" onClick={() => setShowCalculator(false)} />
+          <div className="calculator-sheet">
+            <div className="calculator-header">
+              <h2>Quick Calculator</h2>
+              <button
+                className="calc-close-btn"
+                onClick={() => setShowCalculator(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="calculator-body">
+              <div className="calc-form-group">
+                <label>Search Item</label>
+                <select
+                  value={calcForm.itemId}
+                  onChange={handleCalcItemSelect}
+                  className="calc-input"
+                >
+                  <option value="">Select an item...</option>
+                  {items.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="calc-form-row">
+                <div className="calc-form-group">
+                  <label>Your Price (₦)</label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={calcForm.price}
+                    onChange={handleCalcChange}
+                    placeholder="0.00"
+                    className="calc-input"
+                  />
+                </div>
+
+                <div className="calc-form-group">
+                  <label>Quantity</label>
+                  <input
+                    type="number"
+                    name="quantity"
+                    value={calcForm.quantity}
+                    onChange={handleCalcChange}
+                    placeholder="0"
+                    min="1"
+                    className="calc-input"
+                  />
+                </div>
+              </div>
+
+              <div className="calc-total-section">
+                <label>Total Amount</label>
+                <div className="calc-total-display">
+                  ₦{calcForm.total.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="calc-buttons">
+                <button
+                  className="calc-use-btn"
+                  onClick={handleUseInSale}
+                  disabled={!calcForm.itemId || !calcForm.quantity || !calcForm.price}
+                >
+                  Use in Sale
+                </button>
+                <button
+                  className="calc-cancel-btn"
+                  onClick={() => setShowCalculator(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Settings Modal - Completely Isolated */}
+      {showSettings && (
+        <div className="settings-overlay" onClick={() => setShowSettings(false)}>
+          <div className="settings-modal" onClick={e => e.stopPropagation()}>
+            <div className="settings-header">
+              <h2>Business Settings</h2>
+              <button className="settings-close" onClick={() => setShowSettings(false)}>×</button>
+            </div>
+
+            <div className="settings-form">
+              <div className="settings-group">
+                <label>Business Name</label>
+                <input
+                  type="text"
+                  name="businessName"
+                  value={settingsForm.businessName}
+                  onChange={handleSettingsChange}
+                  placeholder="Enter your business name"
+                  maxLength="50"
+                  className="settings-input"
+                />
+                <span className="char-count">{settingsForm.businessName.length}/50</span>
+              </div>
+
+              <div className="settings-group">
+                <label>Owner Name</label>
+                <input
+                  type="text"
+                  name="ownerName"
+                  value={settingsForm.ownerName}
+                  onChange={handleSettingsChange}
+                  placeholder="Enter owner's name"
+                  maxLength="30"
+                  className="settings-input"
+                />
+                <span className="char-count">{settingsForm.ownerName.length}/30</span>
+              </div>
+
+              <div className="settings-group">
+                <label>Phone Number</label>
+                <input
+                  type="text"
+                  name="phoneNumber"
+                  value={settingsForm.phoneNumber}
+                  onChange={handleSettingsChange}
+                  placeholder="080XXXXXXXX or +234XXXXXXXXX"
+                  className="settings-input"
+                />
+                <span className="phone-hint">Nigerian format: 080, 081, 090, 070, etc.</span>
+              </div>
+            </div>
+
+            <div className="settings-footer">
+              <button className="settings-save" onClick={handleSaveSettings}>
+                Save Settings
+              </button>
+              <button className="settings-cancel" onClick={() => {
+                setSettingsForm({ ...settings });
+                setShowSettings(false);
+              }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credit & Debts Modal */}
+      {showDebts && (
+        <div className="debts-overlay" onClick={() => setShowDebts(false)}>
+          <div className="debts-modal" onClick={e => e.stopPropagation()}>
+            <div className="debts-header">
+              <h2>Credit & Debts</h2>
+              <button className="debts-close" onClick={() => setShowDebts(false)}>×</button>
+            </div>
+
+            <div className="debts-controls">
+              <div className="debts-search">
+                <input
+                  type="text"
+                  placeholder="Search by customer or item..."
+                  value={debtSearchQuery}
+                  onChange={(e) => setDebtSearchQuery(e.target.value)}
+                  className="debts-search-input"
+                />
+              </div>
+
+              <div className="debts-filter">
+                <button
+                  className={`filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
+                  onClick={() => setFilterStatus('all')}
+                >
+                  All
+                </button>
+                <button
+                  className={`filter-btn ${filterStatus === 'unpaid' ? 'active' : ''}`}
+                  onClick={() => setFilterStatus('unpaid')}
+                >
+                  Unpaid
+                </button>
+                <button
+                  className={`filter-btn ${filterStatus === 'paid' ? 'active' : ''}`}
+                  onClick={() => setFilterStatus('paid')}
+                >
+                  Paid
+                </button>
+              </div>
+            </div>
+
+            <div className="debts-summary">
+              <div className="summary-item">
+                <span className="summary-label">Total Owed:</span>
+                <span className="summary-value">₦{getTotalReceivables().toLocaleString()}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Unpaid Debts:</span>
+                <span className="summary-value">{debts.filter(d => d.status === 'unpaid').length}</span>
+              </div>
+            </div>
+
+            <div className="debts-list">
+              {getFilteredDebts().length === 0 ? (
+                <div className="no-debts">
+                  {debtSearchQuery ?
+                    'No debts match your search' :
+                    filterStatus === 'unpaid' ?
+                    'No unpaid debts! All customers have paid.' :
+                    filterStatus === 'paid' ?
+                    'No paid debts yet.' :
+                    'No credit sales recorded yet'}
+                </div>
+              ) : (
+                getFilteredDebts().map(debt => (
+                  <div key={debt.id} className={`debt-item ${debt.status}`}>
+                    <div className="debt-info">
+                      <div className="debt-customer-name">{debt.customerName}</div>
+                      <div className="debt-details">
+                        <span className="debt-item-name">{debt.itemName} (x{debt.quantity})</span>
+                        <span className="debt-date">
+                          {new Date(debt.saleDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="debt-amount">₦{debt.amount.toLocaleString()}</div>
+                      {debt.status === 'paid' && (
+                        <div className="debt-paid-info">
+                          Paid on {new Date(debt.paidDate).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+
+                    {debt.status === 'unpaid' && (
+                      <div className="debt-actions">
+                        <button
+                          className="whatsapp-btn"
+                          onClick={() => handleSendWhatsAppReminder(debt)}
+                          title="Send WhatsApp reminder"
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                          </svg>
+                          Remind
+                        </button>
+                        <button
+                          className="mark-paid-btn"
+                          onClick={() => {
+                            if (window.confirm(`Mark ₦${debt.amount.toLocaleString()} from ${debt.customerName} as paid?`)) {
+                              handleMarkAsPaid(debt.id);
+                            }
+                          }}
+                        >
+                          Mark as Paid
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="debts-footer">
+              <button className="close-debts-btn" onClick={() => setShowDebts(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Low Stock Modal */}
+      {showLowStock && (
+        <div className="low-stock-overlay" onClick={() => setShowLowStock(false)}>
+          <div className="low-stock-modal" onClick={e => e.stopPropagation()}>
+            <div className="low-stock-header">
+              <h2>Low Stock Items</h2>
+              <button className="low-stock-close" onClick={() => setShowLowStock(false)}>×</button>
+            </div>
+
+            <div className="low-stock-search">
+              <input
+                type="text"
+                placeholder="Search low stock items..."
+                value={stockSearchQuery}
+                onChange={(e) => setStockSearchQuery(e.target.value)}
+                className="stock-search-input"
+              />
+            </div>
+
+            <div className="low-stock-list">
+              {getLowStockItems().length === 0 ? (
+                <div className="no-low-stock">
+                  {stockSearchQuery ?
+                    'No matching low stock items found' :
+                    'Great! All items are well stocked'}
+                </div>
+              ) : (
+                getLowStockItems().map(item => (
+                  <div key={item.id} className="low-stock-item">
+                    <div className="stock-item-info">
+                      <div className="stock-item-name">{item.name}</div>
+                      <div className="stock-item-details">
+                        <span className="stock-category">{item.category}</span>
+                        <span className="stock-current">Current: {item.qty}</span>
+                      </div>
+                    </div>
+
+                    <div className="stock-update-section">
+                      <input
+                        type="text"
+                        value={stockUpdateForm[item.id] || ''}
+                        onChange={(e) => handleStockUpdateChange(item.id, e.target.value)}
+                        placeholder="Add qty"
+                        className="stock-update-input"
+                      />
+                      <button
+                        className="add-stock-btn"
+                        onClick={() => handleAddStock(item.id)}
+                        disabled={!stockUpdateForm[item.id]}
+                      >
+                        Add Stock
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="low-stock-footer">
+              <div className="stock-summary">
+                Total low stock items: {getLowStockItems().length}
+              </div>
+              <button className="close-stock-btn" onClick={() => setShowLowStock(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Undo Toast */}
+      {showToast && lastSale && (
+        <div className="toast-notification">
+          <div className="toast-content">
+            <span>
+              ✓ Sold {lastSale.quantity} × {lastSale.itemName} for ₦{lastSale.totalAmount.toLocaleString()}
+              {lastSale.paymentMethod === 'credit' && ` (Credit: ${lastSale.customerName})`}
+            </span>
+            <button className="undo-btn" onClick={handleUndoSale}>
+              Undo
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;

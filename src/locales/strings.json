@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "Storehouse",
+    "tagline": "Inventory Management for Nigerian Retailers"
+  },
+
+  "plans": {
+    "free": "Free",
+    "starter": "Starter",
+    "business": "Business",
+    "freePrice": "₦0",
+    "starterPrice": "₦5,000/month",
+    "businessPrice": "₦10,000/month"
+  },
+
+  "credits": {
+    "sellOnCredit": "Sell on credit",
+    "customer": "Customer",
+    "customerName": "Customer name",
+    "phone": "Phone",
+    "dueDate": "Due date",
+    "sendWhatsAppReceipt": "Send WhatsApp receipt",
+    "consentText": "I have customer's consent to receive WhatsApp messages",
+    "credits": "Credits",
+    "receivables": "Receivables",
+    "open": "Open",
+    "overdue": "Overdue",
+    "collect": "Collect",
+    "collectAmount1": "+₦1,000",
+    "collectAmount2": "+₦5,000",
+    "collectFull": "Full",
+    "remindOnWhatsApp": "Remind on WhatsApp",
+    "principal": "Principal",
+    "paid": "Paid",
+    "balance": "Balance",
+    "status": "Status"
+  },
+
+  "dashboard": {
+    "todaysSales": "Today's Sales",
+    "itemsInStock": "Items in Stock",
+    "lowStock": "Low Stock",
+    "receivables": "Receivables",
+    "viewSalesHistory": "View sales history"
+  },
+
+  "toasts": {
+    "saleRecorded": "Sale recorded.",
+    "creditSaved": "Credit saved.",
+    "paymentRecorded": "Payment recorded.",
+    "reminderSent": "Reminder sent.",
+    "consentRequired": "Please get customer consent first.",
+    "notEnoughStock": "Not enough stock. Only {qty} units available.",
+    "productLimitReached": "Free plan limited to 10 products. Upgrade to add unlimited products.",
+    "upgradeRequired": "This feature requires Starter or Business plan."
+  },
+
+  "common": {
+    "stockLeft": "Stock left: {qty} units"
+  }
+}
