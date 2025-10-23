@@ -73,6 +73,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItemId, setExpandedItemId] = useState(null); // For expandable table rows
   const [showCreditsDrawer, setShowCreditsDrawer] = useState(false);
+  const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [creditsTab, setCreditsTab] = useState('all'); // 'all' | 'overdue' | 'paid'
   const [creditCustomers, setCreditCustomers] = useState({}); // Map of customerId -> customer data
   const [confirmMarkPaid, setConfirmMarkPaid] = useState(null); // Customer to mark paid
@@ -121,6 +122,11 @@ function App() {
 
   // Sales tracking state (now from IndexedDB)
   const [sales, setSales] = useState([]);
+  const [salesSearchTerm, setSalesSearchTerm] = useState('');
+  const [salesDateFilter, setSalesDateFilter] = useState('all');
+  const [salesPaymentFilter, setSalesPaymentFilter] = useState('all');
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [showShareMenu, setShowShareMenu] = useState(false);
 
   // Record sale form state
   const [saleForm, setSaleForm] = useState({
@@ -2053,6 +2059,180 @@ Low Stock: ${lowStockItems.length}
       .reduce((sum, debt) => sum + debt.amount, 0);
   };
 
+  // Sales History Functions
+  const salesWithItems = useMemo(() => {
+    return sales.map(sale => {
+      const item = items.find(i => i.id === sale.itemId);
+      return {
+        ...sale,
+        itemName: item?.name || 'Deleted Item'
+      };
+    }).sort((a, b) => b.createdAt - a.createdAt); // Newest first
+  }, [sales, items]);
+
+  const filteredSales = useMemo(() => {
+    let result = [...salesWithItems];
+
+    // Search filter
+    if (salesSearchTerm) {
+      const lower = salesSearchTerm.toLowerCase();
+      result = result.filter(s =>
+        s.itemName?.toLowerCase().includes(lower) ||
+        s.customerName?.toLowerCase().includes(lower)
+      );
+    }
+
+    // Date filter
+    if (salesDateFilter !== 'all') {
+      const now = Date.now();
+      const ranges = {
+        today: now - (24 * 60 * 60 * 1000),
+        week: now - (7 * 24 * 60 * 60 * 1000),
+        month: now - (30 * 24 * 60 * 60 * 1000),
+      };
+      result = result.filter(s => s.createdAt >= ranges[salesDateFilter]);
+    }
+
+    // Payment filter
+    if (salesPaymentFilter !== 'all') {
+      result = result.filter(s => s.paymentMethod === salesPaymentFilter);
+    }
+
+    return result;
+  }, [salesWithItems, salesSearchTerm, salesDateFilter, salesPaymentFilter]);
+
+  const salesSummary = useMemo(() => {
+    return filteredSales.reduce((acc, sale) => {
+      const amount = (sale.sellKobo * sale.qty) / 100;
+
+      acc.total += amount;
+      acc.count++;
+
+      if (sale.paymentMethod === 'cash') acc.cash += amount;
+      else if (sale.paymentMethod === 'transfer' || sale.paymentMethod === 'card') acc.card += amount;
+      else if (sale.paymentMethod === 'credit') acc.credit += amount;
+
+      return acc;
+    }, { total: 0, count: 0, cash: 0, card: 0, credit: 0 });
+  }, [filteredSales]);
+
+  const exportSalesToCSV = () => {
+    if (filteredSales.length === 0) {
+      displayToast('No sales to export');
+      return;
+    }
+
+    const headers = ['Date', 'Time', 'Item', 'Quantity', 'Unit Price', 'Total', 'Payment', 'Customer'];
+    const rows = filteredSales.map(s => [
+      new Date(s.createdAt).toLocaleDateString(),
+      new Date(s.createdAt).toLocaleTimeString(),
+      s.itemName,
+      s.qty,
+      (s.sellKobo / 100).toLocaleString(),
+      ((s.sellKobo * s.qty) / 100).toLocaleString(),
+      s.paymentMethod || 'Cash',
+      s.customerName || '-'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sales-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    displayToast('CSV exported successfully');
+  };
+
+  const generateWhatsAppSummary = (period) => {
+    let periodSales;
+    let periodLabel;
+
+    const now = Date.now();
+    if (period === 'today') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      periodSales = salesWithItems.filter(s => s.createdAt >= todayStart.getTime());
+      periodLabel = 'TODAY';
+    } else if (period === 'week') {
+      periodSales = salesWithItems.filter(s => s.createdAt >= now - (7 * 24 * 60 * 60 * 1000));
+      periodLabel = 'THIS WEEK';
+    } else if (period === 'month') {
+      periodSales = salesWithItems.filter(s => s.createdAt >= now - (30 * 24 * 60 * 60 * 1000));
+      periodLabel = 'THIS MONTH';
+    }
+
+    if (!periodSales || periodSales.length === 0) {
+      displayToast('No sales for this period');
+      return;
+    }
+
+    const summary = periodSales.reduce((acc, sale) => {
+      const amount = (sale.sellKobo * sale.qty) / 100;
+      acc.total += amount;
+      acc.count++;
+      if (sale.paymentMethod === 'cash') acc.cash += amount;
+      else if (sale.paymentMethod === 'transfer' || sale.paymentMethod === 'card') acc.card += amount;
+      else if (sale.paymentMethod === 'credit') acc.credit += amount;
+
+      // Track items
+      const name = sale.itemName;
+      acc.items[name] = (acc.items[name] || 0) + amount;
+
+      return acc;
+    }, { total: 0, count: 0, cash: 0, card: 0, credit: 0, items: {} });
+
+    // Get top 3 items
+    const top3 = Object.entries(summary.items)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3);
+
+    const dateRange = periodSales.length > 0
+      ? `${new Date(periodSales[periodSales.length - 1].createdAt).toLocaleDateString()} - ${new Date(periodSales[0].createdAt).toLocaleDateString()}`
+      : '';
+
+    const msg = `📊 ${settings.businessName || 'STOREHOUSE'} ${periodLabel} REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+📅 ${dateRange}
+
+━━━━━━━━━━━━━━━━━━━━
+💰 SALES SUMMARY
+
+Total: ₦${summary.total.toLocaleString()}
+Transactions: ${summary.count}
+
+Cash: ₦${summary.cash.toLocaleString()}
+Card: ₦${summary.card.toLocaleString()}
+Credit: ₦${summary.credit.toLocaleString()}
+
+━━━━━━━━━━━━━━━━━━━━
+🔥 TOP SELLERS
+
+${top3.map(([name, amt], i) =>
+  `${i + 1}. ${name} - ₦${amt.toLocaleString()}`
+).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━
+Powered by Storehouse 📊`;
+
+    const encoded = encodeURIComponent(msg);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+  };
+
+  const clearSalesFilters = () => {
+    setSalesSearchTerm('');
+    setSalesDateFilter('all');
+    setSalesPaymentFilter('all');
+  };
+
+  const hasActiveSalesFilters = salesSearchTerm || salesDateFilter !== 'all' || salesPaymentFilter !== 'all';
+
   return (
     <div className="app container">
       {/* Header */}
@@ -2180,9 +2360,7 @@ Low Stock: ${lowStockItems.length}
           </div>
           <button
             className="kpi-link"
-            onClick={() => {
-              displayToast('Sales history coming soon');
-            }}
+            onClick={() => setShowSalesHistory(true)}
           >
             View sales history
           </button>
@@ -3860,6 +4038,256 @@ Low Stock: ${lowStockItems.length}
               >
                 Confirm Payment
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sales History Page */}
+      {showSalesHistory && (
+        <div className="sales-history-page">
+          <div className="sales-history-container">
+            {/* Header */}
+            <div className="sales-history-header">
+              <button
+                className="back-button"
+                onClick={() => setShowSalesHistory(false)}
+                aria-label="Back to dashboard"
+              >
+                ←
+              </button>
+              <h1>📊 Sales History</h1>
+              <div className="header-actions">
+                <button
+                  className="action-btn-small"
+                  onClick={exportSalesToCSV}
+                  title="Export to CSV"
+                >
+                  📥 Export
+                </button>
+                <button
+                  className="action-btn-small"
+                  onClick={() => setShowShareMenu(!showShareMenu)}
+                  title="Share summary"
+                >
+                  📱 Share
+                </button>
+              </div>
+            </div>
+
+            {/* Share Menu */}
+            {showShareMenu && (
+              <div className="share-menu-dropdown">
+                <button onClick={() => { generateWhatsAppSummary('today'); setShowShareMenu(false); }}>
+                  📅 Today's Summary
+                </button>
+                <button onClick={() => { generateWhatsAppSummary('week'); setShowShareMenu(false); }}>
+                  📆 This Week
+                </button>
+                <button onClick={() => { generateWhatsAppSummary('month'); setShowShareMenu(false); }}>
+                  📊 This Month
+                </button>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="sales-filters">
+              <input
+                type="search"
+                className="sales-search"
+                placeholder="🔍 Search items, customers..."
+                value={salesSearchTerm}
+                onChange={(e) => setSalesSearchTerm(e.target.value)}
+              />
+              <select
+                value={salesDateFilter}
+                onChange={(e) => setSalesDateFilter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+              </select>
+              <select
+                value={salesPaymentFilter}
+                onChange={(e) => setSalesPaymentFilter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Payments</option>
+                <option value="cash">Cash</option>
+                <option value="transfer">Transfer</option>
+                <option value="card">Card</option>
+                <option value="credit">Credit</option>
+              </select>
+              {hasActiveSalesFilters && (
+                <button
+                  className="clear-filters-btn"
+                  onClick={clearSalesFilters}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Summary Cards */}
+            <div className="sales-summary-grid">
+              <div className="summary-card total">
+                <div className="card-title">Total Sales</div>
+                <div className="card-value">₦{salesSummary.total.toLocaleString()}</div>
+                <div className="card-subtitle">{salesSummary.count} sale{salesSummary.count !== 1 ? 's' : ''}</div>
+              </div>
+              <div className="summary-card cash">
+                <div className="card-title">Cash</div>
+                <div className="card-value">₦{salesSummary.cash.toLocaleString()}</div>
+              </div>
+              <div className="summary-card card-payment">
+                <div className="card-title">Card/Transfer</div>
+                <div className="card-value">₦{salesSummary.card.toLocaleString()}</div>
+              </div>
+              <div className="summary-card credit">
+                <div className="card-title">Credit</div>
+                <div className="card-value">₦{salesSummary.credit.toLocaleString()}</div>
+              </div>
+            </div>
+
+            {/* Sales Table - Desktop */}
+            {filteredSales.length > 0 ? (
+              <>
+                <div className="sales-table-container desktop-only">
+                  <table className="sales-table">
+                    <thead>
+                      <tr>
+                        <th>Date & Time</th>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Amount</th>
+                        <th>Payment</th>
+                        <th>Customer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSales.map(sale => (
+                        <tr
+                          key={sale.id}
+                          onClick={() => setSelectedSale(sale)}
+                          className="clickable-row"
+                        >
+                          <td>
+                            <div>{new Date(sale.createdAt).toLocaleDateString()}</div>
+                            <div className="time-text">{new Date(sale.createdAt).toLocaleTimeString()}</div>
+                          </td>
+                          <td>{sale.itemName}</td>
+                          <td>{sale.qty}</td>
+                          <td>₦{((sale.sellKobo * sale.qty) / 100).toLocaleString()}</td>
+                          <td>
+                            <span className={`payment-badge ${sale.paymentMethod}`}>
+                              {sale.paymentMethod || 'cash'}
+                            </span>
+                          </td>
+                          <td>{sale.customerName || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Sales Cards - Mobile */}
+                <div className="sales-cards mobile-only">
+                  {filteredSales.map(sale => (
+                    <div
+                      key={sale.id}
+                      className="sale-card"
+                      onClick={() => setSelectedSale(sale)}
+                    >
+                      <div className="sale-card-header">
+                        <div className="sale-item-name">{sale.itemName}</div>
+                        <div className="sale-amount">₦{((sale.sellKobo * sale.qty) / 100).toLocaleString()}</div>
+                      </div>
+                      <div className="sale-card-details">
+                        <span>Qty: {sale.qty}</span>
+                        <span>•</span>
+                        <span className={`payment-badge ${sale.paymentMethod}`}>
+                          {sale.paymentMethod || 'cash'}
+                        </span>
+                      </div>
+                      <div className="sale-card-footer">
+                        <span className="sale-date">{new Date(sale.createdAt).toLocaleString()}</span>
+                        {sale.customerName && <span className="sale-customer">{sale.customerName}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">📊</div>
+                <h3>{hasActiveSalesFilters ? 'No sales found' : 'No sales yet'}</h3>
+                <p>{hasActiveSalesFilters ? 'Try adjusting your filters' : 'Sales you record will appear here'}</p>
+                {hasActiveSalesFilters ? (
+                  <button className="btn-primary" onClick={clearSalesFilters}>
+                    Clear Filters
+                  </button>
+                ) : (
+                  <button className="btn-primary" onClick={() => {
+                    setShowSalesHistory(false);
+                    setShowRecordSale(true);
+                  }}>
+                    Record First Sale
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sale Details Modal */}
+      {selectedSale && (
+        <div className="sale-details-overlay" onClick={() => setSelectedSale(null)}>
+          <div className="sale-details-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Sale Details</h3>
+              <button className="close-btn" onClick={() => setSelectedSale(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <section>
+                <h4>Item</h4>
+                <p className="detail-text">{selectedSale.itemName}</p>
+                <p className="detail-subtext">
+                  {selectedSale.qty} × ₦{(selectedSale.sellKobo / 100).toLocaleString()}
+                </p>
+                <p className="detail-total">
+                  Total: ₦{((selectedSale.sellKobo * selectedSale.qty) / 100).toLocaleString()}
+                </p>
+              </section>
+
+              <section>
+                <h4>Payment</h4>
+                <p className="detail-text">
+                  Method: <span className={`payment-badge ${selectedSale.paymentMethod}`}>
+                    {selectedSale.paymentMethod || 'cash'}
+                  </span>
+                </p>
+                <p className="detail-subtext">
+                  Date: {new Date(selectedSale.createdAt).toLocaleString()}
+                </p>
+              </section>
+
+              {selectedSale.customerName && (
+                <section>
+                  <h4>Customer</h4>
+                  <p className="detail-text">Name: {selectedSale.customerName}</p>
+                  {selectedSale.phone && (
+                    <p className="detail-subtext">Phone: {selectedSale.phone}</p>
+                  )}
+                  {selectedSale.dueDate && (
+                    <p className="detail-subtext">
+                      Due: {new Date(selectedSale.dueDate).toLocaleDateString()}
+                    </p>
+                  )}
+                </section>
+              )}
             </div>
           </div>
         </div>
