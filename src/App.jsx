@@ -931,11 +931,16 @@ function App() {
     if (selectedId) {
       const selectedItem = items.find(item => item.id === parseInt(selectedId));
       if (selectedItem) {
+        // Get price from sellKobo (or fallback to sellingPrice/sellPrice)
+        const sellKobo = selectedItem.sellKobo ?? selectedItem.sellingPrice ?? selectedItem.sellPrice ?? 0;
+        const sellNaira = Math.round(sellKobo / 100);
+
         setCalcForm({
           ...calcForm,
           itemId: selectedId,
           itemName: selectedItem.name,
-          price: selectedItem.sellingPrice.toString()
+          price: sellNaira > 0 ? sellNaira.toString() : '',
+          quantity: '1' // Auto-fill quantity to 1
         });
       }
     } else {
@@ -943,7 +948,8 @@ function App() {
         ...calcForm,
         itemId: '',
         itemName: '',
-        price: ''
+        price: '',
+        quantity: ''
       });
     }
   };
@@ -968,13 +974,18 @@ function App() {
 
   const handleUseInSale = () => {
     if (calcForm.itemId && calcForm.quantity && calcForm.price) {
-      // Pre-fill the Record Sale form
+      // Pre-fill the Record Sale form with comma-formatted price
       setSaleForm({
         itemId: calcForm.itemId,
         quantity: calcForm.quantity,
-        sellPrice: calcForm.price,
+        sellPrice: formatNumberWithCommas(calcForm.price),
         paymentMethod: 'cash',
-        customerName: ''
+        customerName: '',
+        isCreditSale: false,
+        phone: '',
+        dueDate: todayPlusDaysISO(7),
+        sendWhatsApp: false,
+        hasConsent: false
       });
 
       // Close calculator and open Record Sale
@@ -2892,7 +2903,9 @@ Low Stock: ${lowStockItems.length}
                 <select
                   value={calcForm.itemId}
                   onChange={handleCalcItemSelect}
+                  onBlur={handleCalcItemSelect}
                   className="calc-input"
+                  style={{ minHeight: '44px' }}
                 >
                   <option value="">Select an item...</option>
                   {items.map(item => (
@@ -2908,11 +2921,13 @@ Low Stock: ${lowStockItems.length}
                   <label>Your Price (₦)</label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     name="price"
                     value={calcForm.price}
                     onChange={handleCalcChange}
-                    placeholder="0.00"
+                    placeholder="0"
                     className="calc-input"
+                    style={{ minHeight: '44px' }}
                   />
                 </div>
 
@@ -2920,12 +2935,14 @@ Low Stock: ${lowStockItems.length}
                   <label>Quantity</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     name="quantity"
                     value={calcForm.quantity}
                     onChange={handleCalcChange}
-                    placeholder="0"
+                    placeholder="1"
                     min="1"
                     className="calc-input"
+                    style={{ minHeight: '44px' }}
                   />
                 </div>
               </div>
