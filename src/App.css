@@ -1076,8 +1076,12 @@ body {
   border-radius: 20px;
   width: 90%;
   max-width: 450px;
+  max-height: 90vh;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: settingsSlideIn 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 @keyframes settingsSlideIn {
@@ -1097,6 +1101,7 @@ body {
   align-items: center;
   padding: 24px 24px 20px;
   border-bottom: 2px solid var(--light-blue);
+  flex-shrink: 0;
 }
 
 .settings-header h2 {
@@ -1128,6 +1133,9 @@ body {
 
 .settings-form {
   padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
 }
 
 .settings-group {
@@ -1182,6 +1190,8 @@ body {
   gap: 12px;
   padding: 20px 24px 24px;
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+  background: var(--white);
 }
 
 .settings-save {
@@ -1230,8 +1240,7 @@ body {
 
   .settings-modal {
     max-width: 500px;
-    max-height: 90vh;
-    overflow-y: auto;
+    max-height: 92vh;
   }
 
   .settings-form {
