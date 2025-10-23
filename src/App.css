@@ -3999,9 +3999,28 @@ select.calc-input,
 .form-input:-webkit-autofill,
 .calc-input:-webkit-autofill,
 .sale-form input:-webkit-autofill,
-.calculator-body input:-webkit-autofill {
+.calculator-body input:-webkit-autofill,
+.settings-input:-webkit-autofill {
   -webkit-text-fill-color: #0F172A !important;
   transition: background-color 9999s ease;
+}
+
+/* iOS Business Settings text visibility fix */
+.settings-input,
+.settings-input[type="text"],
+.settings-input[type="tel"] {
+  color: #0F172A !important;
+  -webkit-text-fill-color: #0F172A !important;
+  -webkit-opacity: 1 !important;
+  caret-color: #2563EB !important;
+  background-color: #fff !important;
+  font-size: 16px !important; /* Prevent iOS zoom */
+  min-height: 44px; /* iOS touch target */
+}
+
+.settings-input:focus {
+  -webkit-text-fill-color: #0F172A !important;
+  color: #0F172A !important;
 }
 
 /* Fix number input spinners on iOS */

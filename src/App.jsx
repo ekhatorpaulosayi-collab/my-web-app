@@ -2995,6 +2995,7 @@ Low Stock: ${lowStockItems.length}
                   placeholder="Enter your business name"
                   maxLength="50"
                   className="settings-input"
+                  style={{ minHeight: '44px' }}
                 />
                 <span className="char-count">{settingsForm.businessName.length}/50</span>
               </div>
@@ -3009,6 +3010,7 @@ Low Stock: ${lowStockItems.length}
                   placeholder="Enter owner's name"
                   maxLength="30"
                   className="settings-input"
+                  style={{ minHeight: '44px' }}
                 />
                 <span className="char-count">{settingsForm.ownerName.length}/30</span>
               </div>
@@ -3016,12 +3018,14 @@ Low Stock: ${lowStockItems.length}
               <div className="settings-group">
                 <label>Phone Number</label>
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="tel"
                   name="phoneNumber"
                   value={settingsForm.phoneNumber}
                   onChange={handleSettingsChange}
                   placeholder="080XXXXXXXX or +234XXXXXXXXX"
                   className="settings-input"
+                  style={{ minHeight: '44px' }}
                 />
                 <span className="phone-hint helper">Nigerian format: 080, 081, 090, 070, etc.</span>
               </div>
