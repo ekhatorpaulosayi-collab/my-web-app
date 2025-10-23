@@ -26,6 +26,8 @@ import {
   updateCustomer,
   addCustomer
 } from './db/idb';
+import { buildWhatsAppSummary } from './lib/share.js';
+import { computeTotals } from './lib/salesTotals.js';
 
 function App() {
   // Get strings for branding
@@ -1347,7 +1349,13 @@ function App() {
           qty,
           sellKobo,
           createdAt: Date.now(),
-          dayKey: localDayKey()
+          dayKey: localDayKey(),
+          // v5: Payment method tracking for accurate EOD reports
+          isCredit: saleForm.isCreditSale,
+          paymentMethod: saleForm.isCreditSale ? 'credit' : (saleForm.paymentMethod || 'cash'),
+          // Include customer info if present
+          customerName: saleForm.customerName || null,
+          dueDate: saleForm.dueDate || null
         };
         salesStore.add(saleData);
 
@@ -2102,18 +2110,17 @@ Low Stock: ${lowStockItems.length}
   }, [salesWithItems, salesSearchTerm, salesDateFilter, salesPaymentFilter]);
 
   const salesSummary = useMemo(() => {
-    return filteredSales.reduce((acc, sale) => {
-      const amount = (sale.sellKobo * sale.qty) / 100;
-
-      acc.total += amount;
-      acc.count++;
-
-      if (sale.paymentMethod === 'cash') acc.cash += amount;
-      else if (sale.paymentMethod === 'transfer' || sale.paymentMethod === 'card') acc.card += amount;
-      else if (sale.paymentMethod === 'credit') acc.credit += amount;
-
-      return acc;
-    }, { total: 0, count: 0, cash: 0, card: 0, credit: 0 });
+    // Use the shared helper for consistent calculations (matches WhatsApp summary)
+    const totals = computeTotals(filteredSales);
+    // Convert from kobo to Naira for display
+    return {
+      total: totals.total / 100,
+      count: totals.count,
+      cash: totals.cash / 100,
+      card: totals.card / 100,
+      credit: totals.credit / 100,
+      units: totals.units
+    };
   }, [filteredSales]);
 
   const exportSalesToCSV = () => {
@@ -2151,20 +2158,22 @@ Low Stock: ${lowStockItems.length}
 
   const generateWhatsAppSummary = (period) => {
     let periodSales;
-    let periodLabel;
+    let rangeLabel;
 
     const now = Date.now();
     if (period === 'today') {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       periodSales = salesWithItems.filter(s => s.createdAt >= todayStart.getTime());
-      periodLabel = 'TODAY';
+      rangeLabel = `Today: ${new Date().toLocaleDateString()}`;
     } else if (period === 'week') {
-      periodSales = salesWithItems.filter(s => s.createdAt >= now - (7 * 24 * 60 * 60 * 1000));
-      periodLabel = 'THIS WEEK';
+      const weekStart = new Date(now - (7 * 24 * 60 * 60 * 1000));
+      periodSales = salesWithItems.filter(s => s.createdAt >= weekStart.getTime());
+      rangeLabel = `${weekStart.toLocaleDateString()} - ${new Date().toLocaleDateString()}`;
     } else if (period === 'month') {
-      periodSales = salesWithItems.filter(s => s.createdAt >= now - (30 * 24 * 60 * 60 * 1000));
-      periodLabel = 'THIS MONTH';
+      const monthStart = new Date(now - (30 * 24 * 60 * 60 * 1000));
+      periodSales = salesWithItems.filter(s => s.createdAt >= monthStart.getTime());
+      rangeLabel = `${monthStart.toLocaleDateString()} - ${new Date().toLocaleDateString()}`;
     }
 
     if (!periodSales || periodSales.length === 0) {
@@ -2172,56 +2181,14 @@ Low Stock: ${lowStockItems.length}
       return;
     }
 
-    const summary = periodSales.reduce((acc, sale) => {
-      const amount = (sale.sellKobo * sale.qty) / 100;
-      acc.total += amount;
-      acc.count++;
-      if (sale.paymentMethod === 'cash') acc.cash += amount;
-      else if (sale.paymentMethod === 'transfer' || sale.paymentMethod === 'card') acc.card += amount;
-      else if (sale.paymentMethod === 'credit') acc.credit += amount;
+    // Use the shared helper for consistent calculations
+    const message = buildWhatsAppSummary(
+      periodSales,
+      rangeLabel,
+      settings.businessName || 'STOREHOUSE'
+    );
 
-      // Track items
-      const name = sale.itemName;
-      acc.items[name] = (acc.items[name] || 0) + amount;
-
-      return acc;
-    }, { total: 0, count: 0, cash: 0, card: 0, credit: 0, items: {} });
-
-    // Get top 3 items
-    const top3 = Object.entries(summary.items)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 3);
-
-    const dateRange = periodSales.length > 0
-      ? `${new Date(periodSales[periodSales.length - 1].createdAt).toLocaleDateString()} - ${new Date(periodSales[0].createdAt).toLocaleDateString()}`
-      : '';
-
-    const msg = `📊 ${settings.businessName || 'STOREHOUSE'} ${periodLabel} REPORT
-━━━━━━━━━━━━━━━━━━━━
-
-📅 ${dateRange}
-
-━━━━━━━━━━━━━━━━━━━━
-💰 SALES SUMMARY
-
-Total: ₦${summary.total.toLocaleString()}
-Transactions: ${summary.count}
-
-Cash: ₦${summary.cash.toLocaleString()}
-Card: ₦${summary.card.toLocaleString()}
-Credit: ₦${summary.credit.toLocaleString()}
-
-━━━━━━━━━━━━━━━━━━━━
-🔥 TOP SELLERS
-
-${top3.map(([name, amt], i) =>
-  `${i + 1}. ${name} - ₦${amt.toLocaleString()}`
-).join('\n')}
-
-━━━━━━━━━━━━━━━━━━━━
-Powered by Storehouse 📊`;
-
-    const encoded = encodeURIComponent(msg);
+    const encoded = encodeURIComponent(message);
     window.open(`https://wa.me/?text=${encoded}`, '_blank');
   };
 

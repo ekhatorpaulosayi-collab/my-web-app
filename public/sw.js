@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v39-revert-original';
+const CACHE_VERSION = 'v40-eod-fix';
 const CACHE_NAME = `storehouse-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',

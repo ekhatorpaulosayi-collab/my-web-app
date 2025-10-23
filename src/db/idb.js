@@ -2,7 +2,7 @@
 // Money stored as integer kobo (1 Naira = 100 kobo)
 
 const DB_NAME = 'storehouse';
-const DB_VERSION = 4; // Updated for lowerName index on customers + outbox store
+const DB_VERSION = 5; // v5: Backfill sales with isCredit + paymentMethod for accurate EOD reports
 
 let dbInstance = null;
 
@@ -113,6 +113,57 @@ export async function initDB() {
         const outboxStore = db.createObjectStore('outbox', { keyPath: 'id' }); // Use saleId as id for idempotency
         outboxStore.createIndex('kind', 'kind', { unique: false }); // Filter by operation type
         outboxStore.createIndex('createdAt', 'createdAt', { unique: false }); // Sort by date
+      }
+
+      // v5 migration: Backfill sales with isCredit and paymentMethod for accurate EOD reports
+      if (oldVersion < 5) {
+        console.log('[IndexedDB] v5: Backfilling sales with payment method fields');
+        const transaction = event.target.transaction;
+        const salesStore = transaction.objectStore('sales');
+
+        // Add indexes if they don't exist
+        if (!salesStore.indexNames.contains('paymentMethod')) {
+          salesStore.createIndex('paymentMethod', 'paymentMethod', { unique: false });
+        }
+        if (!salesStore.indexNames.contains('isCredit')) {
+          salesStore.createIndex('isCredit', 'isCredit', { unique: false });
+        }
+
+        // Backfill existing sales (idempotent - safe to re-run)
+        const getAllSales = salesStore.getAll();
+        getAllSales.onsuccess = () => {
+          const sales = getAllSales.result;
+          console.log(`[IndexedDB] Backfilling ${sales.length} sales records`);
+
+          sales.forEach(sale => {
+            let modified = false;
+
+            // Set isCredit if not present
+            if (typeof sale.isCredit === 'undefined') {
+              // Check if this was a credit sale by looking at customerName or other indicators
+              sale.isCredit = !!(sale.customerName && sale.dueDate);
+              modified = true;
+            }
+
+            // Set paymentMethod if not present
+            if (!sale.paymentMethod) {
+              if (sale.isCredit) {
+                sale.paymentMethod = 'credit';
+              } else {
+                // Default to 'cash' for old records without explicit payment method
+                sale.paymentMethod = 'cash';
+              }
+              modified = true;
+            }
+
+            // Save if modified
+            if (modified) {
+              salesStore.put(sale);
+            }
+          });
+
+          console.log('[IndexedDB] Sales backfill completed');
+        };
       }
 
       console.log('[IndexedDB] Migration completed successfully');
