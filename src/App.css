@@ -3932,3 +3932,116 @@ textarea {
   -webkit-background-clip: initial;
   background-clip: border-box;
 }
+
+/* === iOS Modal Input & Select Fixes === */
+/* Fix for Record Sale modal and Quick Calculator modal on iOS Safari */
+
+/* Fix text inputs in modals (Record Sale search, Calculator inputs) */
+.form-input,
+.calc-input,
+.sale-form input,
+.sale-form select,
+.calculator-body input,
+.calculator-body select {
+  color: #0F172A !important;
+  -webkit-text-fill-color: #0F172A !important;
+  caret-color: #2563EB !important;
+  background-color: #fff !important;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 16px !important; /* Prevent iOS zoom on focus */
+  min-height: 44px; /* Touch-friendly */
+  padding: 10px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+}
+
+/* Fix select dropdowns specifically */
+.form-input[type="text"],
+.calc-input[type="text"],
+select.form-input,
+select.calc-input,
+.sale-form select,
+.calculator-body select {
+  -webkit-text-fill-color: #0F172A !important;
+  background-color: #fff !important;
+  color: #0F172A !important;
+  font-size: 16px !important;
+  min-height: 44px;
+  /* Add dropdown arrow for iOS */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23475569' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+/* Fix option elements inside select */
+.form-input option,
+.calc-input option,
+.sale-form select option,
+.calculator-body select option {
+  color: #0F172A !important;
+  background-color: #fff !important;
+  font-size: 16px;
+}
+
+/* Fix placeholder text */
+.form-input::placeholder,
+.calc-input::placeholder,
+.sale-form input::placeholder,
+.calculator-body input::placeholder {
+  color: #64748B;
+  opacity: 0.7;
+  -webkit-text-fill-color: #64748B;
+}
+
+/* Fix autofill */
+.form-input:-webkit-autofill,
+.calc-input:-webkit-autofill,
+.sale-form input:-webkit-autofill,
+.calculator-body input:-webkit-autofill {
+  -webkit-text-fill-color: #0F172A !important;
+  transition: background-color 9999s ease;
+}
+
+/* Fix number input spinners on iOS */
+.form-input[type="number"],
+.calc-input[type="number"],
+.sale-form input[type="number"],
+.calculator-body input[type="number"] {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+
+.form-input[type="number"]::-webkit-inner-spin-button,
+.form-input[type="number"]::-webkit-outer-spin-button,
+.calc-input[type="number"]::-webkit-inner-spin-button,
+.calc-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Ensure modals have proper z-index */
+.sale-overlay,
+.calculator-overlay {
+  z-index: 9999 !important;
+}
+
+.sale-modal,
+.calculator-popup {
+  z-index: 10000 !important;
+}
+
+/* Fix iOS focus state */
+.form-input:focus,
+.calc-input:focus,
+.sale-form input:focus,
+.sale-form select:focus,
+.calculator-body input:focus,
+.calculator-body select:focus {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+  border-color: #2563EB;
+  -webkit-text-fill-color: #0F172A !important;
+  color: #0F172A !important;
+}

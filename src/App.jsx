@@ -56,6 +56,12 @@ function App() {
   });
   const [settingsForm, setSettingsForm] = useState({ ...settings });
 
+  // Beta Tester Mode - unlocks all premium features for testing
+  const [isBetaTester, setIsBetaTester] = useState(() => {
+    const saved = localStorage.getItem('storehouse-beta-mode');
+    return saved ? JSON.parse(saved) : true; // Default true for beta testing
+  });
+
   // Items from IndexedDB
   const [items, setItems] = useState([]);
 
@@ -693,18 +699,20 @@ function App() {
   const handleSave = async () => {
     console.log('[handleSave] Called', { formData, formattedPrices });
 
-    // Check plan limits
-    if (currentPlan === 'FREE' && items.length >= 10) {
-      console.log('[handleSave] FREE plan limit reached (10 products)');
-      setShowModal(false);
-      setShowUpgradePrompt(true);
-      return;
-    }
+    // Check plan limits (bypass for beta testers)
+    if (!isBetaTester) {
+      if (currentPlan === 'FREE' && items.length >= 10) {
+        console.log('[handleSave] FREE plan limit reached (10 products)');
+        setShowModal(false);
+        setShowUpgradePrompt(true);
+        return;
+      }
 
-    if (currentPlan === 'STARTER' && items.length >= 500) {
-      console.log('[handleSave] STARTER plan limit reached (500 products)');
-      displayToast('You\'ve reached the limit of 500 products. Upgrade to BUSINESS for unlimited products.');
-      return;
+      if (currentPlan === 'STARTER' && items.length >= 500) {
+        console.log('[handleSave] STARTER plan limit reached (500 products)');
+        displayToast('You\'ve reached the limit of 500 products. Upgrade to BUSINESS for unlimited products.');
+        return;
+      }
     }
 
     // Validation with detailed logging
@@ -1389,8 +1397,8 @@ function App() {
         displayToast('Sale recorded.');
       }
 
-      // WhatsApp receipt (plan gated)
-      const canSendWhatsApp = currentPlan !== 'FREE' || trialDaysLeft > 0;
+      // WhatsApp receipt (plan gated, but allowed for beta testers)
+      const canSendWhatsApp = isBetaTester || currentPlan !== 'FREE' || trialDaysLeft > 0;
       if (saleForm.isCreditSale && saleForm.sendWhatsApp && canSendWhatsApp) {
         const receipt = buildCreditReceipt({
           storeName: settings.businessName || 'Storehouse',
@@ -1627,6 +1635,9 @@ function App() {
   };
 
   const canAccessFeature = (feature) => {
+    // Beta testers have access to all features
+    if (isBetaTester) return true;
+
     const features = {
       'eod-report': ['STARTER', 'BUSINESS'],
       'credit-debt': ['STARTER', 'BUSINESS'],
@@ -2024,6 +2035,25 @@ Low Stock: ${lowStockItems.length}
           </button>
         </div>
       </header>
+
+      {/* Beta Mode Badge */}
+      {isBetaTester && (
+        <div style={{
+          margin: '8px 0',
+          padding: '10px 12px',
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '14px',
+          fontWeight: '600'
+        }}>
+          <span>🧪 BETA MODE - Testing Premium Features</span>
+          <span style={{ fontSize: '12px', opacity: '0.9' }}>Unlimited Access</span>
+        </div>
+      )}
 
       {/* Trial Banner */}
       {showTrialBanner && trialDaysLeft > 0 && (
@@ -2834,22 +2864,78 @@ Low Stock: ${lowStockItems.length}
                 />
                 <span className="phone-hint helper">Nigerian format: 080, 081, 090, 070, etc.</span>
               </div>
+
+              {/* Beta Tester Mode Toggle */}
+              <div className="settings-group" style={{ gridColumn: '1 / -1', marginTop: '16px', padding: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <label style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>🧪 Beta Tester Mode</label>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px', margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={isBetaTester}
+                      onChange={(e) => {
+                        const newValue = e.target.checked;
+                        setIsBetaTester(newValue);
+                        localStorage.setItem('storehouse-beta-mode', JSON.stringify(newValue));
+                        displayToast(newValue ? 'Beta Mode Enabled - All premium features unlocked!' : 'Beta Mode Disabled');
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: isBetaTester ? '#2563EB' : '#CBD5E1',
+                      transition: '0.3s',
+                      borderRadius: '28px'
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        content: '',
+                        height: '20px',
+                        width: '20px',
+                        left: isBetaTester ? '28px' : '4px',
+                        bottom: '4px',
+                        backgroundColor: 'white',
+                        transition: '0.3s',
+                        borderRadius: '50%'
+                      }}></span>
+                    </span>
+                  </label>
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0' }}>
+                  {isBetaTester ? '✓ Testing all premium features: Unlimited products, WhatsApp EOD reports, CSV export' : 'Enable to test all premium features during beta period'}
+                </p>
+              </div>
               </div>
             </div>
 
             <div className="settings-actions" style={{padding: "var(--gap)"}}>
               <div className="settings-plan-info plan-row">
+                {isBetaTester && (
+                  <span className="current-plan-badge pill" style={{ background: '#10B981', color: '#fff' }}>
+                    🧪 BETA MODE
+                  </span>
+                )}
                 <span className="current-plan-badge pill">
                   Current Plan: <strong>{currentPlan}</strong>
                 </span>
-                {currentPlan === 'FREE' && (
+                {!isBetaTester && currentPlan === 'FREE' && (
                   <span className="product-limit-badge pill pill--warn">
                     {items.length}/10 products
                   </span>
                 )}
-                {currentPlan === 'STARTER' && (
+                {!isBetaTester && currentPlan === 'STARTER' && (
                   <span className="product-limit-badge pill pill--warn">
                     {items.length}/500 products
+                  </span>
+                )}
+                {isBetaTester && (
+                  <span className="product-limit-badge pill" style={{ background: '#DCFCE7', color: '#166534' }}>
+                    {items.length} products (Unlimited)
                   </span>
                 )}
               </div>
