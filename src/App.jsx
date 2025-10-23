@@ -1226,9 +1226,16 @@ function App() {
         setSaleForm({
           ...saleForm,
           itemId: value,
-          sellPrice: sellNaira.toString()
+          sellPrice: sellNaira > 0 ? formatNumberWithCommas(sellNaira.toString()) : ''
         });
       }
+    } else if (name === 'sellPrice') {
+      // Format price with commas as user types
+      const formattedValue = formatNumberWithCommas(value);
+      setSaleForm({
+        ...saleForm,
+        sellPrice: formattedValue
+      });
     } else {
       setSaleForm({
         ...saleForm,
@@ -2681,13 +2688,12 @@ Low Stock: ${lowStockItems.length}
                     <div className="form-group">
                       <label>Your Price (₦)</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         name="sellPrice"
                         value={saleForm.sellPrice}
                         onChange={handleSaleFormChange}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
+                        placeholder="0"
                         className="form-input"
                         style={{ minHeight: '44px' }}
                       />
@@ -2839,7 +2845,7 @@ Low Stock: ${lowStockItems.length}
                       <span>Total Amount:</span>
                       <span className="total-value">
                         {showSalesData
-                          ? `₦${(parseInt(saleForm.quantity || 0) * parseFloat(saleForm.sellPrice || 0)).toLocaleString()}`
+                          ? `₦${(parseInt(saleForm.quantity || 0) * parseFloat(parseFormattedNumber(saleForm.sellPrice || '0'))).toLocaleString()}`
                           : '₦—'
                         }
                       </span>
