@@ -4045,3 +4045,80 @@ select.calc-input,
   -webkit-text-fill-color: #0F172A !important;
   color: #0F172A !important;
 }
+
+/* === Quick-Sell Table Row Styles === */
+/* Visual feedback for clickable/tappable inventory rows */
+
+.inventory-row[role="button"] {
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.inventory-row[role="button"]:hover {
+  background-color: #F8FAFC;
+  transform: translateX(2px);
+}
+
+.inventory-row[role="button"]:focus {
+  outline: 2px solid #2563EB;
+  outline-offset: -2px;
+  background-color: #EFF6FF;
+}
+
+.inventory-row[role="button"]:active {
+  background-color: #DBEAFE;
+  transform: scale(0.99);
+}
+
+/* Add subtle indicator for quick-sell */
+.inventory-row[role="button"]::after {
+  content: '→';
+  position: absolute;
+  right: 12px;
+  opacity: 0;
+  color: #2563EB;
+  font-size: 18px;
+  transition: opacity 0.2s ease;
+}
+
+.inventory-row[role="button"]:hover::after {
+  opacity: 0.6;
+}
+
+/* Mobile touch feedback */
+@media (max-width: 768px) {
+  .inventory-row[role="button"]:active {
+    background-color: #DBEAFE;
+  }
+}
+
+/* Expand button in table */
+.expand-icon button:hover {
+  background-color: #F1F5F9 !important;
+  border-radius: 4px;
+}
+
+.expand-icon button:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* === Search Results Dropdown Styles === */
+/* Smooth scrolling and touch-friendly for mobile */
+
+.sale-form .form-group {
+  position: relative;
+}
+
+/* Mobile optimizations for search dropdown */
+@media (max-width: 768px) {
+  .sale-form .form-group > div[style*="position: absolute"] {
+    max-height: 250px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Touch feedback for dropdown items */
+.sale-form .form-group > div[style*="position: absolute"] > div:active {
+  background-color: #DBEAFE !important;
+}

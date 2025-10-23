@@ -51,7 +51,8 @@ function App() {
     return saved ? JSON.parse(saved) : {
       businessName: '',
       ownerName: '',
-      phoneNumber: ''
+      phoneNumber: '',
+      quickSellEnabled: true // Tap item to open Record Sale
     };
   });
   const [settingsForm, setSettingsForm] = useState({ ...settings });
@@ -668,6 +669,46 @@ function App() {
       window.removeEventListener('sw-update-available', handleSWUpdate);
     };
   }, []);
+
+  // Quick-sell from table/search - Listen for open-record-sale event
+  useEffect(() => {
+    const handler = (e) => {
+      if (!settings.quickSellEnabled) return;
+
+      const itemId = e.detail?.itemId;
+      if (!itemId) return;
+
+      const item = items.find(i => i.id === parseInt(itemId));
+      if (!item) return;
+
+      // Pre-fill Record Sale form
+      // Convert kobo to Naira for display
+      const sellKobo = item.sellKobo ?? item.sellingPrice ?? item.sellPrice ?? 0;
+      const sellNaira = Math.round(sellKobo / 100);
+
+      setSaleForm({
+        itemId: item.id.toString(),
+        quantity: '1',
+        sellPrice: sellNaira > 0 ? formatNumberWithCommas(sellNaira.toString()) : '',
+        paymentMethod: 'cash',
+        isCreditSale: false,
+        customerName: '',
+        phone: '',
+        dueDate: todayPlusDaysISO(7),
+        sendWhatsApp: false,
+        hasConsent: false
+      });
+
+      // Clear search term
+      setItemSearchTerm('');
+
+      // Open modal
+      setShowRecordSale(true);
+    };
+
+    window.addEventListener('open-record-sale', handler);
+    return () => window.removeEventListener('open-record-sale', handler);
+  }, [items, settings.quickSellEnabled]);
 
   // Handle form changes
   const handleInputChange = (e) => {
@@ -2278,17 +2319,55 @@ Low Stock: ${lowStockItems.length}
                   <React.Fragment key={item.id}>
                     <tr
                       className="inventory-row"
-                      onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                      onClick={(e) => {
+                        // If clicking expand icon, just expand/collapse
+                        if (e.target.closest('.expand-icon')) {
+                          setExpandedItemId(isExpanded ? null : item.id);
+                        } else if (settings.quickSellEnabled) {
+                          // Quick-sell: Open Record Sale with item pre-filled
+                          window.dispatchEvent(new CustomEvent('open-record-sale', {
+                            detail: { itemId: item.id }
+                          }));
+                        } else {
+                          // Fallback: expand/collapse
+                          setExpandedItemId(isExpanded ? null : item.id);
+                        }
+                      }}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && settings.quickSellEnabled) {
+                          window.dispatchEvent(new CustomEvent('open-record-sale', {
+                            detail: { itemId: item.id }
+                          }));
+                        }
+                      }}
                       style={{ cursor: 'pointer' }}
+                      role="button"
+                      tabIndex={0}
+                      data-item-id={item.id}
+                      aria-label={`Sell: ${item.name}`}
                     >
-                      <td className="expand-icon">
-                        <span style={{
-                          display: 'inline-block',
-                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.2s ease'
-                        }}>
-                          ▼
-                        </span>
+                      <td className="expand-icon" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        >
+                          <span style={{
+                            display: 'inline-block',
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s ease'
+                          }}>
+                            ▼
+                          </span>
+                        </button>
                       </td>
                       <td className="item-name">{item.name}</td>
                       <td className="item-qty">{item.qty ?? 0}</td>
@@ -2482,7 +2561,7 @@ Low Stock: ${lowStockItems.length}
 
             <div className="sale-form">
               {/* Item search input */}
-              <div className="form-group">
+              <div className="form-group" style={{ position: 'relative' }}>
                 <label>Search Item</label>
                 <input
                   type="text"
@@ -2492,9 +2571,68 @@ Low Stock: ${lowStockItems.length}
                   className="form-input"
                   style={{ minHeight: '44px' }}
                 />
-                {itemSearchTerm && (
+
+                {/* Search results dropdown */}
+                {itemSearchTerm && filteredSaleItems.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    backgroundColor: '#fff',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                    zIndex: 1000,
+                    marginTop: '4px'
+                  }}>
+                    {filteredSaleItems.map(item => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          // Select this item and pre-fill price
+                          const sellKobo = item.sellKobo ?? item.sellingPrice ?? item.sellPrice ?? 0;
+                          const sellNaira = Math.round(sellKobo / 100);
+
+                          setSaleForm(prev => ({
+                            ...prev,
+                            itemId: item.id.toString(),
+                            sellPrice: sellNaira > 0 ? formatNumberWithCommas(sellNaira.toString()) : ''
+                          }));
+                          // Clear search term
+                          setItemSearchTerm('');
+                        }}
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #F1F5F9',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                      >
+                        <div style={{ fontWeight: '500', color: '#0F172A', marginBottom: '2px' }}>
+                          {item.name}
+                          {item.matchResult.priority > 2 && ' ≈'}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#64748B' }}>
+                          Stock: {item.qty} | Price: ₦{Math.round((item.sellKobo ?? item.sellingPrice ?? 0) / 100).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {itemSearchTerm && filteredSaleItems.length === 0 && (
+                  <small style={{ color: '#DC2626', fontSize: '13px', marginTop: '4px', display: 'block' }}>
+                    No items found matching "{itemSearchTerm}"
+                  </small>
+                )}
+                {itemSearchTerm && filteredSaleItems.length > 0 && (
                   <small style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', display: 'block' }}>
-                    Found {filteredSaleItems.length} item{filteredSaleItems.length !== 1 ? 's' : ''}
+                    Found {filteredSaleItems.length} item{filteredSaleItems.length !== 1 ? 's' : ''} - click to select
                   </small>
                 )}
               </div>
@@ -2863,6 +3001,50 @@ Low Stock: ${lowStockItems.length}
                   className="settings-input"
                 />
                 <span className="phone-hint helper">Nigerian format: 080, 081, 090, 070, etc.</span>
+              </div>
+
+              {/* Quick-Sell Feature Toggle */}
+              <div className="settings-group" style={{ gridColumn: '1 / -1', marginTop: '16px', padding: '12px', background: '#FFFBEB', borderRadius: '8px', border: '1px solid #FDE68A' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <label style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>⚡ Quick-Sell from Table</label>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px', margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={settingsForm.quickSellEnabled ?? true}
+                      onChange={(e) => {
+                        const newValue = e.target.checked;
+                        setSettingsForm(prev => ({ ...prev, quickSellEnabled: newValue }));
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: (settingsForm.quickSellEnabled ?? true) ? '#2563EB' : '#CBD5E1',
+                      transition: '0.3s',
+                      borderRadius: '28px'
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        content: '',
+                        height: '20px',
+                        width: '20px',
+                        left: (settingsForm.quickSellEnabled ?? true) ? '28px' : '4px',
+                        bottom: '4px',
+                        backgroundColor: 'white',
+                        transition: '0.3s',
+                        borderRadius: '50%'
+                      }}></span>
+                    </span>
+                  </label>
+                </div>
+                <p style={{ fontSize: '12px', color: '#92400E', margin: '4px 0 0' }}>
+                  {(settingsForm.quickSellEnabled ?? true) ? '✓ Tap any item in the table to quickly open Record Sale with that item pre-filled' : 'Disabled - Click expand arrow to view item details'}
+                </p>
               </div>
 
               {/* Beta Tester Mode Toggle */}
