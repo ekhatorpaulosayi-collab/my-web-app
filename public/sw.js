@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v39-revert-original';
 const CACHE_NAME = `storehouse-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -8,18 +8,19 @@ const urlsToCache = [
 
 // Install event - cache app shell
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
-      .then(() => self.skipWaiting())
   );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
+  self.clients.claim();
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -30,9 +31,6 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => {
-      // Take control of all pages immediately
-      return self.clients.claim();
     }).then(() => {
       // Notify all clients about the new version
       return self.clients.matchAll().then((clients) => {

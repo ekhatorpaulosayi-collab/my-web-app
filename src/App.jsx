@@ -614,6 +614,18 @@ function App() {
       });
   }, [items, itemSearchTerm]);
 
+  // Auto-select single item in Record Sale search
+  useEffect(() => {
+    if (filteredSaleItems.length === 1 && itemSearchTerm) {
+      const singleItem = filteredSaleItems[0];
+      setSaleForm(prev => ({
+        ...prev,
+        itemId: singleItem.id.toString(),
+        sellPrice: singleItem.sellPrice ? formatNumberWithCommas((singleItem.sellPrice / 100).toString()) : ''
+      }));
+    }
+  }, [filteredSaleItems, itemSearchTerm]);
+
   // Online/Offline detection
   useEffect(() => {
     const handleOnline = () => {
@@ -1972,7 +1984,7 @@ Low Stock: ${lowStockItems.length}
   };
 
   return (
-    <div className="app">
+    <div className="app container">
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-left">
@@ -2068,13 +2080,13 @@ Low Stock: ${lowStockItems.length}
       )}
 
       {/* KPI Cards */}
-      <div className="kpi-container">
-        <div className="kpi-card sales">
-          <div className="kpi-header">Today's Sales</div>
-          <div className="kpi-value">
+      <div className="kpi-container kpi-grid">
+        <div className="kpi-card kpi sales">
+          <div className="kpi-header label">Today's Sales</div>
+          <div className="kpi-value value">
             {showSalesData ? `₦${todaysSales.total.toLocaleString()}` : '₦—'}
           </div>
-          <div className="kpi-subtext">
+          <div className="kpi-subtext hint">
             from {todaysSales.transactions} sale{todaysSales.transactions !== 1 ? 's' : ''}
           </div>
           <button
@@ -2087,14 +2099,14 @@ Low Stock: ${lowStockItems.length}
           </button>
         </div>
 
-        <div className="kpi-card stock">
-          <div className="kpi-header">Items in Stock</div>
-          <div className="kpi-value">{totalItems.toLocaleString()}</div>
-          <div className="kpi-subtext">total units</div>
+        <div className="kpi-card kpi stock">
+          <div className="kpi-header label">Items in Stock</div>
+          <div className="kpi-value value">{totalItems.toLocaleString()}</div>
+          <div className="kpi-subtext hint">total units</div>
         </div>
 
         <div
-          className="kpi-card low-stock clickable"
+          className="kpi-card kpi low-stock clickable"
           onClick={handleLowStock}
           role="button"
           tabIndex={0}
@@ -2104,13 +2116,13 @@ Low Stock: ${lowStockItems.length}
             }
           }}
         >
-          <div className="kpi-header">Low Stock</div>
-          <div className="kpi-value">{lowStockItems}</div>
-          <div className="kpi-subtext">need restocking</div>
+          <div className="kpi-header label">Low Stock</div>
+          <div className="kpi-value value">{lowStockItems}</div>
+          <div className="kpi-subtext hint">need restocking</div>
         </div>
 
         <div
-          className="kpi-card receivables clickable"
+          className="kpi-card kpi receivables clickable"
           onClick={() => setShowCreditsDrawer(true)}
           role="button"
           tabIndex={0}
@@ -2120,34 +2132,34 @@ Low Stock: ${lowStockItems.length}
             }
           }}
         >
-          <div className="kpi-header">Customer Debt</div>
-          <div className="kpi-value">
+          <div className="kpi-header label">Customer Debt</div>
+          <div className="kpi-value value">
             {showSalesData ? `₦${receivables.total.toLocaleString()}` : '₦—'}
           </div>
-          <div className="kpi-subtext">
+          <div className="kpi-subtext hint">
             from {receivables.count} customer{receivables.count !== 1 ? 's' : ''}
           </div>
         </div>
       </div>
 
       {/* CTA Buttons - Only 3 primary actions */}
-      <div className="cta-buttons">
+      <div className="cta-buttons actions">
         <button
-          className="cta-btn accent"
+          className="cta-btn action-btn accent"
           onClick={() => setShowModal(true)}
         >
           <span className="cta-icon">+</span>
           Add Item
         </button>
         <button
-          className="cta-btn primary"
+          className="cta-btn action-btn secondary"
           onClick={handleRecordSale}
         >
           <span className="cta-icon">₦</span>
           Record Sale
         </button>
         <button
-          className="cta-btn primary-2"
+          className="cta-btn action-btn warn"
           onClick={handleLowStock}
         >
           <span className="cta-icon">⚠</span>
@@ -2155,13 +2167,13 @@ Low Stock: ${lowStockItems.length}
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="search-section">
+      {/* Search Bar & Inventory */}
+      <div className="search-section table-card">
         <div className="search-container">
           <div className="search-input-wrapper">
             <input
               type="text"
-              className="search-input"
+              className="search-input search"
               placeholder="Search items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -2193,10 +2205,8 @@ Low Stock: ${lowStockItems.length}
             )}
           </div>
         )}
-      </div>
 
-      {/* Inventory Table */}
-      <div className="inventory-section">
+        {/* Inventory Table */}
         <table className="inventory-table">
           <thead>
             <tr>
@@ -2210,7 +2220,7 @@ Low Stock: ${lowStockItems.length}
           <tbody>
             {getFilteredItems().length === 0 ? (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: '#8B9BB0' }}>
+                <td colSpan="5" className="empty" style={{ textAlign: 'center', padding: '20px' }}>
                   No items found matching "{searchQuery}"
                 </td>
               </tr>
@@ -2776,13 +2786,14 @@ Low Stock: ${lowStockItems.length}
       {/* Settings Modal - Completely Isolated */}
       {showSettings && (
         <div className="settings-overlay" onClick={() => setShowSettings(false)}>
-          <div className="settings-modal" onClick={e => e.stopPropagation()}>
+          <div className="settings-modal settings-sheet" onClick={e => e.stopPropagation()}>
             <div className="settings-header">
               <h2>Business Settings</h2>
               <button className="settings-close" onClick={() => setShowSettings(false)}>×</button>
             </div>
 
-            <div className="settings-form">
+            <div className="settings-form settings-content">
+              <div className="settings-grid">
               <div className="settings-group">
                 <label>Business Name</label>
                 <input
@@ -2821,48 +2832,49 @@ Low Stock: ${lowStockItems.length}
                   placeholder="080XXXXXXXX or +234XXXXXXXXX"
                   className="settings-input"
                 />
-                <span className="phone-hint">Nigerian format: 080, 081, 090, 070, etc.</span>
+                <span className="phone-hint helper">Nigerian format: 080, 081, 090, 070, etc.</span>
+              </div>
               </div>
             </div>
 
-            <div className="settings-actions">
-              <div className="settings-plan-info">
-                <span className="current-plan-badge">
+            <div className="settings-actions" style={{padding: "var(--gap)"}}>
+              <div className="settings-plan-info plan-row">
+                <span className="current-plan-badge pill">
                   Current Plan: <strong>{currentPlan}</strong>
                 </span>
                 {currentPlan === 'FREE' && (
-                  <span className="product-limit-badge">
+                  <span className="product-limit-badge pill pill--warn">
                     {items.length}/10 products
                   </span>
                 )}
                 {currentPlan === 'STARTER' && (
-                  <span className="product-limit-badge">
+                  <span className="product-limit-badge pill pill--warn">
                     {items.length}/500 products
                   </span>
                 )}
               </div>
-              <button className="btn-view-plans" onClick={() => {
+              <button className="btn-view-plans block-btn" onClick={() => {
                 setShowSettings(false);
                 setShowPlansModal(true);
               }}>
                 View Plans
               </button>
-              <button className="btn-send-eod" onClick={() => {
+              <button className="btn-send-eod block-btn" onClick={() => {
                 setShowSettings(false);
                 setShowEODModal(true);
               }}>
                 📤 Send EOD Report
               </button>
-              <button className="btn-export-csv" onClick={exportToCSV}>
+              <button className="btn-export-csv block-btn" onClick={exportToCSV}>
                 📊 Export Data (CSV)
               </button>
             </div>
 
-            <div className="settings-footer">
-              <button className="settings-save" onClick={handleSaveSettings}>
+            <div className="settings-footer actions-sticky">
+              <button className="settings-save btn" onClick={handleSaveSettings}>
                 Save Settings
               </button>
-              <button className="settings-cancel" onClick={() => {
+              <button className="settings-cancel btn secondary" onClick={() => {
                 setSettingsForm({ ...settings });
                 setShowSettings(false);
               }}>
@@ -3558,9 +3570,12 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
+      {/* Footer Spacer - prevents FAB from overlapping content */}
+      <div className="footer-spacer"></div>
+
       {/* Mobile FAB Calculator Button */}
       <button
-        className="calculator-fab"
+        className="calculator-fab fab"
         onClick={handleCalculator}
         aria-label="Open calculator"
         title="Calculator (Press C)"
@@ -3569,7 +3584,7 @@ Low Stock: ${lowStockItems.length}
       </button>
 
       {/* Footer */}
-      <footer className="app-footer">
+      <footer className="app-footer powered">
         <p>⚡ Powered by {strings.app.name}</p>
       </footer>
     </div>
