@@ -6,7 +6,12 @@
       "Bash(node -e:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(while read line)",
+      "Bash(do echo \"$line\")",
+      "Bash(done)",
+      "Read(//dev/**)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

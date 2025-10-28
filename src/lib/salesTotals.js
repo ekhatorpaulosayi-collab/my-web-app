@@ -3,6 +3,8 @@
  * Used by WhatsApp summary and Sales History to ensure consistent metrics
  */
 
+import { formatNaira } from '../utils/money.ts';
+
 /**
  * Compute sales totals broken down by payment method
  * @param {Array} rows - Array of sale records
@@ -51,6 +53,6 @@ export function computeTotals(rows) {
  * @returns {string} Formatted string like "₦450,000"
  */
 export function formatNGN(kobo) {
-  const naira = Math.round(kobo / 100);
-  return `₦${naira.toLocaleString()}`;
+  const naira = (kobo || 0) / 100;
+  return formatNaira(naira);
 }

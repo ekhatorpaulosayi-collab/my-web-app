@@ -1,6 +1,8 @@
 // IndexedDB helper using idb pattern
 // Money stored as integer kobo (1 Naira = 100 kobo)
 
+import { formatNaira } from '../utils/money.ts';
+
 const DB_NAME = 'storehouse';
 const DB_VERSION = 5; // v5: Backfill sales with isCredit + paymentMethod for accurate EOD reports
 
@@ -567,11 +569,8 @@ export async function saveSettings(settings) {
 
 // Utility: Format kobo to NGN currency
 export function formatNGN(kobo) {
-  const naira = kobo / 100;
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN'
-  }).format(naira);
+  const naira = (kobo || 0) / 100;
+  return formatNaira(naira);
 }
 
 // Utility: Convert NGN input to kobo

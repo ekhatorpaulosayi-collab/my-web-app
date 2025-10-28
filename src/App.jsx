@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 import { useStrings } from './hooks/useStrings';
 import {
@@ -28,10 +28,38 @@ import {
 } from './db/idb';
 import { buildWhatsAppSummary } from './lib/share.js';
 import { computeTotals } from './lib/salesTotals.js';
+import ReceiptPreview from './components/ReceiptPreview.jsx';
+import Chip from './components/ui/Chip.jsx';
+import CustomerDebtDrawer from './components/CustomerDebtDrawer.tsx';
+import RecordSaleModal from './components/RecordSaleModal.tsx';
+import BusinessSettings from './components/BusinessSettings.tsx';
+import {
+  getDebts,
+  addDebtNotify,
+  markDebtPaidNotify,
+  totalOpenDebt,
+  openCount,
+  isOverdue,
+  countsByStatus,
+  searchDebts,
+  subscribeDebts
+} from './state/debts.ts';
+import { logStockMovement } from './lib/stockMovements.ts';
+import { createDebtReminderLink, isValidNigerianPhone } from './utils/whatsapp.ts';
+import { loadSales, saveSales, loadDebts, saveDebts, formatNGN as formatCurrency, uid } from './lib/store.ts';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { safeParse, saveJson } from './utils/safeJson.ts';
+import { openWhatsApp } from './utils/wa.ts';
+import { formatNaira, safeMoney } from './utils/money.ts';
+import { useBusinessProfile } from './contexts/BusinessProfile.jsx';
+import CurrentDate from './components/CurrentDate.tsx';
 
 function App() {
   // Get strings for branding
   const strings = useStrings();
+
+  // Business profile context
+  const { profile, isProfileComplete } = useBusinessProfile();
 
   // Utility function to format number with commas
   const formatNumberWithCommas = (value) => {
@@ -46,7 +74,7 @@ function App() {
     return value.replace(/,/g, '');
   };
 
-  // Settings state - completely isolated
+  // Settings state - synced with BusinessSettings component
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('storehouse-settings');
@@ -57,13 +85,21 @@ function App() {
       quickSellEnabled: true // Tap item to open Record Sale
     };
   });
-  const [settingsForm, setSettingsForm] = useState({ ...settings });
 
   // Beta Tester Mode - unlocks all premium features for testing
   const [isBetaTester, setIsBetaTester] = useState(() => {
     const saved = localStorage.getItem('storehouse-beta-mode');
     return saved ? JSON.parse(saved) : true; // Default true for beta testing
   });
+
+  // Listen for settings updates from BusinessSettings component
+  useEffect(() => {
+    const handleSettingsUpdate = (e) => {
+      setSettings(e.detail);
+    };
+    window.addEventListener('settings:saved', handleSettingsUpdate);
+    return () => window.removeEventListener('settings:saved', handleSettingsUpdate);
+  }, []);
 
   // Items from IndexedDB
   const [items, setItems] = useState([]);
@@ -77,6 +113,7 @@ function App() {
   const [showCreditsDrawer, setShowCreditsDrawer] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [creditsTab, setCreditsTab] = useState('all'); // 'all' | 'overdue' | 'paid'
+  const [debtSearchQuery, setDebtSearchQuery] = useState(''); // DebtDrawer upgrade
   const [creditCustomers, setCreditCustomers] = useState({}); // Map of customerId -> customer data
   const [confirmMarkPaid, setConfirmMarkPaid] = useState(null); // Customer to mark paid
   const [lastReminders, setLastReminders] = useState(() => {
@@ -122,6 +159,10 @@ function App() {
   // Calculate profit and margin when prices change
   const [calculatedProfit, setCalculatedProfit] = useState({ profit: 0, margin: 0 });
 
+  // Stock mode for updating existing items ('add' = increment, 'replace' = set total)
+  const [existingItem, setExistingItem] = useState(null);
+  const [stockMode, setStockMode] = useState('add'); // 'add' | 'replace'
+
   // Sales tracking state (now from IndexedDB)
   const [sales, setSales] = useState([]);
   const [salesSearchTerm, setSalesSearchTerm] = useState('');
@@ -142,8 +183,12 @@ function App() {
     phone: '',
     dueDate: todayPlusDaysISO(7), // Default: today + 7 days
     sendWhatsApp: true, // Default ON
-    hasConsent: false // Consent checkbox
+    hasConsent: false, // Consent checkbox
+    note: '' // Optional message to customer
   });
+
+  // Ref for customer name input to enable autofocus when credit mode activates
+  const customerNameInputRef = useRef(null);
 
   // Toast state for undo
   const [showToast, setShowToast] = useState(false);
@@ -172,11 +217,7 @@ function App() {
 
   // Debt/Credit tracking state
   const [showDebts, setShowDebts] = useState(false);
-  const [debts, setDebts] = useState(() => {
-    const saved = localStorage.getItem('storehouse-debts');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [debtSearchQuery, setDebtSearchQuery] = useState('');
+  const [debts, setDebts] = useState(() => getDebts());
   const [filterStatus, setFilterStatus] = useState('all'); // all, unpaid, paid
 
   // Credits from IndexedDB (v2 schema)
@@ -187,10 +228,13 @@ function App() {
     localStorage.setItem('storehouse-items', JSON.stringify(items));
   }, [items]);
 
-  // Save debts to localStorage whenever they change
+  // Listen for debts changes to update KPI and drawer instantly
   useEffect(() => {
-    localStorage.setItem('storehouse-debts', JSON.stringify(debts));
-  }, [debts]);
+    const unsubscribe = subscribeDebts(() => {
+      setDebts(getDebts());
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (formData.purchasePrice && formData.sellingPrice) {
@@ -212,6 +256,30 @@ function App() {
       setCalculatedProfit({ profit: 0, margin: 0 });
     }
   }, [formData.purchasePrice, formData.sellingPrice]);
+
+  // Auto-focus customer name input when credit mode is activated
+  useEffect(() => {
+    if (saleForm.isCreditSale && customerNameInputRef.current) {
+      // Use setTimeout to ensure the input is rendered before focusing
+      setTimeout(() => {
+        customerNameInputRef.current?.focus();
+      }, 100);
+    }
+  }, [saleForm.isCreditSale]);
+
+  // Dev-only: Clear corrupted debts with Ctrl+Shift+D
+  useEffect(() => {
+    function onKey(e) {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        localStorage.removeItem('debts');
+        localStorage.removeItem('storehouse:debts');
+        alert('Cleared debts in localStorage.');
+        location.reload();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Calculate today's sales from IndexedDB (STAGE 3: Updated for new schema)
   const getTodaysSales = () => {
@@ -435,86 +503,101 @@ function App() {
 
   // Calculate customer debt from credits (open + overdue only)
   const receivables = useMemo(() => {
-    // Safety check: ensure credits is an array
-    if (!credits || !Array.isArray(credits)) {
-      return {
-        total: 0,
-        count: 0
-      };
-    }
-
-    const openCredits = credits.filter(c => c.status === 'open' || c.status === 'overdue');
-
-    const totalKobo = openCredits.reduce((sum, credit) => {
-      const balanceKobo = credit.principalKobo - (credit.paidKobo || 0);
-      return sum + balanceKobo;
-    }, 0);
-
-    // Convert kobo to naira
-    const totalNaira = Math.round(totalKobo / 100);
-
-    // Count unique customers
-    const uniqueCustomers = new Set(openCredits.map(c => c.customerId)).size;
-
     return {
-      total: totalNaira,
-      count: uniqueCustomers
+      total: totalOpenDebt(),
+      count: openCount()
     };
-  }, [credits]);
+  }, [debts]);
 
-  // Group credits by customer for the drawer
+  // Group debts by customer for the drawer
   const customerDebts = useMemo(() => {
-    if (!credits || !Array.isArray(credits) || !creditCustomers) {
+    try {
+      // Defensive: Merge debts from both IndexedDB and localStorage
+      const indexDbDebts = Array.isArray(debts) ? debts : [];
+      const localStorageDebts = loadDebts() || [];
+
+      // Convert localStorage debts to IndexedDB format for compatibility
+      const normalizedLocalDebts = (Array.isArray(localStorageDebts) ? localStorageDebts : [])
+        .filter(d => d && typeof d === 'object')
+        .map(debt => ({
+          ...debt,
+          id: debt?.id ?? `debt_${Date.now()}_${Math.random()}`,
+          customerName: (typeof debt?.customerName === 'string' && debt.customerName.trim()) ? debt.customerName : 'Unknown',
+          amount: Number(debt?.amount) || 0,
+          status: debt?.paidAt ? 'paid' : 'open',
+          dueDate: typeof debt?.dueDate === 'string' ? debt.dueDate : undefined,
+          phone: typeof debt?.phone === 'string' ? debt.phone : undefined
+        }));
+
+      // Merge both sources
+      const allDebts = [...indexDbDebts, ...normalizedLocalDebts];
+
+      if (allDebts.length === 0) {
+        return [];
+      }
+
+      // Group debts by customer name
+      const grouped = {};
+      allDebts.forEach(debt => {
+        if (!debt || typeof debt !== 'object') return;
+        const name = (typeof debt.customerName === 'string' && debt.customerName.trim()) ? debt.customerName : 'Unknown';
+        if (!grouped[name]) {
+          grouped[name] = {
+            customerName: name,
+            phone: debt.phone,
+            debts: [],
+            credits: [], // For compatibility with existing code
+            totalOwed: 0,
+            oldestDueDate: null,
+            hasOverdue: false
+          };
+        }
+
+        grouped[name].debts.push(debt);
+        grouped[name].credits.push(debt); // For compatibility
+
+        // Only count 'open' status debts in total owed
+        if (debt.status === 'open') {
+          const amount = Number(debt.amount) || 0;
+          grouped[name].totalOwed += amount;
+
+          // Track oldest due date
+          if (debt.dueDate) {
+            try {
+              const dueDate = new Date(debt.dueDate);
+              if (dueDate.toString() !== 'Invalid Date') {
+                if (!grouped[name].oldestDueDate || dueDate < grouped[name].oldestDueDate) {
+                  grouped[name].oldestDueDate = dueDate;
+                }
+
+                // Check if overdue
+                if (isOverdue(debt)) {
+                  grouped[name].hasOverdue = true;
+                }
+              }
+            } catch (e) {
+              // Invalid date, skip
+            }
+          }
+        }
+      });
+
+      // Convert to array and sort: overdue first, then by amount DESC
+      const customersArray = Object.values(grouped);
+      customersArray.sort((a, b) => {
+        // Overdue customers first
+        if (a.hasOverdue && !b.hasOverdue) return -1;
+        if (!a.hasOverdue && b.hasOverdue) return 1;
+        // Then by amount owed DESC
+        return b.totalOwed - a.totalOwed;
+      });
+
+      return customersArray;
+    } catch (error) {
+      console.error('[Customer Debts] Failed to load:', error);
       return [];
     }
-
-    // Group credits by customer
-    const grouped = {};
-    credits.forEach(credit => {
-      const customerId = credit.customerId;
-      if (!grouped[customerId]) {
-        grouped[customerId] = {
-          customerId,
-          customer: creditCustomers[customerId],
-          credits: [],
-          totalOwed: 0,
-          oldestDueDate: null,
-          hasOverdue: false
-        };
-      }
-
-      const balanceKobo = credit.principalKobo - (credit.paidKobo || 0);
-      grouped[customerId].credits.push(credit);
-
-      // Only count open/overdue credits in total owed
-      if (credit.status === 'open' || credit.status === 'overdue') {
-        grouped[customerId].totalOwed += balanceKobo;
-
-        // Track oldest due date
-        const dueDate = new Date(credit.dueDate);
-        if (!grouped[customerId].oldestDueDate || dueDate < grouped[customerId].oldestDueDate) {
-          grouped[customerId].oldestDueDate = dueDate;
-        }
-
-        // Check if overdue
-        if (credit.status === 'overdue' || dueDate < new Date()) {
-          grouped[customerId].hasOverdue = true;
-        }
-      }
-    });
-
-    // Convert to array and sort: overdue first, then by amount DESC
-    const customersArray = Object.values(grouped);
-    customersArray.sort((a, b) => {
-      // Overdue customers first
-      if (a.hasOverdue && !b.hasOverdue) return -1;
-      if (!a.hasOverdue && b.hasOverdue) return 1;
-      // Then by amount owed DESC
-      return b.totalOwed - a.totalOwed;
-    });
-
-    return customersArray;
-  }, [credits, creditCustomers]);
+  }, [debts]);
 
   // ========== FUZZY SEARCH UTILITIES ==========
 
@@ -719,7 +802,7 @@ function App() {
   }, [items, settings.quickSellEnabled]);
 
   // Handle form changes
-  const handleInputChange = (e) => {
+  const handleInputChange = async (e) => {
     const { name, value } = e.target;
 
     // Handle price fields with formatting
@@ -741,23 +824,40 @@ function App() {
         ...formData,
         [name]: value
       });
+
+      // Check for existing item when name changes
+      if (name === 'name' && value.trim()) {
+        try {
+          const existing = await checkItemExists(value.trim());
+          if (existing) {
+            setExistingItem(existing);
+            setStockMode('add'); // Default to 'add' mode
+          } else {
+            setExistingItem(null);
+          }
+        } catch (err) {
+          console.warn('[handleInputChange] Error checking existing item:', err);
+        }
+      } else if (name === 'name' && !value.trim()) {
+        setExistingItem(null);
+      }
     }
   };
 
   // Save new item
   const handleSave = async () => {
-    console.log('[handleSave] Called', { formData, formattedPrices });
+    console.log('[handleSave] Called', { formData, formattedPrices, existingItem, stockMode });
 
     // Check plan limits (bypass for beta testers)
     if (!isBetaTester) {
-      if (currentPlan === 'FREE' && items.length >= 10) {
+      if (currentPlan === 'FREE' && items.length >= 10 && !existingItem) {
         console.log('[handleSave] FREE plan limit reached (10 products)');
         setShowModal(false);
         setShowUpgradePrompt(true);
         return;
       }
 
-      if (currentPlan === 'STARTER' && items.length >= 500) {
+      if (currentPlan === 'STARTER' && items.length >= 500 && !existingItem) {
         console.log('[handleSave] STARTER plan limit reached (500 products)');
         displayToast('You\'ve reached the limit of 500 products. Upgrade to BUSINESS for unlimited products.');
         return;
@@ -770,11 +870,14 @@ function App() {
       displayToast('Please enter item name');
       return;
     }
-    if (!formData.qty || parseInt(formData.qty) <= 0) {
+
+    const qtyInput = parseInt(formData.qty);
+    if (!formData.qty || isNaN(qtyInput) || qtyInput <= 0) {
       console.log('[handleSave] Validation failed: qty invalid');
-      displayToast('Please enter valid quantity');
+      displayToast('Please enter a valid quantity greater than 0');
       return;
     }
+
     if (!formData.purchasePrice || parseFloat(formData.purchasePrice) < 0) {
       console.log('[handleSave] Validation failed: purchase price invalid');
       displayToast('Please enter valid purchase price');
@@ -790,38 +893,96 @@ function App() {
       console.log('[handleSave] Validation passed, saving...');
       const purchase = parseFloat(formData.purchasePrice);
       const selling = parseFloat(formData.sellingPrice);
+      const inputQty = parseInt(formData.qty);
 
-      // Convert naira to kobo for storage
-      const newItem = {
-        name: formData.name.trim(),
-        category: formData.category || 'General Merchandise',
-        qty: parseInt(formData.qty),
-        purchaseKobo: Math.round(purchase * 100),
-        sellKobo: Math.round(selling * 100),
-        reorderLevel: parseInt(formData.reorderLevel) || 10,
-        isDemo: false
+      // FORMAT HELPER for toasts
+      const formatCurrency = (kobo) => {
+        return new Intl.NumberFormat('en-NG', {
+          style: 'currency',
+          currency: 'NGN',
+          maximumFractionDigits: 0
+        }).format(kobo / 100);
       };
 
-      console.log('[handleSave] New item data:', newItem);
+      if (existingItem) {
+        // UPDATING EXISTING ITEM
+        const oldQty = existingItem.qty;
+        const oldPurchaseKobo = existingItem.purchaseKobo || 0;
 
-      // Check for duplicate name
-      const existing = await checkItemExists(newItem.name);
-      if (existing) {
-        console.log('[handleSave] Duplicate found:', existing);
-        const confirmUpdate = window.confirm(
-          `Item "${newItem.name}" already exists. Update it?`
-        );
-        if (confirmUpdate) {
-          await updateItem(existing.id, newItem);
-          console.log('[handleSave] Item updated');
+        if (stockMode === 'add') {
+          // ADD MODE: Increment stock
+          const delta = inputQty;
+          const newQty = oldQty + delta;
+
+          // Weighted average cost calculation
+          const newPurchaseKobo = Math.round(
+            (oldQty * oldPurchaseKobo + delta * Math.round(purchase * 100)) / Math.max(newQty, 1)
+          );
+
+          const updatedItem = {
+            qty: newQty,
+            purchaseKobo: newPurchaseKobo,
+            sellKobo: Math.round(selling * 100) // Update selling price if provided
+          };
+
+          await updateItem(existingItem.id, updatedItem);
+          console.log('[handleSave] ✅ Stock added:', { oldQty, delta, newQty });
+
+          // Log stock movement
+          logStockMovement({
+            itemId: existingItem.id,
+            type: 'in',
+            qty: delta,
+            unitCost: Math.round(purchase * 100),
+            reason: 'purchase',
+            at: new Date().toISOString()
+          });
+
+          displayToast(`✓ Added ${delta} to ${existingItem.name}: ${oldQty} → ${newQty}`);
+
         } else {
-          console.log('[handleSave] User cancelled update');
-          return;
+          // REPLACE MODE: Set total stock
+          const newTotal = inputQty;
+          const qtyDiff = newTotal - oldQty;
+
+          const updatedItem = {
+            qty: newTotal,
+            purchaseKobo: Math.round(purchase * 100),
+            sellKobo: Math.round(selling * 100)
+          };
+
+          await updateItem(existingItem.id, updatedItem);
+          console.log('[handleSave] ✅ Stock replaced:', { oldQty, newTotal });
+
+          // Log stock movement
+          logStockMovement({
+            itemId: existingItem.id,
+            type: 'adjust',
+            qty: qtyDiff,
+            unitCost: Math.round(purchase * 100),
+            reason: 'stock_take',
+            at: new Date().toISOString()
+          });
+
+          displayToast(`✓ Stock set to ${newTotal} for ${existingItem.name}`);
         }
+
       } else {
-        // Add new item to IndexedDB
+        // CREATING NEW ITEM
+        const newItem = {
+          name: formData.name.trim(),
+          category: formData.category || 'General Merchandise',
+          qty: inputQty,
+          purchaseKobo: Math.round(purchase * 100),
+          sellKobo: Math.round(selling * 100),
+          reorderLevel: parseInt(formData.reorderLevel) || 10,
+          isDemo: false
+        };
+
+        console.log('[handleSave] Creating new item:', newItem);
         const addedItem = await addItem(newItem);
         console.log('[handleSave] ✅ Item added to IndexedDB:', addedItem);
+        displayToast('✓ Item added successfully!');
       }
 
       // DEMO CLEANUP: Remove all demo items when user adds first real item
@@ -856,7 +1017,8 @@ function App() {
       });
       setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
       setCalculatedProfit({ profit: 0, margin: 0 });
-      displayToast('Item added successfully!');
+      setExistingItem(null);
+      setStockMode('add');
       console.log('[handleSave] ✅ SUCCESS! Item should now be visible in inventory table');
     } catch (error) {
       console.error('[handleSave] Error:', error);
@@ -904,6 +1066,7 @@ function App() {
       // Stage 3: Credit sale fields
       isCreditSale: false,
       phone: '',
+      note: '',
       dueDate: todayPlusDaysISO(7),
       sendWhatsApp: true,
       hasConsent: false
@@ -1120,116 +1283,76 @@ function App() {
 
   // Send reminder for customer (all their open debts)
   const handleSendCustomerReminder = (customerDebt) => {
-    const customer = customerDebt.customer;
-
-    if (!customer) {
-      displayToast('Customer information not available');
+    if (!customerDebt?.phone) {
+      displayToast('No phone number for this customer');
       return;
     }
 
-    const totalOwedNaira = Math.round(customerDebt.totalOwed / 100);
-    const dueDate = customerDebt.oldestDueDate
+    const totalOwedNaira = Math.round(customerDebt.totalOwed || 0);
+    const dueDateStr = customerDebt.oldestDueDate
       ? customerDebt.oldestDueDate.toLocaleDateString('en-NG', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      : 'Soon';
+      : 'soon';
 
-    // Create WhatsApp message
-    const message = encodeURIComponent(
-      `Hi ${customer.name},\n\n` +
-      `Reminder about ₦${totalOwedNaira.toLocaleString()} due ${dueDate}.\n\n` +
-      `Thanks!\n` +
-      `—${settings.businessName || 'Storehouse'}`
-    );
+    // Build reminder message
+    const msg = `Hello ${customerDebt.customerName || 'valued customer'}, you have an outstanding balance of ₦${totalOwedNaira.toLocaleString()} due ${dueDateStr}. Please make payment at your earliest convenience. Thank you! — ${settings.businessName || 'Storehouse'}`;
 
-    // Open WhatsApp
-    const phone = customer.phone || '';
-    const whatsappUrl = phone
-      ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`
-      : `https://wa.me/?text=${message}`;
-
-    window.open(whatsappUrl, '_blank');
+    // Use the safe WhatsApp opener
+    openWhatsApp(customerDebt.phone, msg);
     displayToast('WhatsApp reminder opened');
   };
 
   // Mark all customer credits as paid
-  const handleMarkCustomerPaid = async (customerDebt) => {
+  const handleMarkCustomerPaid = (customerDebt) => {
     try {
-      const db = await getDB();
+      if (!customerDebt || !Array.isArray(customerDebt.debts)) {
+        throw new Error('Invalid customer debt data');
+      }
 
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(['credits'], 'readwrite');
-        const creditsStore = tx.objectStore('credits');
+      const paidAt = new Date().toISOString();
 
-        tx.oncomplete = () => {
-          console.log('[Mark Paid] ✅ Transaction completed');
-          resolve();
-        };
-
-        tx.onerror = () => {
-          console.error('[Mark Paid] ❌ Transaction error:', tx.error);
-          reject(tx.error);
-        };
-
-        // Update all open/overdue credits for this customer
-        customerDebt.credits.forEach(credit => {
-          if (credit.status === 'open' || credit.status === 'overdue') {
-            const updatedCredit = {
-              ...credit,
-              status: 'paid',
-              paidKobo: credit.principalKobo,
-              paidAt: Date.now()
-            };
-            creditsStore.put(updatedCredit);
+      // Mark all open debts for this customer as paid using notify function
+      customerDebt.debts.forEach(debt => {
+        if (debt && debt.status === 'open') {
+          if (debt.id) {
+            markDebtPaidNotify(debt.id);
           }
-        });
-      });
 
-      // Reload credits
-      const updatedCredits = await getCredits();
-      setCredits(updatedCredits);
+          // Also update new localStorage debt store
+          const debts = loadDebts();
+          const d = debts.find(x => x.saleId === debt.id || x.customerName === debt.customerName);
+          if (d && !d.paidAt) {
+            d.paidAt = paidAt;
+            saveDebts(debts);
+
+            // Create a sale record for the repayment
+            const sales = loadSales();
+            sales.unshift({
+              id: uid(),
+              date: paidAt,
+              qty: 1,
+              unitPrice: debt.amount || 0,
+              amount: debt.amount || 0,
+              payment: "credit-paid",
+              customerName: debt.customerName || 'Unknown',
+              phone: debt.phone,
+              relatedDebtId: d.id,
+            });
+            saveSales(sales);
+          }
+        }
+      });
 
       // Close confirmation modal
       setConfirmMarkPaid(null);
 
       // Show success toast
-      const totalNaira = Math.round(customerDebt.totalOwed / 100);
-      displayToast(`✓ Marked ₦${totalNaira.toLocaleString()} as paid`);
+      const totalNaira = Math.round(customerDebt.totalOwed || 0);
+      displayToast(`✓ Marked ${formatNaira(totalNaira)} as paid`);
     } catch (error) {
       console.error('[Mark Paid] Failed:', error);
       displayToast('Failed to mark as paid. Please try again.');
+      setConfirmMarkPaid(null);
     }
-  };
-
-  // Settings handlers - completely isolated
-  const handleSettingsChange = (e) => {
-    const { name, value } = e.target;
-
-    // Character limits enforced
-    if (name === 'businessName' && value.length > 50) return;
-    if (name === 'ownerName' && value.length > 30) return;
-    if (name === 'phoneNumber' && value.length > 15) return;
-
-    setSettingsForm({
-      ...settingsForm,
-      [name]: value
-    });
-  };
-
-  const validateNigerianPhone = (phone) => {
-    // Nigerian phone format: +234 or 0 followed by 10 digits
-    const regex = /^(\+234|0)[789][01]\d{8}$/;
-    return regex.test(phone.replace(/\s/g, ''));
-  };
-
-  const handleSaveSettings = () => {
-    if (settingsForm.phoneNumber && !validateNigerianPhone(settingsForm.phoneNumber)) {
-      displayToast('Please enter a valid Nigerian phone number');
-      return;
-    }
-
-    setSettings(settingsForm);
-    localStorage.setItem('storehouse-settings', JSON.stringify(settingsForm));
-    setShowSettings(false);
-    displayToast('Settings saved successfully!');
   };
 
   // Record Sale handlers
@@ -1461,9 +1584,58 @@ function App() {
       setShowRecordSale(false);
 
       const totalKobo = qty * sellKobo;
+      const unitPrice = sellKobo / 100; // Convert to naira
+      const amount = qty * unitPrice;
+
+      // Save to localStorage store (for compatibility)
+      const sales = loadSales();
+      const saleRow = {
+        id: saleId,
+        date: new Date().toISOString(),
+        itemId: selectedItem.id.toString(),
+        itemName: selectedItem.name,
+        qty,
+        unitPrice,
+        amount,
+        payment: saleForm.isCreditSale ? "credit" : (saleForm.paymentMethod || 'cash'),
+        customerName: saleForm.isCreditSale ? saleForm.customerName.trim() : undefined,
+        phone: saleForm.isCreditSale && saleForm.phone ? saleForm.phone.trim() : undefined,
+        note: saleForm.note.trim() || undefined,
+      };
+      sales.unshift(saleRow);
+      saveSales(sales);
+
       if (saleForm.isCreditSale) {
-        // Format due date as DD/MM/YYYY
+        // Create debt record for KPI tracking (new debt management system)
+        const debtId = `debt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const debtAmount = totalKobo / 100; // Convert kobo to naira
         const dueDate = new Date(saleForm.dueDate);
+        const dueDateStr = dueDate.toISOString().split('T')[0]; // yyyy-mm-dd format
+
+        addDebtNotify({
+          id: debtId,
+          customerName: saleForm.customerName.trim(),
+          phone: saleForm.phone || undefined,
+          amount: debtAmount,
+          dueDate: dueDateStr,
+          createdAt: new Date().toISOString(),
+          status: 'open'
+        });
+
+        // Also save to new localStorage debt store
+        const debts = loadDebts();
+        debts.unshift({
+          id: uid(),
+          saleId,
+          customerName: saleForm.customerName.trim(),
+          phone: saleForm.phone ? saleForm.phone.trim() : undefined,
+          dueDate: saleForm.dueDate,
+          amount,
+          createdAt: new Date().toISOString(),
+        });
+        saveDebts(debts);
+
+        // Format due date as DD/MM/YYYY
         const formattedDate = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
         displayToast(`Credit sale — ${formatNGN(totalKobo)} due ${formattedDate}`);
       } else {
@@ -1496,6 +1668,7 @@ function App() {
         customerName: '',
         isCreditSale: false,
         phone: '',
+        note: '',
         dueDate: todayPlusDaysISO(7),
         sendWhatsApp: true,
         hasConsent: false
@@ -2206,9 +2379,9 @@ Low Stock: ${lowStockItems.length}
       <header className="dashboard-header">
         <div className="header-left">
           <div className="business-name">
-            {strings.app.name}
+            {profile.businessName || strings.app.name}
           </div>
-          <div className="date-display">{today}</div>
+          <CurrentDate className="date-display" />
         </div>
         <div className="header-right">
           <button
@@ -2241,6 +2414,51 @@ Low Stock: ${lowStockItems.length}
           </button>
         </div>
       </header>
+
+      {/* First-Run Setup Banner */}
+      {!isProfileComplete && (
+        <div style={{
+          margin: '8px 0',
+          padding: '14px 16px',
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          fontSize: '14px',
+          fontWeight: '500',
+          boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)'
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: '600', marginBottom: '4px' }}>👋 Welcome to Storehouse!</div>
+            <div style={{ fontSize: '13px', opacity: '0.95' }}>
+              Complete your business profile to get started
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 160ms',
+              backdropFilter: 'blur(10px)',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={e => e.target.style.background = 'rgba(255, 255, 255, 0.3)'}
+            onMouseLeave={e => e.target.style.background = 'rgba(255, 255, 255, 0.2)'}
+          >
+            Set Up Now →
+          </button>
+        </div>
+      )}
 
       {/* Beta Mode Badge */}
       {isBetaTester && (
@@ -2376,212 +2594,87 @@ Low Stock: ${lowStockItems.length}
         </div>
       </div>
 
-      {/* CTA Buttons - Only 3 primary actions */}
-      <div className="cta-buttons actions">
-        <button
-          className="cta-btn action-btn accent"
-          onClick={() => setShowModal(true)}
-        >
-          <span className="cta-icon">+</span>
-          Add Item
-        </button>
-        <button
-          className="cta-btn action-btn secondary"
-          onClick={handleRecordSale}
-        >
-          <span className="cta-icon">₦</span>
-          Record Sale
-        </button>
-        <button
-          className="cta-btn action-btn warn"
-          onClick={handleLowStock}
-        >
-          <span className="cta-icon">⚠</span>
-          Low Stock
-        </button>
-      </div>
-
-      {/* Search Bar & Inventory */}
-      <div className="search-section table-card">
-        <div className="search-container">
-          <div className="search-input-wrapper">
-            <input
-              type="text"
-              className="search-input search"
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                className="search-clear-btn"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+      {/* Center column for buttons, search, table */}
+      <section className="mainColumn">
+        {/* CTA Buttons */}
+        <div className="actionsBlock">
+          <button
+            className="btnPrimary"
+            onClick={handleRecordSale}
+          >
+            ₦ Record Sale
+          </button>
+          <button
+            className="btnSecondary"
+            onClick={() => setShowModal(true)}
+          >
+            + Add Item
+          </button>
         </div>
 
-        {/* Search Results Feedback */}
-        {searchQuery.trim() && (
-          <div className="search-results-feedback">
-            {getFilteredItems().length > 0 ? (
-              <span className="results-count">
-                {getFilteredItems().length} result{getFilteredItems().length !== 1 ? 's' : ''} found
-              </span>
-            ) : (
-              <span className="no-results">
-                No items found matching "{searchQuery.trim()}"
-              </span>
-            )}
-          </div>
-        )}
+        {/* Search Bar */}
+        <div className="searchBar">
+          <input
+            type="text"
+            className="inputSearch"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
-        {/* Inventory Table */}
-        <table className="inventory-table">
-          <thead>
-            <tr>
-              <th style={{ width: '5%' }}></th>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Sell Price</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {getFilteredItems().length === 0 ? (
+        {/* Items Table */}
+        <div className="card">
+          <table className="itemsTable">
+            <thead>
               <tr>
-                <td colSpan="5" className="empty" style={{ textAlign: 'center', padding: '20px' }}>
-                  No items found matching "{searchQuery}"
-                </td>
+                <th className="colItem">Item</th>
+                <th className="colQty">Qty</th>
+                <th className="colPrice">Price</th>
               </tr>
-            ) : (
-              getFilteredItems().map(item => {
-                // Safe currency formatting
-                const safeFormat = (value) => {
-                  try {
-                    return (value ?? 0).toLocaleString();
-                  } catch (e) {
-                    console.error('[Format Error]', e, value);
-                    return '0';
-                  }
-                };
+            </thead>
+            <tbody>
+              {getFilteredItems().length === 0 ? (
+                <tr>
+                  <td colSpan="3" style={{ textAlign: 'center', padding: '20px' }}>
+                    No items found
+                  </td>
+                </tr>
+              ) : (
+                getFilteredItems().map(item => {
+                  const sellNaira = Math.round((item.sellKobo ?? item.sellingPrice ?? 0) / 100);
 
-                // Convert kobo to naira safely
-                const purchaseNaira = Math.round((item.purchaseKobo ?? item.purchasePrice ?? 0) / 100);
-                const sellNaira = Math.round((item.sellKobo ?? item.sellingPrice ?? 0) / 100);
-                const profitNaira = sellNaira - purchaseNaira;
-                const marginPercent = sellNaira > 0 ? ((profitNaira / sellNaira) * 100).toFixed(1) : '0.0';
-                const reorderLevel = item.reorderLevel ?? 10;
-                const isExpanded = expandedItemId === item.id;
-
-                return (
-                  <React.Fragment key={item.id}>
+                  return (
                     <tr
-                      className="inventory-row"
-                      onClick={(e) => {
-                        // If clicking expand icon, just expand/collapse
-                        if (e.target.closest('.expand-icon')) {
-                          setExpandedItemId(isExpanded ? null : item.id);
-                        } else if (settings.quickSellEnabled) {
-                          // Quick-sell: Open Record Sale with item pre-filled
-                          window.dispatchEvent(new CustomEvent('open-record-sale', {
-                            detail: { itemId: item.id }
-                          }));
-                        } else {
-                          // Fallback: expand/collapse
-                          setExpandedItemId(isExpanded ? null : item.id);
-                        }
-                      }}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && settings.quickSellEnabled) {
+                      key={item.id}
+                      onClick={() => {
+                        if (settings.quickSellEnabled) {
                           window.dispatchEvent(new CustomEvent('open-record-sale', {
                             detail: { itemId: item.id }
                           }));
                         }
                       }}
-                      style={{ cursor: 'pointer' }}
-                      role="button"
-                      tabIndex={0}
-                      data-item-id={item.id}
-                      aria-label={`Sell: ${item.name}`}
+                      style={{ cursor: settings.quickSellEnabled ? 'pointer' : 'default' }}
                     >
-                      <td className="expand-icon" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
-                        >
-                          <span style={{
-                            display: 'inline-block',
-                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.2s ease'
-                          }}>
-                            ▼
-                          </span>
-                        </button>
-                      </td>
-                      <td className="item-name">{item.name}</td>
-                      <td className="item-qty">{item.qty ?? 0}</td>
-                      <td className="item-price-selling">
-                        ₦{safeFormat(sellNaira)}
-                      </td>
-                      <td>
-                        <span className={`status-badge ${(item.qty ?? 0) <= reorderLevel ? 'low' : 'in-stock'}`}>
-                          {(item.qty ?? 0) <= reorderLevel ? 'Low Stock' : 'In Stock'}
-                        </span>
-                      </td>
+                      <td className="cellItem">{item.name}</td>
+                      <td className="cellQty">{item.qty ?? 0}</td>
+                      <td className="cellPrice">₦{sellNaira.toLocaleString()}</td>
                     </tr>
-                    {isExpanded && (
-                      <tr className="expanded-details">
-                        <td colSpan="5">
-                          <div className="details-content">
-                            <div className="detail-row">
-                              <span className="detail-label">Buy Price:</span>
-                              <span className="detail-value">₦{safeFormat(purchaseNaira)}</span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Profit/Unit:</span>
-                              <span className="detail-value">
-                                ₦{safeFormat(profitNaira)} ({marginPercent}%)
-                              </span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Category:</span>
-                              <span className="detail-value">{item.category || 'General'}</span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Reorder Level:</span>
-                              <span className="detail-value">{reorderLevel} units</span>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => {
           setShowModal(false);
           setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+          setExistingItem(null);
+          setStockMode('add');
         }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -2589,6 +2682,8 @@ Low Stock: ${lowStockItems.length}
               <button className="modal-close" onClick={() => {
                 setShowModal(false);
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+                setExistingItem(null);
+                setStockMode('add');
               }}>×</button>
             </div>
 
@@ -2637,6 +2732,93 @@ Low Stock: ${lowStockItems.length}
                 min="0"
                 className="form-input"
               />
+
+              {/* Stock mode UI - shown only when updating existing item */}
+              {existingItem && (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{
+                    fontSize: '13px',
+                    color: '#64748B',
+                    marginBottom: '8px',
+                    fontWeight: '500'
+                  }}>
+                    Current stock: {existingItem.qty}
+                  </div>
+
+                  {/* Mode toggle */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '8px',
+                    marginBottom: '8px',
+                    padding: '4px',
+                    background: '#F8FAFC',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0'
+                  }}>
+                    <label style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      background: stockMode === 'add' ? '#2063F0' : 'transparent',
+                      color: stockMode === 'add' ? '#fff' : '#475569',
+                      transition: 'all 0.2s'
+                    }}>
+                      <input
+                        type="radio"
+                        name="stockMode"
+                        value="add"
+                        checked={stockMode === 'add'}
+                        onChange={(e) => setStockMode(e.target.value)}
+                        style={{ marginRight: '6px' }}
+                      />
+                      Add units
+                    </label>
+                    <label style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      background: stockMode === 'replace' ? '#2063F0' : 'transparent',
+                      color: stockMode === 'replace' ? '#fff' : '#475569',
+                      transition: 'all 0.2s'
+                    }}>
+                      <input
+                        type="radio"
+                        name="stockMode"
+                        value="replace"
+                        checked={stockMode === 'replace'}
+                        onChange={(e) => setStockMode(e.target.value)}
+                        style={{ marginRight: '6px' }}
+                      />
+                      Replace total
+                    </label>
+                  </div>
+
+                  {/* Preview text */}
+                  {formData.qty && parseInt(formData.qty) > 0 && (
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#475569',
+                      fontStyle: 'italic',
+                      paddingLeft: '4px'
+                    }}>
+                      {stockMode === 'add'
+                        ? `Will become: ${existingItem.qty} + ${parseInt(formData.qty)} = ${existingItem.qty + parseInt(formData.qty)}`
+                        : `Will set total to: ${parseInt(formData.qty)}`
+                      }
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-row">
@@ -2705,6 +2887,8 @@ Low Stock: ${lowStockItems.length}
               <button className="btn-cancel" onClick={() => {
                 setShowModal(false);
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
+                setExistingItem(null);
+                setStockMode('add');
               }}>
                 Cancel
               </button>
@@ -2714,318 +2898,28 @@ Low Stock: ${lowStockItems.length}
       )}
 
       {/* Record Sale Modal */}
-      {showRecordSale && (
-        <div className="sale-overlay" onClick={() => setShowRecordSale(false)}>
-          <div className="sale-modal" onClick={e => e.stopPropagation()}>
-            <div className="sale-header">
-              <h2>Record Sale</h2>
-              <button className="sale-close" onClick={() => setShowRecordSale(false)}>×</button>
-            </div>
-
-            <div className="sale-form">
-              {/* Item search input */}
-              <div className="form-group" style={{ position: 'relative' }}>
-                <label>Search Item</label>
-                <input
-                  type="text"
-                  value={itemSearchTerm}
-                  onChange={(e) => setItemSearchTerm(e.target.value)}
-                  placeholder="Type to search (e.g., 'rici', 'samsong', 'galxy s23')..."
-                  className="form-input"
-                  style={{ minHeight: '44px' }}
-                />
-
-                {/* Search results dropdown */}
-                {itemSearchTerm && filteredSaleItems.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    backgroundColor: '#fff',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    zIndex: 1000,
-                    marginTop: '4px'
-                  }}>
-                    {filteredSaleItems.map(item => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          // Select this item and pre-fill price
-                          const sellKobo = item.sellKobo ?? item.sellingPrice ?? item.sellPrice ?? 0;
-                          const sellNaira = Math.round(sellKobo / 100);
-
-                          setSaleForm(prev => ({
-                            ...prev,
-                            itemId: item.id.toString(),
-                            sellPrice: sellNaira > 0 ? formatNumberWithCommas(sellNaira.toString()) : ''
-                          }));
-                          // Clear search term
-                          setItemSearchTerm('');
-                        }}
-                        style={{
-                          padding: '12px 16px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #F1F5F9',
-                          transition: 'background-color 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
-                      >
-                        <div style={{ fontWeight: '500', color: '#0F172A', marginBottom: '2px' }}>
-                          {item.name}
-                          {item.matchResult.priority > 2 && ' ≈'}
-                        </div>
-                        <div style={{ fontSize: '13px', color: '#64748B' }}>
-                          Stock: {item.qty} | Price: ₦{Math.round((item.sellKobo ?? item.sellingPrice ?? 0) / 100).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {itemSearchTerm && filteredSaleItems.length === 0 && (
-                  <small style={{ color: '#DC2626', fontSize: '13px', marginTop: '4px', display: 'block' }}>
-                    No items found matching "{itemSearchTerm}"
-                  </small>
-                )}
-                {itemSearchTerm && filteredSaleItems.length > 0 && (
-                  <small style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', display: 'block' }}>
-                    Found {filteredSaleItems.length} item{filteredSaleItems.length !== 1 ? 's' : ''} - click to select
-                  </small>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label>Select Item</label>
-                <select
-                  name="itemId"
-                  value={saleForm.itemId}
-                  onChange={handleSaleFormChange}
-                  className="form-input"
-                  style={{ minHeight: '44px' }}
-                >
-                  <option value="">Choose an item...</option>
-                  {filteredSaleItems.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                      {item.matchResult.priority > 2 && ' ≈'}
-                      {' '}(Stock: {item.qty})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {saleForm.itemId && (
-                <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Quantity</label>
-                      <input
-                        type="number"
-                        name="quantity"
-                        value={saleForm.quantity}
-                        onChange={handleSaleFormChange}
-                        placeholder="0"
-                        min="1"
-                        max={items.find(i => i.id === parseInt(saleForm.itemId))?.qty || 0}
-                        className="form-input"
-                        style={{ minHeight: '44px' }}
-                      />
-                      <small style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', display: 'block' }}>
-                        Stock left: {items.find(i => i.id === parseInt(saleForm.itemId))?.qty || 0}
-                      </small>
-                    </div>
-
-                    <div className="form-group">
-                      <label>Your Price (₦)</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        name="sellPrice"
-                        value={saleForm.sellPrice}
-                        onChange={handleSaleFormChange}
-                        placeholder="0"
-                        className="form-input"
-                        style={{ minHeight: '44px' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* STAGE 3: Credit sale checkbox with progressive disclosure */}
-                  <div className="form-group" style={{ marginTop: '16px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', minHeight: '44px' }}>
-                      <input
-                        type="checkbox"
-                        checked={saleForm.isCreditSale}
-                        onChange={(e) => {
-                          setSaleForm({
-                            ...saleForm,
-                            isCreditSale: e.target.checked,
-                            // When checked: use existing values or set defaults
-                            // When unchecked: clear fields
-                            customerName: e.target.checked ? saleForm.customerName : '',
-                            phone: e.target.checked ? saleForm.phone : '',
-                            dueDate: e.target.checked ? (saleForm.dueDate || todayPlusDaysISO(7)) : todayPlusDaysISO(7),
-                            sendWhatsApp: e.target.checked ? saleForm.sendWhatsApp : true,
-                            hasConsent: e.target.checked ? saleForm.hasConsent : false
-                          });
-                        }}
-                        style={{ width: '20px', height: '20px', marginRight: '12px', cursor: 'pointer' }}
-                      />
-                      <span style={{ fontSize: '15px', fontWeight: '500' }}>Sell on credit</span>
-                    </label>
-                  </div>
-
-                  {/* Progressive disclosure: Show credit fields when checkbox is ON */}
-                  {saleForm.isCreditSale && (
-                    <div style={{
-                      marginTop: '12px',
-                      padding: '16px',
-                      backgroundColor: '#f8f9fa',
-                      borderRadius: '8px',
-                      border: '1px solid #e2e8f0',
-                      animation: 'slideIn 300ms ease-out'
-                    }}>
-                      <div className="form-group">
-                        <label>Customer Name *</label>
-                        <input
-                          type="text"
-                          name="customerName"
-                          value={saleForm.customerName}
-                          onChange={handleSaleFormChange}
-                          placeholder="Enter customer name"
-                          className="form-input"
-                          required
-                          style={{ minHeight: '44px' }}
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Phone (optional)</label>
-                        <input
-                          type="tel"
-                          name="phone"
-                          value={saleForm.phone}
-                          onChange={handleSaleFormChange}
-                          placeholder="e.g., 08012345678 or +2348012345678"
-                          className="form-input"
-                          style={{ minHeight: '44px' }}
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Due Date</label>
-                        <input
-                          type="date"
-                          name="dueDate"
-                          value={saleForm.dueDate ? saleForm.dueDate.split('T')[0] : ''}
-                          onChange={(e) => {
-                            const selectedDate = new Date(e.target.value);
-                            selectedDate.setHours(0, 0, 0, 0);
-                            setSaleForm({
-                              ...saleForm,
-                              dueDate: selectedDate.toISOString()
-                            });
-                          }}
-                          min={new Date().toISOString().split('T')[0]}
-                          className="form-input"
-                          style={{ minHeight: '44px' }}
-                        />
-                        <small style={{ color: '#64748b', fontSize: '13px', marginTop: '4px', display: 'block' }}>
-                          {(() => {
-                            if (!saleForm.dueDate) return 'Select due date';
-                            const dueDate = new Date(saleForm.dueDate);
-                            const day = String(dueDate.getDate()).padStart(2, '0');
-                            const month = String(dueDate.getMonth() + 1).padStart(2, '0');
-                            const year = dueDate.getFullYear();
-                            return `Payment due: ${day}/${month}/${year}`;
-                          })()}
-                        </small>
-                      </div>
-
-                      {/* WhatsApp receipt toggle - plan gated */}
-                      {(currentPlan !== 'FREE' || trialDaysLeft > 0) && (
-                        <>
-                          <div className="form-group">
-                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', minHeight: '44px' }}>
-                              <input
-                                type="checkbox"
-                                checked={saleForm.sendWhatsApp}
-                                onChange={(e) => {
-                                  setSaleForm({
-                                    ...saleForm,
-                                    sendWhatsApp: e.target.checked,
-                                    // Reset consent when toggling off
-                                    hasConsent: e.target.checked ? saleForm.hasConsent : false
-                                  });
-                                }}
-                                style={{ width: '20px', height: '20px', marginRight: '12px', cursor: 'pointer' }}
-                              />
-                              <span style={{ fontSize: '14px' }}>Send WhatsApp receipt</span>
-                            </label>
-                          </div>
-
-                          {saleForm.sendWhatsApp && (
-                            <div className="form-group" style={{ marginLeft: '32px' }}>
-                              <label style={{ display: 'flex', alignItems: 'flex-start', cursor: 'pointer', minHeight: '44px' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={saleForm.hasConsent}
-                                  onChange={(e) => {
-                                    setSaleForm({
-                                      ...saleForm,
-                                      hasConsent: e.target.checked
-                                    });
-                                  }}
-                                  required={saleForm.sendWhatsApp}
-                                  style={{ width: '20px', height: '20px', marginRight: '12px', marginTop: '2px', cursor: 'pointer' }}
-                                />
-                                <span style={{ fontSize: '13px', color: '#475569', lineHeight: '1.5' }}>
-                                  I have customer's consent to receive WhatsApp messages *
-                                </span>
-                              </label>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {saleForm.quantity && saleForm.sellPrice && (
-                    <div className="sale-total">
-                      <span>Total Amount:</span>
-                      <span className="total-value">
-                        {showSalesData
-                          ? `₦${(parseInt(saleForm.quantity || 0) * parseFloat(parseFormattedNumber(saleForm.sellPrice || '0'))).toLocaleString()}`
-                          : '₦—'
-                        }
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="sale-footer">
-              <button
-                className="btn-save-sale"
-                onClick={handleSaveSale}
-                disabled={!saleForm.itemId || !saleForm.quantity || !saleForm.sellPrice}
-              >
-                Complete Sale
-              </button>
-              <button className="btn-cancel-sale" onClick={() => setShowRecordSale(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RecordSaleModal
+        isOpen={showRecordSale}
+        onClose={() => setShowRecordSale(false)}
+        items={items}
+        onSaveSale={handleSaveSale}
+        onCreateDebt={(debtData) => {
+          try {
+            // Create debt in new IndexedDB debt store if available
+            if (typeof addDebtNotify === 'function') {
+              addDebtNotify({
+                id: crypto.randomUUID(),
+                ...debtData,
+                status: 'open',
+                paid: false
+              });
+            }
+          } catch (error) {
+            console.error('[Create Debt] Error:', error);
+          }
+        }}
+        showSalesData={showSalesData}
+      />
 
       {/* Calculator Bottom Sheet */}
       {showCalculator && (
@@ -3119,211 +3013,29 @@ Low Stock: ${lowStockItems.length}
         </>
       )}
 
-      {/* Settings Modal - Completely Isolated */}
-      {showSettings && (
-        <div className="settings-overlay" onClick={() => setShowSettings(false)}>
-          <div className="settings-modal settings-sheet" onClick={e => e.stopPropagation()}>
-            <div className="settings-header">
-              <h2>Business Settings</h2>
-              <button className="settings-close" onClick={() => setShowSettings(false)}>×</button>
-            </div>
-
-            <div className="settings-form settings-content">
-              <div className="settings-grid">
-              <div className="settings-group">
-                <label>Business Name</label>
-                <input
-                  type="text"
-                  name="businessName"
-                  value={settingsForm.businessName}
-                  onChange={handleSettingsChange}
-                  placeholder="Enter your business name"
-                  maxLength="50"
-                  className="settings-input"
-                  style={{ minHeight: '44px' }}
-                />
-                <span className="char-count">{settingsForm.businessName.length}/50</span>
-              </div>
-
-              <div className="settings-group">
-                <label>Owner Name</label>
-                <input
-                  type="text"
-                  name="ownerName"
-                  value={settingsForm.ownerName}
-                  onChange={handleSettingsChange}
-                  placeholder="Enter owner's name"
-                  maxLength="30"
-                  className="settings-input"
-                  style={{ minHeight: '44px' }}
-                />
-                <span className="char-count">{settingsForm.ownerName.length}/30</span>
-              </div>
-
-              <div className="settings-group">
-                <label>Phone Number</label>
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  name="phoneNumber"
-                  value={settingsForm.phoneNumber}
-                  onChange={handleSettingsChange}
-                  placeholder="080XXXXXXXX or +234XXXXXXXXX"
-                  className="settings-input"
-                  style={{ minHeight: '44px' }}
-                />
-                <span className="phone-hint helper">Nigerian format: 080, 081, 090, 070, etc.</span>
-              </div>
-
-              {/* Quick-Sell Feature Toggle */}
-              <div className="settings-group" style={{ gridColumn: '1 / -1', marginTop: '16px', padding: '12px', background: '#FFFBEB', borderRadius: '8px', border: '1px solid #FDE68A' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <label style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>⚡ Quick-Sell from Table</label>
-                  <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px', margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={settingsForm.quickSellEnabled ?? true}
-                      onChange={(e) => {
-                        const newValue = e.target.checked;
-                        setSettingsForm(prev => ({ ...prev, quickSellEnabled: newValue }));
-                      }}
-                      style={{ opacity: 0, width: 0, height: 0 }}
-                    />
-                    <span style={{
-                      position: 'absolute',
-                      cursor: 'pointer',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      backgroundColor: (settingsForm.quickSellEnabled ?? true) ? '#2563EB' : '#CBD5E1',
-                      transition: '0.3s',
-                      borderRadius: '28px'
-                    }}>
-                      <span style={{
-                        position: 'absolute',
-                        content: '',
-                        height: '20px',
-                        width: '20px',
-                        left: (settingsForm.quickSellEnabled ?? true) ? '28px' : '4px',
-                        bottom: '4px',
-                        backgroundColor: 'white',
-                        transition: '0.3s',
-                        borderRadius: '50%'
-                      }}></span>
-                    </span>
-                  </label>
-                </div>
-                <p style={{ fontSize: '12px', color: '#92400E', margin: '4px 0 0' }}>
-                  {(settingsForm.quickSellEnabled ?? true) ? '✓ Tap any item in the table to quickly open Record Sale with that item pre-filled' : 'Disabled - Click expand arrow to view item details'}
-                </p>
-              </div>
-
-              {/* Beta Tester Mode Toggle */}
-              <div className="settings-group" style={{ gridColumn: '1 / -1', marginTop: '16px', padding: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <label style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>🧪 Beta Tester Mode</label>
-                  <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px', margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={isBetaTester}
-                      onChange={(e) => {
-                        const newValue = e.target.checked;
-                        setIsBetaTester(newValue);
-                        localStorage.setItem('storehouse-beta-mode', JSON.stringify(newValue));
-                        displayToast(newValue ? 'Beta Mode Enabled - All premium features unlocked!' : 'Beta Mode Disabled');
-                      }}
-                      style={{ opacity: 0, width: 0, height: 0 }}
-                    />
-                    <span style={{
-                      position: 'absolute',
-                      cursor: 'pointer',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      backgroundColor: isBetaTester ? '#2563EB' : '#CBD5E1',
-                      transition: '0.3s',
-                      borderRadius: '28px'
-                    }}>
-                      <span style={{
-                        position: 'absolute',
-                        content: '',
-                        height: '20px',
-                        width: '20px',
-                        left: isBetaTester ? '28px' : '4px',
-                        bottom: '4px',
-                        backgroundColor: 'white',
-                        transition: '0.3s',
-                        borderRadius: '50%'
-                      }}></span>
-                    </span>
-                  </label>
-                </div>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0' }}>
-                  {isBetaTester ? '✓ Testing all premium features: Unlimited products, WhatsApp EOD reports, CSV export' : 'Enable to test all premium features during beta period'}
-                </p>
-              </div>
-              </div>
-            </div>
-
-            <div className="settings-actions" style={{padding: "var(--gap)"}}>
-              <div className="settings-plan-info plan-row">
-                {isBetaTester && (
-                  <span className="current-plan-badge pill" style={{ background: '#10B981', color: '#fff' }}>
-                    🧪 BETA MODE
-                  </span>
-                )}
-                <span className="current-plan-badge pill">
-                  Current Plan: <strong>{currentPlan}</strong>
-                </span>
-                {!isBetaTester && currentPlan === 'FREE' && (
-                  <span className="product-limit-badge pill pill--warn">
-                    {items.length}/10 products
-                  </span>
-                )}
-                {!isBetaTester && currentPlan === 'STARTER' && (
-                  <span className="product-limit-badge pill pill--warn">
-                    {items.length}/500 products
-                  </span>
-                )}
-                {isBetaTester && (
-                  <span className="product-limit-badge pill" style={{ background: '#DCFCE7', color: '#166534' }}>
-                    {items.length} products (Unlimited)
-                  </span>
-                )}
-              </div>
-              <button className="btn-view-plans block-btn" onClick={() => {
-                setShowSettings(false);
-                setShowPlansModal(true);
-              }}>
-                View Plans
-              </button>
-              <button className="btn-send-eod block-btn" onClick={() => {
-                setShowSettings(false);
-                setShowEODModal(true);
-              }}>
-                📤 Send EOD Report
-              </button>
-              <button className="btn-export-csv block-btn" onClick={exportToCSV}>
-                📊 Export Data (CSV)
-              </button>
-            </div>
-
-            <div className="settings-footer actions-sticky">
-              <button className="settings-save btn" onClick={handleSaveSettings}>
-                Save Settings
-              </button>
-              <button className="settings-cancel btn secondary" onClick={() => {
-                setSettingsForm({ ...settings });
-                setShowSettings(false);
-              }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Business Settings Sheet */}
+      <BusinessSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onExportCSV={exportToCSV}
+        onSendEOD={() => {
+          setShowSettings(false);
+          setShowEODModal(true);
+        }}
+        onViewPlans={() => {
+          setShowSettings(false);
+          setShowPlansModal(true);
+        }}
+        isBetaTester={isBetaTester}
+        onToggleBeta={(newValue) => {
+          setIsBetaTester(newValue);
+          localStorage.setItem('storehouse-beta-mode', JSON.stringify(newValue));
+          displayToast(newValue ? 'Beta Mode Enabled - All premium features unlocked!' : 'Beta Mode Disabled');
+        }}
+        currentPlan={currentPlan}
+        itemCount={items.length}
+        onToast={displayToast}
+      />
 
       {/* Credit & Debts Modal */}
       {showDebts && (
@@ -3812,187 +3524,25 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
-      {/* Credits Drawer */}
-      {showCreditsDrawer && (
-        <>
-          <div className="drawer-backdrop" onClick={() => setShowCreditsDrawer(false)} />
-          <div className="credits-drawer">
-            <div className="drawer-header">
-              <button
-                className="drawer-back"
-                onClick={() => setShowCreditsDrawer(false)}
-                aria-label="Close"
-              >
-                ←
-              </button>
-              <div>
-                <h2>Customer Debt</h2>
-                <p className="drawer-subtitle">
-                  Total: ₦{receivables.total.toLocaleString()} ({receivables.count} {receivables.count === 1 ? 'person' : 'people'})
-                </p>
-              </div>
-              <button
-                className="drawer-close"
-                onClick={() => setShowCreditsDrawer(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
+      {/* Credits Drawer - Using CustomerDebtDrawer component */}
+      <CustomerDebtDrawer
+        isOpen={showCreditsDrawer}
+        onClose={() => setShowCreditsDrawer(false)}
+        businessName={settings.businessName}
+        onToast={displayToast}
+      />
 
-            <div className="drawer-tabs">
-              <button
-                className={`drawer-tab ${creditsTab === 'all' ? 'active' : ''}`}
-                onClick={() => setCreditsTab('all')}
-              >
-                All
-              </button>
-              <button
-                className={`drawer-tab ${creditsTab === 'overdue' ? 'active' : ''}`}
-                onClick={() => setCreditsTab('overdue')}
-              >
-                Overdue
-              </button>
-              <button
-                className={`drawer-tab ${creditsTab === 'paid' ? 'active' : ''}`}
-                onClick={() => setCreditsTab('paid')}
-              >
-                Paid
-              </button>
-            </div>
-
-            <div className="drawer-content">
-              {(() => {
-                // Filter customers based on active tab
-                let filteredCustomers = customerDebts;
-
-                if (creditsTab === 'overdue') {
-                  filteredCustomers = customerDebts.filter(cd => cd.hasOverdue && cd.totalOwed > 0);
-                } else if (creditsTab === 'paid') {
-                  filteredCustomers = customerDebts.filter(cd =>
-                    cd.credits.some(c => c.status === 'paid')
-                  );
-                } else {
-                  // All - show customers with open/overdue debts
-                  filteredCustomers = customerDebts.filter(cd => cd.totalOwed > 0);
-                }
-
-                // Empty states
-                if (filteredCustomers.length === 0) {
-                  return (
-                    <div className="empty-state">
-                      {creditsTab === 'all' && (
-                        <>
-                          <div className="empty-icon">🎉</div>
-                          <p>No Customer Debts!</p>
-                          <p className="empty-subtext">All paid up.</p>
-                        </>
-                      )}
-                      {creditsTab === 'overdue' && (
-                        <>
-                          <div className="empty-icon">✅</div>
-                          <p>No Overdue Payments</p>
-                        </>
-                      )}
-                      {creditsTab === 'paid' && (
-                        <>
-                          <div className="empty-icon">📝</div>
-                          <p>No payment history yet</p>
-                        </>
-                      )}
-                    </div>
-                  );
-                }
-
-                // Display customer debt cards
-                return filteredCustomers.map(customerDebt => {
-                  const customer = customerDebt.customer;
-                  const totalOwedNaira = Math.round(customerDebt.totalOwed / 100);
-                  const dueDate = customerDebt.oldestDueDate;
-                  const daysUntilDue = dueDate ? getDaysUntilDue(dueDate) : null;
-
-                  let dueDateText = '';
-                  if (dueDate) {
-                    const formattedDate = dueDate.toLocaleDateString('en-NG', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric'
-                    });
-                    if (daysUntilDue < 0) {
-                      dueDateText = `${formattedDate} (${Math.abs(daysUntilDue)} days overdue)`;
-                    } else if (daysUntilDue === 0) {
-                      dueDateText = `${formattedDate} (due today)`;
-                    } else {
-                      dueDateText = `${formattedDate} (${daysUntilDue} days)`;
-                    }
-                  }
-
-                  return (
-                    <div
-                      key={customerDebt.customerId}
-                      className={`customer-debt-card ${customerDebt.hasOverdue ? 'overdue' : ''}`}
-                    >
-                      <div className="customer-info">
-                        <div className="customer-name-main">
-                          {customer?.name || 'Unknown Customer'}
-                        </div>
-                        <div className="customer-amount">
-                          ₦{totalOwedNaira.toLocaleString()} owed
-                        </div>
-                        {dueDateText && (
-                          <div className={`customer-due ${customerDebt.hasOverdue ? 'overdue-text' : ''}`}>
-                            Due: {dueDateText}
-                          </div>
-                        )}
-                        {customer?.phone && (
-                          <div className="customer-phone">
-                            {customer.phone}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="customer-actions">
-                        <button
-                          className="btn-remind"
-                          onClick={() => handleSendCustomerReminder(customerDebt)}
-                          title="Send WhatsApp reminder"
-                        >
-                          📱 Remind
-                        </button>
-                        <button
-                          className="btn-mark-paid"
-                          onClick={() => setConfirmMarkPaid(customerDebt)}
-                          title="Mark all debts as paid"
-                        >
-                          ✓ Mark Paid
-                        </button>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Mark Paid Confirmation Modal */}
+      {/* Mark Paid Confirmation Modal - DebtDrawer upgrade */}
       {confirmMarkPaid && (
         <div className="modal-overlay" onClick={() => setConfirmMarkPaid(null)}>
-          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal confirm-modal debt-confirm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Confirm Mark Paid</h2>
+              <h2>Mark as paid?</h2>
               <button className="modal-close" onClick={() => setConfirmMarkPaid(null)}>×</button>
             </div>
             <div className="modal-body">
               <p>
-                Mark <strong>{confirmMarkPaid.customer?.name}</strong>'s debt as paid?
-              </p>
-              <p className="confirm-amount">
-                Amount: ₦{Math.round(confirmMarkPaid.totalOwed / 100).toLocaleString()}
-              </p>
-              <p className="confirm-warning">
-                This will mark all open credits for this customer as paid.
+                Mark {formatNaira(Math.round(confirmMarkPaid.totalOwed))} from <strong>{confirmMarkPaid.customerName}</strong> as paid?
               </p>
             </div>
             <div className="modal-actions">
@@ -4003,7 +3553,7 @@ Low Stock: ${lowStockItems.length}
                 className="btn-primary"
                 onClick={() => handleMarkCustomerPaid(confirmMarkPaid)}
               >
-                Confirm Payment
+                Mark Paid
               </button>
             </div>
           </div>
@@ -4066,34 +3616,78 @@ Low Stock: ${lowStockItems.length}
                 value={salesSearchTerm}
                 onChange={(e) => setSalesSearchTerm(e.target.value)}
               />
-              <select
-                value={salesDateFilter}
-                onChange={(e) => setSalesDateFilter(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">All Time</option>
-                <option value="today">Today</option>
-                <option value="week">Last 7 Days</option>
-                <option value="month">Last 30 Days</option>
-              </select>
-              <select
-                value={salesPaymentFilter}
-                onChange={(e) => setSalesPaymentFilter(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">All Payments</option>
-                <option value="cash">Cash</option>
-                <option value="transfer">Transfer</option>
-                <option value="card">Card</option>
-                <option value="credit">Credit</option>
-              </select>
+            </div>
+
+            {/* Chip Filters */}
+            <div className="filters">
+              <div className="filters__left">
+                <div className="chip-row" role="radiogroup" aria-label="Date range">
+                  <Chip
+                    active={salesDateFilter === 'today'}
+                    onClick={() => setSalesDateFilter('today')}
+                  >
+                    Today
+                  </Chip>
+                  <Chip
+                    active={salesDateFilter === 'week'}
+                    onClick={() => setSalesDateFilter('week')}
+                  >
+                    This Week
+                  </Chip>
+                  <Chip
+                    active={salesDateFilter === 'month'}
+                    onClick={() => setSalesDateFilter('month')}
+                  >
+                    This Month
+                  </Chip>
+                  <Chip
+                    active={salesDateFilter === 'all'}
+                    onClick={() => setSalesDateFilter('all')}
+                  >
+                    All Time
+                  </Chip>
+                </div>
+
+                <div className="chip-row" role="radiogroup" aria-label="Payment type">
+                  <Chip
+                    active={salesPaymentFilter === 'all'}
+                    onClick={() => setSalesPaymentFilter('all')}
+                  >
+                    All Payments
+                  </Chip>
+                  <Chip
+                    active={salesPaymentFilter === 'cash'}
+                    onClick={() => setSalesPaymentFilter('cash')}
+                  >
+                    Cash
+                  </Chip>
+                  <Chip
+                    active={salesPaymentFilter === 'transfer'}
+                    onClick={() => setSalesPaymentFilter('transfer')}
+                  >
+                    Transfer
+                  </Chip>
+                  <Chip
+                    active={salesPaymentFilter === 'card'}
+                    onClick={() => setSalesPaymentFilter('card')}
+                  >
+                    Card
+                  </Chip>
+                  <Chip
+                    active={salesPaymentFilter === 'credit'}
+                    onClick={() => setSalesPaymentFilter('credit')}
+                  >
+                    Credit
+                  </Chip>
+                </div>
+              </div>
+
               {hasActiveSalesFilters && (
-                <button
-                  className="clear-filters-btn"
-                  onClick={clearSalesFilters}
-                >
-                  Clear
-                </button>
+                <div className="filters__right">
+                  <button className="btn-clear" onClick={clearSalesFilters}>
+                    Clear
+                  </button>
+                </div>
               )}
             </div>
 
@@ -4209,52 +3803,24 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
-      {/* Sale Details Modal */}
+      {/* Sale Details Modal with Receipt */}
       {selectedSale && (
         <div className="sale-details-overlay" onClick={() => setSelectedSale(null)}>
           <div className="sale-details-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Sale Details</h3>
+              <h3>Sale Details & Receipt</h3>
               <button className="close-btn" onClick={() => setSelectedSale(null)}>×</button>
             </div>
             <div className="modal-body">
-              <section>
-                <h4>Item</h4>
-                <p className="detail-text">{selectedSale.itemName}</p>
-                <p className="detail-subtext">
-                  {selectedSale.qty} × ₦{(selectedSale.sellKobo / 100).toLocaleString()}
-                </p>
-                <p className="detail-total">
-                  Total: ₦{((selectedSale.sellKobo * selectedSale.qty) / 100).toLocaleString()}
-                </p>
-              </section>
-
-              <section>
-                <h4>Payment</h4>
-                <p className="detail-text">
-                  Method: <span className={`payment-badge ${selectedSale.paymentMethod}`}>
-                    {selectedSale.paymentMethod || 'cash'}
-                  </span>
-                </p>
-                <p className="detail-subtext">
-                  Date: {new Date(selectedSale.createdAt).toLocaleString()}
-                </p>
-              </section>
-
-              {selectedSale.customerName && (
-                <section>
-                  <h4>Customer</h4>
-                  <p className="detail-text">Name: {selectedSale.customerName}</p>
-                  {selectedSale.phone && (
-                    <p className="detail-subtext">Phone: {selectedSale.phone}</p>
-                  )}
-                  {selectedSale.dueDate && (
-                    <p className="detail-subtext">
-                      Due: {new Date(selectedSale.dueDate).toLocaleDateString()}
-                    </p>
-                  )}
-                </section>
-              )}
+              {/* Receipt Preview Component */}
+              <ReceiptPreview
+                sale={selectedSale}
+                business={{
+                  name: settings.businessName || 'Storehouse Shop',
+                  phone: settings.phoneNumber || '',
+                  address: ''
+                }}
+              />
             </div>
           </div>
         </div>

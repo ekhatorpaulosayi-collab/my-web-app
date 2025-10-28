@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="390" height="844" viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font: 700 20px sans-serif; fill: #ffffff; }
+      .kpi-title { font: 600 12px sans-serif; fill: #546173; }
+      .kpi-value { font: 700 20px sans-serif; fill: #171F2D; }
+      .label { font: 600 12px sans-serif; fill: #171F2D; }
+      .text { font: 600 14px sans-serif; fill: #171F2D; }
+      .muted { font: 600 14px sans-serif; fill: #6B778C; }
+      .money { font: 700 16px sans-serif; fill: #171F2D; }
+      .btn { font: 700 16px sans-serif; fill: #ffffff; }
+      .btn-secondary { font: 700 16px sans-serif; fill: #171F2D; }
+      .table-h { font: 700 12px sans-serif; fill: #6B778C; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="390" height="844" fill="#F5F8FC"/>
+  <rect x="0" y="0" width="390" height="120" fill="#2063F0"/>
+  <text x="24" y="72" class="title">Paulo Stores</text>
+
+  <g>
+    <rect x="24" y="142" rx="14" ry="14" width="160" height="96" fill="#ffffff" stroke="#DCE2EB"/>
+    <text x="40" y="168" class="kpi-title">Today Sales</text>
+    <text x="40" y="202" class="kpi-value">₦ 42,500</text>
+  </g>
+
+  <g>
+    <rect x="206" y="142" rx="14" ry="14" width="160" height="96" fill="#ffffff" stroke="#DCE2EB"/>
+    <text x="222" y="168" class="kpi-title">Items in Stock</text>
+    <text x="222" y="202" class="kpi-value">148</text>
+  </g>
+
+  <g>
+    <rect x="24" y="252" rx="14" ry="14" width="160" height="96" fill="#ffffff" stroke="#DCE2EB"/>
+    <text x="40" y="278" class="kpi-title">Low Stock</text>
+    <text x="40" y="312" class="kpi-value">7 items</text>
+    <circle cx="168" cy="274" r="14" fill="#ED4040"/>
+    <text x="163" y="279" font-family="sans-serif" font-size="12" font-weight="700" fill="#ffffff">7</text>
+  </g>
+
+  <g>
+    <rect x="206" y="252" rx="14" ry="14" width="160" height="96" fill="#ffffff" stroke="#DCE2EB"/>
+    <text x="222" y="278" class="kpi-title">Customer Debt</text>
+    <text x="222" y="312" class="kpi-value">120,000</text>
+  </g>
+
+  <g>
+    <rect x="24" y="370" rx="12" ry="12" width="342" height="56" fill="#2063F0"/>
+    <text x="195" y="404" text-anchor="middle" class="btn">Record Sale</text>
+  </g>
+
+  <g>
+    <rect x="24" y="436" rx="12" ry="12" width="342" height="56" fill="#E9EDF3" stroke="#DCE2EB"/>
+    <text x="195" y="470" text-anchor="middle" class="btn-secondary">+ Add Item</text>
+  </g>
+
+  <rect x="24" y="502" rx="12" ry="12" width="342" height="56" fill="#FFFFFF" stroke="#E5EAF2" opacity="0.9"/>
+
+  <g>
+    <rect x="24" y="568" rx="12" ry="12" width="342" height="48" fill="#ffffff" stroke="#DCE2EB"/>
+    <text x="40" y="598" class="muted">Search items…</text>
+  </g>
+
+  <g>
+    <rect x="24" y="628" rx="14" ry="14" width="342" height="170" fill="#ffffff" stroke="#DCE2EB"/>
+    <line x1="24" y1="660" x2="366" y2="660" stroke="#E5EAF2"/>
+    <line x1="160" y1="628" x2="160" y2="745" stroke="#E5EAF2"/>
+    <line x1="240" y1="628" x2="240" y2="745" stroke="#E5EAF2"/>
+    <text x="44" y="650" class="table-h">Item</text>
+    <text x="184" y="650" class="table-h">Qty</text>
+    <text x="260" y="650" class="table-h">Price</text>
+
+    <text x="44" y="690" class="text">Sunlight Detergent</text>
+    <text x="188" y="690" class="text">12</text>
+    <text x="260" y="690" class="money">₦ 1,200</text>
+
+    <line x1="24" y1="708" x2="366" y2="708" stroke="#F1F4F8"/>
+    <text x="44" y="735" class="text">A4 Paper 500s</text>
+    <text x="188" y="735" class="text">20</text>
+    <text x="260" y="735" class="money">₦ 3,200</text>
+  </g>
+</svg>

@@ -1,0 +1,37 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded square container -->
+  <rect x="64" y="64" width="384" height="384" rx="56" fill="none" stroke="#2F8A8D" stroke-width="8"/>
+
+  <!-- Gear icon -->
+  <!-- Center circle/hub -->
+  <circle cx="256" cy="256" r="52" fill="#2F8A8D"/>
+
+  <!-- 8 gear teeth positioned evenly -->
+  <!-- Tooth 1 - Top -->
+  <rect x="244" y="128" width="24" height="48" rx="4" fill="#2F8A8D"/>
+
+  <!-- Tooth 2 - Top-right -->
+  <rect x="310" y="156" width="24" height="48" rx="4" fill="#1770B5" transform="rotate(45 322 180)"/>
+
+  <!-- Tooth 3 - Right -->
+  <rect x="340" y="244" width="48" height="24" rx="4" fill="#2F8A8D"/>
+
+  <!-- Tooth 4 - Bottom-right -->
+  <rect x="310" y="308" width="24" height="48" rx="4" fill="#1770B5" transform="rotate(-45 322 332)"/>
+
+  <!-- Tooth 5 - Bottom -->
+  <rect x="244" y="336" width="24" height="48" rx="4" fill="#2F8A8D"/>
+
+  <!-- Tooth 6 - Bottom-left -->
+  <rect x="178" y="308" width="24" height="48" rx="4" fill="#1770B5" transform="rotate(45 190 332)"/>
+
+  <!-- Tooth 7 - Left -->
+  <rect x="124" y="244" width="48" height="24" rx="4" fill="#2F8A8D"/>
+
+  <!-- Tooth 8 - Top-left -->
+  <rect x="178" y="156" width="24" height="48" rx="4" fill="#1770B5" transform="rotate(-45 190 180)"/>
+
+  <!-- Inner circle cutout for depth -->
+  <circle cx="256" cy="256" r="28" fill="white"/>
+  <circle cx="256" cy="256" r="26" fill="none" stroke="#626769" stroke-width="2"/>
+</svg>
