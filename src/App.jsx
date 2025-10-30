@@ -801,6 +801,114 @@ function App() {
     return () => window.removeEventListener('open-record-sale', handler);
   }, [items, settings.quickSellEnabled]);
 
+  // TEST: WhatsApp receipt test button handler
+  useEffect(() => {
+    const handler = () => {
+      console.log('[WhatsApp Test] Building test receipt...');
+
+      const testReceipt = buildReceiptText({
+        businessName: settings.businessName || 'Test Store',
+        customerName: 'Test Customer',
+        itemName: 'Test Product',
+        quantity: 5,
+        totalAmount: 25000,
+        date: new Date().toISOString()
+      });
+
+      console.log('[WhatsApp Test] Opening WhatsApp with receipt...');
+      const success = openWhatsAppReceipt('', testReceipt);
+
+      if (success) {
+        displayToast('✅ WhatsApp opened! Check the message.');
+      } else {
+        displayToast('❌ Failed to open WhatsApp');
+      }
+    };
+
+    window.addEventListener('test-whatsapp-receipt', handler);
+    return () => window.removeEventListener('test-whatsapp-receipt', handler);
+  }, [settings.businessName]);
+
+  // ========== WHATSAPP RECEIPT UTILITIES ==========
+
+  /**
+   * Build formatted receipt text for WhatsApp
+   * @param {Object} params - Receipt parameters
+   * @param {string} params.businessName - Business name
+   * @param {string} params.customerName - Customer name
+   * @param {string} params.itemName - Item sold
+   * @param {number} params.quantity - Quantity sold
+   * @param {number} params.totalAmount - Total in Naira
+   * @param {string} params.date - Sale date
+   * @returns {string} Formatted receipt text
+   */
+  const buildReceiptText = ({ businessName, customerName, itemName, quantity, totalAmount, date }) => {
+    const formattedDate = new Date(date).toLocaleDateString('en-NG', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const receipt = `
+📱 SALES RECEIPT
+
+From: ${businessName || 'Storehouse'}
+To: ${customerName || 'Customer'}
+
+Item: ${itemName}
+Qty: ${quantity}
+Amount: ₦${totalAmount.toLocaleString()}
+
+Date: ${formattedDate}
+
+Thank you for your business! 🙏
+
+---
+Powered by Storehouse
+https://storehouse.ng
+    `.trim();
+
+    return receipt;
+  };
+
+  /**
+   * Open WhatsApp with pre-filled receipt message
+   * @param {string} phoneNumber - Customer phone (optional)
+   * @param {string} message - Receipt text
+   */
+  const openWhatsAppReceipt = (phoneNumber, message) => {
+    try {
+      let whatsappUrl;
+
+      if (phoneNumber && phoneNumber.trim()) {
+        // Clean phone number (remove non-digits)
+        const cleanPhone = phoneNumber.replace(/\D/g, '');
+
+        // Format for WhatsApp (Nigeria country code)
+        let formattedPhone = cleanPhone;
+        if (formattedPhone.startsWith('0')) {
+          formattedPhone = '234' + formattedPhone.substring(1);
+        } else if (!formattedPhone.startsWith('234')) {
+          formattedPhone = '234' + formattedPhone;
+        }
+
+        // WhatsApp URL with specific number
+        whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+      } else {
+        // WhatsApp URL without specific number (opens WhatsApp to choose contact)
+        whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      }
+
+      // Open WhatsApp
+      window.open(whatsappUrl, '_blank');
+
+      return true;
+    } catch (error) {
+      console.error('[WhatsApp] Error opening WhatsApp:', error);
+      return false;
+    }
+  };
+
   // Handle form changes
   const handleInputChange = async (e) => {
     const { name, value } = e.target;
@@ -1660,6 +1768,34 @@ function App() {
 
         const url = toWhatsAppTarget(formData.phone) + encodeURIComponent(receipt);
         window.open(url, '_blank');
+      }
+
+      // WhatsApp receipt for CASH sales (using new helper functions)
+      if (!formData.isCreditSale && formData.sendWhatsApp && formData.phone) {
+        try {
+          console.log('[WhatsApp] Sending cash sale receipt...');
+
+          const receipt = buildReceiptText({
+            businessName: settings.businessName || profile.businessName || 'Storehouse',
+            customerName: formData.customerName || 'Customer',
+            itemName: selectedItem.name,
+            quantity: qty,
+            totalAmount: totalKobo / 100, // Convert kobo to naira
+            date: new Date().toISOString()
+          });
+
+          const success = openWhatsAppReceipt(formData.phone, receipt);
+
+          if (success) {
+            console.log('[WhatsApp] Receipt opened successfully');
+          } else {
+            console.warn('[WhatsApp] Failed to open WhatsApp');
+          }
+        } catch (error) {
+          // Non-blocking: Don't let WhatsApp errors break the sale
+          console.error('[WhatsApp] Error sending receipt:', error);
+          // Sale is already saved - just log the error
+        }
       }
 
       // Reset form (only if using legacy form, not RecordSaleModal)

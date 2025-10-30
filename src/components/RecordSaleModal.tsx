@@ -5,6 +5,7 @@ import { buildTextFromSale, waLink, shouldAutoSend, shouldShowSheet } from '../m
 import { useBusinessProfile } from '../contexts/BusinessProfile';
 import { getSettings } from '../utils/settings';
 import { RECEIPT_SETTINGS_ENABLED } from '../config';
+import { formatNGPhone, validateNGPhone } from '../utils/phone';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ export default function RecordSaleModal({
   const [isCredit, setIsCredit] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneDisplay, setPhoneDisplay] = useState('');
+  const [phoneValidation, setPhoneValidation] = useState({ valid: true, message: '' });
   const [dueDate, setDueDate] = useState('');
   const [message, setMessage] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
@@ -70,6 +73,8 @@ export default function RecordSaleModal({
       setIsCredit(false);
       setCustomerName('');
       setPhone('');
+      setPhoneDisplay('');
+      setPhoneValidation({ valid: true, message: '' });
       const today = new Date();
       today.setDate(today.getDate() + 7);
       setDueDate(today.toISOString().split('T')[0]);
@@ -106,9 +111,6 @@ export default function RecordSaleModal({
     }
   };
 
-  // Phone validation
-  const isPhoneValid = phone === '' || /^[0-9]{10,14}$/.test(phone);
-
   // Form validation
   const isFormValid =
     selectedItemId &&
@@ -118,7 +120,7 @@ export default function RecordSaleModal({
     parseFloat(price.replace(/,/g, '')) > 0 &&
     (!isCredit || (customerName.trim() && dueDate)) &&
     (!sendWhatsApp || (phone && (!isCredit || hasConsent))) &&
-    isPhoneValid;
+    phoneValidation.valid;
 
   // Handle item selection from dropdown
   const handleSelectItem = (itemId: string) => {
@@ -156,6 +158,21 @@ export default function RecordSaleModal({
     }
     const number = parseInt(cleaned);
     setPrice(number.toLocaleString());
+  };
+
+  // Handle phone input with auto-formatting and validation
+  const handlePhoneChange = (value: string) => {
+    // Extract only digits for storage
+    const digitsOnly = value.replace(/\D/g, '');
+    setPhone(digitsOnly);
+
+    // Format for display
+    const formatted = formatNGPhone(digitsOnly);
+    setPhoneDisplay(formatted);
+
+    // Validate
+    const validation = validateNGPhone(digitsOnly);
+    setPhoneValidation(validation);
   };
 
   // Handle save
@@ -434,18 +451,21 @@ export default function RecordSaleModal({
                         type="tel"
                         inputMode="tel"
                         className="rs-input"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder="Customer phone (080...)"
-                        style={{ marginBottom: '8px' }}
+                        value={phoneDisplay}
+                        onChange={e => handlePhoneChange(e.target.value)}
+                        placeholder="080 1234 5678"
+                        style={{ marginBottom: '4px' }}
                       />
 
-                      {phone && !isPhoneValid && (
-                        <small className="rs-error">Enter 10-14 digits</small>
+                      {/* Validation feedback */}
+                      {phone && phoneValidation.message && (
+                        <small className={phoneValidation.valid ? 'rs-help' : 'rs-error'} style={{ display: 'block', marginBottom: '8px' }}>
+                          {phoneValidation.message}
+                        </small>
                       )}
 
                       {/* WhatsApp Checkbox */}
-                      {phone && isPhoneValid && (
+                      {phone && phoneValidation.valid && (
                         <label className="rs-checkbox" style={{ marginTop: '8px' }}>
                           <input
                             type="checkbox"
@@ -517,12 +537,14 @@ export default function RecordSaleModal({
                         type="tel"
                         inputMode="tel"
                         className="rs-input"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder="080..."
+                        value={phoneDisplay}
+                        onChange={e => handlePhoneChange(e.target.value)}
+                        placeholder="080 1234 5678"
                       />
-                      {phone && !isPhoneValid && (
-                        <small className="rs-error">Enter 10-14 digits</small>
+                      {phone && phoneValidation.message && (
+                        <small className={phoneValidation.valid ? 'rs-help' : 'rs-error'}>
+                          {phoneValidation.message}
+                        </small>
                       )}
                     </div>
 
