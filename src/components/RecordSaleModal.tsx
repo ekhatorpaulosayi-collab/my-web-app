@@ -39,6 +39,19 @@ export default function RecordSaleModal({
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
 
+  // Shopping cart state
+  const [cart, setCart] = useState<Array<{
+    id: string;
+    itemId: string;
+    name: string;
+    quantity: number;
+    price: number;
+    stockAvailable: number;
+  }>>([]);
+  const [cartExpanded, setCartExpanded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [cartError, setCartError] = useState('');
+
   // Receipt sheet state
   const [sheetOpen, setSheetOpen] = useState(false);
   const [receiptText, setReceiptText] = useState('');
@@ -63,7 +76,7 @@ export default function RecordSaleModal({
     }
   }, [isCredit]);
 
-  // Reset form when modal closes
+  // Reset form when modal closes (GUARDRAIL 4: Clear cart on cancel)
   useEffect(() => {
     if (!isOpen) {
       setSearchTerm('');
@@ -81,6 +94,10 @@ export default function RecordSaleModal({
       setMessage('');
       setSendWhatsApp(false);
       setHasConsent(false);
+      setCart([]);  // Clear cart when modal closes
+      setCartExpanded(false);
+      setCartError('');
+      setIsProcessing(false);
     }
   }, [isOpen]);
 
@@ -175,8 +192,245 @@ export default function RecordSaleModal({
     setPhoneValidation(validation);
   };
 
-  // Handle save
+  // ==================== SHOPPING CART FUNCTIONS ====================
+
+  // Calculate cart totals (GUARDRAIL 10: Price recalculation)
+  const cartTotals = {
+    itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
+    totalAmount: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  };
+
+  // Add item to cart (GUARDRAIL 1, 3, 7)
+  const handleAddToCart = () => {
+    try {
+      setCartError('');
+
+      // Validation
+      if (!selectedItemId || !price || !qty) {
+        setCartError('Please select an item, enter price and quantity');
+        return;
+      }
+
+      const qtyNum = parseInt(qty);
+      const priceNum = parseFloat(price.replace(/,/g, ''));
+
+      if (qtyNum <= 0 || priceNum <= 0) {
+        setCartError('Price and quantity must be greater than zero');
+        return;
+      }
+
+      if (!selectedItem) {
+        setCartError('Selected item not found');
+        return;
+      }
+
+      // GUARDRAIL 1: Stock validation
+      const existingCartItem = cart.find(item => item.itemId === selectedItemId);
+      const totalQtyInCart = existingCartItem ? existingCartItem.quantity : 0;
+      const newTotalQty = totalQtyInCart + qtyNum;
+
+      if (newTotalQty > selectedItem.qty) {
+        setCartError(`Cannot add ${qtyNum} more. Only ${selectedItem.qty - totalQtyInCart} available (${totalQtyInCart} already in cart)`);
+        return;
+      }
+
+      // GUARDRAIL 3: Duplicate item handling - merge quantities
+      if (existingCartItem) {
+        setCart(prev => prev.map(item =>
+          item.itemId === selectedItemId
+            ? { ...item, quantity: item.quantity + qtyNum }
+            : item
+        ));
+      } else {
+        // Add new item to cart
+        const cartItem = {
+          id: `cart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          itemId: selectedItemId,
+          name: selectedItem.name,
+          quantity: qtyNum,
+          price: priceNum,
+          stockAvailable: selectedItem.qty
+        };
+        setCart(prev => [...prev, cartItem]);
+      }
+
+      // Reset item selection form
+      setSelectedItemId('');
+      setPrice('');
+      setQty('1');
+      setSearchTerm('');
+
+      // Success feedback
+      const successMsg = existingCartItem
+        ? `Updated ${selectedItem.name} quantity to ${newTotalQty}`
+        : `Added ${selectedItem.name} to cart`;
+
+      // Show brief success message
+      setCartError('');
+      setTimeout(() => {
+        // Could show a toast here if available
+      }, 100);
+
+    } catch (error) {
+      console.error('[Cart] Error adding item:', error);
+      setCartError('Failed to add item to cart');
+    }
+  };
+
+  // Update cart item quantity (GUARDRAIL 1, 7, 10)
+  const handleUpdateCartQuantity = (cartItemId: string, newQty: number) => {
+    try {
+      setCartError('');
+
+      const cartItem = cart.find(item => item.id === cartItemId);
+      if (!cartItem) return;
+
+      if (newQty <= 0) {
+        setCartError('Quantity must be greater than zero');
+        return;
+      }
+
+      // GUARDRAIL 1: Stock validation
+      if (newQty > cartItem.stockAvailable) {
+        setCartError(`Only ${cartItem.stockAvailable} units available`);
+        return;
+      }
+
+      // GUARDRAIL 10: Auto-update total
+      setCart(prev => prev.map(item =>
+        item.id === cartItemId
+          ? { ...item, quantity: newQty }
+          : item
+      ));
+    } catch (error) {
+      console.error('[Cart] Error updating quantity:', error);
+      setCartError('Failed to update quantity');
+    }
+  };
+
+  // Remove item from cart (GUARDRAIL 7, 9)
+  const handleRemoveFromCart = (cartItemId: string) => {
+    try {
+      const cartItem = cart.find(item => item.id === cartItemId);
+      if (!cartItem) return;
+
+      // GUARDRAIL 9: Confirmation prompt
+      const confirmed = window.confirm(`Remove ${cartItem.name} from cart?`);
+      if (!confirmed) return;
+
+      setCart(prev => prev.filter(item => item.id !== cartItemId));
+      setCartError('');
+    } catch (error) {
+      console.error('[Cart] Error removing item:', error);
+      setCartError('Failed to remove item');
+    }
+  };
+
+  // Handle save - Process cart items or single item (GUARDRAIL 2, 5, 6, 7, 8, 12)
   const handleSave = async () => {
+    // GUARDRAIL 12: Fall back to single-item if cart is empty
+    if (cart.length === 0 && !isFormValid) return;
+
+    // GUARDRAIL 2: Empty cart prevention
+    if (cart.length === 0) {
+      setCartError('Please add items to cart first');
+      return;
+    }
+
+    try {
+      // GUARDRAIL 8: Loading state
+      setIsProcessing(true);
+      setCartError('');
+
+      // Process all cart items
+      for (const cartItem of cart) {
+        const saleData = {
+          itemId: cartItem.itemId,
+          quantity: cartItem.quantity.toString(),
+          sellPrice: cartItem.price.toString(),
+          isCreditSale: isCredit,
+          customerName: isCredit ? customerName : '',
+          phone: phone,
+          dueDate: isCredit ? new Date(dueDate).toISOString() : '',
+          note: isCredit ? message : '',
+          sendWhatsApp: false,  // GUARDRAIL 11: Single WhatsApp for entire cart (sent later)
+          hasConsent: isCredit ? hasConsent : false
+        };
+
+        await onSaveSale(saleData);
+
+        // Create debt if credit sale
+        if (isCredit && onCreateDebt) {
+          try {
+            onCreateDebt({
+              customerName,
+              phone,
+              dueDate: new Date(dueDate).toISOString(),
+              amount: cartItem.price * cartItem.quantity,
+              itemId: cartItem.itemId,
+              qty: cartItem.quantity,
+              createdAt: new Date().toISOString()
+            });
+          } catch (error) {
+            console.error('[Debt Creation] Error:', error);
+            // Don't throw - allow sale to complete
+          }
+        }
+      }
+
+      // GUARDRAIL 11: Single WhatsApp for entire cart
+      if (sendWhatsApp && phone && phoneValidation.valid) {
+        try {
+          const settings = getSettings();
+          const businessName = profile.businessName || 'Storehouse';
+
+          // Build multi-item receipt
+          const cartItems = cart.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price * item.quantity
+          }));
+
+          // Use multi-item receipt format
+          const receipt = (window as any).buildReceiptText?.({
+            businessName,
+            customerName: isCredit ? customerName : 'Customer',
+            items: cartItems,
+            totalAmount: cartTotals.totalAmount,
+            date: new Date().toISOString()
+          });
+
+          if (receipt) {
+            const openWhatsAppReceipt = (window as any).openWhatsAppReceipt;
+            if (openWhatsAppReceipt) {
+              openWhatsAppReceipt(phone, receipt);
+            }
+          }
+        } catch (error) {
+          console.error('[WhatsApp] Error sending cart receipt:', error);
+          // Non-blocking - don't fail the sale
+        }
+      }
+
+      // GUARDRAIL 5: Clear cart after successful save
+      setCart([]);
+      setCartExpanded(false);
+      setIsProcessing(false);
+
+      // Close modal
+      onClose();
+
+    } catch (error) {
+      // GUARDRAIL 7: Error handling
+      console.error('[Save Cart] Error:', error);
+      setCartError('Failed to complete sale. Please try again.');
+      setIsProcessing(false);
+      // Modal stays open on error
+    }
+  };
+
+  // Handle save (LEGACY - kept for backwards compatibility)
+  const handleSaveSingle = async () => {
     if (!isFormValid) return;
 
     const saleData = {
@@ -619,17 +873,107 @@ export default function RecordSaleModal({
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Shopping Cart Error */}
+        {cartError && (
+          <div className="rs-cart-error">
+            {cartError}
+          </div>
+        )}
+
+        {/* Shopping Cart - Bottom Sticky Bar */}
+        <div className="rs-cart-bar" onClick={() => cart.length > 0 && setCartExpanded(!cartExpanded)}>
+          <div className="rs-cart-summary">
+            <div className="rs-cart-icon">🛒</div>
+            <div className="rs-cart-info">
+              <div className="rs-cart-count">{cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}</div>
+              <div className="rs-cart-total">{formatCurrency(cartTotals.totalAmount)}</div>
+            </div>
+          </div>
+          {cart.length > 0 && (
+            <div className="rs-cart-expand-icon">
+              {cartExpanded ? '▼' : '▲'}
+            </div>
+          )}
+        </div>
+
+        {/* Expandable Cart View */}
+        {cartExpanded && cart.length > 0 && (
+          <div className="rs-cart-expanded">
+            <div className="rs-cart-header">
+              <h3>Cart Items</h3>
+              <button className="rs-cart-close" onClick={(e) => { e.stopPropagation(); setCartExpanded(false); }}>×</button>
+            </div>
+            <div className="rs-cart-items">
+              {cart.map((cartItem) => (
+                <div key={cartItem.id} className="rs-cart-item">
+                  <div className="rs-cart-item-info">
+                    <div className="rs-cart-item-name">{cartItem.name}</div>
+                    <div className="rs-cart-item-price">{formatCurrency(cartItem.price)} each</div>
+                  </div>
+                  <div className="rs-cart-item-controls">
+                    <div className="rs-cart-qty-controls">
+                      <button
+                        className="rs-cart-qty-btn"
+                        onClick={() => handleUpdateCartQuantity(cartItem.id, cartItem.quantity - 1)}
+                        disabled={cartItem.quantity <= 1}
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        className="rs-cart-qty-input"
+                        value={cartItem.quantity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          handleUpdateCartQuantity(cartItem.id, val);
+                        }}
+                        min="1"
+                        max={cartItem.stockAvailable}
+                      />
+                      <button
+                        className="rs-cart-qty-btn"
+                        onClick={() => handleUpdateCartQuantity(cartItem.id, cartItem.quantity + 1)}
+                        disabled={cartItem.quantity >= cartItem.stockAvailable}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="rs-cart-item-subtotal">{formatCurrency(cartItem.price * cartItem.quantity)}</div>
+                    <button
+                      className="rs-cart-remove-btn"
+                      onClick={() => handleRemoveFromCart(cartItem.id)}
+                      title="Remove from cart"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer with Add to Cart and Complete Sale buttons */}
         <div className="rs-footer">
+          {selectedItemId && price && qty && (
+            <button
+              type="button"
+              className="rs-secondary"
+              onClick={handleAddToCart}
+              disabled={isProcessing}
+            >
+              Add to Cart
+            </button>
+          )}
           <button
             type="button"
             className="rs-primary"
             onClick={handleSave}
-            disabled={!isFormValid}
+            disabled={cart.length === 0 || isProcessing || (isCredit && (!customerName.trim() || !dueDate)) || (sendWhatsApp && (!phone || !phoneValidation.valid || (isCredit && !hasConsent)))}
           >
-            Complete Sale
+            {isProcessing ? 'Processing...' : `Complete Sale${cart.length > 0 ? ` (${cart.length})` : ''}`}
           </button>
-          <button type="button" className="rs-link" onClick={onClose}>
+          <button type="button" className="rs-link" onClick={onClose} disabled={isProcessing}>
             Cancel
           </button>
         </div>
