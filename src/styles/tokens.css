@@ -1,0 +1,62 @@
+/**
+ * Design Tokens for Storehouse Receipt Flow
+ *
+ * Non-creative implementation matching reference artboard
+ */
+
+:root {
+  /* Brand Colors */
+  --brand-blue: #0B63F6;
+  --whatsapp-green: #25D366;
+
+  /* Backgrounds */
+  --bg-page: #F6F8FC;
+  --bg-sheet: #FFFFFF;
+  --bg-preview: #F8FAFC;
+  --bg-hover: rgba(15, 23, 42, 0.04);
+
+  /* Text Colors */
+  --text-strong: #0F172A;
+  --text-subtle: #334155;
+
+  /* Lines & Borders */
+  --line-soft: #E2E8F0;
+
+  /* Border Radius */
+  --radius-xl: 24px;
+  --radius-xxl: 40px;
+
+  /* Spacing Scale */
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Typography */
+  --font-title: 600 18px/1.3 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  --font-heading: 700 20px/1.3 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
+  --font-body: 400 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
+}
+
+/* Reusable Icon Buttons */
+.icon-btn {
+  inline-size: 44px;
+  block-size: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}

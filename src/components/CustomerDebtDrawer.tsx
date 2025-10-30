@@ -1,6 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { listDebts, markDebtPaid, type Debt } from '../db/debts';
+import { getDebts, markDebtPaidNotify, type Debt as LocalStorageDebt } from '../state/debts';
 import { openWhatsApp } from '../utils/wa';
+
+// Adapter type to match the component's expected format
+type Debt = {
+  id: string;
+  name: string;
+  phone?: string;
+  amount: number;
+  dueDate?: string;
+  createdAt: string;
+  paid: boolean;
+  paidAt?: string | null;
+};
 
 // Local money formatter fallback to avoid crashes
 const formatNaira = (n: number) => {
@@ -49,7 +61,21 @@ export default function CustomerDebtDrawer({
   // Load debts when drawer opens
   useEffect(() => {
     if (!isOpen) return;
-    listDebts().then(setDebts).catch(console.error);
+
+    // Load from localStorage and convert format
+    const localDebts = getDebts();
+    const convertedDebts: Debt[] = localDebts.map(d => ({
+      id: d.id,
+      name: d.customerName, // Map customerName to name
+      phone: d.phone,
+      amount: d.amount,
+      dueDate: d.dueDate,
+      createdAt: d.createdAt,
+      paid: d.status === 'paid', // Map status to paid boolean
+      paidAt: d.status === 'paid' ? d.createdAt : null // Use createdAt as fallback for paidAt
+    }));
+
+    setDebts(convertedDebts);
   }, [isOpen]);
 
   // Filter and sort debts
@@ -114,22 +140,25 @@ export default function CustomerDebtDrawer({
   }, [debts, tab, searchQuery, filteredDebts, today]);
 
   // Mark debt as paid
-  async function handleMarkPaid(debt: Debt) {
+  function handleMarkPaid(debt: Debt) {
     try {
       setSavingId(debt.id);
-      const updated = await markDebtPaid(debt.id);
-      if (updated) {
-        // Optimistic update
-        setDebts(prev =>
-          prev.map(d =>
-            d.id === debt.id
-              ? { ...d, paid: true, paidAt: updated.paidAt ?? new Date().toISOString() }
-              : d
-          )
-        );
-        setConfirmMarkPaid(null);
-        onToast?.(`✓ Marked ${formatNaira(debt.amount)} as paid`);
-      }
+
+      // Mark as paid in localStorage
+      markDebtPaidNotify(debt.id);
+
+      // Optimistic update - update local state
+      const paidAt = new Date().toISOString();
+      setDebts(prev =>
+        prev.map(d =>
+          d.id === debt.id
+            ? { ...d, paid: true, paidAt }
+            : d
+        )
+      );
+
+      setConfirmMarkPaid(null);
+      onToast?.(`✓ Marked ${formatNaira(debt.amount)} as paid`);
     } catch (e) {
       console.error('[Mark Paid] Error:', e);
       onToast?.('Failed to mark as paid. Please try again.');

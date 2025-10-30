@@ -11,6 +11,11 @@ export type Settings = {
   receiptMessage?: string;
   eodTime?: string;
   backupEmail?: string;
+  // Receipt flow settings
+  autoOfferReceipt?: boolean;
+  autoSendReceiptToSavedCustomers?: boolean;
+  lowStockThreshold?: number;
+  defaultHistoryRange?: 'today' | 'week' | 'month' | 'all';
 };
 
 const STORAGE_KEY = 'storehouse-settings';
@@ -19,13 +24,18 @@ const DEFAULT_SETTINGS: Settings = {
   businessName: '',
   ownerName: '',
   phoneNumber: '',
-  quickSellEnabled: true,
+  quickSellEnabled: false, // force default OFF
   currency: 'NGN',
   numberFormat: 'en-NG',
   theme: 'light',
   receiptMessage: '',
   eodTime: '18:00',
-  backupEmail: ''
+  backupEmail: '',
+  // Receipt flow defaults
+  autoOfferReceipt: true,
+  autoSendReceiptToSavedCustomers: false,
+  lowStockThreshold: 3,
+  defaultHistoryRange: 'today'
 };
 
 /**

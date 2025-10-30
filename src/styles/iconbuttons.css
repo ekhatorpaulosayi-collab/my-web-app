@@ -1,0 +1,45 @@
+.sh-iconbtn{
+  -webkit-tap-highlight-color: transparent;
+  display:inline-flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:4px; /* space between icon and optional label */
+  width:44px; height:44px; border-radius:12px;
+  border:1px solid rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.05); /* light mode base */
+  color: currentColor;
+  transition: background .15s ease, transform .10s ease, border-color .15s ease;
+}
+.sh-iconbtn__inner{ display:flex; align-items:center; justify-content:center; line-height:0; }
+.sh-iconbtn__label{
+  display:none; /* hidden by default; shown only on tiny screens if enabled */
+  font-size:10.5px; font-weight:500; opacity:.85; letter-spacing:.2px;
+  transform: translateY(-2px);
+}
+
+/* Hover / active */
+.sh-iconbtn:hover{ background: rgba(0,0,0,0.08); transform: translateY(-1px) scale(1.02); }
+.sh-iconbtn:active{ transform: translateY(0) scale(.98); }
+
+/* Focus ring (keyboard) */
+.sh-iconbtn:focus-visible{
+  outline:2px solid rgba(64,132,255,.65);
+  outline-offset:2px;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark){
+  .sh-iconbtn{
+    border-color: rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.08);
+  }
+  .sh-iconbtn:hover{ background: rgba(255,255,255,0.12); }
+}
+
+/* Only on very small screens, allow labels if component requests it */
+@media (max-width: 380px){
+  .sh-iconbtn{ height:52px; } /* slightly taller to host label */
+  .sh-iconbtn__label{ display:block; }
+}
+
+/* Header action row spacing */
+.header-actions{ display:flex; align-items:center; gap:14px; }

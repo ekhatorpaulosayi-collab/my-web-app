@@ -408,6 +408,8 @@
 
 /* Footer */
 .bs-footer {
+  position: sticky;
+  bottom: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -415,6 +417,8 @@
   border-top: 1px solid #EAECEF;
   flex-shrink: 0;
   background: #FFFFFF;
+  z-index: 1001;
+  pointer-events: auto;
 }
 
 .bs-btn-primary {
@@ -470,6 +474,12 @@
 .bs-btn-secondary:focus-visible {
   outline: 2px solid #2063F0;
   outline-offset: 2px;
+}
+
+/* Defensive: prevent backdrop/overlay from blocking clicks */
+.bs-sheet .backdrop,
+.bs-sheet::after {
+  pointer-events: none !important;
 }
 
 /* Accessibility - high contrast mode */

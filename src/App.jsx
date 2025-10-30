@@ -1394,11 +1394,14 @@ function App() {
     });
   };
 
-  const handleSaveSale = async () => {
+  const handleSaveSale = async (saleData) => {
     // STAGE 3: Atomic transaction for credit sales
-    const selectedItem = items.find(item => item.id === parseInt(saleForm.itemId));
-    const qty = parseQty(saleForm.quantity);
-    const sellKobo = toKobo(saleForm.sellPrice);
+    // Support both RecordSaleModal (saleData param) and legacy form (saleForm state)
+    const formData = saleData || saleForm;
+
+    const selectedItem = items.find(item => item.id === parseInt(formData.itemId));
+    const qty = parseQty(formData.quantity);
+    const sellKobo = toKobo(formData.sellPrice);
 
     // Validation
     if (!selectedItem || !qty || !sellKobo) {
@@ -1413,20 +1416,20 @@ function App() {
     }
 
     // Credit sale validation
-    if (saleForm.isCreditSale) {
-      if (!saleForm.customerName.trim()) {
+    if (formData.isCreditSale) {
+      if (!formData.customerName.trim()) {
         displayToast('Customer name required for credit sales');
         return;
       }
 
       // Phone validation if provided
-      if (saleForm.phone && !isValidNG(saleForm.phone)) {
+      if (formData.phone && !isValidNG(formData.phone)) {
         displayToast('Invalid Nigerian phone number. Use format: 0XXXXXXXXXX or +234XXXXXXXXXX');
         return;
       }
 
       // Consent required if WhatsApp is ON
-      if (saleForm.sendWhatsApp && !saleForm.hasConsent) {
+      if (formData.sendWhatsApp && !formData.hasConsent) {
         displayToast('Please confirm customer consent to receive WhatsApp messages');
         return;
       }
@@ -1474,11 +1477,11 @@ function App() {
           createdAt: Date.now(),
           dayKey: localDayKey(),
           // v5: Payment method tracking for accurate EOD reports
-          isCredit: saleForm.isCreditSale,
-          paymentMethod: saleForm.isCreditSale ? 'credit' : (saleForm.paymentMethod || 'cash'),
+          isCredit: formData.isCreditSale,
+          paymentMethod: formData.isCreditSale ? 'credit' : (formData.paymentMethod || 'cash'),
           // Include customer info if present
-          customerName: saleForm.customerName || null,
-          dueDate: saleForm.dueDate || null
+          customerName: formData.customerName || null,
+          dueDate: formData.dueDate || null
         };
         salesStore.add(saleData);
 
@@ -1506,8 +1509,8 @@ function App() {
         };
 
         // 3) Upsert customer if credit sale
-        if (saleForm.isCreditSale) {
-          const lowerName = saleForm.customerName.trim().toLowerCase();
+        if (formData.isCreditSale) {
+          const lowerName = formData.customerName.trim().toLowerCase();
           const custIndex = customersStore.index('by_lower_name');
           const custRequest = custIndex.get(lowerName);
 
@@ -1517,10 +1520,10 @@ function App() {
             if (!existingCust) {
               // Create new customer - plain object only
               const newCustomer = {
-                name: saleForm.customerName.trim(),
+                name: formData.customerName.trim(),
                 lowerName: lowerName,
-                phone: saleForm.phone || null,
-                consentAt: saleForm.hasConsent ? Date.now() : null,
+                phone: formData.phone || null,
+                consentAt: formData.hasConsent ? Date.now() : null,
                 createdAt: Date.now()
               };
               const addRequest = customersStore.add(newCustomer);
@@ -1534,7 +1537,7 @@ function App() {
                   customerId: customerId,
                   principalKobo: qty * sellKobo,
                   paidKobo: 0,
-                  dueDate: saleForm.dueDate,
+                  dueDate: formData.dueDate,
                   status: 'open',
                   createdAt: Date.now()
                 };
@@ -1545,8 +1548,8 @@ function App() {
               const customerId = existingCust.id;
               const updatedCustomer = {
                 ...existingCust,
-                phone: saleForm.phone || existingCust.phone,
-                consentAt: saleForm.hasConsent ? Date.now() : existingCust.consentAt
+                phone: formData.phone || existingCust.phone,
+                consentAt: formData.hasConsent ? Date.now() : existingCust.consentAt
               };
               customersStore.put(updatedCustomer);
 
@@ -1557,7 +1560,7 @@ function App() {
                 customerId: customerId,
                 principalKobo: qty * sellKobo,
                 paidKobo: 0,
-                dueDate: saleForm.dueDate,
+                dueDate: formData.dueDate,
                 status: 'open',
                 createdAt: Date.now()
               };
@@ -1597,25 +1600,25 @@ function App() {
         qty,
         unitPrice,
         amount,
-        payment: saleForm.isCreditSale ? "credit" : (saleForm.paymentMethod || 'cash'),
-        customerName: saleForm.isCreditSale ? saleForm.customerName.trim() : undefined,
-        phone: saleForm.isCreditSale && saleForm.phone ? saleForm.phone.trim() : undefined,
-        note: saleForm.note.trim() || undefined,
+        payment: formData.isCreditSale ? "credit" : (formData.paymentMethod || 'cash'),
+        customerName: formData.isCreditSale ? formData.customerName.trim() : undefined,
+        phone: formData.isCreditSale && formData.phone ? formData.phone.trim() : undefined,
+        note: formData.note.trim() || undefined,
       };
       sales.unshift(saleRow);
       saveSales(sales);
 
-      if (saleForm.isCreditSale) {
+      if (formData.isCreditSale) {
         // Create debt record for KPI tracking (new debt management system)
         const debtId = `debt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
         const debtAmount = totalKobo / 100; // Convert kobo to naira
-        const dueDate = new Date(saleForm.dueDate);
+        const dueDate = new Date(formData.dueDate);
         const dueDateStr = dueDate.toISOString().split('T')[0]; // yyyy-mm-dd format
 
         addDebtNotify({
           id: debtId,
-          customerName: saleForm.customerName.trim(),
-          phone: saleForm.phone || undefined,
+          customerName: formData.customerName.trim(),
+          phone: formData.phone || undefined,
           amount: debtAmount,
           dueDate: dueDateStr,
           createdAt: new Date().toISOString(),
@@ -1627,9 +1630,9 @@ function App() {
         debts.unshift({
           id: uid(),
           saleId,
-          customerName: saleForm.customerName.trim(),
-          phone: saleForm.phone ? saleForm.phone.trim() : undefined,
-          dueDate: saleForm.dueDate,
+          customerName: formData.customerName.trim(),
+          phone: formData.phone ? formData.phone.trim() : undefined,
+          dueDate: formData.dueDate,
           amount,
           createdAt: new Date().toISOString(),
         });
@@ -1644,35 +1647,37 @@ function App() {
 
       // WhatsApp receipt (plan gated, but allowed for beta testers)
       const canSendWhatsApp = isBetaTester || currentPlan !== 'FREE' || trialDaysLeft > 0;
-      if (saleForm.isCreditSale && saleForm.sendWhatsApp && canSendWhatsApp) {
+      if (formData.isCreditSale && formData.sendWhatsApp && canSendWhatsApp) {
         const receipt = buildCreditReceipt({
           storeName: settings.businessName || 'Storehouse',
-          customer: saleForm.customerName.trim(),
+          customer: formData.customerName.trim(),
           itemName: selectedItem.name,
           qty,
           sellKobo,
-          dueDateISO: saleForm.dueDate,
+          dueDateISO: formData.dueDate,
           refCode: 'APP'
         });
 
-        const url = toWhatsAppTarget(saleForm.phone) + encodeURIComponent(receipt);
+        const url = toWhatsAppTarget(formData.phone) + encodeURIComponent(receipt);
         window.open(url, '_blank');
       }
 
-      // Reset form
-      setSaleForm({
-        itemId: '',
-        quantity: '',
-        sellPrice: '',
-        paymentMethod: 'cash',
-        customerName: '',
-        isCreditSale: false,
-        phone: '',
-        note: '',
-        dueDate: todayPlusDaysISO(7),
-        sendWhatsApp: true,
-        hasConsent: false
-      });
+      // Reset form (only if using legacy form, not RecordSaleModal)
+      if (!saleData) {
+        setSaleForm({
+          itemId: '',
+          quantity: '',
+          sellPrice: '',
+          paymentMethod: 'cash',
+          customerName: '',
+          isCreditSale: false,
+          phone: '',
+          note: '',
+          dueDate: todayPlusDaysISO(7),
+          sendWhatsApp: true,
+          hasConsent: false
+        });
+      }
 
       // Refresh items and sales from DB to update UI
       const updatedItems = await getItems();
@@ -1696,7 +1701,7 @@ function App() {
       setSales(updatedSales);
 
       // Refresh credits if it was a credit sale
-      if (saleForm.isCreditSale) {
+      if (formData.isCreditSale) {
         const updatedCredits = await getCredits();
         setCredits(updatedCredits);
       }

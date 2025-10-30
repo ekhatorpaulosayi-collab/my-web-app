@@ -289,14 +289,26 @@ export async function getItems() {
     const store = transaction.objectStore('items');
     const request = store.getAll();
 
+    let items = null;
+
     request.onsuccess = () => {
-      const items = request.result;
-      console.log('[getItems] ✅ Loaded items from IndexedDB:', items.length);
+      items = request.result;
+      console.log('[getItems] Request succeeded, count:', items.length);
+    };
+
+    request.onerror = () => {
+      console.error('[getItems] Request error:', request.error);
+      reject(request.error);
+    };
+
+    transaction.oncomplete = () => {
+      console.log('[getItems] ✅ Transaction complete, loaded:', items.length);
       resolve(items);
     };
-    request.onerror = () => {
-      console.error('[getItems] Error:', request.error);
-      reject(request.error);
+
+    transaction.onerror = () => {
+      console.error('[getItems] Transaction error:', transaction.error);
+      reject(transaction.error);
     };
   });
 }

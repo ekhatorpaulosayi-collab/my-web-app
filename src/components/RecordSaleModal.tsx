@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './record-sale.css';
+import AfterSaleSheet from './AfterSaleSheet';
+import { buildTextFromSale, waLink, shouldAutoSend, shouldShowSheet } from '../modules/sales/attachReceiptFlow';
+import { useBusinessProfile } from '../contexts/BusinessProfile';
+import { getSettings } from '../utils/settings';
+import { RECEIPT_SETTINGS_ENABLED } from '../config';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -31,7 +36,13 @@ export default function RecordSaleModal({
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
 
+  // Receipt sheet state
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [receiptText, setReceiptText] = useState('');
+  const [receiptPhone, setReceiptPhone] = useState<string | undefined>();
+
   const customerNameRef = useRef<HTMLInputElement>(null);
+  const { profile } = useBusinessProfile();
 
   // Initialize due date to today + 7 days
   useEffect(() => {
@@ -185,11 +196,85 @@ export default function RecordSaleModal({
         }
       }
 
-      onClose();
+      // Build receipt text for the new flow
+      const settings = getSettings();
+      const priceInKobo = Math.round(parseFloat(price.replace(/,/g, '')) * 100);
+      const saleRecord = {
+        id: Date.now().toString(),
+        itemName: selectedItem?.name || 'Item',
+        qty: parseInt(qty),
+        sellKobo: priceInKobo,
+        payment: isCredit ? ('credit' as const) : ('cash' as const),
+        createdAt: Date.now(),
+        dueDate: isCredit ? dueDate : undefined,
+        customerId: undefined, // Could be enhanced with customer ID lookup
+      };
+
+      const businessName = profile.businessName || 'Storehouse';
+      const receiptNote = settings.receiptMessage || message || undefined;
+      const { text, phone: phoneE164 } = buildTextFromSale(
+        saleRecord,
+        businessName,
+        undefined, // No customer lookup yet
+        receiptNote
+      );
+
+      setReceiptText(text);
+      setReceiptPhone(phoneE164);
+
+      // Check settings to decide flow (only if receipt feature is enabled)
+      if (RECEIPT_SETTINGS_ENABLED) {
+        if (shouldAutoSend(settings, phoneE164)) {
+          // Auto-send to saved customer with phone
+          try {
+            const url = waLink(text, phoneE164);
+            window.location.href = url;
+          } catch (error) {
+            console.error('[Auto-send] Error:', error);
+          }
+          onClose();
+        } else if (shouldShowSheet(settings)) {
+          // Show the receipt sheet for user to decide
+          setSheetOpen(true);
+        } else {
+          // Settings disabled receipt offering
+          onClose();
+        }
+      } else {
+        // Receipt feature disabled - just close
+        onClose();
+      }
     } catch (error) {
       console.error('[Save Sale] Error:', error);
       // Modal stays open on error
     }
+  };
+
+  // Handle sending receipt via WhatsApp
+  const handleSendReceipt = () => {
+    try {
+      const url = waLink(receiptText, receiptPhone);
+      window.location.href = url;
+      setSheetOpen(false);
+      onClose();
+    } catch (error) {
+      console.error('[Send Receipt] Error:', error);
+      // Fallback: copy to clipboard
+      try {
+        navigator.clipboard.writeText(receiptText);
+        alert('Receipt copied to clipboard. Please paste in WhatsApp.');
+      } catch (clipError) {
+        console.error('[Clipboard] Error:', clipError);
+      }
+      setSheetOpen(false);
+      onClose();
+    }
+  };
+
+  // Handle skipping receipt
+  const handleSkipReceipt = () => {
+    setSheetOpen(false);
+    onClose();
   };
 
   // Format due date for display
@@ -210,7 +295,8 @@ export default function RecordSaleModal({
   if (!isOpen) return null;
 
   return (
-    <div className="rs-overlay" onClick={onClose}>
+    <>
+      <div className="rs-overlay" onClick={onClose}>
       <div className="rs-modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="rs-header">
@@ -491,5 +577,14 @@ export default function RecordSaleModal({
         </div>
       </div>
     </div>
+
+      {/* Receipt Sheet - appears after sale is saved */}
+      <AfterSaleSheet
+        open={sheetOpen}
+        receiptText={receiptText}
+        onSend={handleSendReceipt}
+        onSkip={handleSkipReceipt}
+      />
+    </>
   );
 }
