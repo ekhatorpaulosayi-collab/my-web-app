@@ -168,10 +168,10 @@ export default function RecordSaleModal({
       sellPrice: price,
       isCreditSale: isCredit,
       customerName: isCredit ? customerName : '',
-      phone: isCredit ? phone : '',
+      phone: phone,  // Include phone for both cash and credit sales
       dueDate: isCredit ? new Date(dueDate).toISOString() : '',
       note: isCredit ? message : '',
-      sendWhatsApp: isCredit ? sendWhatsApp : false,
+      sendWhatsApp: sendWhatsApp,  // Include sendWhatsApp for both cash and credit sales
       hasConsent: isCredit ? hasConsent : false
     };
 
