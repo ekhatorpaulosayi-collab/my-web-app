@@ -804,14 +804,18 @@ function App() {
   // TEST: WhatsApp receipt test button handler
   useEffect(() => {
     const handler = () => {
-      console.log('[WhatsApp Test] Building test receipt...');
+      console.log('[WhatsApp Test] Building test receipt with multiple items...');
 
+      // Test with multiple items
       const testReceipt = buildReceiptText({
         businessName: settings.businessName || 'Test Store',
         customerName: 'Test Customer',
-        itemName: 'Test Product',
-        quantity: 5,
-        totalAmount: 25000,
+        items: [
+          { name: 'Rice (50kg)', quantity: 2, price: 45000 },
+          { name: 'Beans (25kg)', quantity: 3, price: 30000 },
+          { name: 'Garri (10kg)', quantity: 5, price: 15000 }
+        ],
+        totalAmount: 165000,
         date: new Date().toISOString()
       });
 
@@ -836,29 +840,67 @@ function App() {
    * @param {Object} params - Receipt parameters
    * @param {string} params.businessName - Business name
    * @param {string} params.customerName - Customer name
-   * @param {string} params.itemName - Item sold
-   * @param {number} params.quantity - Quantity sold
+   * @param {Array} [params.items] - Array of items (optional, for multiple items)
+   * @param {string} [params.itemName] - Single item name (backwards compatible)
+   * @param {number} [params.quantity] - Single item quantity (backwards compatible)
    * @param {number} params.totalAmount - Total in Naira
    * @param {string} params.date - Sale date
    * @returns {string} Formatted receipt text
    */
-  const buildReceiptText = ({ businessName, customerName, itemName, quantity, totalAmount, date }) => {
-    const formattedDate = new Date(date).toLocaleDateString('en-NG', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+  const buildReceiptText = ({ businessName, customerName, items, itemName, quantity, totalAmount, date }) => {
+    try {
+      const formattedDate = new Date(date).toLocaleDateString('en-NG', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
 
-    const receipt = `
+      let itemsSection = '';
+
+      // GUARDRAIL 1: Try to build items section with multiple items
+      try {
+        if (Array.isArray(items) && items.length > 0) {
+          // Multiple items format
+          const itemLines = items.map((item, index) => {
+            try {
+              const itemNum = items.length > 1 ? `${index + 1}. ` : '';
+              const name = item.name || item.itemName || 'Unknown Item';
+              const qty = item.quantity || item.qty || 1;
+              const price = item.price || item.amount || 0;
+              return `${itemNum}${name} × ${qty} = ₦${price.toLocaleString()}`;
+            } catch (err) {
+              console.warn('[Receipt] Error formatting item:', err);
+              return `${index + 1}. Item (error formatting)`;
+            }
+          }).join('\n');
+
+          itemsSection = `Items:\n${itemLines}`;
+        } else if (itemName && quantity) {
+          // GUARDRAIL 2: Fallback to single item format (backwards compatible)
+          itemsSection = `Item: ${itemName}\nQty: ${quantity}`;
+        } else {
+          // GUARDRAIL 3: No items provided
+          itemsSection = 'Items: No items';
+        }
+      } catch (err) {
+        // GUARDRAIL 4: If items formatting fails completely, try single item fallback
+        console.error('[Receipt] Error building items section:', err);
+        if (itemName && quantity) {
+          itemsSection = `Item: ${itemName}\nQty: ${quantity}`;
+        } else {
+          itemsSection = 'Items: No items';
+        }
+      }
+
+      const receipt = `
 📱 SALES RECEIPT
 
 From: ${businessName || 'Storehouse'}
 To: ${customerName || 'Customer'}
 
-Item: ${itemName}
-Qty: ${quantity}
-Amount: ₦${totalAmount.toLocaleString()}
+${itemsSection}
 
+Total: ₦${totalAmount.toLocaleString()}
 Date: ${formattedDate}
 
 Thank you for your business! 🙏
@@ -866,9 +908,24 @@ Thank you for your business! 🙏
 ---
 Powered by Storehouse
 https://storehouse.ng
-    `.trim();
+      `.trim();
 
-    return receipt;
+      return receipt;
+    } catch (err) {
+      // GUARDRAIL 5: Ultimate fallback - return minimal receipt
+      console.error('[Receipt] Critical error building receipt:', err);
+      return `
+📱 SALES RECEIPT
+
+From: ${businessName || 'Storehouse'}
+To: ${customerName || 'Customer'}
+
+Amount: ₦${totalAmount?.toLocaleString() || '0'}
+Date: ${new Date().toLocaleDateString('en-NG')}
+
+Thank you for your business! 🙏
+      `.trim();
+    }
   };
 
   /**
