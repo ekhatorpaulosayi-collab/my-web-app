@@ -117,7 +117,7 @@ export default function RecordSaleModal({
     price &&
     parseFloat(price.replace(/,/g, '')) > 0 &&
     (!isCredit || (customerName.trim() && dueDate)) &&
-    (!sendWhatsApp || (phone && hasConsent)) &&
+    (!sendWhatsApp || (phone && (!isCredit || hasConsent))) &&
     isPhoneValid;
 
   // Handle item selection from dropdown
@@ -421,6 +421,42 @@ export default function RecordSaleModal({
                       <small className="rs-help">Stock left: {selectedItem.qty}</small>
                     )}
                   </div>
+
+                  {/* WhatsApp Receipt (for cash sales) */}
+                  {!isCredit && selectedItemId && (
+                    <div className="rs-field" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+                      <label className="rs-label" style={{ marginBottom: '8px', display: 'block' }}>
+                        📱 Send Receipt (Optional)
+                      </label>
+
+                      {/* Phone Input */}
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        className="rs-input"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="Customer phone (080...)"
+                        style={{ marginBottom: '8px' }}
+                      />
+
+                      {phone && !isPhoneValid && (
+                        <small className="rs-error">Enter 10-14 digits</small>
+                      )}
+
+                      {/* WhatsApp Checkbox */}
+                      {phone && isPhoneValid && (
+                        <label className="rs-checkbox" style={{ marginTop: '8px' }}>
+                          <input
+                            type="checkbox"
+                            checked={sendWhatsApp}
+                            onChange={e => setSendWhatsApp(e.target.checked)}
+                          />
+                          <span>Send WhatsApp receipt</span>
+                        </label>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
