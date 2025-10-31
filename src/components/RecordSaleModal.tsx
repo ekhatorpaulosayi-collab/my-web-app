@@ -262,16 +262,15 @@ export default function RecordSaleModal({
       setQty('1');
       setSearchTerm('');
 
-      // Success feedback
-      const successMsg = existingCartItem
-        ? `Updated ${selectedItem.name} quantity to ${newTotalQty}`
-        : `Added ${selectedItem.name} to cart`;
-
-      // Show brief success message
+      // Success feedback with toast
       setCartError('');
-      setTimeout(() => {
-        // Could show a toast here if available
-      }, 100);
+
+      if (onShowToast) {
+        const successMsg = existingCartItem
+          ? `🛒 Updated ${selectedItem.name}\nQuantity: ${newTotalQty} (${formatCurrency(priceNum * newTotalQty)})`
+          : `🛒 Added ${selectedItem.name} to cart\n${qtyNum} × ${formatCurrency(priceNum)} = ${formatCurrency(priceNum * qtyNum)}`;
+        onShowToast(successMsg, 2500);
+      }
 
     } catch (error) {
       console.error('[Cart] Error adding item:', error);
@@ -322,6 +321,10 @@ export default function RecordSaleModal({
 
       setCart(prev => prev.filter(item => item.id !== cartItemId));
       setCartError('');
+
+      if (onShowToast) {
+        onShowToast(`🗑️ Removed ${cartItem.name} from cart`, 2000);
+      }
     } catch (error) {
       console.error('[Cart] Error removing item:', error);
       setCartError('Failed to remove item');
@@ -472,15 +475,37 @@ Powered by Storehouse
       setCartExpanded(false);
       setIsProcessing(false);
 
-      // Show success toast with sale details
+      // Show success toast with specific sale details
       if (onShowToast) {
         const itemCount = cart.length;
         const itemWord = itemCount === 1 ? 'item' : 'items';
-        const saleType = isCredit ? '💳 Credit Sale' : '✅ Cash Sale';
-        const whatsappStatus = sendWhatsApp && phone && phoneValidation.valid ? '\n📱 WhatsApp receipt sent' : '';
+        const formattedTotal = `₦${cartTotals.totalAmount.toLocaleString()}`;
 
-        const toastMessage = `${saleType} - ${itemCount} ${itemWord}\n💰 Total: ₦${cartTotals.totalAmount.toLocaleString()}${whatsappStatus}`;
-        onShowToast(toastMessage, 4000);
+        let toastMessage = '';
+
+        if (isCredit) {
+          // Credit sale messages
+          if (sendWhatsApp && phone && phoneValidation.valid) {
+            // Get last 4 digits of phone for privacy
+            const phoneDigits = phone.replace(/\D/g, '');
+            const lastFour = phoneDigits.slice(-4);
+            toastMessage = `✅ Credit sale recorded for ${customerName}\n💳 ${itemCount} ${itemWord} • ${formattedTotal}\n📱 WhatsApp receipt sent to ...${lastFour}`;
+          } else {
+            toastMessage = `✅ Credit sale recorded for ${customerName}\n💳 ${itemCount} ${itemWord} • ${formattedTotal}`;
+          }
+        } else {
+          // Cash sale messages
+          if (sendWhatsApp && phone && phoneValidation.valid) {
+            // Get last 4 digits of phone for privacy
+            const phoneDigits = phone.replace(/\D/g, '');
+            const lastFour = phoneDigits.slice(-4);
+            toastMessage = `✅ Sale recorded! WhatsApp receipt sent to ...${lastFour}\n💰 ${itemCount} ${itemWord} sold for ${formattedTotal}`;
+          } else {
+            toastMessage = `✅ Sale recorded! ${itemCount} ${itemWord} sold for ${formattedTotal}`;
+          }
+        }
+
+        onShowToast(toastMessage, 4500);
       }
 
       // Close modal
