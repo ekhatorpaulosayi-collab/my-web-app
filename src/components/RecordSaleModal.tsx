@@ -106,60 +106,6 @@ export default function RecordSaleModal({
     }
   }, [isOpen]);
 
-  // Keyboard shortcuts (ENHANCEMENT 3: Power user shortcuts)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // ESC key: Close modal (with confirmation if data entered)
-      if (event.key === 'Escape') {
-        event.preventDefault();
-
-        // Check if there's unsaved data
-        const hasData = cart.length > 0 || selectedItemId || customerName || phone;
-
-        if (hasData) {
-          const confirmed = window.confirm('Close without saving? All entered data will be lost.');
-          if (!confirmed) return;
-        }
-
-        onClose();
-        return;
-      }
-
-      // ENTER key: Submit form (if valid and not typing in textarea)
-      if (event.key === 'Enter' && !event.shiftKey) {
-        // Don't submit if user is typing in textarea
-        const target = event.target as HTMLElement;
-        if (target.tagName === 'TEXTAREA') return;
-
-        // Don't submit if user is in search field (let them select item first)
-        if (target.id === 'rs-search') return;
-
-        // Check if cart has items (primary flow)
-        if (cart.length > 0) {
-          event.preventDefault();
-          handleSave();
-          return;
-        }
-
-        // Legacy single-item flow validation
-        if (isFormValid && !isProcessing) {
-          event.preventDefault();
-          handleSave();
-        }
-      }
-    };
-
-    // Attach event listener
-    window.addEventListener('keydown', handleKeyDown);
-
-    // Cleanup on unmount
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, cart, selectedItemId, customerName, phone, isFormValid, isProcessing, onClose]); // Dependencies for shortcut logic
-
   // Filter items based on search term
   const filteredItems = items.filter(item => {
     if (!searchTerm.trim()) return true;
@@ -577,6 +523,61 @@ Powered by Storehouse
       // Modal stays open on error
     }
   };
+
+  // Keyboard shortcuts (ENHANCEMENT 3: Power user shortcuts)
+  // Placed here after all dependencies are declared
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // ESC key: Close modal (with confirmation if data entered)
+      if (event.key === 'Escape') {
+        event.preventDefault();
+
+        // Check if there's unsaved data
+        const hasData = cart.length > 0 || selectedItemId || customerName || phone;
+
+        if (hasData) {
+          const confirmed = window.confirm('Close without saving? All entered data will be lost.');
+          if (!confirmed) return;
+        }
+
+        onClose();
+        return;
+      }
+
+      // ENTER key: Submit form (if valid and not typing in textarea)
+      if (event.key === 'Enter' && !event.shiftKey) {
+        // Don't submit if user is typing in textarea
+        const target = event.target as HTMLElement;
+        if (target.tagName === 'TEXTAREA') return;
+
+        // Don't submit if user is in search field (let them select item first)
+        if (target.id === 'rs-search') return;
+
+        // Check if cart has items (primary flow)
+        if (cart.length > 0) {
+          event.preventDefault();
+          handleSave();
+          return;
+        }
+
+        // Legacy single-item flow validation
+        if (isFormValid && !isProcessing) {
+          event.preventDefault();
+          handleSave();
+        }
+      }
+    };
+
+    // Attach event listener
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, cart, selectedItemId, customerName, phone, isFormValid, isProcessing, onClose, handleSave]); // Dependencies for shortcut logic
 
   // Handle save (LEGACY - kept for backwards compatibility)
   const handleSaveSingle = async () => {
