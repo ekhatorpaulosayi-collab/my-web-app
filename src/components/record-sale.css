@@ -454,6 +454,50 @@
   color: var(--rs-muted) !important;
 }
 
+/* Payment Method Selector */
+.rs-payment-methods {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rs-payment-method {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1.5px solid var(--rs-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 160ms;
+  user-select: none;
+  background: var(--rs-bg);
+}
+
+.rs-payment-method:hover {
+  border-color: var(--rs-brand);
+  background: var(--rs-card);
+}
+
+.rs-payment-method input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  margin: 0;
+  accent-color: var(--rs-brand);
+}
+
+.rs-payment-method input[type='radio']:checked + span {
+  font-weight: 600;
+  color: var(--rs-brand);
+}
+
+.rs-payment-method span {
+  font-size: 14px;
+  color: var(--rs-ink);
+  font-weight: 500;
+}
+
 /* Footer */
 .rs-footer {
   display: flex;

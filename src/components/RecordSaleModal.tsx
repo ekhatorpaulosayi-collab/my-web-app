@@ -6,6 +6,7 @@ import { useBusinessProfile } from '../contexts/BusinessProfile';
 import { getSettings } from '../utils/settings';
 import { RECEIPT_SETTINGS_ENABLED } from '../config';
 import { formatNGPhone, validateNGPhone } from '../utils/phone';
+import { getStockIndicator } from '../utils/stockSettings';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export default function RecordSaleModal({
   const [message, setMessage] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Transfer' | 'Card' | 'POS'>('Cash');
 
   // Shopping cart state
   const [cart, setCart] = useState<Array<{
@@ -96,12 +98,67 @@ export default function RecordSaleModal({
       setMessage('');
       setSendWhatsApp(false);
       setHasConsent(false);
+      setPaymentMethod('Cash');  // Reset to default
       setCart([]);  // Clear cart when modal closes
       setCartExpanded(false);
       setCartError('');
       setIsProcessing(false);
     }
   }, [isOpen]);
+
+  // Keyboard shortcuts (ENHANCEMENT 3: Power user shortcuts)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // ESC key: Close modal (with confirmation if data entered)
+      if (event.key === 'Escape') {
+        event.preventDefault();
+
+        // Check if there's unsaved data
+        const hasData = cart.length > 0 || selectedItemId || customerName || phone;
+
+        if (hasData) {
+          const confirmed = window.confirm('Close without saving? All entered data will be lost.');
+          if (!confirmed) return;
+        }
+
+        onClose();
+        return;
+      }
+
+      // ENTER key: Submit form (if valid and not typing in textarea)
+      if (event.key === 'Enter' && !event.shiftKey) {
+        // Don't submit if user is typing in textarea
+        const target = event.target as HTMLElement;
+        if (target.tagName === 'TEXTAREA') return;
+
+        // Don't submit if user is in search field (let them select item first)
+        if (target.id === 'rs-search') return;
+
+        // Check if cart has items (primary flow)
+        if (cart.length > 0) {
+          event.preventDefault();
+          handleSave();
+          return;
+        }
+
+        // Legacy single-item flow validation
+        if (isFormValid && !isProcessing) {
+          event.preventDefault();
+          handleSave();
+        }
+      }
+    };
+
+    // Attach event listener
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, cart, selectedItemId, customerName, phone, isFormValid, isProcessing, onClose]); // Dependencies for shortcut logic
 
   // Filter items based on search term
   const filteredItems = items.filter(item => {
@@ -364,7 +421,8 @@ export default function RecordSaleModal({
           dueDate: isCredit ? new Date(dueDate).toISOString() : '',
           note: isCredit ? message : '',
           sendWhatsApp: false,  // GUARDRAIL 11: Single WhatsApp for entire cart (sent later)
-          hasConsent: isCredit ? hasConsent : false
+          hasConsent: isCredit ? hasConsent : false,
+          paymentMethod: paymentMethod  // Include payment method
         };
 
         console.log('[Cart Save] Processing item:', cartItem.name, 'isCreditSale:', saleData.isCreditSale);
@@ -699,7 +757,7 @@ Powered by Storehouse
                       >
                         <div className="rs-item-name">{item.name}</div>
                         <div className="rs-item-meta">
-                          Stock: {item.qty} | {formatCurrency((item.sellKobo ?? 0) / 100)}
+                          Stock: {getStockIndicator(item.qty).emoji} {item.qty} | {formatCurrency((item.sellKobo ?? 0) / 100)}
                         </div>
                       </button>
                     ))}
@@ -821,6 +879,29 @@ Powered by Storehouse
                     {isCredit ? '🔴 CREDIT SALE' : '🟢 CASH SALE'}
                   </div>
                 </div>
+
+                {/* Payment Method Selector - Only show for cash sales */}
+                {!isCredit && (
+                  <div className="rs-field" style={{ marginTop: '16px' }}>
+                    <label className="rs-label" style={{ marginBottom: '8px', display: 'block' }}>
+                      Payment Method
+                    </label>
+                    <div className="rs-payment-methods">
+                      {(['Cash', 'Transfer', 'Card', 'POS'] as const).map((method) => (
+                        <label key={method} className="rs-payment-method">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value={method}
+                            checked={paymentMethod === method}
+                            onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+                          />
+                          <span>{method}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Credit Fields */}
                 {isCredit && (
