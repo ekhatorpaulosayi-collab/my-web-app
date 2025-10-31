@@ -693,44 +693,6 @@ export default function RecordSaleModal({
                     )}
                   </div>
 
-                  {/* WhatsApp Receipt (for cash sales) */}
-                  {!isCredit && selectedItemId && (
-                    <div className="rs-field" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
-                      <label className="rs-label" style={{ marginBottom: '8px', display: 'block' }}>
-                        📱 Send Receipt (Optional)
-                      </label>
-
-                      {/* Phone Input */}
-                      <input
-                        type="tel"
-                        inputMode="tel"
-                        className="rs-input"
-                        value={phoneDisplay}
-                        onChange={e => handlePhoneChange(e.target.value)}
-                        placeholder="080 1234 5678"
-                        style={{ marginBottom: '4px' }}
-                      />
-
-                      {/* Validation feedback */}
-                      {phone && phoneValidation.message && (
-                        <small className={phoneValidation.valid ? 'rs-help' : 'rs-error'} style={{ display: 'block', marginBottom: '8px' }}>
-                          {phoneValidation.message}
-                        </small>
-                      )}
-
-                      {/* WhatsApp Checkbox */}
-                      {phone && phoneValidation.valid && (
-                        <label className="rs-checkbox" style={{ marginTop: '8px' }}>
-                          <input
-                            type="checkbox"
-                            checked={sendWhatsApp}
-                            onChange={e => setSendWhatsApp(e.target.checked)}
-                          />
-                          <span>Send WhatsApp receipt</span>
-                        </label>
-                      )}
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -781,27 +743,6 @@ export default function RecordSaleModal({
                       />
                     </div>
 
-                    {/* Phone */}
-                    <div className="rs-field">
-                      <label htmlFor="rs-phone" className="rs-label">
-                        Phone (optional)
-                      </label>
-                      <input
-                        id="rs-phone"
-                        type="tel"
-                        inputMode="tel"
-                        className="rs-input"
-                        value={phoneDisplay}
-                        onChange={e => handlePhoneChange(e.target.value)}
-                        placeholder="080 1234 5678"
-                      />
-                      {phone && phoneValidation.message && (
-                        <small className={phoneValidation.valid ? 'rs-help' : 'rs-error'}>
-                          {phoneValidation.message}
-                        </small>
-                      )}
-                    </div>
-
                     {/* Due Date */}
                     <div className="rs-field">
                       <label htmlFor="rs-due" className="rs-label">
@@ -836,38 +777,67 @@ export default function RecordSaleModal({
                         maxLength={120}
                       />
                     </div>
+                  </div>
+                )}
 
-                    {/* WhatsApp Receipt */}
-                    <div className="rs-field">
+                {/* WhatsApp Receipt Section - Always visible for entire cart */}
+                <div className="rs-field" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+                  <label className="rs-label" style={{ marginBottom: '12px', display: 'block', fontWeight: 600 }}>
+                    📱 WhatsApp Receipt (Optional)
+                  </label>
+
+                  {/* Phone Input */}
+                  <div className="rs-field">
+                    <label htmlFor="rs-whatsapp-phone" className="rs-label" style={{ fontSize: '14px' }}>
+                      Customer Phone
+                    </label>
+                    <input
+                      id="rs-whatsapp-phone"
+                      type="tel"
+                      inputMode="tel"
+                      className="rs-input"
+                      value={phoneDisplay}
+                      onChange={e => handlePhoneChange(e.target.value)}
+                      placeholder="080 1234 5678"
+                    />
+                    {phone && phoneValidation.message && (
+                      <small className={phoneValidation.valid ? 'rs-help' : 'rs-error'} style={{ marginTop: '4px', display: 'block' }}>
+                        {phoneValidation.message}
+                      </small>
+                    )}
+                  </div>
+
+                  {/* WhatsApp Checkbox */}
+                  {phone && phoneValidation.valid && (
+                    <div className="rs-field" style={{ marginTop: '12px' }}>
                       <label className="rs-checkbox">
                         <input
                           type="checkbox"
                           checked={sendWhatsApp}
                           onChange={e => setSendWhatsApp(e.target.checked)}
-                          disabled={!phone}
                         />
-                        <span>Send WhatsApp receipt</span>
+                        <span>Send WhatsApp receipt for entire order</span>
                       </label>
                     </div>
+                  )}
 
-                    {/* Consent Checkbox */}
-                    {sendWhatsApp && (
-                      <div className="rs-field">
-                        <label className="rs-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={hasConsent}
-                            onChange={e => setHasConsent(e.target.checked)}
-                            required
-                          />
-                          <span className="rs-consent-text">
-                            I have customer's consent to receive WhatsApp messages *
-                          </span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {/* Consent for Credit Sales */}
+                  {sendWhatsApp && isCredit && (
+                    <div className="rs-field" style={{ marginTop: '8px' }}>
+                      <label className="rs-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={hasConsent}
+                          onChange={e => setHasConsent(e.target.checked)}
+                          required
+                        />
+                        <span className="rs-consent-text" style={{ fontSize: '13px' }}>
+                          I have customer's consent to receive WhatsApp messages *
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
