@@ -387,34 +387,71 @@ export default function RecordSaleModal({
       // GUARDRAIL 11: Single WhatsApp for entire cart
       if (sendWhatsApp && phone && phoneValidation.valid) {
         try {
-          const settings = getSettings();
+          console.log('[WhatsApp Cart] Preparing to send receipt...');
+          console.log('[WhatsApp Cart] Phone:', phone);
+          console.log('[WhatsApp Cart] Cart items:', cart.length);
+
           const businessName = profile.businessName || 'Storehouse';
+          const customerDisplayName = isCredit ? customerName : 'Customer';
 
-          // Build multi-item receipt
-          const cartItems = cart.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price * item.quantity
-          }));
-
-          // Use multi-item receipt format
-          const receipt = (window as any).buildReceiptText?.({
-            businessName,
-            customerName: isCredit ? customerName : 'Customer',
-            items: cartItems,
-            totalAmount: cartTotals.totalAmount,
-            date: new Date().toISOString()
+          // Build multi-item receipt text
+          const formattedDate = new Date().toLocaleDateString('en-NG', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
           });
 
-          if (receipt) {
-            const openWhatsAppReceipt = (window as any).openWhatsAppReceipt;
-            if (openWhatsAppReceipt) {
-              openWhatsAppReceipt(phone, receipt);
-            }
+          let itemsSection = '';
+          if (cart.length > 0) {
+            const itemLines = cart.map((item, index) => {
+              const itemNum = cart.length > 1 ? `${index + 1}. ` : '';
+              return `${itemNum}${item.name} × ${item.quantity} = ₦${(item.price * item.quantity).toLocaleString()}`;
+            }).join('\n');
+            itemsSection = `Items:\n${itemLines}`;
           }
+
+          const receipt = `
+📱 SALES RECEIPT
+
+From: ${businessName}
+To: ${customerDisplayName}
+
+${itemsSection}
+
+Total: ₦${cartTotals.totalAmount.toLocaleString()}
+Date: ${formattedDate}
+
+Thank you for your business! 🙏
+
+---
+Powered by Storehouse
+https://storehouse.ng
+          `.trim();
+
+          console.log('[WhatsApp Cart] Receipt built, length:', receipt.length);
+
+          // Format phone number to E.164
+          let formattedPhone = phone.replace(/\D/g, '');
+          if (formattedPhone.startsWith('0')) {
+            formattedPhone = '234' + formattedPhone.substring(1);
+          } else if (!formattedPhone.startsWith('234')) {
+            formattedPhone = '234' + formattedPhone;
+          }
+
+          // Open WhatsApp
+          const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(receipt)}`;
+          console.log('[WhatsApp Cart] Opening URL:', whatsappUrl.substring(0, 100) + '...');
+
+          window.open(whatsappUrl, '_blank');
+          console.log('[WhatsApp Cart] ✅ WhatsApp opened successfully');
+
         } catch (error) {
-          console.error('[WhatsApp] Error sending cart receipt:', error);
+          console.error('[WhatsApp Cart] ❌ Error sending cart receipt:', error);
           // Non-blocking - don't fail the sale
+        }
+      } else {
+        if (sendWhatsApp) {
+          console.log('[WhatsApp Cart] Skipped - validation failed. Phone:', phone, 'Valid:', phoneValidation.valid);
         }
       }
 
