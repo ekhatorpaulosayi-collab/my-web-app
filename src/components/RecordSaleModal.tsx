@@ -342,13 +342,18 @@ export default function RecordSaleModal({
       setIsProcessing(true);
       setCartError('');
 
+      // Debug: Log the sale type
+      console.log('[Cart Save] Sale type:', isCredit ? 'CREDIT' : 'CASH');
+      console.log('[Cart Save] isCredit value:', isCredit);
+      console.log('[Cart Save] Cart items:', cart.length);
+
       // Process all cart items
       for (const cartItem of cart) {
         const saleData = {
           itemId: cartItem.itemId,
           quantity: cartItem.quantity.toString(),
           sellPrice: cartItem.price.toString(),
-          isCreditSale: isCredit,
+          isCreditSale: isCredit,  // Explicitly use the isCredit state
           customerName: isCredit ? customerName : '',
           phone: phone,
           dueDate: isCredit ? new Date(dueDate).toISOString() : '',
@@ -357,6 +362,7 @@ export default function RecordSaleModal({
           hasConsent: isCredit ? hasConsent : false
         };
 
+        console.log('[Cart Save] Processing item:', cartItem.name, 'isCreditSale:', saleData.isCreditSale);
         await onSaveSale(saleData);
 
         // Create debt if credit sale
@@ -713,7 +719,11 @@ export default function RecordSaleModal({
                   <button
                     type="button"
                     className={`rs-toggle ${isCredit ? 'on' : ''}`}
-                    onClick={() => setIsCredit(!isCredit)}
+                    onClick={() => {
+                      const newValue = !isCredit;
+                      console.log('[Toggle] Sell on Credit:', newValue ? 'ON (CREDIT)' : 'OFF (CASH)');
+                      setIsCredit(newValue);
+                    }}
                     aria-pressed={isCredit}
                   >
                     <span className="rs-pill">
@@ -721,6 +731,10 @@ export default function RecordSaleModal({
                     </span>
                     <span className="rs-toggle-label">Sell on Credit</span>
                   </button>
+                  {/* Debug indicator */}
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: isCredit ? '#dc2626' : '#059669', fontWeight: 600 }}>
+                    {isCredit ? '🔴 CREDIT SALE' : '🟢 CASH SALE'}
+                  </div>
                 </div>
 
                 {/* Credit Fields */}
