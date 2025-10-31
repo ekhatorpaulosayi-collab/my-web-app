@@ -99,3 +99,89 @@ export function isValidNigerianPhone(phone: string): boolean {
 
   return false;
 }
+
+/**
+ * Detect if user is on a mobile device
+ */
+export function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  // Check user agent
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+
+  // Mobile device patterns
+  const mobilePatterns = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i;
+
+  // Check for touch support
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+  // Check screen width (common mobile breakpoint)
+  const isSmallScreen = window.innerWidth <= 768;
+
+  return mobilePatterns.test(userAgent) || (hasTouch && isSmallScreen);
+}
+
+/**
+ * Generate WhatsApp URL based on device type
+ *
+ * @param phone - Phone number in format: 2348012345678 (country code + number, no +)
+ * @param message - Message text to send
+ * @returns WhatsApp URL (deep link for mobile, web link for desktop)
+ */
+export function getWhatsAppUrl(phone: string, message: string): string {
+  // Ensure phone number is properly formatted (no + or spaces)
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+
+  // URL encode the message
+  const encodedMessage = encodeURIComponent(message);
+
+  // Detect device and use appropriate URL format
+  const isMobile = isMobileDevice();
+
+  if (isMobile) {
+    // Mobile: Use whatsapp:// deep link (opens WhatsApp app directly)
+    // Format: whatsapp://send?phone=2348012345678&text=message
+    console.log('[WhatsApp] Using mobile deep link');
+    return `whatsapp://send?phone=${cleanPhone}&text=${encodedMessage}`;
+  } else {
+    // Desktop: Use wa.me web link (opens WhatsApp Web)
+    // Format: https://wa.me/2348012345678?text=message
+    console.log('[WhatsApp] Using desktop web link');
+    return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+  }
+}
+
+/**
+ * Open WhatsApp with a message
+ *
+ * @param phone - Phone number (will be cleaned and formatted)
+ * @param message - Message text
+ * @returns Promise that resolves to true if opened successfully
+ */
+export function openWhatsApp(phone: string, message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const formattedPhone = formatPhoneForWhatsApp(phone);
+      const url = getWhatsAppUrl(formattedPhone, message);
+      const isMobile = isMobileDevice();
+
+      console.log(`[WhatsApp] Opening on ${isMobile ? 'mobile' : 'desktop'}`);
+      console.log(`[WhatsApp] URL:`, url.substring(0, 100) + '...');
+
+      if (isMobile) {
+        // On mobile, use location.href to trigger the app
+        window.location.href = url;
+
+        // Give it a moment to open
+        setTimeout(() => resolve(true), 500);
+      } else {
+        // On desktop, open in new tab
+        const opened = window.open(url, '_blank');
+        resolve(!!opened);
+      }
+    } catch (error) {
+      console.error('[WhatsApp] Error opening:', error);
+      resolve(false);
+    }
+  });
+}

@@ -16,6 +16,7 @@ import {
   type PaymentStatus,
   type PaymentData
 } from '../utils/paystackSettings';
+import { openWhatsApp, formatPhoneForWhatsApp } from '../utils/whatsapp';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -463,20 +464,14 @@ Powered by Storehouse
 
           console.log('[WhatsApp Cart] Receipt built, length:', receipt.length);
 
-          // Format phone number to E.164
-          let formattedPhone = phone.replace(/\D/g, '');
-          if (formattedPhone.startsWith('0')) {
-            formattedPhone = '234' + formattedPhone.substring(1);
-          } else if (!formattedPhone.startsWith('234')) {
-            formattedPhone = '234' + formattedPhone;
+          // Open WhatsApp with device-appropriate link
+          const success = await openWhatsApp(phone, receipt);
+
+          if (success) {
+            console.log('[WhatsApp Cart] ✅ WhatsApp opened successfully');
+          } else {
+            console.log('[WhatsApp Cart] ⚠️ WhatsApp may not have opened properly');
           }
-
-          // Open WhatsApp
-          const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(receipt)}`;
-          console.log('[WhatsApp Cart] Opening URL:', whatsappUrl.substring(0, 100) + '...');
-
-          window.open(whatsappUrl, '_blank');
-          console.log('[WhatsApp Cart] ✅ WhatsApp opened successfully');
 
         } catch (error) {
           console.error('[WhatsApp Cart] ❌ Error sending cart receipt:', error);
