@@ -14,6 +14,7 @@ interface RecordSaleModalProps {
   onSaveSale: (saleData: any) => Promise<void>;
   onCreateDebt?: (debtData: any) => void;
   showSalesData?: boolean;
+  onShowToast?: (message: string, duration?: number) => void;
 }
 
 export default function RecordSaleModal({
@@ -22,7 +23,8 @@ export default function RecordSaleModal({
   items,
   onSaveSale,
   onCreateDebt,
-  showSalesData = true
+  showSalesData = true,
+  onShowToast
 }: RecordSaleModalProps) {
   // Controlled state for all form fields
   const [searchTerm, setSearchTerm] = useState('');
@@ -394,38 +396,48 @@ export default function RecordSaleModal({
           const businessName = profile.businessName || 'Storehouse';
           const customerDisplayName = isCredit ? customerName : 'Customer';
 
-          // Build multi-item receipt text
+          // Build multi-item receipt text with improved formatting
           const formattedDate = new Date().toLocaleDateString('en-NG', {
             day: '2-digit',
             month: 'short',
-            year: 'numeric'
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
           });
 
           let itemsSection = '';
           if (cart.length > 0) {
             const itemLines = cart.map((item, index) => {
-              const itemNum = cart.length > 1 ? `${index + 1}. ` : '';
-              return `${itemNum}${item.name} × ${item.quantity} = ₦${(item.price * item.quantity).toLocaleString()}`;
-            }).join('\n');
-            itemsSection = `Items:\n${itemLines}`;
+              const itemNum = cart.length > 1 ? `${index + 1}. ` : '• ';
+              const itemTotal = item.price * item.quantity;
+              return `${itemNum}${item.name}\n   ${item.quantity} × ₦${item.price.toLocaleString()} = ₦${itemTotal.toLocaleString()}`;
+            }).join('\n\n');
+            itemsSection = itemLines;
           }
 
+          // Improved receipt with cleaner structure
           const receipt = `
-📱 SALES RECEIPT
+━━━━━━━━━━━━━━━━━━━
+🧾 SALES RECEIPT
+━━━━━━━━━━━━━━━━━━━
 
-From: ${businessName}
-To: ${customerDisplayName}
+📍 ${businessName}
+👤 ${customerDisplayName}
 
+📦 ITEMS
 ${itemsSection}
 
-Total: ₦${cartTotals.totalAmount.toLocaleString()}
-Date: ${formattedDate}
+━━━━━━━━━━━━━━━━━━━
+💰 TOTAL: ₦${cartTotals.totalAmount.toLocaleString()}
+${isCredit ? '💳 Payment: CREDIT (Due ' + new Date(dueDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }) + ')' : '✅ Payment: PAID'}
+━━━━━━━━━━━━━━━━━━━
+
+📅 ${formattedDate}
 
 Thank you for your business! 🙏
 
----
+━━━━━━━━━━━━━━━━━━━
 Powered by Storehouse
-https://storehouse.ng
           `.trim();
 
           console.log('[WhatsApp Cart] Receipt built, length:', receipt.length);
@@ -459,6 +471,17 @@ https://storehouse.ng
       setCart([]);
       setCartExpanded(false);
       setIsProcessing(false);
+
+      // Show success toast with sale details
+      if (onShowToast) {
+        const itemCount = cart.length;
+        const itemWord = itemCount === 1 ? 'item' : 'items';
+        const saleType = isCredit ? '💳 Credit Sale' : '✅ Cash Sale';
+        const whatsappStatus = sendWhatsApp && phone && phoneValidation.valid ? '\n📱 WhatsApp receipt sent' : '';
+
+        const toastMessage = `${saleType} - ${itemCount} ${itemWord}\n💰 Total: ₦${cartTotals.totalAmount.toLocaleString()}${whatsappStatus}`;
+        onShowToast(toastMessage, 4000);
+      }
 
       // Close modal
       onClose();
@@ -901,78 +924,96 @@ https://storehouse.ng
           </div>
         )}
 
-        {/* Shopping Cart - Bottom Sticky Bar */}
-        <div className="rs-cart-bar" onClick={() => cart.length > 0 && setCartExpanded(!cartExpanded)}>
-          <div className="rs-cart-summary">
-            <div className="rs-cart-icon">🛒</div>
-            <div className="rs-cart-info">
-              <div className="rs-cart-count">{cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}</div>
-              <div className="rs-cart-total">{formatCurrency(cartTotals.totalAmount)}</div>
-            </div>
-          </div>
-          {cart.length > 0 && (
-            <div className="rs-cart-expand-icon">
-              {cartExpanded ? '▼' : '▲'}
-            </div>
-          )}
-        </div>
-
-        {/* Expandable Cart View */}
-        {cartExpanded && cart.length > 0 && (
-          <div className="rs-cart-expanded">
-            <div className="rs-cart-header">
-              <h3>Cart Items</h3>
-              <button className="rs-cart-close" onClick={(e) => { e.stopPropagation(); setCartExpanded(false); }}>×</button>
-            </div>
-            <div className="rs-cart-items">
-              {cart.map((cartItem) => (
-                <div key={cartItem.id} className="rs-cart-item">
-                  <div className="rs-cart-item-info">
-                    <div className="rs-cart-item-name">{cartItem.name}</div>
-                    <div className="rs-cart-item-price">{formatCurrency(cartItem.price)} each</div>
-                  </div>
-                  <div className="rs-cart-item-controls">
-                    <div className="rs-cart-qty-controls">
+        {/* Shopping Cart - Bottom Sticky Bar with Expandable View */}
+        <div className="rs-cart-bar-wrapper">
+          {/* Expandable Cart View - Render BEFORE cart bar so it appears above */}
+          {cartExpanded && cart.length > 0 && (
+            <div className="rs-cart-expanded">
+              <div className="rs-cart-header">
+                <h3>Cart Items</h3>
+                <button className="rs-cart-close" onClick={(e) => { e.stopPropagation(); setCartExpanded(false); }}>×</button>
+              </div>
+              <div className="rs-cart-items">
+                {cart.map((cartItem) => (
+                  <div key={cartItem.id} className="rs-cart-item">
+                    <div className="rs-cart-item-info">
+                      <div className="rs-cart-item-name">{cartItem.name}</div>
+                      <div className="rs-cart-item-price">{formatCurrency(cartItem.price)} each</div>
+                    </div>
+                    <div className="rs-cart-item-controls">
+                      <div className="rs-cart-qty-controls">
+                        <button
+                          className="rs-cart-qty-btn"
+                          onClick={() => handleUpdateCartQuantity(cartItem.id, cartItem.quantity - 1)}
+                          disabled={cartItem.quantity <= 1}
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          className="rs-cart-qty-input"
+                          value={cartItem.quantity}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 1;
+                            handleUpdateCartQuantity(cartItem.id, val);
+                          }}
+                          min="1"
+                          max={cartItem.stockAvailable}
+                        />
+                        <button
+                          className="rs-cart-qty-btn"
+                          onClick={() => handleUpdateCartQuantity(cartItem.id, cartItem.quantity + 1)}
+                          disabled={cartItem.quantity >= cartItem.stockAvailable}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="rs-cart-item-subtotal">{formatCurrency(cartItem.price * cartItem.quantity)}</div>
                       <button
-                        className="rs-cart-qty-btn"
-                        onClick={() => handleUpdateCartQuantity(cartItem.id, cartItem.quantity - 1)}
-                        disabled={cartItem.quantity <= 1}
+                        className="rs-cart-remove-btn"
+                        onClick={() => handleRemoveFromCart(cartItem.id)}
+                        title="Remove from cart"
                       >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        className="rs-cart-qty-input"
-                        value={cartItem.quantity}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 1;
-                          handleUpdateCartQuantity(cartItem.id, val);
-                        }}
-                        min="1"
-                        max={cartItem.stockAvailable}
-                      />
-                      <button
-                        className="rs-cart-qty-btn"
-                        onClick={() => handleUpdateCartQuantity(cartItem.id, cartItem.quantity + 1)}
-                        disabled={cartItem.quantity >= cartItem.stockAvailable}
-                      >
-                        +
+                        🗑️
                       </button>
                     </div>
-                    <div className="rs-cart-item-subtotal">{formatCurrency(cartItem.price * cartItem.quantity)}</div>
-                    <button
-                      className="rs-cart-remove-btn"
-                      onClick={() => handleRemoveFromCart(cartItem.id)}
-                      title="Remove from cart"
-                    >
-                      🗑️
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Cart Bar */}
+          <div
+            className={`rs-cart-bar ${cart.length > 0 ? 'clickable' : ''} ${cartExpanded ? 'expanded' : ''}`}
+            onClick={(e) => {
+              if (cart.length > 0) {
+                console.log('[Cart Bar] Clicked! Current state:', cartExpanded ? 'expanded' : 'collapsed');
+                setCartExpanded(!cartExpanded);
+                console.log('[Cart Bar] New state:', !cartExpanded ? 'expanded' : 'collapsed');
+              }
+            }}
+            role={cart.length > 0 ? "button" : undefined}
+            aria-label={cart.length > 0 ? (cartExpanded ? "Collapse cart" : "Expand cart") : undefined}
+            tabIndex={cart.length > 0 ? 0 : undefined}
+          >
+            <div className="rs-cart-summary">
+              <div className="rs-cart-icon">🛒</div>
+              <div className="rs-cart-info">
+                <div className="rs-cart-count">
+                  {cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}
+                  {cart.length > 0 && <span style={{ marginLeft: '8px', opacity: 0.7 }}>• Tap to {cartExpanded ? 'close' : 'view'}</span>}
+                </div>
+                <div className="rs-cart-total">{formatCurrency(cartTotals.totalAmount)}</div>
+              </div>
+            </div>
+            {cart.length > 0 && (
+              <div className="rs-cart-expand-icon">
+                {cartExpanded ? '▼' : '▲'}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Footer with Add to Cart and Complete Sale buttons */}
         <div className="rs-footer">

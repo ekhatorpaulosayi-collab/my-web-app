@@ -27,6 +27,11 @@
   color: white;
 }
 
+.toast-info {
+  background: var(--info-blue, #4299E1);
+  color: white;
+}
+
 .toast-content {
   display: flex;
   align-items: center;
@@ -42,6 +47,8 @@
 .toast-message {
   font-size: 0.95rem;
   font-weight: 500;
+  line-height: 1.4;
+  white-space: pre-line; /* Preserve line breaks */
 }
 
 .toast-close {

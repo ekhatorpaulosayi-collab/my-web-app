@@ -3117,6 +3117,7 @@ Low Stock: ${lowStockItems.length}
           }
         }}
         showSalesData={showSalesData}
+        onShowToast={displayToast}
       />
 
       {/* Calculator Bottom Sheet */}

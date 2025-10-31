@@ -582,16 +582,37 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
   box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
   border-radius: 12px 12px 0 0;
   transition: all 0.3s ease;
+  z-index: 50;
 }
 
-.rs-cart-bar:hover {
+/* Wrapper to position expanded cart relative to cart bar */
+.rs-cart-bar-wrapper {
+  position: relative;
+  z-index: 50;
+}
+
+/* Make cart bar clickable when it has items */
+.rs-cart-bar.clickable {
+  cursor: pointer;
+}
+
+.rs-cart-bar.clickable:hover {
   transform: translateY(-2px);
   box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
+}
+
+.rs-cart-bar.clickable:active {
+  transform: translateY(0);
+}
+
+/* Visual feedback when expanded */
+.rs-cart-bar.expanded {
+  border-radius: 0;
 }
 
 .rs-cart-summary {
@@ -628,10 +649,8 @@
 
 /* Expandable Cart View */
 .rs-cart-expanded {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
+  position: relative;
+  width: 100%;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 12px 12px 0 0;
@@ -639,16 +658,18 @@
   display: flex;
   flex-direction: column;
   box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
-  animation: slideUp 0.3s ease;
+  animation: slideDown 0.3s ease;
+  margin-bottom: -1px; /* Overlap with cart bar border */
+  z-index: 49;
 }
 
-@keyframes slideUp {
+@keyframes slideDown {
   from {
-    transform: translateY(20px);
+    max-height: 0;
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    max-height: 400px;
     opacity: 1;
   }
 }
