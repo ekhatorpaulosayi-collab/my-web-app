@@ -3,6 +3,7 @@ import { getSettings, saveSettings, type Settings } from '../utils/settings';
 import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
 import { RECEIPT_SETTINGS_ENABLED } from '../config';
 import '../styles/BusinessSettings.css';
+import PaymentSettings from './PaymentSettings';
 
 // TEMP: Always enable save button for debugging
 const TEMP_ALWAYS_ENABLE_SAVE = true; // turn off later
@@ -49,6 +50,7 @@ export default function BusinessSettings({
 }: BusinessSettingsProps) {
   const { profile, setProfile } = useBusinessProfile();
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // New state management
@@ -64,6 +66,7 @@ export default function BusinessSettings({
       setDraft(current);
       persistedProfile.current = profile;
       setShowAdvanced(false);
+      setShowPayment(false);
     }
   }, [isOpen]);
 
@@ -366,7 +369,26 @@ export default function BusinessSettings({
             </button>
           </section>
 
-          {/* Section 5: Advanced (Collapsed by default) */}
+          {/* Section 5: Payment Integration (Collapsed by default) */}
+          <section className="bs-section">
+            <button
+              type="button"
+              className="bs-section-toggle"
+              onClick={() => setShowPayment(!showPayment)}
+              aria-expanded={showPayment}
+            >
+              <h3 className="bs-section-title">💳 Payment Integration</h3>
+              <span className="bs-chevron">{showPayment ? '▼' : '▶'}</span>
+            </button>
+
+            {showPayment && (
+              <div className="bs-advanced-content" style={{ paddingTop: '16px' }}>
+                <PaymentSettings onToast={onToast} />
+              </div>
+            )}
+          </section>
+
+          {/* Section 6: Advanced (Collapsed by default) */}
           <section className="bs-section">
             <button
               type="button"

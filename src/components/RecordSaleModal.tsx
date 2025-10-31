@@ -7,6 +7,15 @@ import { getSettings } from '../utils/settings';
 import { RECEIPT_SETTINGS_ENABLED } from '../config';
 import { formatNGPhone, validateNGPhone } from '../utils/phone';
 import { getStockIndicator } from '../utils/stockSettings';
+import {
+  isPaystackEnabled,
+  getActivePublicKey,
+  getPaystackConfig,
+  loadPaystackScript,
+  type PaymentMethod,
+  type PaymentStatus,
+  type PaymentData
+} from '../utils/paystackSettings';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -41,7 +50,12 @@ export default function RecordSaleModal({
   const [message, setMessage] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Transfer' | 'Card' | 'POS'>('Cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
+
+  // Payment state
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
+  const [collectingPayment, setCollectingPayment] = useState(false);
+  const paystackEnabled = isPaystackEnabled();
 
   // Shopping cart state
   const [cart, setCart] = useState<Array<{
@@ -888,19 +902,38 @@ Powered by Storehouse
                       Payment Method
                     </label>
                     <div className="rs-payment-methods">
-                      {(['Cash', 'Transfer', 'Card', 'POS'] as const).map((method) => (
+                      {/* Cash and POS always available */}
+                      {(['Cash', 'POS'] as const).map((method) => (
                         <label key={method} className="rs-payment-method">
                           <input
                             type="radio"
                             name="paymentMethod"
                             value={method}
                             checked={paymentMethod === method}
-                            onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+                            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                          />
+                          <span>{method}</span>
+                        </label>
+                      ))}
+                      {/* Card and Transfer only if Paystack enabled */}
+                      {paystackEnabled && (['Card', 'Transfer'] as const).map((method) => (
+                        <label key={method} className="rs-payment-method">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value={method}
+                            checked={paymentMethod === method}
+                            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                           />
                           <span>{method}</span>
                         </label>
                       ))}
                     </div>
+                    {paystackEnabled && getPaystackConfig().testMode && (
+                      <p className="bs-help" style={{ marginTop: '8px', color: '#f59e0b' }}>
+                        ⚠️ Paystack test mode active
+                      </p>
+                    )}
                   </div>
                 )}
 
