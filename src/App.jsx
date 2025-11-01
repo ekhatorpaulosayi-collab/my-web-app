@@ -33,6 +33,7 @@ import Chip from './components/ui/Chip.jsx';
 import CustomerDebtDrawer from './components/CustomerDebtDrawer.tsx';
 import RecordSaleModal from './components/RecordSaleModal.tsx';
 import BusinessSettings from './components/BusinessSettings.tsx';
+import CalculatorModal from './components/CalculatorModal.tsx';
 import {
   getDebts,
   addDebtNotify,
@@ -3121,96 +3122,11 @@ Low Stock: ${lowStockItems.length}
       />
 
       {/* Calculator Bottom Sheet */}
-      {showCalculator && (
-        <>
-          <div className="calculator-backdrop" onClick={() => setShowCalculator(false)} />
-          <div className="calculator-sheet">
-            <div className="calculator-header">
-              <h2>Quick Calculator</h2>
-              <button
-                className="calc-close-btn"
-                onClick={() => setShowCalculator(false)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="calculator-body">
-              <div className="calc-form-group">
-                <label>Search Item</label>
-                <select
-                  value={calcForm.itemId}
-                  onChange={handleCalcItemSelect}
-                  onBlur={handleCalcItemSelect}
-                  className="calc-input"
-                  style={{ minHeight: '44px' }}
-                >
-                  <option value="">Select an item...</option>
-                  {items.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="calc-form-row">
-                <div className="calc-form-group">
-                  <label>Your Price (₦)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    name="price"
-                    value={calcForm.price}
-                    onChange={handleCalcChange}
-                    placeholder="0"
-                    className="calc-input"
-                    style={{ minHeight: '44px' }}
-                  />
-                </div>
-
-                <div className="calc-form-group">
-                  <label>Quantity</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    name="quantity"
-                    value={calcForm.quantity}
-                    onChange={handleCalcChange}
-                    placeholder="1"
-                    min="1"
-                    className="calc-input"
-                    style={{ minHeight: '44px' }}
-                  />
-                </div>
-              </div>
-
-              <div className="calc-total-section">
-                <label>Total Amount</label>
-                <div className="calc-total-display">
-                  ₦{calcForm.total.toLocaleString()}
-                </div>
-              </div>
-
-              <div className="calc-buttons">
-                <button
-                  className="calc-use-btn"
-                  onClick={handleUseInSale}
-                  disabled={!calcForm.itemId || !calcForm.quantity || !calcForm.price}
-                >
-                  Use in Sale
-                </button>
-                <button
-                  className="calc-cancel-btn"
-                  onClick={() => setShowCalculator(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Production-ready Calculator Modal with POS and Math tabs */}
+      <CalculatorModal
+        isOpen={showCalculator}
+        onClose={() => setShowCalculator(false)}
+      />
 
       {/* Business Settings Sheet */}
       <BusinessSettings
