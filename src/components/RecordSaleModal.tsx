@@ -22,6 +22,7 @@ interface RecordSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
   items: any[];
+  calculatorItems?: { lines: any[]; subtotal: number } | null;
   onSaveSale: (saleData: any) => Promise<void>;
   onCreateDebt?: (debtData: any) => void;
   showSalesData?: boolean;
@@ -32,6 +33,7 @@ export default function RecordSaleModal({
   isOpen,
   onClose,
   items,
+  calculatorItems,
   onSaveSale,
   onCreateDebt,
   showSalesData = true,
@@ -120,6 +122,34 @@ export default function RecordSaleModal({
       setIsProcessing(false);
     }
   }, [isOpen]);
+
+  // Pre-fill cart with calculator items
+  useEffect(() => {
+    if (isOpen && calculatorItems && calculatorItems.lines.length > 0) {
+      console.log('[RecordSaleModal] Pre-filling cart with calculator items:', calculatorItems);
+
+      // Transform calculator lines into cart format
+      const cartItems = calculatorItems.lines.map(line => {
+        const item = items.find(i => i.id.toString() === line.itemId || i.name === line.name);
+        return {
+          id: crypto.randomUUID(),
+          itemId: line.itemId,
+          name: line.name,
+          quantity: line.qty,
+          price: line.priceNaira,
+          stockAvailable: item?.qty || item?.quantity || 0
+        };
+      });
+
+      setCart(cartItems);
+      setCartExpanded(true); // Auto-expand cart to show items
+
+      // Show toast notification
+      if (onShowToast) {
+        onShowToast(`Added ${cartItems.length} items from calculator`);
+      }
+    }
+  }, [isOpen, calculatorItems, items, onShowToast]);
 
   // Filter items based on search term
   const filteredItems = items.filter(item => {

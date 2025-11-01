@@ -108,6 +108,7 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [showRecordSale, setShowRecordSale] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [calculatorItems, setCalculatorItems] = useState(null); // Pre-filled items from calculator
   const [showSalesData, setShowSalesData] = useState(true); // Renamed for clarity - true = revealed, false = hidden
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItemId, setExpandedItemId] = useState(null); // For expandable table rows
@@ -474,6 +475,24 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [showCalculator]);
+
+  // Listen for calculator "Add to Sale" events
+  useEffect(() => {
+    const handleAddToSale = (e) => {
+      const { lines, subtotal, source, timestamp } = e.detail;
+      console.log('[App] Calculator Add to Sale:', { lines: lines.length, subtotal, source, timestamp });
+
+      // Store calculator items and open Record Sale modal
+      setCalculatorItems({ lines, subtotal });
+      setShowCalculator(false); // Close calculator
+      setShowRecordSale(true); // Open Record Sale modal
+
+      displayToast(`Added ${lines.length} items from calculator`);
+    };
+
+    window.addEventListener('storehouse:add-to-sale', handleAddToSale);
+    return () => window.removeEventListener('storehouse:add-to-sale', handleAddToSale);
+  }, []);
 
   // Load customer data for credits
   useEffect(() => {
@@ -3099,8 +3118,12 @@ Low Stock: ${lowStockItems.length}
       {/* Record Sale Modal */}
       <RecordSaleModal
         isOpen={showRecordSale}
-        onClose={() => setShowRecordSale(false)}
+        onClose={() => {
+          setShowRecordSale(false);
+          setCalculatorItems(null); // Clear calculator items when modal closes
+        }}
         items={items}
+        calculatorItems={calculatorItems}
         onSaveSale={handleSaveSale}
         onCreateDebt={(debtData) => {
           try {
