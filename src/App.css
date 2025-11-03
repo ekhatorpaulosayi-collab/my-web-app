@@ -5205,6 +5205,11 @@ select.calc-input,
 }
 
 /* Confirm Modal Adjustments */
+/* Fix: Ensure confirmation modal appears above the drawer (drawer is z-index: 1200) */
+.modal-overlay:has(.debt-confirm-modal) {
+  z-index: 1300 !important;
+}
+
 .debt-confirm-modal .modal-body p {
   font-size: 15px;
   line-height: 1.5;
@@ -5241,5 +5246,131 @@ select.calc-input,
 
   .debt-btn-call {
     width: 100%;
+  }
+}
+
+/* ═══════════════════════════════════════
+   PHASE 3: MOBILE ENHANCEMENTS
+   ═══════════════════════════════════════ */
+
+/* Safe area insets for notched devices (iPhone X+, etc) */
+@media (max-width: 640px) {
+  .dashboard-header {
+    padding-top: max(24px, env(safe-area-inset-top, 24px));
+  }
+
+  .kpi-container {
+    padding-left: max(16px, env(safe-area-inset-left, 16px));
+    padding-right: max(16px, env(safe-area-inset-right, 16px));
+  }
+
+  .mainColumn {
+    padding-left: max(12px, env(safe-area-inset-left, 12px));
+    padding-right: max(12px, env(safe-area-inset-right, 12px));
+    padding-bottom: max(80px, calc(80px + env(safe-area-inset-bottom, 0px)));
+  }
+
+  /* Ensure buttons are properly sized for touch */
+  .btnPrimary,
+  .btnSecondary {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  /* Improve KPI card readability on small screens */
+  .kpi-card {
+    min-height: 100px;
+  }
+
+  .kpi-value {
+    font-size: 22px;
+    margin: 8px 0;
+  }
+
+  .kpi-subtext {
+    font-size: 12px;
+  }
+
+  /* Better spacing for search and table */
+  .searchBar {
+    margin: 8px 0 12px;
+  }
+
+  .inputSearch {
+    height: 48px;
+    font-size: 16px;
+  }
+
+  /* Improve table readability */
+  .itemsTable {
+    font-size: 14px;
+  }
+
+  .itemsTable th,
+  .itemsTable td {
+    padding: 12px 8px;
+  }
+}
+
+/* Extra small devices (< 380px) */
+@media (max-width: 380px) {
+  .kpi-container {
+    gap: 6px;
+    padding: 12px;
+  }
+
+  .kpi-card {
+    padding: 12px;
+  }
+
+  .kpi-value {
+    font-size: 20px;
+  }
+
+  .btnPrimary,
+  .btnSecondary {
+    height: 52px;
+    font-size: 15px;
+  }
+}
+
+/* Smooth scrolling for better UX */
+@media (max-width: 768px) {
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Prevent zoom on input focus (iOS) */
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Landscape mode optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+  .dashboard-header {
+    min-height: 80px;
+    padding: 12px 16px;
+  }
+
+  .kpi-container {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .kpi-card {
+    padding: 8px;
+  }
+
+  .kpi-value {
+    font-size: 18px;
   }
 }

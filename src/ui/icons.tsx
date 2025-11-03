@@ -18,11 +18,12 @@ export function CalculatorIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export function SettingsIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      {/* Outer gear with 8 teeth */}
-      <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77" />
-      {/* Center circle */}
-      <circle cx="12" cy="12" r="3" />
+    <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" {...props}>
+      {/* Classic 8-tooth gear matching reference */}
+      <path d="M10.8 2h2.4l.5 2.4 2-.9 1.7 1.7-.9 2 2.4.5v2.4l-2.4.5.9 2-1.7 1.7-2-.9-.5 2.4h-2.4l-.5-2.4-2 .9-1.7-1.7.9-2-2.4-.5V10.8l2.4-.5-.9-2 1.7-1.7 2 .9.5-2.4z" />
+      {/* Center hole */}
+      <circle cx="12" cy="12" r="3" fill="#ffffff20" />
+      <circle cx="12" cy="12" r="2.5" fill="white" />
     </svg>
   );
 }
