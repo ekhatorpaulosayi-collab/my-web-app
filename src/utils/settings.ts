@@ -16,6 +16,13 @@ export type Settings = {
   autoSendReceiptToSavedCustomers?: boolean;
   lowStockThreshold?: number;
   defaultHistoryRange?: 'today' | 'week' | 'month' | 'all';
+  // Tax Calculator (Phase 1) - ALL OPTIONAL for backward compatibility
+  enableTaxCalculator?: boolean;
+  vatRate?: number;
+  taxMode?: 'PER_PRODUCT' | 'EOD';
+  priceMode?: 'VAT_INCLUSIVE' | 'VAT_EXCLUSIVE';
+  claimInputVatFromPurchases?: boolean;
+  claimInputVatFromExpenses?: boolean;
 };
 
 const STORAGE_KEY = 'storehouse-settings';

@@ -168,6 +168,33 @@ export default function BusinessSettings({
     onToast?.('Settings cache cleared');
   };
 
+  // Tax Calculator Toggle Handler (Phase 1)
+  const handleTaxCalculatorToggle = (isEnabled: boolean) => {
+    try {
+      // Update draft with new toggle state
+      const updatedDraft = {
+        ...draft,
+        enableTaxCalculator: isEnabled,
+        // Only add defaults if enabling for FIRST time
+        ...(isEnabled && !draft.hasOwnProperty('enableTaxCalculator') ? {
+          vatRate: 0.075, // 7.5% Nigerian VAT
+          taxMode: 'EOD' as const,
+          priceMode: 'VAT_INCLUSIVE' as const,
+          claimInputVatFromPurchases: true,
+          claimInputVatFromExpenses: false,
+        } : {})
+      };
+
+      setDraft(updatedDraft);
+
+      console.log(`✅ Tax Calculator ${isEnabled ? 'enabled' : 'disabled'}`);
+
+    } catch (error) {
+      console.error('❌ Error updating tax calculator setting:', error);
+      onToast?.('Failed to update tax calculator setting');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -402,6 +429,59 @@ export default function BusinessSettings({
 
             {showAdvanced && (
               <div className="bs-advanced-content">
+                {/* ═══════ TAX CALCULATOR TOGGLE (Phase 1) ═══════ */}
+                <div className="tax-calculator-section">
+                  <h4>📊 Simple Tax Calculator (Beta)</h4>
+
+                  <label className="toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={draft?.enableTaxCalculator || false}
+                      onChange={(e) => handleTaxCalculatorToggle(e.target.checked)}
+                    />
+                    <span>Enable Tax Calculator</span>
+                  </label>
+
+                  <p className="description">
+                    Track monthly sales, expenses, and estimate VAT (7.5%).
+                    Automatically configured for Nigerian shops.
+                  </p>
+
+                  {draft?.enableTaxCalculator && (
+                    <div className="tax-info-box">
+                      <p className="info-title">✅ What you'll see when enabled:</p>
+                      <ul className="feature-list">
+                        <li>Monthly sales and expenses totals</li>
+                        <li>Your profit (Sales - Expenses)</li>
+                        <li>Estimated VAT to remit (7.5%)</li>
+                      </ul>
+
+                      <div className="default-config-notice">
+                        <p><strong>Pre-configured for:</strong></p>
+                        <ul className="config-list">
+                          <li>✓ VAT-inclusive pricing (Nigerian standard)</li>
+                          <li>✓ Simple monthly summaries</li>
+                          <li>✓ Input VAT from purchases</li>
+                        </ul>
+                      </div>
+
+                      <div className="example-box">
+                        <p className="example-title"><strong>Example:</strong></p>
+                        <p>Sales: ₦225,000 | Expenses: ₦155,000</p>
+                        <p className="highlight">Profit: ₦70,000 | VAT owed: ~₦7,875</p>
+                      </div>
+
+                      <p className="disclaimer">
+                        💡 <em>Simple estimate only. For official tax filing, consult FIRS or a tax professional.</em>
+                      </p>
+
+                      <p className="phase-notice">
+                        ⚠️ <strong>Beta:</strong> Dashboard widget coming soon. Toggle now to enable when ready.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   className="bs-action-btn bs-danger"

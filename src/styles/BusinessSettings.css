@@ -500,3 +500,154 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ═══════════════════════════════════════
+   TAX CALCULATOR STYLES (Phase 1)
+   ═══════════════════════════════════════ */
+
+.tax-calculator-section {
+  margin: 24px 0;
+  padding: 20px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.tax-calculator-section h4 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #1f2937;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.tax-calculator-section .description {
+  margin: 8px 0 16px 0;
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.tax-info-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.info-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #374151;
+}
+
+.feature-list {
+  margin: 8px 0 16px 20px;
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.feature-list li {
+  margin-bottom: 4px;
+}
+
+.default-config-notice {
+  margin: 16px 0;
+  padding: 12px;
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+}
+
+.default-config-notice p {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 6px;
+}
+
+.config-list {
+  margin: 6px 0 0 16px;
+  font-size: 13px;
+  color: #1e3a8a;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.config-list li {
+  margin-bottom: 3px;
+}
+
+.example-box {
+  padding: 12px;
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  border-radius: 4px;
+  margin: 12px 0;
+}
+
+.example-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #92400e;
+}
+
+.example-box p {
+  font-size: 13px;
+  color: #78350f;
+  margin: 4px 0;
+}
+
+.example-box .highlight {
+  font-weight: 600;
+  color: #92400e;
+}
+
+.disclaimer {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 12px;
+  font-style: italic;
+}
+
+.phase-notice {
+  font-size: 12px;
+  color: #f59e0b;
+  margin-top: 8px;
+  padding: 8px;
+  background: #fffbeb;
+  border-radius: 4px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .tax-calculator-section {
+    padding: 16px 0;
+  }
+  
+  .toggle-label {
+    font-size: 15px;
+  }
+  
+  .tax-info-box {
+    padding: 12px;
+  }
+}
