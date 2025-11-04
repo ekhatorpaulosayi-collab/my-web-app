@@ -53,11 +53,22 @@ export default function BusinessSettings({
   const [showPayment, setShowPayment] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
 
+  // Advanced Tax Configuration modal state (Phase 2)
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+
   // New state management
   const persisted = getSettings();
   const persistedProfile = useRef(profile);
   const [draft, setDraft] = useState<Settings>(persisted);
   const [saving, setSaving] = useState(false);
+
+  // Advanced settings state (Phase 2)
+  const [advancedSettings, setAdvancedSettings] = useState({
+    priceMode: draft.priceMode || 'VAT_INCLUSIVE',
+    taxMode: draft.taxMode || 'EOD',
+    claimInputVatFromPurchases: draft.claimInputVatFromPurchases ?? true,
+    claimInputVatFromExpenses: draft.claimInputVatFromExpenses ?? false,
+  });
 
   // Load settings when opened
   useEffect(() => {
@@ -193,6 +204,48 @@ export default function BusinessSettings({
       console.error('❌ Error updating tax calculator setting:', error);
       onToast?.('Failed to update tax calculator setting');
     }
+  };
+
+  // Advanced Configuration Handlers (Phase 2)
+  const updateAdvancedSetting = (key: string, value: any) => {
+    setAdvancedSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const resetToDefaults = () => {
+    const confirmed = window.confirm(
+      'Reset to default settings? This will set:\n\n' +
+      '• VAT-inclusive pricing\n' +
+      '• End-of-day calculations\n' +
+      '• Track purchases VAT only'
+    );
+
+    if (confirmed) {
+      setAdvancedSettings({
+        priceMode: 'VAT_INCLUSIVE',
+        taxMode: 'EOD',
+        claimInputVatFromPurchases: true,
+        claimInputVatFromExpenses: false,
+      });
+    }
+  };
+
+  const saveAdvancedConfig = () => {
+    // Update draft state with advanced settings
+    setDraft(prev => ({
+      ...prev,
+      ...advancedSettings
+    }));
+
+    // Close modal
+    setShowAdvancedConfig(false);
+
+    console.log('✅ Advanced tax settings saved:', advancedSettings);
+
+    // Show success message
+    onToast?.('Advanced settings saved! Click "Save Settings" to persist.');
   };
 
   if (!isOpen) return null;
@@ -447,6 +500,7 @@ export default function BusinessSettings({
                     Automatically configured for Nigerian shops.
                   </p>
 
+                  {console.log('[DEBUG] draft.enableTaxCalculator:', draft?.enableTaxCalculator)}
                   {draft?.enableTaxCalculator && (
                     <div className="tax-info-box">
                       <p className="info-title">✅ What you'll see when enabled:</p>
@@ -464,6 +518,13 @@ export default function BusinessSettings({
                           <li>✓ Input VAT from purchases</li>
                         </ul>
                       </div>
+
+                      <button
+                        className="advanced-config-btn"
+                        onClick={() => setShowAdvancedConfig(true)}
+                      >
+                        ⚙️ Advanced Configuration (optional)
+                      </button>
 
                       <div className="example-box">
                         <p className="example-title"><strong>Example:</strong></p>
@@ -521,6 +582,138 @@ export default function BusinessSettings({
           </button>
         </div>
       </div>
+
+      {/* ═══════ ADVANCED CONFIGURATION MODAL (Phase 2) ═══════ */}
+      {showAdvancedConfig && (
+        <div
+          className="config-modal-overlay"
+          onClick={() => setShowAdvancedConfig(false)}
+        >
+          <div
+            className="config-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>⚙️ Advanced Tax Configuration</h3>
+              <button
+                className="close-btn"
+                onClick={() => setShowAdvancedConfig(false)}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p className="modal-intro">
+                Most shops work fine with default settings. Only change if you understand these options.
+              </p>
+
+              {/* Option 1: Price Mode */}
+              <div className="config-group">
+                <label className="config-label">
+                  How do you handle prices?
+                </label>
+                <select
+                  value={advancedSettings.priceMode}
+                  onChange={(e) => updateAdvancedSetting('priceMode', e.target.value)}
+                  className="config-select"
+                >
+                  <option value="VAT_INCLUSIVE">
+                    VAT-inclusive (recommended - most NG shops)
+                  </option>
+                  <option value="VAT_EXCLUSIVE">
+                    VAT-exclusive (VAT added at checkout)
+                  </option>
+                </select>
+                <p className="config-hint">
+                  💡 Most Nigerian shops include VAT in prices (₦1,075 includes ₦75 VAT).
+                  Choose "inclusive" unless you add VAT separately.
+                </p>
+              </div>
+
+              {/* Option 2: Calculation Mode */}
+              <div className="config-group">
+                <label className="config-label">
+                  Calculation method:
+                </label>
+                <select
+                  value={advancedSettings.taxMode}
+                  onChange={(e) => updateAdvancedSetting('taxMode', e.target.value)}
+                  className="config-select"
+                >
+                  <option value="EOD">
+                    End-of-day summary (simpler, recommended)
+                  </option>
+                  <option value="PER_PRODUCT">
+                    Per-product (for detailed VAT invoices)
+                  </option>
+                </select>
+                <p className="config-hint">
+                  💡 End-of-day works for most shops. Choose per-product only if you print VAT receipts per item.
+                </p>
+              </div>
+
+              {/* Option 3: Input VAT */}
+              <div className="config-group">
+                <label className="config-label">
+                  Track input VAT from:
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={advancedSettings.claimInputVatFromPurchases}
+                    onChange={(e) => updateAdvancedSetting('claimInputVatFromPurchases', e.target.checked)}
+                  />
+                  <span>Purchases (stock from suppliers)</span>
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={advancedSettings.claimInputVatFromExpenses}
+                    onChange={(e) => updateAdvancedSetting('claimInputVatFromExpenses', e.target.checked)}
+                  />
+                  <span>Expenses with VAT (rent, utilities)</span>
+                </label>
+                <p className="config-hint">
+                  💡 Always track purchases VAT. Track expenses VAT only if you know which expenses include VAT.
+                </p>
+              </div>
+
+              {/* VAT Rate Display */}
+              <div className="config-group">
+                <label className="config-label">
+                  VAT Rate:
+                </label>
+                <input
+                  type="text"
+                  value="7.5%"
+                  disabled
+                  className="config-input-disabled"
+                />
+                <p className="config-hint">
+                  Current FIRS rate. This cannot be changed.
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={resetToDefaults}
+              >
+                Reset to Defaults
+              </button>
+              <button
+                className="btn-primary"
+                onClick={saveAdvancedConfig}
+              >
+                Save Configuration
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
