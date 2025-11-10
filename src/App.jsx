@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
+import './styles/dashboard.css';
 import { useStrings } from './hooks/useStrings';
+import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign } from 'lucide-react';
+import TestPayment from './pages/TestPayment';
+import { usePreferences } from './contexts/PreferencesContext.tsx';
+import { BusinessTypeSelector } from './components/BusinessTypeSelector.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { DashboardCustomize } from './components/DashboardCustomize.tsx';
 import {
   initDB,
   seedDemoItems,
@@ -54,6 +61,24 @@ import { openWhatsApp } from './utils/wa.ts';
 import { formatNaira, safeMoney } from './utils/money.ts';
 import { useBusinessProfile } from './contexts/BusinessProfile.jsx';
 import CurrentDate from './components/CurrentDate.tsx';
+import { calculateTax, getCurrentMonth, shareViaWhatsApp, downloadTaxSummary } from './utils/taxCalculations.ts';
+import ExpenseModal from './components/ExpenseModal.tsx';
+import { saveExpense, getCurrentMonthExpenses, calculateTotalExpenses } from './lib/expenses.ts';
+import ExpensesPage from './pages/ExpensesPage.tsx';
+import TaxPanel from './components/TaxPanel.tsx';
+import MoneyPage from './pages/MoneyPage.jsx';
+import { hasPinSet, verifyPin, isUnlocked, unlock, lock } from './lib/pinService.ts';
+import ShareStoreCard from './components/ShareStoreCard.jsx';
+import { useAuth } from './contexts/AuthContext';
+import {
+  getProducts as getFirebaseProducts,
+  subscribeToProducts,
+  addProduct as addFirebaseProduct,
+  updateProduct as updateFirebaseProduct,
+  deleteProduct as deleteFirebaseProduct,
+  productExists
+} from './services/firebaseProducts';
+import { migrateUserData } from './services/dataMigration';
 
 function App() {
   // Get strings for branding
@@ -61,6 +86,15 @@ function App() {
 
   // Business profile context
   const { profile, isProfileComplete } = useBusinessProfile();
+
+  // Auth context - get current user for Firebase operations
+  const { currentUser } = useAuth();
+
+  // Preferences context - dashboard widgets and customization
+  const { isFirstTimeSetup, completeSetup } = usePreferences();
+
+  // Dashboard customization modal
+  const [showDashboardCustomize, setShowDashboardCustomize] = useState(false);
 
   // Utility function to format number with commas
   const formatNumberWithCommas = (value) => {
@@ -93,6 +127,12 @@ function App() {
     return saved ? JSON.parse(saved) : true; // Default true for beta testing
   });
 
+  // Test Payment Page toggle
+  const [showTestPayment, setShowTestPayment] = useState(() => {
+    const saved = localStorage.getItem('storehouse-test-mode');
+    return saved ? JSON.parse(saved) : false; // Default false - main app
+  });
+
   // Listen for settings updates from BusinessSettings component
   useEffect(() => {
     const handleSettingsUpdate = (e) => {
@@ -109,7 +149,20 @@ function App() {
   const [showRecordSale, setShowRecordSale] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [calculatorItems, setCalculatorItems] = useState(null); // Pre-filled items from calculator
+  const [preselectedItem, setPreselectedItem] = useState(null); // Pre-selected item from table click
   const [showSalesData, setShowSalesData] = useState(true); // Renamed for clarity - true = revealed, false = hidden
+
+  // PIN Protection state
+  const [isPinLocked, setIsPinLocked] = useState(true); // Locked by default
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinModalContext, setPinModalContext] = useState(null); // 'money' or null
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [showPinPassword, setShowPinPassword] = useState(false);
+  const [pinAttempts, setPinAttempts] = useState(3);
+  const [pinShake, setPinShake] = useState(false);
+  const [rememberPin, setRememberPin] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItemId, setExpandedItemId] = useState(null); // For expandable table rows
   const [showCreditsDrawer, setShowCreditsDrawer] = useState(false);
@@ -132,6 +185,11 @@ function App() {
   const [showFirstSaleModal, setShowFirstSaleModal] = useState(false);
   const [showEODModal, setShowEODModal] = useState(false);
   const [eodFormat, setEodFormat] = useState('readable');
+  const [showTaxModal, setShowTaxModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showExpensesPage, setShowExpensesPage] = useState(false);
+  const [showMoneyPage, setShowMoneyPage] = useState(false);
+  const [expensesUpdateCounter, setExpensesUpdateCounter] = useState(0);
 
   // Trial management
   const [trialDaysLeft, setTrialDaysLeft] = useState(14);
@@ -238,6 +296,148 @@ function App() {
     return unsubscribe;
   }, []);
 
+  // Check PIN status on mount
+  useEffect(() => {
+    const checkPinStatus = async () => {
+      const pinExists = await hasPinSet();
+      if (!pinExists) {
+        // No PIN set, unlock by default
+        setIsPinLocked(false);
+      } else {
+        // PIN exists, check if unlocked in this session
+        const unlocked = isUnlocked();
+        setIsPinLocked(!unlocked);
+      }
+    };
+    checkPinStatus();
+  }, []);
+
+  // Helper: Check if PIN session is still valid (within 5 minutes)
+  const isPinSessionValid = () => {
+    const sessionData = sessionStorage.getItem('pin-session');
+    if (!sessionData) return false;
+
+    try {
+      const { timestamp } = JSON.parse(sessionData);
+      const now = Date.now();
+      const fiveMinutes = 5 * 60 * 1000;
+      return (now - timestamp) < fiveMinutes;
+    } catch {
+      return false;
+    }
+  };
+
+  // Helper: Store PIN session for 5 minutes
+  const storePinSession = () => {
+    sessionStorage.setItem('pin-session', JSON.stringify({
+      timestamp: Date.now()
+    }));
+  };
+
+  // Helper: Clear PIN session
+  const clearPinSession = () => {
+    sessionStorage.removeItem('pin-session');
+  };
+
+  // Handle PIN verification
+  const handlePinSubmit = async () => {
+    if (!pinInput) {
+      setPinError('Please enter a PIN');
+      return;
+    }
+
+    if (pinAttempts <= 0) {
+      setPinError('Too many attempts. Please try again later.');
+      return;
+    }
+
+    const isValid = await verifyPin(pinInput);
+    if (isValid) {
+      unlock(); // Mark as unlocked in session
+      setIsPinLocked(false);
+
+      // If "Remember for 5 minutes" is checked, store session
+      if (rememberPin) {
+        storePinSession();
+      }
+
+      // Clear modal state
+      setShowPinModal(false);
+      setPinInput('');
+      setPinError('');
+      setPinAttempts(3); // Reset attempts
+      setShowPinPassword(false);
+      setRememberPin(false);
+
+      // If opened for Money page, navigate there
+      if (pinModalContext === 'money') {
+        setShowMoneyPage(true);
+        setPinModalContext(null);
+      }
+
+      // Dispatch event so other components can react
+      window.dispatchEvent(new CustomEvent('pin:unlocked'));
+    } else {
+      const attemptsLeft = pinAttempts - 1;
+      setPinAttempts(attemptsLeft);
+
+      if (attemptsLeft > 0) {
+        setPinError(`Incorrect PIN. ${attemptsLeft} attempt${attemptsLeft > 1 ? 's' : ''} remaining.`);
+      } else {
+        setPinError('Too many attempts. Please try again later.');
+      }
+
+      setPinInput('');
+      setShowPinPassword(false);
+
+      // Trigger shake animation
+      setPinShake(true);
+      setTimeout(() => setPinShake(false), 500);
+    }
+  };
+
+  // Handle PIN lock
+  const handlePinLock = () => {
+    lock(); // Clear session unlock
+    setIsPinLocked(true);
+    clearPinSession(); // Clear remember me session
+    window.dispatchEvent(new CustomEvent('pin:locked'));
+  };
+
+  // Handle unlock button click
+  const handleUnlockClick = () => {
+    setShowPinModal(true);
+    setPinError('');
+    setPinAttempts(3); // Reset attempts each time modal opens
+    setShowPinPassword(false);
+    setRememberPin(false);
+  };
+
+  // Handle Money page access (with PIN check)
+  const handleMoneyPageAccess = async () => {
+    // Check if PIN is set
+    const pinExists = await hasPinSet();
+    if (!pinExists) {
+      alert('Please set a PIN in Settings → Security & Privacy first');
+      setShowSettings(true);
+      return;
+    }
+
+    // Check if we have a valid session (remember for 5 minutes)
+    if (isPinSessionValid()) {
+      setShowMoneyPage(true);
+      return;
+    }
+
+    // Show PIN modal
+    setPinModalContext('money');
+    setShowPinModal(true);
+    setPinError('');
+    setPinAttempts(3);
+    setShowPinPassword(false);
+    setRememberPin(false);
+  };
+
   useEffect(() => {
     if (formData.purchasePrice && formData.sellingPrice) {
       const purchase = parseFloat(formData.purchasePrice);
@@ -283,6 +483,107 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Repair sales database dates - Ctrl+Shift+R
+  useEffect(() => {
+    async function repairSalesDates() {
+      try {
+        const db = await getDB();
+        const tx = db.transaction(['sales'], 'readwrite');
+        const store = tx.objectStore('sales');
+        const allSales = await new Promise((resolve, reject) => {
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+
+        console.log('🔧 [Repair] Found', allSales.length, 'sales to check');
+
+        let fixed = 0;
+        const updates = [];
+
+        for (const sale of allSales) {
+          let needsUpdate = false;
+          const updated = { ...sale };
+
+          // Ensure createdAt timestamp exists
+          if (!sale.createdAt) {
+            // Try to compute from dayKey
+            if (sale.dayKey) {
+              const [year, month, day] = sale.dayKey.split('-').map(Number);
+              updated.createdAt = new Date(year, month - 1, day, 12, 0, 0).getTime();
+              needsUpdate = true;
+              console.log('  Fixed createdAt for sale', sale.id, 'using dayKey:', sale.dayKey);
+            } else {
+              // Use current time as fallback
+              updated.createdAt = Date.now();
+              needsUpdate = true;
+              console.log('  Fixed createdAt for sale', sale.id, 'using current time');
+            }
+          }
+
+          // Ensure dayKey exists and matches createdAt
+          const saleDate = new Date(updated.createdAt);
+          const correctDayKey = localDayKey(saleDate);
+          if (!sale.dayKey || sale.dayKey !== correctDayKey) {
+            updated.dayKey = correctDayKey;
+            needsUpdate = true;
+            console.log('  Fixed dayKey for sale', sale.id, 'from', sale.dayKey, 'to', correctDayKey);
+          }
+
+          if (needsUpdate) {
+            updates.push(updated);
+            fixed++;
+          }
+        }
+
+        if (fixed > 0) {
+          const txUpdate = db.transaction(['sales'], 'readwrite');
+          const storeUpdate = txUpdate.objectStore('sales');
+
+          for (const sale of updates) {
+            storeUpdate.put(sale);
+          }
+
+          await new Promise((resolve, reject) => {
+            txUpdate.oncomplete = resolve;
+            txUpdate.onerror = () => reject(txUpdate.error);
+          });
+
+          console.log('✅ [Repair] Fixed', fixed, 'sales');
+          alert(`✅ Repaired ${fixed} sales dates!\n\nReloading page...`);
+
+          // Reload sales
+          const txReload = db.transaction(['sales'], 'readonly');
+          const storeReload = txReload.objectStore('sales');
+          const reloadedSales = await new Promise((resolve, reject) => {
+            const req = storeReload.getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+
+          setSales(reloadedSales);
+          displayToast(`✅ Repaired ${fixed} sales dates!`, 3000);
+        } else {
+          console.log('✅ [Repair] All sales dates are correct');
+          alert('✅ All sales dates are correct!\n\nNo repairs needed.');
+        }
+      } catch (error) {
+        console.error('❌ [Repair] Error:', error);
+        alert('❌ Failed to repair sales: ' + error.message);
+      }
+    }
+
+    function onKey(e) {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        console.log('🔧 [Repair] Starting sales date repair...');
+        repairSalesDates();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sales]);
+
   // Calculate today's sales from IndexedDB (STAGE 3: Updated for new schema)
   const getTodaysSales = () => {
     // Safety check: ensure sales is an array
@@ -296,18 +597,26 @@ function App() {
       };
     }
 
-    // Safety check: ensure credits is an array
-    if (!credits || !Array.isArray(credits)) {
-      console.warn('[getTodaysSales] Credits not loaded yet');
-    }
-
-    // Safety check: ensure items is an array
-    if (!items || !Array.isArray(items)) {
-      console.warn('[getTodaysSales] Items not loaded yet');
-    }
-
     const todayKey = localDayKey();
-    const todaySales = sales.filter(sale => sale.dayKey === todayKey);
+
+    // ROBUST FILTERING: Handle old sales that might not have dayKey or have wrong format
+    const todaySales = sales.filter(sale => {
+      // If sale has dayKey, use it
+      if (sale.dayKey) {
+        return sale.dayKey === todayKey;
+      }
+
+      // FALLBACK: If no dayKey, compute from createdAt timestamp
+      if (sale.createdAt) {
+        const saleDate = new Date(sale.createdAt);
+        const saleDayKey = localDayKey(saleDate);
+        return saleDayKey === todayKey;
+      }
+
+      // No valid date info, skip this sale
+      return false;
+    });
+
 
     // Total sales in kobo
     const totalKobo = todaySales.reduce((sum, sale) => {
@@ -344,6 +653,82 @@ function App() {
   };
 
   const todaysSales = getTodaysSales();
+
+  // Calculate current month's income tax estimate (SIMPLIFIED - NO COGS)
+  const getMonthlyTax = () => {
+    // Safety check: ensure sales is an array
+    if (!sales || !Array.isArray(sales)) {
+      return {
+        estimatedTax: 0,
+        salesTotal: 0,
+        expensesTotal: 0,
+        profit: 0,
+        salesCount: 0,
+        expensesCount: 0
+      };
+    }
+
+    // Get first and last day of current month
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    firstDay.setHours(0, 0, 0, 0); // Start of first day
+
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    lastDay.setHours(23, 59, 59, 999); // End of last day
+
+    // Filter sales for current month using createdAt field
+    const monthSales = sales.filter(sale => {
+      if (!sale.createdAt) {
+        console.warn('Sale missing createdAt:', sale);
+        return false;
+      }
+
+      const saleDate = new Date(sale.createdAt);
+      const isInRange = saleDate >= firstDay && saleDate <= lastDay;
+
+      return isInRange;
+    });
+
+    // Calculate total sales revenue in naira (from kobo)
+    const totalKobo = monthSales.reduce((sum, sale) => {
+      return sum + (sale.qty * sale.sellKobo);
+    }, 0);
+    const salesTotal = Math.round(totalKobo / 100);
+
+    // Get current month operating expenses (rent, utilities, etc.)
+    const monthExpenses = getCurrentMonthExpenses();
+    const expensesTotal = calculateTotalExpenses(monthExpenses);
+
+    // SIMPLE Profit = Sales - Expenses (NO COGS)
+    const profit = Math.max(0, salesTotal - expensesTotal);
+
+    // Calculate estimated income tax using configurable rate (default 2%)
+    const taxRate = settings?.taxRatePct ?? 2;
+    const estimatedTax = (profit * taxRate) / 100;
+
+    // Debug logging
+    console.log('📊 Tax Calculation (Simple):', {
+      salesTotal,
+      expensesTotal,
+      profit,
+      taxRate,
+      estimatedTax,
+      salesCount: monthSales.length,
+      expensesCount: monthExpenses.length,
+      formula: `Profit = Sales (₦${salesTotal}) - Expenses (₦${expensesTotal}) = ₦${profit}`
+    });
+
+    return {
+      estimatedTax,
+      salesTotal,
+      expensesTotal,
+      profit,
+      salesCount: monthSales.length,
+      expensesCount: monthExpenses.length
+    };
+  };
+
+  const monthlyTax = useMemo(() => getMonthlyTax(), [sales, expensesUpdateCounter, settings?.taxRatePct]);
 
   // Trial logic - check on mount
   useEffect(() => {
@@ -383,18 +768,52 @@ function App() {
     }
   }, []);
 
-  // Initialize IndexedDB and load data
+  // Listen for expense updates to refresh tax calculation
   useEffect(() => {
+    const handleExpenseUpdate = (event) => {
+      console.log('🔔 [Dashboard] Expense event received!', event.detail);
+      // Increment counter to trigger re-render and recalculate tax
+      setExpensesUpdateCounter(prev => {
+        console.log('📊 [Dashboard] Incrementing expenses counter from', prev, 'to', prev + 1);
+        return prev + 1;
+      });
+    };
+
+    window.addEventListener('storehouse:expense-updated', handleExpenseUpdate);
+    console.log('👂 [Dashboard] Listening for expense updates');
+
+    return () => {
+      window.removeEventListener('storehouse:expense-updated', handleExpenseUpdate);
+    };
+  }, []);
+
+  // Initialize Firebase and load data
+  useEffect(() => {
+    if (!currentUser) {
+      console.log('[App] No user logged in, skipping data load');
+      return;
+    }
+
     const initializeData = async () => {
       try {
+        console.log('[App] Initializing data for user:', currentUser.uid);
+
+        // Initialize IndexedDB for sales/credits (still using IndexedDB for these)
         await initDB();
         await seedDemoItems();
 
-        // Load items
-        const loadedItems = await getItems();
-        setItems(loadedItems);
+        // Migrate data from IndexedDB to Firebase on first login
+        console.log('[App] Checking migration status...');
+        const migrationResult = await migrateUserData(currentUser.uid);
+        console.log('[App] Migration result:', migrationResult);
 
-        // Load sales from IndexedDB
+        // Load products from Firebase
+        console.log('[App] Loading products from Firebase...');
+        const firebaseProducts = await getFirebaseProducts(currentUser.uid);
+        console.log('[App] Loaded', firebaseProducts.length, 'products from Firebase');
+        setItems(firebaseProducts);
+
+        // Load sales from IndexedDB (not migrated yet)
         const db = await getDB();
         const allSales = await new Promise((resolve, reject) => {
           const tx = db.transaction(['sales'], 'readonly');
@@ -409,9 +828,55 @@ function App() {
             reject(new Error('Failed to fetch sales'));
           };
         });
-        setSales(allSales);
 
-        // Load credits
+        console.log('[App] Loaded', allSales.length, 'sales from IndexedDB');
+
+        // MIGRATION: Fix old sales missing dayKey
+        const salesNeedingFix = allSales.filter(s => !s.dayKey && s.createdAt);
+        if (salesNeedingFix.length > 0) {
+          console.log('[App] 🔧 Migrating', salesNeedingFix.length, 'sales to add dayKey...');
+
+          try {
+            const txFix = db.transaction(['sales'], 'readwrite');
+            const salesStoreFix = txFix.objectStore('sales');
+
+            salesNeedingFix.forEach(sale => {
+              const saleDate = new Date(sale.createdAt);
+              const dayKey = localDayKey(saleDate);
+              const updatedSale = { ...sale, dayKey };
+              salesStoreFix.put(updatedSale);
+            });
+
+            await new Promise((resolve, reject) => {
+              txFix.oncomplete = () => {
+                console.log('[App] ✅ Migration complete!');
+                resolve();
+              };
+              txFix.onerror = () => reject(txFix.error);
+            });
+
+            // Reload sales after migration
+            const txReload = db.transaction(['sales'], 'readonly');
+            const salesStoreReload = txReload.objectStore('sales');
+            const getAllAgain = salesStoreReload.getAll();
+
+            const migratedSales = await new Promise((resolve, reject) => {
+              getAllAgain.onsuccess = () => resolve(getAllAgain.result);
+              getAllAgain.onerror = () => reject(new Error('Failed to reload sales'));
+            });
+
+            setSales(migratedSales);
+            console.log('[App] Reloaded', migratedSales.length, 'sales after migration');
+          } catch (migrationError) {
+            console.error('[App] Migration failed:', migrationError);
+            setSales(allSales); // Use unmigrated sales as fallback
+          }
+        } else {
+          console.log('[App] No migration needed - all sales have dayKey');
+          setSales(allSales);
+        }
+
+        // Load credits from IndexedDB (not migrated yet)
         const allCredits = await getCredits();
         setCredits(allCredits);
 
@@ -420,8 +885,36 @@ function App() {
         console.error('[App] Failed to initialize data:', error);
       }
     };
-    initializeData();
-  }, []);
+
+    // Set up real-time subscription to products
+    let unsubscribe;
+    const setupSubscription = async () => {
+      await initializeData();
+
+      console.log('[App] Setting up real-time product subscription...');
+      unsubscribe = subscribeToProducts(currentUser.uid, (products, error) => {
+        if (error) {
+          console.error('[App] Product subscription error:', error);
+          return;
+        }
+
+        if (products) {
+          console.log('[App] Real-time update:', products.length, 'products');
+          setItems(products);
+        }
+      });
+    };
+
+    setupSubscription();
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      if (unsubscribe) {
+        console.log('[App] Cleaning up product subscription');
+        unsubscribe();
+      }
+    };
+  }, [currentUser]);
 
   // Migrate PRO/TEAM users to STARTER (run once on mount)
   useEffect(() => {
@@ -784,34 +1277,27 @@ function App() {
   // Quick-sell from table/search - Listen for open-record-sale event
   useEffect(() => {
     const handler = (e) => {
-      if (!settings.quickSellEnabled) return;
-
+      console.log('[App] open-record-sale event received:', e.detail);
       const itemId = e.detail?.itemId;
-      if (!itemId) return;
+      if (!itemId) {
+        console.log('[App] No itemId in event');
+        return;
+      }
 
-      const item = items.find(i => i.id === parseInt(itemId));
-      if (!item) return;
+      console.log('[App] Looking for item with ID:', itemId, 'Type:', typeof itemId);
+      console.log('[App] Total items:', items.length);
 
-      // Pre-fill Record Sale form
-      // Convert kobo to Naira for display
-      const sellKobo = item.sellKobo ?? item.sellingPrice ?? item.sellPrice ?? 0;
-      const sellNaira = Math.round(sellKobo / 100);
+      // Try both string and number comparison
+      const item = items.find(i => String(i.id) === String(itemId) || i.id === itemId);
+      if (!item) {
+        console.log('[App] Item not found! Available IDs:', items.slice(0, 5).map(i => ({id: i.id, type: typeof i.id})));
+        return;
+      }
 
-      setSaleForm({
-        itemId: item.id.toString(),
-        quantity: '1',
-        sellPrice: sellNaira > 0 ? formatNumberWithCommas(sellNaira.toString()) : '',
-        paymentMethod: 'cash',
-        isCreditSale: false,
-        customerName: '',
-        phone: '',
-        dueDate: todayPlusDaysISO(7),
-        sendWhatsApp: false,
-        hasConsent: false
-      });
+      console.log('[App] Item found:', item.name, 'Opening modal...');
 
-      // Clear search term
-      setItemSearchTerm('');
+      // Set preselected item for RecordSaleModal
+      setPreselectedItem(item);
 
       // Open modal
       setShowRecordSale(true);
@@ -819,7 +1305,26 @@ function App() {
 
     window.addEventListener('open-record-sale', handler);
     return () => window.removeEventListener('open-record-sale', handler);
-  }, [items, settings.quickSellEnabled]);
+  }, [items]);
+
+  // Quick Sell widget handler - from Dashboard
+  useEffect(() => {
+    const handler = (e) => {
+      const itemId = e.detail?.itemId;
+      if (!itemId) return;
+
+      // Find item by ID (handles both string and numeric IDs)
+      const item = items.find(i => String(i.id) === String(itemId) || i.id === itemId);
+      if (!item) return;
+
+      // Set preselected item and open modal
+      setPreselectedItem(item);
+      setShowRecordSale(true);
+    };
+
+    window.addEventListener('quicksell:item', handler);
+    return () => window.removeEventListener('quicksell:item', handler);
+  }, [items]);
 
   // TEST: WhatsApp receipt test button handler
   useEffect(() => {
@@ -1013,7 +1518,10 @@ Thank you for your business! 🙏
       // Check for existing item when name changes
       if (name === 'name' && value.trim()) {
         try {
-          const existing = await checkItemExists(value.trim());
+          // Search in current items array (real-time from Firebase)
+          const existing = items.find(item =>
+            item.name.toLowerCase() === value.trim().toLowerCase()
+          );
           if (existing) {
             setExistingItem(existing);
             setStockMode('add'); // Default to 'add' mode
@@ -1110,7 +1618,7 @@ Thank you for your business! 🙏
             sellKobo: Math.round(selling * 100) // Update selling price if provided
           };
 
-          await updateItem(existingItem.id, updatedItem);
+          await updateFirebaseProduct(currentUser.uid, existingItem.id, updatedItem);
           console.log('[handleSave] ✅ Stock added:', { oldQty, delta, newQty });
 
           // Log stock movement
@@ -1136,7 +1644,7 @@ Thank you for your business! 🙏
             sellKobo: Math.round(selling * 100)
           };
 
-          await updateItem(existingItem.id, updatedItem);
+          await updateFirebaseProduct(currentUser.uid, existingItem.id, updatedItem);
           console.log('[handleSave] ✅ Stock replaced:', { oldQty, newTotal });
 
           // Log stock movement
@@ -1165,8 +1673,8 @@ Thank you for your business! 🙏
         };
 
         console.log('[handleSave] Creating new item:', newItem);
-        const addedItem = await addItem(newItem);
-        console.log('[handleSave] ✅ Item added to IndexedDB:', addedItem);
+        const addedItem = await addFirebaseProduct(currentUser.uid, newItem);
+        console.log('[handleSave] ✅ Item added to Firebase:', addedItem);
         displayToast('✓ Item added successfully!');
       }
 
@@ -1178,13 +1686,9 @@ Thank you for your business! 🙏
         localStorage.setItem('demoItemsActive', 'false');
       }
 
-      // Reload items from IndexedDB
-      const loadedItems = await getItems();
-      console.log('[handleSave] 📦 Items reloaded from DB. Count:', loadedItems.length);
-      console.log('[handleSave] 📦 All items:', loadedItems.map(i => ({ id: i.id, name: i.name, qty: i.qty })));
-
-      // Update state with new items
-      setItems(loadedItems);
+      // Note: Items will update automatically via real-time subscription
+      // No need to manually reload - Firebase listener handles it
+      console.log('[handleSave] ✅ Item saved to Firebase, waiting for real-time update...');
 
       // Clear search query to ensure new item is visible
       setSearchQuery('');
@@ -1256,6 +1760,18 @@ Thank you for your business! 🙏
       sendWhatsApp: true,
       hasConsent: false
     });
+  };
+
+  // Handle delete item
+  const handleDeleteItem = async (itemId) => {
+    try {
+      console.log('[App] Deleting item:', itemId);
+      await deleteFirebaseProduct(currentUser.uid, itemId);
+      displayToast('✓ Item deleted successfully');
+    } catch (error) {
+      console.error('[App] Error deleting item:', error);
+      displayToast('❌ Failed to delete item');
+    }
   };
 
   const handleLowStock = () => {
@@ -1584,12 +2100,26 @@ Thank you for your business! 🙏
     // Support both RecordSaleModal (saleData param) and legacy form (saleForm state)
     const formData = saleData || saleForm;
 
-    const selectedItem = items.find(item => item.id === parseInt(formData.itemId));
+    // Handle both numeric IDs (old) and string IDs (Firebase)
+    const itemIdToFind = formData.itemId;
+    const selectedItem = items.find(item => {
+      // Try exact match first (for string IDs)
+      if (item.id === itemIdToFind) return true;
+      // Try string comparison (both converted to strings)
+      if (String(item.id) === String(itemIdToFind)) return true;
+      // Try numeric comparison (for old numeric IDs)
+      if (typeof itemIdToFind === 'string' && !isNaN(itemIdToFind)) {
+        return item.id === parseInt(itemIdToFind);
+      }
+      return false;
+    });
+
     const qty = parseQty(formData.quantity);
     const sellKobo = toKobo(formData.sellPrice);
 
     // Validation
     if (!selectedItem || !qty || !sellKobo) {
+      console.error('[handleSaveSale] Validation failed - missing required fields');
       displayToast('Please fill all required fields');
       return;
     }
@@ -1628,11 +2158,36 @@ Thank you for your business! 🙏
       const saleId = crypto.randomUUID();
       const db = await getDB();
 
-      // Wrap the entire transaction in a promise
+      // Check stock first (using Firebase products)
+      if (selectedItem.qty < qty) {
+        throw new Error(`Not enough stock. Only ${selectedItem.qty || 0} available.`);
+      }
+
+      // Update product quantity in Firebase (non-blocking - don't fail sale if this fails)
+      try {
+        await updateFirebaseProduct(currentUser.uid, selectedItem.id, {
+          qty: selectedItem.qty - qty
+        });
+        console.log('[handleSaveSale] ✅ Product quantity updated in Firebase');
+
+        // Log stock movement
+        logStockMovement({
+          itemId: selectedItem.id,
+          type: 'out',
+          qty: -qty,
+          unitCost: selectedItem.purchaseKobo,
+          reason: 'sale',
+          at: new Date().toISOString()
+        });
+      } catch (firebaseError) {
+        console.warn('[handleSaveSale] ⚠️ Failed to update product in Firebase, but continuing with sale:', firebaseError);
+        // Continue with sale even if Firebase update fails
+      }
+
+      // Wrap the sales/customer/credits transaction in a promise
       await new Promise((resolve, reject) => {
-        const tx = db.transaction(['sales', 'items', 'customers', 'credits', 'outbox'], 'readwrite');
+        const tx = db.transaction(['sales', 'customers', 'credits', 'outbox'], 'readwrite');
         const salesStore = tx.objectStore('sales');
-        const itemsStore = tx.objectStore('items');
         const customersStore = tx.objectStore('customers');
         const creditsStore = tx.objectStore('credits');
         const outboxStore = tx.objectStore('outbox');
@@ -1654,13 +2209,14 @@ Thank you for your business! 🙏
         };
 
         // 1) Insert sale - use plain data only
+        const todayKey = localDayKey();
         const saleData = {
           id: saleId,
           itemId: selectedItem.id,
           qty,
           sellKobo,
           createdAt: Date.now(),
-          dayKey: localDayKey(),
+          dayKey: todayKey,
           // v5: Payment method tracking for accurate EOD reports
           isCredit: formData.isCreditSale,
           paymentMethod: formData.isCreditSale ? 'credit' : (formData.paymentMethod || 'cash'),
@@ -1668,32 +2224,10 @@ Thank you for your business! 🙏
           customerName: formData.customerName || null,
           dueDate: formData.dueDate || null
         };
+
         salesStore.add(saleData);
 
-        // 2) Decrement stock with guard
-        const itemRequest = itemsStore.get(selectedItem.id);
-        itemRequest.onsuccess = () => {
-          const item = itemRequest.result;
-          if (!item || item.qty < qty) {
-            tx.abort();
-            reject(new Error(`Not enough stock. Only ${item?.qty || 0} available.`));
-            return;
-          }
-          // Create plain object for update
-          const updatedItem = {
-            ...item,
-            qty: item.qty - qty,
-            lastSellKobo: sellKobo,
-            updatedAt: Date.now()
-          };
-          itemsStore.put(updatedItem);
-        };
-
-        itemRequest.onerror = () => {
-          reject(new Error('Failed to check item stock'));
-        };
-
-        // 3) Upsert customer if credit sale
+        // 2) Upsert customer if credit sale
         if (formData.isCreditSale) {
           const lowerName = formData.customerName.trim().toLowerCase();
           const custIndex = customersStore.index('by_lower_name');
@@ -1789,6 +2323,7 @@ Thank you for your business! 🙏
         customerName: formData.isCreditSale ? formData.customerName.trim() : undefined,
         phone: formData.isCreditSale && formData.phone ? formData.phone.trim() : undefined,
         note: formData.note.trim() || undefined,
+        cogsKobo: (selectedItem.purchaseKobo || 0) * qty, // Cost of Goods Sold = cost price × quantity
       };
       sales.unshift(saleRow);
       saveSales(sales);
@@ -1892,9 +2427,8 @@ Thank you for your business! 🙏
         });
       }
 
-      // Refresh items and sales from DB to update UI
-      const updatedItems = await getItems();
-      setItems(updatedItems);
+      // Note: Items will update automatically via real-time subscription
+      // No need to manually reload - Firebase listener handles it
 
       // Refresh sales to update KPIs
       const db2 = await getDB();
@@ -1911,6 +2445,7 @@ Thank you for your business! 🙏
           reject(new Error('Failed to fetch sales'));
         };
       });
+
       setSales(updatedSales);
 
       // Refresh credits if it was a credit sale
@@ -1919,9 +2454,17 @@ Thank you for your business! 🙏
         setCredits(updatedCredits);
       }
 
+      // Close the Record Sale modal
+      setShowRecordSale(false);
+
+      // Show success message
+      displayToast('✅ Sale recorded successfully!');
+
     } catch (error) {
       console.error('[Save Sale Error]', error);
-      displayToast(error.message || 'Could not save sale');
+
+      const errorMsg = error.message || 'Could not save sale';
+      displayToast('❌ ' + errorMsg);
     } finally {
       // Re-enable save button
       if (saveButton) saveButton.disabled = false;
@@ -2591,6 +3134,27 @@ Low Stock: ${lowStockItems.length}
 
   const hasActiveSalesFilters = salesSearchTerm || salesDateFilter !== 'all' || salesPaymentFilter !== 'all';
 
+  // Show Expenses Page if active
+  if (showExpensesPage) {
+    return (
+      <ExpensesPage
+        onBack={() => setShowExpensesPage(false)}
+        onAddExpense={() => {
+          setShowExpensesPage(false);
+          setShowExpenseModal(true);
+        }}
+      />
+    );
+  }
+
+  // Show Test Payment page if enabled
+  if (showTestPayment) {
+    return <TestPayment onBack={() => {
+      setShowTestPayment(false);
+      localStorage.setItem('storehouse-test-mode', JSON.stringify(false));
+    }} />;
+  }
+
   return (
     <div className="app container">
       {/* Header */}
@@ -2608,27 +3172,15 @@ Low Stock: ${lowStockItems.length}
             aria-label="Open calculator"
             title="Calculator (Press C)"
           >
-            <span className="calc-emoji">🧮</span>
+            <Calculator size={22} strokeWidth={2} />
           </button>
           <button
-            className="settings-btn"
+            className="settings-btn settings-btn-desktop"
             onClick={() => setShowSettings(true)}
             aria-label="Business Settings"
             title="Business Settings"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"></path>
-            </svg>
+            <Settings size={22} strokeWidth={2} />
           </button>
         </div>
       </header>
@@ -2751,84 +3303,30 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="kpi-container kpi-grid">
-        <div className="kpi-card kpi sales">
-          <div className="kpi-header label">Today's Sales</div>
-          <div className="kpi-value value">
-            {showSalesData ? `₦${todaysSales.total.toLocaleString()}` : '₦—'}
-          </div>
-          <div className="kpi-subtext hint">
-            from {todaysSales.transactions} sale{todaysSales.transactions !== 1 ? 's' : ''}
-          </div>
-          <button
-            className="kpi-link"
-            onClick={() => setShowSalesHistory(true)}
-          >
-            View sales history
-          </button>
-        </div>
+      {/* Share Your Store Card */}
+      <ShareStoreCard onOpenSettings={() => setShowSettings(true)} />
 
-        <div className="kpi-card kpi stock">
-          <div className="kpi-header label">Items in Stock</div>
-          <div className="kpi-value value">{totalItems.toLocaleString()}</div>
-          <div className="kpi-subtext hint">total units</div>
-        </div>
+      {/* New Dashboard v2.0 - Widget-based */}
+      <Dashboard
+        sales={sales}
+        items={items}
+        credits={credits}
+        customers={Object.values(creditCustomers)}
+        onRecordSale={handleRecordSale}
+        onAddItem={() => setShowModal(true)}
+        onViewHistory={() => setShowSalesHistory(true)}
+        onManageCredits={() => setShowCreditsDrawer(true)}
+        onViewLowStock={() => setShowLowStock(true)}
+        onViewMoney={() => setShowMoneyPage(true)}
+        onViewExpenses={() => setShowExpensesPage(true)}
+        onViewSettings={() => setShowSettings(true)}
+        onDeleteItem={handleDeleteItem}
+        userId={currentUser?.uid}
+        hasOpenModal={showRecordSale || showModal || showSettings || showSalesHistory || showCreditsDrawer || showDashboardCustomize}
+      />
 
-        <div
-          className="kpi-card kpi low-stock clickable"
-          onClick={handleLowStock}
-          role="button"
-          tabIndex={0}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              handleLowStock();
-            }
-          }}
-        >
-          <div className="kpi-header label">Low Stock</div>
-          <div className="kpi-value value">{lowStockItems}</div>
-          <div className="kpi-subtext hint">need restocking</div>
-        </div>
-
-        <div
-          className="kpi-card kpi receivables clickable"
-          onClick={() => setShowCreditsDrawer(true)}
-          role="button"
-          tabIndex={0}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              setShowCreditsDrawer(true);
-            }
-          }}
-        >
-          <div className="kpi-header label">Customer Debt</div>
-          <div className="kpi-value value">
-            {showSalesData ? `₦${receivables.total.toLocaleString()}` : '₦—'}
-          </div>
-          <div className="kpi-subtext hint">
-            from {receivables.count} customer{receivables.count !== 1 ? 's' : ''}
-          </div>
-        </div>
-      </div>
-
-      {/* Center column for buttons, search, table */}
+      {/* Center column for search, table */}
       <section className="mainColumn">
-        {/* CTA Buttons */}
-        <div className="actionsBlock">
-          <button
-            className="btnPrimary"
-            onClick={handleRecordSale}
-          >
-            ₦ Record Sale
-          </button>
-          <button
-            className="btnSecondary"
-            onClick={() => setShowModal(true)}
-          >
-            + Add Item
-          </button>
-        </div>
 
         {/* Search Bar */}
         <div className="searchBar">
@@ -2862,6 +3360,11 @@ Low Stock: ${lowStockItems.length}
                 getFilteredItems().map(item => {
                   const sellNaira = Math.round((item.sellKobo ?? item.sellingPrice ?? 0) / 100);
 
+                  // Format number with commas, no spaces
+                  const formatNumber = (num) => {
+                    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                  };
+
                   return (
                     <tr
                       key={item.id}
@@ -2875,8 +3378,8 @@ Low Stock: ${lowStockItems.length}
                       style={{ cursor: settings.quickSellEnabled ? 'pointer' : 'default' }}
                     >
                       <td className="cellItem">{item.name}</td>
-                      <td className="cellQty">{item.qty ?? 0}</td>
-                      <td className="cellPrice">₦{sellNaira.toLocaleString()}</td>
+                      <td className="cellQty">{formatNumber(item.qty ?? 0)}</td>
+                      <td className="cellPrice">₦{formatNumber(sellNaira)}</td>
                     </tr>
                   );
                 })
@@ -3121,9 +3624,11 @@ Low Stock: ${lowStockItems.length}
         onClose={() => {
           setShowRecordSale(false);
           setCalculatorItems(null); // Clear calculator items when modal closes
+          setPreselectedItem(null); // Clear preselected item when modal closes
         }}
         items={items}
         calculatorItems={calculatorItems}
+        preselectedItem={preselectedItem}
         onSaveSale={handleSaveSale}
         onCreateDebt={(debtData) => {
           try {
@@ -3174,6 +3679,236 @@ Low Stock: ${lowStockItems.length}
         itemCount={items.length}
         onToast={displayToast}
       />
+
+      {/* PIN Entry Modal */}
+      {showPinModal && (
+        <div
+          className="modal"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => {
+            setShowPinModal(false);
+            setPinInput('');
+            setPinError('');
+            setShowPinPassword(false);
+          }}
+        >
+          <div
+            className={pinShake ? 'pin-modal-shake' : ''}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              padding: '2rem',
+              maxWidth: '420px',
+              width: '90%',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+              animation: 'slideUp 0.3s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: '#fee2e2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Lock size={28} color="#dc2626" strokeWidth={2.5} />
+              </div>
+            </div>
+
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '700', margin: 0, textAlign: 'center', marginBottom: '0.5rem' }}>
+              {pinModalContext === 'money' ? 'PIN Required' : 'Enter PIN to Unlock'}
+            </h3>
+
+            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.75rem', textAlign: 'center' }}>
+              {pinModalContext === 'money'
+                ? 'Enter your PIN to view financial data'
+                : 'Enter your PIN to view costs and profits'}
+            </p>
+
+            <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+              <input
+                type={showPinPassword ? "text" : "password"}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  setPinError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && pinInput) {
+                    handlePinSubmit();
+                  }
+                }}
+                placeholder="••••"
+                autoFocus
+                disabled={pinAttempts <= 0}
+                style={{
+                  width: '100%',
+                  padding: '1rem 3rem 1rem 1rem',
+                  fontSize: '1.25rem',
+                  border: pinError ? '2px solid #dc2626' : '2px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.5em',
+                  textAlign: 'center',
+                  transition: 'border-color 0.2s',
+                  backgroundColor: pinAttempts <= 0 ? '#f3f4f6' : 'white'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinPassword(!showPinPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: '#6b7280'
+                }}
+              >
+                {showPinPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+
+            {pinError && (
+              <div style={{
+                padding: '0.75rem',
+                backgroundColor: '#fee2e2',
+                borderRadius: '0.5rem',
+                marginBottom: '1rem',
+                animation: 'fadeIn 0.2s'
+              }}>
+                <p style={{ color: '#dc2626', fontSize: '0.875rem', margin: 0, fontWeight: '500', textAlign: 'center' }}>
+                  {pinError}
+                </p>
+              </div>
+            )}
+
+            {/* Remember for 5 minutes checkbox */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginTop: '1rem',
+              marginBottom: '0.5rem',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              color: '#6b7280'
+            }}>
+              <input
+                type="checkbox"
+                checked={rememberPin}
+                onChange={(e) => setRememberPin(e.target.checked)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  cursor: 'pointer'
+                }}
+              />
+              <span>Remember for 5 minutes</span>
+            </label>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+              <button
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinInput('');
+                  setPinError('');
+                  setShowPinPassword(false);
+                  setRememberPin(false);
+                  setPinModalContext(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '1rem',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  background: 'white',
+                  color: '#6b7280',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#f9fafb';
+                  e.target.style.borderColor = '#d1d5db';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = 'white';
+                  e.target.style.borderColor = '#e5e7eb';
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePinSubmit}
+                disabled={!pinInput || pinAttempts <= 0}
+                style={{
+                  flex: 2,
+                  padding: '1rem',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  background: (!pinInput || pinAttempts <= 0) ? '#d1d5db' : '#16a34a',
+                  color: 'white',
+                  fontSize: '1.1rem',
+                  fontWeight: '700',
+                  cursor: (!pinInput || pinAttempts <= 0) ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: (!pinInput || pinAttempts <= 0) ? 'none' : '0 4px 12px rgba(22, 163, 74, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  if (pinInput && pinAttempts > 0) {
+                    e.target.style.backgroundColor = '#15803d';
+                    e.target.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (pinInput && pinAttempts > 0) {
+                    e.target.style.backgroundColor = '#16a34a';
+                    e.target.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                🔓 Unlock
+              </button>
+            </div>
+
+            <p style={{
+              fontSize: '0.75rem',
+              color: '#9ca3af',
+              marginTop: '1.25rem',
+              textAlign: 'center',
+              lineHeight: '1.5'
+            }}>
+              💡 Set or change your PIN in Business Settings
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Credit & Debts Modal */}
       {showDebts && (
@@ -3604,6 +4339,156 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
+      {/* OLD Tax Summary Modal - DISABLED (replaced by TaxPanel component) */}
+      {/*
+      {showTaxModal && (
+        <div className="modal-overlay" onClick={() => setShowTaxModal(false)}>
+          <div className="modal tax-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📊 Tax Summary - {getCurrentMonth()}</h3>
+              <button className="modal-close" onClick={() => setShowTaxModal(false)}>
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="tax-detail-row">
+                <span>Sales Revenue:</span>
+                <span className="tax-amount">
+                  {showSalesData ? `₦${monthlyTax.salesTotal.toLocaleString()}` : '₦—'}
+                </span>
+              </div>
+
+              <div className="tax-detail-row">
+                <span>Cost of Goods Sold:</span>
+                <span className="tax-amount expense-color">
+                  -₦{monthlyTax.cogs.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="tax-detail-row">
+                <span>Operating Expenses:</span>
+                <span className="tax-amount expense-color">
+                  -₦{monthlyTax.expensesTotal.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="tax-detail-row separator">
+                <span>Net Profit:</span>
+                <span className={`tax-amount ${monthlyTax.profit >= 0 ? 'profit-color' : 'loss-color'}`}>
+                  {showSalesData ? `₦${Math.abs(monthlyTax.profit).toLocaleString()}` : '₦—'}
+                  {monthlyTax.profit < 0 && ' (Loss)'}
+                </span>
+              </div>
+
+              <div className="vat-breakdown-section">
+                <p className="breakdown-title">Tax Calculation:</p>
+
+                <div className="tax-detail-row sub-row">
+                  <span>Tax Rate:</span>
+                  <span className="tax-amount">
+                    {((settings?.taxRate || 0.07) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="tax-detail-row highlight">
+                <span><strong>Estimated Income Tax:</strong></span>
+                <span className="tax-amount vat-color">
+                  <strong>
+                    {showSalesData ? `₦${monthlyTax.estimatedTax.toLocaleString()}` : '₦—'}
+                  </strong>
+                </span>
+              </div>
+
+              <div className="vat-info-note">
+                <p>
+                  💡 Tax is calculated on your <strong>net profit</strong> (what's left after paying for goods and expenses). Both your item costs and operating expenses reduce your tax burden.
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  const taxDataForDownload = {
+                    success: true,
+                    vatPayable: monthlyTax.estimatedTax,
+                    profit: monthlyTax.profit,
+                    salesTotal: monthlyTax.salesTotal,
+                    expensesTotal: monthlyTax.expensesTotal,
+                    breakdown: {
+                      outputVat: 0,
+                      inputVat: 0,
+                      fromPurchases: 0,
+                      fromExpenses: 0,
+                    },
+                    notes: [
+                      `${monthlyTax.salesCount} sales, ${monthlyTax.expensesCount} expenses`,
+                      `Tax rate: ${((settings?.taxRate || 0.07) * 100).toFixed(1)}%`
+                    ].filter(Boolean),
+                  };
+                  downloadTaxSummary(taxDataForDownload, settings.businessName || 'Your Business');
+                }}
+              >
+                📥 Download
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  const taxDataForShare = {
+                    success: true,
+                    vatPayable: monthlyTax.estimatedTax,
+                    profit: monthlyTax.profit,
+                    salesTotal: monthlyTax.salesTotal,
+                    expensesTotal: monthlyTax.expensesTotal,
+                    breakdown: {
+                      outputVat: 0,
+                      inputVat: 0,
+                      fromPurchases: 0,
+                      fromExpenses: 0,
+                    },
+                    notes: [],
+                  };
+                  shareViaWhatsApp(taxDataForShare, settings.businessName || 'Your Business');
+                }}
+              >
+                💬 Share
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      */}
+
+      {/* Expense Modal */}
+      <ExpenseModal
+        isOpen={showExpenseModal}
+        onClose={() => setShowExpenseModal(false)}
+        onSubmit={(data) => {
+          try {
+            const expense = saveExpense(data);
+
+            // Show success message
+            alert(`✅ Expense saved!\n\nAmount: ₦${(expense.amountKobo / 100).toLocaleString()}\nCategory: ${data.category}\nDate: ${data.date}`);
+
+            // Close modal
+            setShowExpenseModal(false);
+
+          } catch (error) {
+            console.error('Failed to save expense:', error);
+            alert('❌ Failed to save expense. Please try again.');
+          }
+        }}
+      />
+
+      {/* Money Page */}
+      <MoneyPage
+        isOpen={showMoneyPage}
+        onClose={() => setShowMoneyPage(false)}
+      />
+
       {/* EOD Report Modal */}
       {showEODModal && (
         <div className="modal-overlay" onClick={() => setShowEODModal(false)}>
@@ -3964,18 +4849,38 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
-      {/* Footer Spacer - prevents FAB from overlapping content */}
+      {/* Business Type Selector - First Time Setup */}
+      {isFirstTimeSetup && (
+        <BusinessTypeSelector onComplete={completeSetup} />
+      )}
+
+      {/* Dashboard Customization Modal */}
+      {showDashboardCustomize && (
+        <DashboardCustomize onClose={() => setShowDashboardCustomize(false)} />
+      )}
+
+      {/* Footer Spacer - prevents bottom nav from overlapping content */}
       <div className="footer-spacer"></div>
 
-      {/* Mobile FAB Calculator Button */}
-      <button
-        className="calculator-fab fab"
-        onClick={handleCalculator}
-        aria-label="Open calculator"
-        title="Calculator (Press C)"
-      >
-        <span className="calc-emoji">🧮</span>
-      </button>
+      {/* Mobile Bottom Navigation */}
+      <nav className="mobile-bottom-nav">
+        <button
+          className="bottom-nav-btn"
+          onClick={handleCalculator}
+          aria-label="Open calculator"
+        >
+          <Calculator size={24} strokeWidth={2} />
+          <span className="bottom-nav-label">Calculator</span>
+        </button>
+        <button
+          className="bottom-nav-btn"
+          onClick={() => setShowSettings(true)}
+          aria-label="Business Settings"
+        >
+          <Settings size={24} strokeWidth={2} />
+          <span className="bottom-nav-label">Settings</span>
+        </button>
+      </nav>
 
       {/* Footer */}
       <footer className="app-footer powered">

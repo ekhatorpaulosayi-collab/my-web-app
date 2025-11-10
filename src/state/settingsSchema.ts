@@ -9,6 +9,9 @@ export type Settings = {
   receiptMessage?: string; // <= 160 chars
   lowStockThreshold: number;
   defaultHistoryRange: HistoryRange;
+  enableTaxEstimator?: boolean; // NEW: Show profit & tax panel
+  taxRatePct?: number;          // NEW: Tax rate percentage (default 2%)
+  showOnlineStoreHero?: boolean; // Show Online Store hero banner (default true)
 };
 
 export const SETTINGS_KEY = "storehouse.settings.v1";
@@ -23,6 +26,9 @@ export const DEFAULT_SETTINGS: Settings = {
   receiptMessage: "",
   lowStockThreshold: 3,
   defaultHistoryRange: "today",
+  enableTaxEstimator: false, // Default to FALSE (opt-in)
+  taxRatePct: 2,             // Default 2%
+  showOnlineStoreHero: true, // Show hero by default
 };
 
 export function loadSettings(): Settings {

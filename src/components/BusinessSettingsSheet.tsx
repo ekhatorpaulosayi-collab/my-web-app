@@ -185,6 +185,27 @@ export default function BusinessSettingsSheet({
           </select>
         </div>
 
+        {/* ONLINE STORE HERO */}
+        <div className="settings-group">
+          <label>Online Store</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'none' }}>
+            <input
+              type="checkbox"
+              checked={draft.showOnlineStoreHero}
+              onChange={(e) => {
+                update("showOnlineStoreHero", e.target.checked);
+                if (e.target.checked) {
+                  window.dispatchEvent(new Event('show-online-store-hero'));
+                }
+              }}
+              style={{ width: 'auto', height: 'auto' }}
+            />
+            <span style={{ fontWeight: 'normal', fontSize: '14px' }}>
+              Show Online Store banner on dashboard
+            </span>
+          </label>
+        </div>
+
         {/* DATA & REPORTS */}
         {(onExportCSV || onSendEOD) && (
           <div className="settings-group">
