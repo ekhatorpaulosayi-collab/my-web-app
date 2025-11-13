@@ -570,12 +570,30 @@
     border-radius: 0;
   }
 
+  .rs-body {
+    padding-bottom: 160px; /* Extra space for cart bar + footer */
+  }
+
   .rs-summary {
     position: static;
   }
 
   .rs-total {
     font-size: 28px;
+  }
+
+  .rs-footer {
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    z-index: 60; /* Above cart bar */
+    margin-top: auto;
+  }
+
+  /* Ensure cart bar doesn't overlap footer */
+  .rs-cart-bar {
+    z-index: 55; /* Below footer */
+    margin-bottom: 76px; /* Height of footer */
   }
 }
 
@@ -954,4 +972,52 @@
   .rs-cart-count {
     font-size: 15px;
   }
+}
+
+/* ============================================================
+   ENHANCEMENTS: Offline Banner & Validation Errors
+   ============================================================ */
+
+/* Offline Banner */
+.rs-offline-banner {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 16px 16px 16px;
+  font-size: 14px;
+  color: #78350f;
+  font-weight: 500;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  animation: rs-slide-in 300ms ease-out;
+}
+
+@keyframes rs-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Validation error styling improvements */
+.rs-error {
+  color: var(--rs-error);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Disable button state improvements */
+.rs-stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rs-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
