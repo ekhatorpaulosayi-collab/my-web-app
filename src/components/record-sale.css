@@ -86,24 +86,28 @@
 .rs-header-btn {
   width: 40px;
   height: 40px;
-  border: none;
-  background: transparent;
-  color: var(--rs-muted);
+  border: 1px solid var(--rs-border);
+  background: var(--rs-bg);
+  color: var(--rs-brand);
   cursor: pointer;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 160ms, color 160ms;
+  transition: all 160ms;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .rs-header-btn:hover {
-  background: var(--rs-card);
-  color: var(--rs-brand);
+  background: var(--rs-brand);
+  color: white;
+  border-color: var(--rs-brand);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.25);
 }
 
 .rs-header-btn:active {
-  transform: scale(0.95);
+  transform: translateY(0);
 }
 
 .rs-header-btn:focus-visible {

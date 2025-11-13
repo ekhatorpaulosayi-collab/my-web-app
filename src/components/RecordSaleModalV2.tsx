@@ -807,7 +807,7 @@ Powered by Storehouse
                   {/* Expanded payment options */}
                   {showMorePayments && (
                     <div className="payment-options">
-                      {(['Cash', 'POS'] as const).map((method) => (
+                      {(['Cash', 'POS', 'Card', 'Transfer'] as const).map((method) => (
                         <label key={method} className="payment-radio">
                           <input
                             type="radio"
@@ -822,7 +822,20 @@ Powered by Storehouse
                           <span>{method}</span>
                         </label>
                       ))}
-                      {paystackEnabled && (['Card', 'Transfer'] as const).map((method) => (
+                      {/* Paystack note for Card/Transfer if not enabled */}
+                      {!paystackEnabled && (paymentMethod === 'Card' || paymentMethod === 'Transfer') && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#f59e0b',
+                          padding: '8px',
+                          background: '#fef3c7',
+                          borderRadius: '6px',
+                          marginTop: '8px'
+                        }}>
+                          💳 Card/Transfer requires Paystack setup in Settings
+                        </div>
+                      )}
+                      {false && paystackEnabled && (['Card', 'Transfer'] as const).map((method) => (
                         <label key={method} className="payment-radio">
                           <input
                             type="radio"
