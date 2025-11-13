@@ -634,26 +634,28 @@
     margin-bottom: 76px; /* Height of footer */
   }
 
-  /* Make header buttons more visible on mobile */
+  /* Make header buttons more visible on mobile - white bg with blue icons */
   .rs-header-btn {
     width: 48px;
     height: 48px;
-    background: var(--rs-brand);
-    color: #ffffff;
-    border: 2px solid var(--rs-brand);
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    background: #ffffff;
+    color: var(--rs-brand);
+    border: 3px solid var(--rs-brand);
+    box-shadow: 0 2px 12px rgba(37, 99, 235, 0.25);
   }
 
-  /* Force SVG icons to be white and visible */
+  /* Force SVG icons to be blue and highly visible */
   .rs-header-btn svg {
-    stroke: #ffffff !important;
+    stroke: var(--rs-brand) !important;
+    stroke-width: 2.5 !important;
     fill: none !important;
-    color: #ffffff !important;
+    color: var(--rs-brand) !important;
   }
 
   .rs-header-btn:active {
     transform: scale(0.95);
-    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+    background: #f0f4ff;
+    box-shadow: 0 1px 6px rgba(37, 99, 235, 0.3);
   }
 }
 
