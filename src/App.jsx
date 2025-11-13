@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
+import { useNavigate } from 'react-router-dom';
 import './styles/dashboard.css';
 import { useStrings } from './hooks/useStrings';
-import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign } from 'lucide-react';
+import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign, Camera, X } from 'lucide-react';
 import TestPayment from './pages/TestPayment';
 import { usePreferences } from './contexts/PreferencesContext.tsx';
 import { BusinessTypeSelector } from './components/BusinessTypeSelector.tsx';
@@ -39,6 +40,7 @@ import ReceiptPreview from './components/ReceiptPreview.jsx';
 import Chip from './components/ui/Chip.jsx';
 import CustomerDebtDrawer from './components/CustomerDebtDrawer.tsx';
 import RecordSaleModal from './components/RecordSaleModal.tsx';
+import RecordSaleModalV2 from './components/RecordSaleModalV2.tsx';
 import BusinessSettings from './components/BusinessSettings.tsx';
 import CalculatorModal from './components/CalculatorModal.tsx';
 import {
@@ -79,8 +81,11 @@ import {
   productExists
 } from './services/firebaseProducts';
 import { migrateUserData } from './services/dataMigration';
+import { CSVImport } from './components/CSVImport.tsx';
+import { uploadProductImage } from './utils/imageUpload.ts';
 
 function App() {
+  const navigate = useNavigate();
   // Get strings for branding
   const strings = useStrings();
 
@@ -144,6 +149,7 @@ function App() {
 
   // Items from IndexedDB
   const [items, setItems] = useState([]);
+  const [isLoadingData, setIsLoadingData] = useState(false); // Start false for instant UI
 
   const [showModal, setShowModal] = useState(false);
   const [showRecordSale, setShowRecordSale] = useState(false);
@@ -190,6 +196,7 @@ function App() {
   const [showExpensesPage, setShowExpensesPage] = useState(false);
   const [showMoneyPage, setShowMoneyPage] = useState(false);
   const [expensesUpdateCounter, setExpensesUpdateCounter] = useState(0);
+  const [showCSVImport, setShowCSVImport] = useState(false);
 
   // Trial management
   const [trialDaysLeft, setTrialDaysLeft] = useState(14);
@@ -207,7 +214,8 @@ function App() {
     qty: '',
     purchasePrice: '',
     sellingPrice: '',
-    reorderLevel: '10' // Default reorder level
+    reorderLevel: '10', // Default reorder level
+    isPublic: true // Default to public for storefront
   });
 
   // State for formatted price displays
@@ -222,6 +230,10 @@ function App() {
   // Stock mode for updating existing items ('add' = increment, 'replace' = set total)
   const [existingItem, setExistingItem] = useState(null);
   const [stockMode, setStockMode] = useState('add'); // 'add' | 'replace'
+
+  // Product image upload state
+  const [productImageFile, setProductImageFile] = useState(null);
+  const [productImagePreview, setProductImagePreview] = useState('');
 
   // Sales tracking state (now from IndexedDB)
   const [sales, setSales] = useState([]);
@@ -802,18 +814,25 @@ function App() {
         await initDB();
         await seedDemoItems();
 
-        // Migrate data from IndexedDB to Firebase on first login
-        console.log('[App] Checking migration status...');
-        const migrationResult = await migrateUserData(currentUser.uid);
-        console.log('[App] Migration result:', migrationResult);
-
-        // Load products from Firebase
+        // Load products from Firebase FIRST (most critical for UI)
         console.log('[App] Loading products from Firebase...');
         const firebaseProducts = await getFirebaseProducts(currentUser.uid);
         console.log('[App] Loaded', firebaseProducts.length, 'products from Firebase');
         setItems(firebaseProducts);
+        // UI already showing, just update with data
 
-        // Load sales from IndexedDB (not migrated yet)
+        // Defer migration check to background
+        setTimeout(async () => {
+          console.log('[App] Checking migration status in background...');
+          try {
+            const migrationResult = await migrateUserData(currentUser.uid);
+            console.log('[App] Migration result:', migrationResult);
+          } catch (error) {
+            console.error('[App] Migration failed:', error);
+          }
+        }, 100);
+
+        // Load sales from IndexedDB in background
         const db = await getDB();
         const allSales = await new Promise((resolve, reject) => {
           const tx = db.transaction(['sales'], 'readonly');
@@ -831,8 +850,10 @@ function App() {
 
         console.log('[App] Loaded', allSales.length, 'sales from IndexedDB');
 
-        // MIGRATION: Fix old sales missing dayKey
-        const salesNeedingFix = allSales.filter(s => !s.dayKey && s.createdAt);
+        // Skip dayKey migration if already done (check localStorage)
+        const migrationDone = localStorage.getItem('storehouse-daykey-migration-done');
+        const salesNeedingFix = migrationDone ? [] : allSales.filter(s => !s.dayKey && s.createdAt);
+
         if (salesNeedingFix.length > 0) {
           console.log('[App] 🔧 Migrating', salesNeedingFix.length, 'sales to add dayKey...');
 
@@ -850,6 +871,7 @@ function App() {
             await new Promise((resolve, reject) => {
               txFix.oncomplete = () => {
                 console.log('[App] ✅ Migration complete!');
+                localStorage.setItem('storehouse-daykey-migration-done', 'true');
                 resolve();
               };
               txFix.onerror = () => reject(txFix.error);
@@ -883,6 +905,7 @@ function App() {
         console.log('[App] Data loaded successfully');
       } catch (error) {
         console.error('[App] Failed to initialize data:', error);
+        // UI already showing, error handling will happen in components
       }
     };
 
@@ -1662,6 +1685,30 @@ Thank you for your business! 🙏
 
       } else {
         // CREATING NEW ITEM
+        let imageUrl = '';
+
+        // Upload product image if provided
+        if (productImageFile) {
+          try {
+            console.log('[handleSave] Uploading product image...');
+            displayToast('📤 Uploading image...');
+
+            // Generate temporary product ID for image storage
+            const tempProductId = `temp-${Date.now()}`;
+            imageUrl = await uploadProductImage(
+              productImageFile,
+              currentUser.uid,
+              tempProductId
+            );
+
+            console.log('[handleSave] ✅ Image uploaded:', imageUrl);
+          } catch (error) {
+            console.error('[handleSave] Image upload failed:', error);
+            displayToast('⚠ Image upload failed, but item will be saved');
+            // Continue saving item even if image fails
+          }
+        }
+
         const newItem = {
           name: formData.name.trim(),
           category: formData.category || 'General Merchandise',
@@ -1669,6 +1716,8 @@ Thank you for your business! 🙏
           purchaseKobo: Math.round(purchase * 100),
           sellKobo: Math.round(selling * 100),
           reorderLevel: parseInt(formData.reorderLevel) || 10,
+          imageUrl: imageUrl,  // Add image URL
+          isPublic: formData.isPublic,  // Public visibility setting
           isDemo: false
         };
 
@@ -1676,6 +1725,10 @@ Thank you for your business! 🙏
         const addedItem = await addFirebaseProduct(currentUser.uid, newItem);
         console.log('[handleSave] ✅ Item added to Firebase:', addedItem);
         displayToast('✓ Item added successfully!');
+
+        // Clear image state
+        setProductImageFile(null);
+        setProductImagePreview('');
       }
 
       // DEMO CLEANUP: Remove all demo items when user adds first real item
@@ -1702,7 +1755,8 @@ Thank you for your business! 🙏
         qty: '',
         purchasePrice: '',
         sellingPrice: '',
-        reorderLevel: '10'
+        reorderLevel: '10',
+        isPublic: true  // Reset to public by default
       });
       setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
       setCalculatedProfit({ profit: 0, margin: 0 });
@@ -3155,6 +3209,8 @@ Low Stock: ${lowStockItems.length}
     }} />;
   }
 
+  // Removed loading screen - app shows UI immediately and loads data in background
+
   return (
     <div className="app container">
       {/* Header */}
@@ -3176,7 +3232,7 @@ Low Stock: ${lowStockItems.length}
           </button>
           <button
             className="settings-btn settings-btn-desktop"
-            onClick={() => setShowSettings(true)}
+            onClick={() => navigate('/settings')}
             aria-label="Business Settings"
             title="Business Settings"
           >
@@ -3319,24 +3375,41 @@ Low Stock: ${lowStockItems.length}
         onViewLowStock={() => setShowLowStock(true)}
         onViewMoney={() => setShowMoneyPage(true)}
         onViewExpenses={() => setShowExpensesPage(true)}
-        onViewSettings={() => setShowSettings(true)}
+        onViewSettings={() => navigate('/settings')}
         onDeleteItem={handleDeleteItem}
+        onShowCSVImport={() => setShowCSVImport(true)}
         userId={currentUser?.uid}
-        hasOpenModal={showRecordSale || showModal || showSettings || showSalesHistory || showCreditsDrawer || showDashboardCustomize}
+        hasOpenModal={showRecordSale || showModal || showSettings || showSalesHistory || showCreditsDrawer || showDashboardCustomize || showCSVImport}
       />
 
       {/* Center column for search, table */}
       <section className="mainColumn">
 
         {/* Search Bar */}
-        <div className="searchBar">
+        <div className="searchBar" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input
             type="text"
             className="inputSearch"
             placeholder="Search items..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ flex: 1 }}
           />
+          <button
+            onClick={() => setShowCSVImport(true)}
+            style={{
+              padding: '8px 16px',
+              background: '#f3f4f6',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            📥 Import CSV
+          </button>
         </div>
 
         {/* Items Table */}
@@ -3396,6 +3469,8 @@ Low Stock: ${lowStockItems.length}
           setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
           setExistingItem(null);
           setStockMode('add');
+          setProductImageFile(null);
+          setProductImagePreview('');
         }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -3405,6 +3480,8 @@ Low Stock: ${lowStockItems.length}
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
                 setExistingItem(null);
                 setStockMode('add');
+                setProductImageFile(null);
+                setProductImagePreview('');
               }}>×</button>
             </div>
 
@@ -3440,6 +3517,144 @@ Low Stock: ${lowStockItems.length}
                 <option value="General Merchandise">General Merchandise</option>
                 <option value="Other">Other</option>
               </select>
+            </div>
+
+            {/* Product Image Upload */}
+            <div className="form-group">
+              <label>Product Image (Optional)</label>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center'
+              }}>
+                {productImagePreview ? (
+                  <div style={{ position: 'relative' }}>
+                    <img
+                      src={productImagePreview}
+                      alt="Product preview"
+                      style={{
+                        width: '100px',
+                        height: '100px',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        border: '2px solid #e5e7eb'
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        setProductImageFile(null);
+                        setProductImagePreview('');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '-8px',
+                        right: '-8px',
+                        background: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '24px',
+                        height: '24px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0
+                      }}
+                      title="Remove image"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{
+                    width: '100px',
+                    height: '100px',
+                    border: '2px dashed #cbd5e1',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#f8fafc'
+                  }}>
+                    <Camera size={32} color="#94a3b8" />
+                  </div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert('Image must be less than 5MB');
+                          return;
+                        }
+                        setProductImageFile(file);
+                        setProductImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                    id="product-image-input"
+                    hidden
+                  />
+                  <label
+                    htmlFor="product-image-input"
+                    className="btn-secondary"
+                    style={{
+                      display: 'inline-block',
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    <Camera size={16} style={{ marginRight: '8px', display: 'inline' }} />
+                    {productImagePreview ? 'Change Image' : 'Choose Image'}
+                  </label>
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#64748b',
+                    margin: 0
+                  }}>
+                    JPG, PNG up to 5MB. Square format works best.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Public Visibility Toggle */}
+            <div className="form-group" style={{
+              background: '#f8fafc',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                margin: 0
+              }}>
+                <input
+                  type="checkbox"
+                  checked={formData.isPublic}
+                  onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    cursor: 'pointer'
+                  }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: '4px' }}>
+                    📢 Show on Public Storefront
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#64748b' }}>
+                    When checked, this item will be visible to customers on your store
+                  </div>
+                </div>
+              </label>
             </div>
 
             <div className="form-group">
@@ -3610,6 +3825,8 @@ Low Stock: ${lowStockItems.length}
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
                 setExistingItem(null);
                 setStockMode('add');
+                setProductImageFile(null);
+                setProductImagePreview('');
               }}>
                 Cancel
               </button>
@@ -3618,36 +3835,64 @@ Low Stock: ${lowStockItems.length}
         </div>
       )}
 
-      {/* Record Sale Modal */}
-      <RecordSaleModal
-        isOpen={showRecordSale}
-        onClose={() => {
-          setShowRecordSale(false);
-          setCalculatorItems(null); // Clear calculator items when modal closes
-          setPreselectedItem(null); // Clear preselected item when modal closes
-        }}
-        items={items}
-        calculatorItems={calculatorItems}
-        preselectedItem={preselectedItem}
-        onSaveSale={handleSaveSale}
-        onCreateDebt={(debtData) => {
-          try {
-            // Create debt in new IndexedDB debt store if available
-            if (typeof addDebtNotify === 'function') {
-              addDebtNotify({
-                id: crypto.randomUUID(),
-                ...debtData,
-                status: 'open',
-                paid: false
-              });
+      {/* Record Sale Modal with V2 Feature Flag */}
+      {(() => {
+        // Check feature flag - V2 is now the default, users can opt-out with 'false'
+        const useV2 = localStorage.getItem('storehouse:useNewSaleModal') !== 'false';
+
+        // Common props for both modals
+        const modalProps = {
+          isOpen: showRecordSale,
+          onClose: () => {
+            setShowRecordSale(false);
+            setCalculatorItems(null);
+            setPreselectedItem(null);
+          },
+          items,
+          calculatorItems,
+          preselectedItem,
+          onSaveSale: handleSaveSale,
+          onCreateDebt: (debtData) => {
+            try {
+              if (typeof addDebtNotify === 'function') {
+                addDebtNotify({
+                  id: crypto.randomUUID(),
+                  ...debtData,
+                  status: 'open',
+                  paid: false
+                });
+              }
+            } catch (error) {
+              console.error('[Create Debt] Error:', error);
             }
-          } catch (error) {
-            console.error('[Create Debt] Error:', error);
+          },
+          showSalesData,
+          onShowToast: displayToast
+        };
+
+        // Log analytics when modal opens
+        if (showRecordSale) {
+          try {
+            const version = useV2 ? 'v2' : 'v1';
+            console.log('[Analytics] sale_modal_used:', { version });
+          } catch (err) {
+            console.warn('[Analytics] Failed to log modal usage:', err);
           }
-        }}
-        showSalesData={showSalesData}
-        onShowToast={displayToast}
-      />
+        }
+
+        // Render V2 with error boundary fallback to V1
+        if (useV2) {
+          try {
+            return <RecordSaleModalV2 {...modalProps} />;
+          } catch (error) {
+            console.warn('[RecordSaleModal] V2 failed, falling back to V1:', error);
+            return <RecordSaleModal {...modalProps} />;
+          }
+        }
+
+        // Default to V1
+        return <RecordSaleModal {...modalProps} />;
+      })()}
 
       {/* Calculator Bottom Sheet */}
       {/* Production-ready Calculator Modal with POS and Math tabs */}
@@ -3679,6 +3924,56 @@ Low Stock: ${lowStockItems.length}
         itemCount={items.length}
         onToast={displayToast}
       />
+
+      {/* CSV Import Modal */}
+      {showCSVImport && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => setShowCSVImport(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              maxWidth: '900px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowCSVImport(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: '#6b7280',
+                zIndex: 1
+              }}
+            >
+              ×
+            </button>
+            <CSVImport />
+          </div>
+        </div>
+      )}
 
       {/* PIN Entry Modal */}
       {showPinModal && (
@@ -4874,7 +5169,7 @@ Low Stock: ${lowStockItems.length}
         </button>
         <button
           className="bottom-nav-btn"
-          onClick={() => setShowSettings(true)}
+          onClick={() => navigate('/settings')}
           aria-label="Business Settings"
         >
           <Settings size={24} strokeWidth={2} />
