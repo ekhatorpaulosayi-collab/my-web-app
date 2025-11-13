@@ -644,6 +644,14 @@
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
   }
 
+  /* Ensure SVG icons inside buttons are visible and properly sized */
+  .rs-header-btn svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+  }
+
   .rs-header-btn:active {
     transform: scale(0.95);
     box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);

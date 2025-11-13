@@ -712,7 +712,7 @@ Powered by Storehouse
         >
           {/* Header */}
           <div className="rs-header">
-            <h2 id="rs-modal-title-v2">Record Sale (V2)</h2>
+            <h2 id="rs-modal-title-v2">Record Sale</h2>
             <div className="rs-header-actions">
               {onOpenCalculator && (
                 <button
