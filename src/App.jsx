@@ -5159,25 +5159,27 @@ Low Stock: ${lowStockItems.length}
       {/* Footer Spacer - prevents bottom nav from overlapping content */}
       <div className="footer-spacer"></div>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="mobile-bottom-nav">
-        <button
-          className="bottom-nav-btn"
-          onClick={handleCalculator}
-          aria-label="Open calculator"
-        >
-          <Calculator size={24} strokeWidth={2} />
-          <span className="bottom-nav-label">Calculator</span>
-        </button>
-        <button
-          className="bottom-nav-btn"
-          onClick={() => navigate('/settings')}
-          aria-label="Business Settings"
-        >
-          <Settings size={24} strokeWidth={2} />
-          <span className="bottom-nav-label">Settings</span>
-        </button>
-      </nav>
+      {/* Mobile Bottom Navigation - Hidden when Record Sale modal is open */}
+      {!showRecordSale && (
+        <nav className="mobile-bottom-nav">
+          <button
+            className="bottom-nav-btn"
+            onClick={handleCalculator}
+            aria-label="Open calculator"
+          >
+            <Calculator size={24} strokeWidth={2} />
+            <span className="bottom-nav-label">Calculator</span>
+          </button>
+          <button
+            className="bottom-nav-btn"
+            onClick={() => navigate('/settings')}
+            aria-label="Business Settings"
+          >
+            <Settings size={24} strokeWidth={2} />
+            <span className="bottom-nav-label">Settings</span>
+          </button>
+        </nav>
+      )}
 
       {/* Footer */}
       <footer className="app-footer powered">

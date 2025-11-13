@@ -633,6 +633,21 @@
     z-index: 55; /* Below footer */
     margin-bottom: 76px; /* Height of footer */
   }
+
+  /* Make header buttons more visible on mobile */
+  .rs-header-btn {
+    width: 44px;
+    height: 44px;
+    background: var(--rs-brand);
+    color: #ffffff;
+    border: 2px solid var(--rs-brand);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  }
+
+  .rs-header-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+  }
 }
 
 /* Accessibility - high contrast mode support */
