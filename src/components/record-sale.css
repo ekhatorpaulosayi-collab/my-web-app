@@ -644,6 +644,13 @@
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
   }
 
+  /* Force SVG icons to be white and visible */
+  .rs-header-btn svg {
+    stroke: #ffffff !important;
+    fill: none !important;
+    color: #ffffff !important;
+  }
+
   .rs-header-btn:active {
     transform: scale(0.95);
     box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
