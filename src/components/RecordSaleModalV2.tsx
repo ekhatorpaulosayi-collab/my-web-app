@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Calculator, Settings } from 'lucide-react';
 import '../styles/sales.css';
 import './record-sale.css';
 import { ItemCombobox, type ItemOption } from './sales/ItemCombobox';
@@ -32,6 +33,8 @@ interface RecordSaleModalV2Props {
   onCreateDebt?: (debtData: any) => void;
   showSalesData?: boolean;
   onShowToast?: (message: string, duration?: number) => void;
+  onOpenCalculator?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export default function RecordSaleModalV2({
@@ -43,7 +46,9 @@ export default function RecordSaleModalV2({
   onSaveSale,
   onCreateDebt,
   showSalesData = true,
-  onShowToast
+  onShowToast,
+  onOpenCalculator,
+  onOpenSettings
 }: RecordSaleModalV2Props) {
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -708,9 +713,33 @@ Powered by Storehouse
           {/* Header */}
           <div className="rs-header">
             <h2 id="rs-modal-title-v2">Record Sale (V2)</h2>
-            <button className="rs-close" onClick={onClose} aria-label="Close">
-              ×
-            </button>
+            <div className="rs-header-actions">
+              {onOpenCalculator && (
+                <button
+                  type="button"
+                  className="rs-header-btn"
+                  onClick={onOpenCalculator}
+                  aria-label="Open Calculator"
+                  title="Calculator"
+                >
+                  <Calculator size={20} />
+                </button>
+              )}
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  className="rs-header-btn"
+                  onClick={onOpenSettings}
+                  aria-label="Open Settings"
+                  title="Settings"
+                >
+                  <Settings size={20} />
+                </button>
+              )}
+              <button className="rs-close" onClick={onClose} aria-label="Close">
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Offline banner */}

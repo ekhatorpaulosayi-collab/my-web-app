@@ -3867,7 +3867,9 @@ Low Stock: ${lowStockItems.length}
             }
           },
           showSalesData,
-          onShowToast: displayToast
+          onShowToast: displayToast,
+          onOpenCalculator: () => setShowCalculator(true),
+          onOpenSettings: () => setShowSettings(true)
         };
 
         // Log analytics when modal opens

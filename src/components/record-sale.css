@@ -77,6 +77,40 @@
   margin: 0;
 }
 
+.rs-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rs-header-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--rs-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 160ms, color 160ms;
+}
+
+.rs-header-btn:hover {
+  background: var(--rs-card);
+  color: var(--rs-brand);
+}
+
+.rs-header-btn:active {
+  transform: scale(0.95);
+}
+
+.rs-header-btn:focus-visible {
+  outline: 2px solid var(--rs-ring);
+  outline-offset: 2px;
+}
+
 .rs-close {
   width: 32px;
   height: 32px;
