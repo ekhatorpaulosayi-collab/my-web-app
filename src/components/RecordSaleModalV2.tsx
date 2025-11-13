@@ -722,7 +722,7 @@ Powered by Storehouse
                   aria-label="Open Calculator"
                   title="Calculator"
                 >
-                  <Calculator size={20} />
+                  <Calculator size={24} strokeWidth={2} />
                 </button>
               )}
               {onOpenSettings && (
@@ -733,7 +733,7 @@ Powered by Storehouse
                   aria-label="Open Settings"
                   title="Settings"
                 >
-                  <Settings size={20} />
+                  <Settings size={24} strokeWidth={2} />
                 </button>
               )}
               <button className="rs-close" onClick={onClose} aria-label="Close">
