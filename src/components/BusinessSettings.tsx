@@ -19,6 +19,11 @@ type BusinessSettingsProps = {
   onToast?: (message: string) => void;
   onSendEOD?: () => void;
   onExportCSV?: () => void;
+  onViewPlans?: () => void;
+  isBetaTester?: boolean;
+  onToggleBeta?: (value: boolean) => void;
+  currentPlan?: string;
+  itemCount?: number;
 };
 
 const ACCORDION_STORAGE_KEY = 'storehouse:settings:accordion:v1';
@@ -85,12 +90,35 @@ export default function BusinessSettings({
   onClose,
   onToast,
   onSendEOD,
-  onExportCSV
+  onExportCSV,
+  onViewPlans,
+  isBetaTester,
+  onToggleBeta,
+  currentPlan,
+  itemCount
 }: BusinessSettingsProps) {
   const navigate = useNavigate();
   const { currentUser, userProfile } = useAuth();
   const { profile, setProfile } = useBusinessProfile();
   const { dirty, markDirty, markClean } = useDirty(false);
+
+  // Debug: Log ALL props on mount and when they change
+  useEffect(() => {
+    console.log('[BusinessSettings] Component props:', {
+      isOpen,
+      hasOnClose: !!onClose,
+      hasOnToast: !!onToast,
+      hasOnSendEOD: !!onSendEOD,
+      hasOnExportCSV: !!onExportCSV,
+      hasOnViewPlans: !!onViewPlans,
+      isBetaTester,
+      hasOnToggleBeta: !!onToggleBeta,
+      currentPlan,
+      itemCount,
+      onSendEOD: onSendEOD,
+      onExportCSV: onExportCSV
+    });
+  }, [isOpen, onClose, onToast, onSendEOD, onExportCSV, onViewPlans, isBetaTester, onToggleBeta, currentPlan, itemCount]);
 
   // Accordion state - Phase 2A: Array-based for persistence & deep linking
   const [expandedSections, setExpandedSections] = useState<string[]>(['profile']);
@@ -770,8 +798,14 @@ export default function BusinessSettings({
                     type="button"
                     className="bs-btn-secondary"
                     onClick={() => {
-                      onClose();
-                      onSendEOD?.();
+                      console.log('[BusinessSettings] EOD button clicked');
+                      console.log('[BusinessSettings] onSendEOD exists?', !!onSendEOD);
+                      if (onSendEOD) {
+                        onSendEOD();
+                      } else {
+                        console.error('[BusinessSettings] onSendEOD callback is missing!');
+                        onToast?.('EOD Report feature not available');
+                      }
                     }}
                     style={{
                       width: '100%',
