@@ -127,7 +127,7 @@ export default function PaymentSettings({ onToast }: PaymentSettingsProps) {
               <p>
                 Visit{' '}
                 <a
-                  href="https://dashboard.paystack.com/settings/developer"
+                  href="https://dashboard.paystack.com/#/settings/developer"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="payment-link"

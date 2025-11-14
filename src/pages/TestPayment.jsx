@@ -274,7 +274,7 @@ export default function TestPayment({ onBack }) {
             <p>
               Get your test keys from{' '}
               <a
-                href="https://dashboard.paystack.com/settings/developer"
+                href="https://dashboard.paystack.com/#/settings/developer"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="note-link"
