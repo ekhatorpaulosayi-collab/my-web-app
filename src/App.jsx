@@ -457,11 +457,11 @@ function App() {
 
       if (purchase > 0 && selling > 0) {
         const profit = selling - purchase;
-        const margin = ((profit / selling) * 100);
+        const markup = ((profit / purchase) * 100); // Markup = (Profit / Cost) × 100
 
         setCalculatedProfit({
           profit: profit,
-          margin: margin
+          margin: markup // Using 'margin' key for backward compatibility, but now stores markup %
         });
       } else {
         setCalculatedProfit({ profit: 0, margin: 0 });
@@ -1643,6 +1643,7 @@ Thank you for your business! 🙏
 
           await updateFirebaseProduct(currentUser.uid, existingItem.id, updatedItem);
           console.log('[handleSave] ✅ Stock added:', { oldQty, delta, newQty });
+          displayToast(`✅ Added ${delta} units to ${existingItem.name}!`);
 
           // Log stock movement
           logStockMovement({
@@ -1669,6 +1670,7 @@ Thank you for your business! 🙏
 
           await updateFirebaseProduct(currentUser.uid, existingItem.id, updatedItem);
           console.log('[handleSave] ✅ Stock replaced:', { oldQty, newTotal });
+          displayToast(`✅ Stock updated to ${newTotal} units for ${existingItem.name}!`);
 
           // Log stock movement
           logStockMovement({
@@ -3791,7 +3793,7 @@ Low Stock: ${lowStockItems.length}
                   <span className="profit-value">
                     ₦{calculatedProfit.profit.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     <span className="profit-percentage">
-                      ({calculatedProfit.margin.toFixed(1)}% margin)
+                      ({calculatedProfit.margin.toFixed(1)}% markup)
                     </span>
                   </span>
                 </div>
