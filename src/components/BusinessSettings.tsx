@@ -1,714 +1,909 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { getSettings, saveSettings, type Settings } from '../utils/settings';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getSettings, saveSettings, savePartial, saveAll, type Settings } from '../utils/settings';
 import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
-import { RECEIPT_SETTINGS_ENABLED } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 import '../styles/BusinessSettings.css';
 import PaymentSettings from './PaymentSettings';
-
-// TEMP: Always enable save button for debugging
-const TEMP_ALWAYS_ENABLE_SAVE = true; // turn off later
-
-// Helper functions
-const trimAll = (o: any) => {
-  const c: any = { ...o };
-  Object.keys(c).forEach(k => { if (typeof c[k] === "string") c[k] = c[k].trim(); });
-  return c;
-};
-
-const isNGPhone = (p?: string) => {
-  if (!p) return true; // optional
-  const s = p.replace(/\s|-/g, "");
-  return /^0\d{10}$/.test(s); // simple: 11 digits, starts with 0
-};
-
-const equalJSON = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+import { hasPinSet, setPin, clearPin } from '../lib/pinService';
+import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/storeSlug';
+import PaymentsSection from './settings/sections/PaymentsSection';
+import { StatusPill } from './common/StatusPill';
+import { useDirty } from '../hooks/useDirty';
+import { logOut } from '../lib/authService';
+import { StoreSettings } from './StoreSettings';
 
 type BusinessSettingsProps = {
   isOpen: boolean;
   onClose: () => void;
-  onExportCSV?: () => void;
-  onSendEOD?: () => void;
-  onViewPlans?: () => void;
-  isBetaTester?: boolean;
-  onToggleBeta?: (value: boolean) => void;
-  currentPlan?: string;
-  itemCount?: number;
   onToast?: (message: string) => void;
+  onSendEOD?: () => void;
+  onExportCSV?: () => void;
 };
+
+const ACCORDION_STORAGE_KEY = 'storehouse:settings:accordion:v1';
+const MOBILE_BREAKPOINT = 768;
+
+// Phase 2B: Skeleton Loader Component
+function SkeletonLoader() {
+  return (
+    <div className="settings-skeleton" role="status" aria-live="polite" aria-label="Loading settings">
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="skeleton-section">
+          <div className="skeleton-header">
+            <div className="skeleton-line" style={{width: '40%'}} />
+            <div className="skeleton-line" style={{width: '25%'}} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Phase 2B: Error Banner Component
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="settings-error" role="alert" aria-live="assertive">
+      <div className="error-content">
+        <span className="error-icon">⚠️</span>
+        <div className="error-text">
+          <strong>Failed to load settings</strong>
+          <p>{message}</p>
+        </div>
+      </div>
+      <button
+        onClick={onRetry}
+        className="error-retry-btn"
+        type="button"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
+// Phase 2B: Spinner Component
+function Spinner() {
+  return (
+    <svg className="spinner" width="16" height="16" viewBox="0 0 16 16">
+      <circle
+        cx="8"
+        cy="8"
+        r="6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeDasharray="31.4"
+        strokeDashoffset="10"
+      />
+    </svg>
+  );
+}
 
 export default function BusinessSettings({
   isOpen,
   onClose,
-  onExportCSV,
+  onToast,
   onSendEOD,
-  onViewPlans,
-  isBetaTester = false,
-  onToggleBeta,
-  currentPlan = 'FREE',
-  itemCount = 0,
-  onToast
+  onExportCSV
 }: BusinessSettingsProps) {
+  const navigate = useNavigate();
+  const { currentUser, userProfile } = useAuth();
   const { profile, setProfile } = useBusinessProfile();
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const { dirty, markDirty, markClean } = useDirty(false);
 
-  // Advanced Tax Configuration modal state (Phase 2)
-  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  // Accordion state - Phase 2A: Array-based for persistence & deep linking
+  const [expandedSections, setExpandedSections] = useState<string[]>(['profile']);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
-  // New state management
-  const persisted = getSettings();
-  const persistedProfile = useRef(profile);
-  const [draft, setDraft] = useState<Settings>(persisted);
-  const [saving, setSaving] = useState(false);
+  // Modals
+  const [showPaystackSetup, setShowPaystackSetup] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
-  // Advanced settings state (Phase 2)
-  const [advancedSettings, setAdvancedSettings] = useState({
-    priceMode: draft.priceMode || 'VAT_INCLUSIVE',
-    taxMode: draft.taxMode || 'EOD',
-    claimInputVatFromPurchases: draft.claimInputVatFromPurchases ?? true,
-    claimInputVatFromExpenses: draft.claimInputVatFromExpenses ?? false,
+  // Phase 2B: Loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saving' | 'success' | 'error' | null>(null);
+
+  // PIN state
+  const [hasPinEnabled, setHasPinEnabled] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinAction, setPinAction] = useState<'none' | 'set' | 'remove' | 'change'>('none');
+
+  // Form state
+  const [formData, setFormData] = useState({
+    businessName: profile.businessName || '',
+    ownerName: profile.ownerName || '',
+    phone: profile.phone || ''
   });
 
-  // Load settings when opened
+  // Phase 2A: Responsive mobile detection
   useEffect(() => {
-    if (isOpen) {
-      const current = getSettings();
-      setDraft(current);
-      persistedProfile.current = profile;
-      setShowAdvanced(false);
-      setShowPayment(false);
-    }
-  }, [isOpen]);
+    const handleResize = () => {
+      const mobile = window.innerWidth < MOBILE_BREAKPOINT;
+      setIsMobile(mobile);
+      console.debug('[Settings] Mobile mode:', mobile);
+    };
 
-  // Compute base objects for comparison (trim and remove ignored fields)
-  const basePersisted: any = trimAll({ ...persisted, quickSellFromTable: false });
-  const baseDraft: any = trimAll({ ...draft, quickSellFromTable: false });
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  // If receipt options are hidden, ignore them in compare
-  delete basePersisted.receiptMessage;
-  delete basePersisted.offerReceiptAfterSale;
-  delete basePersisted.autoSendReceiptToSaved;
-  delete baseDraft.receiptMessage;
-  delete baseDraft.offerReceiptAfterSale;
-  delete baseDraft.autoSendReceiptToSaved;
-
-  // Compute dirty and valid states
-  const profileChanged = JSON.stringify(profile) !== JSON.stringify(persistedProfile.current);
-  const isDirty = !equalJSON(baseDraft, basePersisted) || profileChanged;
-  const isValid =
-    (draft.businessName?.trim().length ?? 0) > 0 &&
-    isNGPhone(draft.businessPhone);
-
-  // DEBUG: Log why save would be disabled
-  useEffect(() => {
-    console.debug("[Settings] isDirty:", isDirty, "isValid:", isValid, "saving:", saving, {
-      phone: draft.businessPhone,
-      ngPhone: isNGPhone(draft.businessPhone),
-      profileChanged,
-      draft: baseDraft,
-      persisted: basePersisted
-    });
-  }, [isDirty, isValid, saving, draft.businessPhone, profileChanged]);
-
-  const update = (k: keyof Settings, v: any) => setDraft(d => ({ ...d, [k]: v }));
-
-  // Save handler with validation on click
-  const onSave = async () => {
-    if (!TEMP_ALWAYS_ENABLE_SAVE && (!isDirty || !isValid || saving)) return;
-    if (!isValid) {
-      alert("Please enter a valid Nigerian phone (11 digits, starts with 0) and a business name.");
-      return;
-    }
-    try {
-      setSaving(true);
-      // Save profile to context (handles localStorage and title update)
-      setProfile({
-        businessName: profile.businessName,
-        ownerName: profile.ownerName,
-        phone: profile.phone
-      });
-
-      // Merge and save settings
-      const toSave = { ...persisted, ...trimAll(draft) };
-      saveSettings(toSave);
-      window.dispatchEvent(new CustomEvent("settings:updated"));
-      onToast?.('Settings saved successfully!');
-      onClose();
-    } catch (e) {
-      console.error("Save settings failed", e);
-      alert("Could not save settings. See console for details.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Focus trap and keyboard handlers
+  // Phase 2A: Deep linking & persistence on mount
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleCancel();
+    // Deep linking on mount
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+      console.debug('[Settings] Deep link opened:', hash);
+      setExpandedSections([hash]);
+
+      // Scroll to section after render
+      setTimeout(() => {
+        const element = document.getElementById(`section-${hash}`);
+        if (element) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      }, 100);
+    } else {
+      // Restore from localStorage
+      try {
+        const saved = localStorage.getItem(ACCORDION_STORAGE_KEY);
+        if (saved) {
+          const sections = JSON.parse(saved);
+          console.debug('[Settings] Restored accordion state:', sections);
+          setExpandedSections(sections);
+        }
+      } catch (error) {
+        console.error('[Settings] Failed to restore accordion state:', error);
       }
-      if (e.key === 'Enter' && e.metaKey) {
-        onSave();
+    }
+  }, [isOpen]);
+
+  // Phase 2A: Persist accordion state (debounced)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Update hash when sections change
+    if (expandedSections.length > 0) {
+      window.location.hash = expandedSections[0];
+    } else {
+      window.location.hash = '';
+    }
+
+    // Debounced localStorage save
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(ACCORDION_STORAGE_KEY, JSON.stringify(expandedSections));
+        console.debug('[Settings] Accordion persisted:', expandedSections);
+      } catch (error) {
+        console.error('[Settings] Failed to persist accordion:', error);
       }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [expandedSections, isOpen]);
+
+  // Phase 2B: Load settings with skeleton and error handling
+  useEffect(() => {
+    if (!isOpen) {
+      document.body.classList.remove('settings-open');
+      return;
+    }
+
+    async function loadSettings() {
+      try {
+        console.debug('[Settings] Load start');
+        setIsLoading(true);
+        setLoadError(null);
+
+        // Simulate minimum loading time for smooth UX (300ms)
+        const [_] = await Promise.all([
+          new Promise(resolve => setTimeout(resolve, 300)),
+          // Settings are already in profile, but we simulate async load
+          Promise.resolve()
+        ]);
+
+        setHasPinEnabled(hasPinSet());
+        setFormData({
+          businessName: profile.businessName || '',
+          ownerName: profile.ownerName || '',
+          phone: profile.phone || ''
+        });
+        setNewPin('');
+        setConfirmPin('');
+        setPinError('');
+        setPinAction('none');
+        markClean();
+
+        setIsLoading(false);
+        console.debug('[Settings] Loaded successfully');
+
+        // Hide mobile bottom nav when settings is open
+        document.body.classList.add('settings-open');
+      } catch (err) {
+        console.debug('[Settings] Load error:', err);
+        setLoadError((err as Error).message || 'Failed to load settings');
+        setIsLoading(false);
+      }
+    }
+
+    loadSettings();
+
+    return () => {
+      document.body.classList.remove('settings-open');
     };
+  }, [isOpen, profile]);
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isDirty, draft]);
+  // Phase 2B: Retry loading settings
+  const handleRetry = () => {
+    console.debug('[Settings] Retry attempt');
+    setLoadError(null);
+    setIsLoading(true);
+    // Trigger reload by toggling isOpen state internally
+    const event = new CustomEvent('settings:reload');
+    window.dispatchEvent(event);
+  };
 
-  const handleCancel = () => {
-    setDraft(persisted);
+  // Handle input changes (marks dirty)
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    markDirty();
+  };
+
+  // Phase 2B: Toast notification system
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+
+    document.body.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      toast.classList.add('toast-visible');
+    });
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+      toast.classList.remove('toast-visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
+  // Handle save with Phase 2B states
+  const handleSave = async () => {
+    // Validate
+    if (!formData.businessName.trim()) {
+      showToast('Business name is required', 'error');
+      return;
+    }
+
+    // Validate PIN if setting or changing
+    if (pinAction === 'set' || pinAction === 'change') {
+      if (!newPin || newPin.length < 4) {
+        setPinError('PIN must be at least 4 digits');
+        return;
+      }
+      if (newPin !== confirmPin) {
+        setPinError('PINs do not match');
+        return;
+      }
+    }
+
+    // Check slug change
+    const slugChange = checkSlugChange(formData.businessName);
+    if (slugChange.willChange) {
+      const confirmed = window.confirm(
+        `⚠️ Your store link will change!\n\n` +
+        `Old: /store/${slugChange.oldSlug}\n` +
+        `New: /store/${slugChange.newSlug}\n\n` +
+        `Continue?`
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      console.debug('[Settings] Save start');
+      setIsSaving(true);
+      setSaveStatus('saving');
+
+      // Generate and save store slug
+      const storeSlug = generateStoreSlug(formData.businessName);
+      saveStoreSlug(storeSlug);
+
+      // Save profile
+      setProfile({
+        businessName: formData.businessName,
+        ownerName: formData.ownerName,
+        phone: formData.phone
+      });
+
+      // Handle PIN changes
+      if (pinAction === 'set' || pinAction === 'change') {
+        await setPin(newPin);
+        setHasPinEnabled(true);
+        setNewPin('');
+        setConfirmPin('');
+        setPinAction('none');
+        window.dispatchEvent(new CustomEvent('pin:locked'));
+      } else if (pinAction === 'remove') {
+        await clearPin();
+        setHasPinEnabled(false);
+        setPinAction('none');
+        window.dispatchEvent(new CustomEvent('pin:unlocked'));
+      }
+
+      // Dispatch refresh event
+      window.dispatchEvent(new Event('storehouse:refresh-dashboard'));
+
+      setSaveStatus('success');
+      setIsSaving(false);
+      markClean();
+
+      console.debug('[Settings] Saved successfully');
+      showToast('Settings saved successfully!', 'success');
+
+      // Reset success state after 2 seconds
+      setTimeout(() => {
+        setSaveStatus(null);
+      }, 2000);
+    } catch (error) {
+      console.debug('[Settings] Save error:', error);
+      setSaveStatus('error');
+      setIsSaving(false);
+      showToast('Failed to save settings. Please try again.', 'error');
+    }
+  };
+
+  // Phase 2B: Handle close with save check
+  const handleClose = () => {
+    if (isSaving) {
+      showToast('Please wait, saving in progress...', 'info');
+      return;
+    }
+
+    if (dirty) {
+      console.debug('[Settings] close blocked: unsaved changes');
+      setShowDiscardDialog(true);
+      return;
+    }
     onClose();
   };
 
-  const handleResetDemo = () => {
-    if (!confirm('Reset all demo data? This will clear your inventory, sales, and debts.')) return;
-    // TODO: Wire to actual reset function
-    onToast?.('Demo reset not yet implemented');
+  const handleDiscard = () => {
+    setFormData({
+      businessName: profile.businessName || '',
+      ownerName: profile.ownerName || '',
+      phone: profile.phone || ''
+    });
+    markClean();
+    setShowDiscardDialog(false);
+    onClose();
   };
 
-  const handleClearCache = () => {
-    if (!confirm('Clear cached settings? You will need to re-enter your preferences.')) return;
-    localStorage.removeItem('storehouse-settings');
-    const defaults = getSettings();
-    setDraft(defaults);
-    onToast?.('Settings cache cleared');
+  // PIN handlers (now just mark dirty, actual save happens in handleSave)
+  const handlePinInputChange = (field: 'new' | 'confirm', value: string) => {
+    // Clear error when typing
+    setPinError('');
+
+    // Update the appropriate field FIRST
+    if (field === 'new') {
+      setNewPin(value);
+    } else {
+      setConfirmPin(value);
+    }
+
+    // Calculate what the values will be after this update
+    const updatedNewPin = field === 'new' ? value : newPin;
+    const updatedConfirmPin = field === 'confirm' ? value : confirmPin;
+
+    // CRITICAL: Only mark dirty when BOTH fields have at least 4 digits
+    // Check the FUTURE state, not current state
+    if (updatedNewPin.length >= 4 && updatedConfirmPin.length >= 4) {
+      // Both fields complete - mark dirty
+      if (pinAction === 'none') {
+        setPinAction('set');
+      } else if (pinAction === 'change') {
+        // Already in change mode, keep it
+      }
+      markDirty();
+    } else {
+      // Fields incomplete - do NOT mark dirty
+      // Only clean up if user fully clears both fields
+      if (updatedNewPin.length === 0 && updatedConfirmPin.length === 0) {
+        if (pinAction === 'set') {
+          setPinAction('none');
+        } else if (pinAction === 'change') {
+          // Keep in change mode even if fields are cleared
+        }
+      }
+    }
   };
 
-  // Tax Calculator Toggle Handler (Phase 1)
-  const handleTaxCalculatorToggle = (isEnabled: boolean) => {
+  const handleRemovePin = () => {
+    if (!confirm('Remove PIN protection? This change will be saved when you click "Save Settings".')) return;
+    setPinAction('remove');
+    setNewPin('');
+    setConfirmPin('');
+    setPinError('');
+    markDirty();
+  };
+
+  const handleChangePin = () => {
+    setPinAction('change');
+    setNewPin('');
+    setConfirmPin('');
+    setPinError('');
+  };
+
+  // Logout handler
+  const handleLogout = async () => {
+    if (dirty) {
+      const confirmed = window.confirm(
+        'You have unsaved changes. Are you sure you want to sign out?'
+      );
+      if (!confirmed) return;
+    }
+
     try {
-      // Update draft with new toggle state
-      const updatedDraft = {
-        ...draft,
-        enableTaxCalculator: isEnabled,
-        // Only add defaults if enabling for FIRST time
-        ...(isEnabled && !draft.hasOwnProperty('enableTaxCalculator') ? {
-          vatRate: 0.075, // 7.5% Nigerian VAT
-          taxMode: 'EOD' as const,
-          priceMode: 'VAT_INCLUSIVE' as const,
-          claimInputVatFromPurchases: true,
-          claimInputVatFromExpenses: false,
-        } : {})
-      };
-
-      setDraft(updatedDraft);
-
-      console.log(`✅ Tax Calculator ${isEnabled ? 'enabled' : 'disabled'}`);
-
+      console.debug('[Settings] Logging out user');
+      await logOut();
+      console.debug('[Settings] Logout successful');
+      // Navigation will happen automatically via AuthContext
     } catch (error) {
-      console.error('❌ Error updating tax calculator setting:', error);
-      onToast?.('Failed to update tax calculator setting');
+      console.error('[Settings] Logout error:', error);
+      showToast('Failed to sign out. Please try again.', 'error');
     }
   };
 
-  // Advanced Configuration Handlers (Phase 2)
-  const updateAdvancedSetting = (key: string, value: any) => {
-    setAdvancedSettings(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
-  const resetToDefaults = () => {
-    const confirmed = window.confirm(
-      'Reset to default settings? This will set:\n\n' +
-      '• VAT-inclusive pricing\n' +
-      '• End-of-day calculations\n' +
-      '• Track purchases VAT only'
-    );
-
-    if (confirmed) {
-      setAdvancedSettings({
-        priceMode: 'VAT_INCLUSIVE',
-        taxMode: 'EOD',
-        claimInputVatFromPurchases: true,
-        claimInputVatFromExpenses: false,
-      });
+  // Phase 2A: Accordion toggle handler
+  const handleToggleSection = (sectionId: string) => {
+    if (isMobile) {
+      // Mobile: single-expand (close others)
+      // But if section is already open, just toggle it (don't close)
+      setExpandedSections(prev =>
+        prev.includes(sectionId) ? [] : [sectionId]
+      );
+    } else {
+      // Desktop: multi-expand (toggle)
+      setExpandedSections(prev =>
+        prev.includes(sectionId)
+          ? prev.filter(id => id !== sectionId)
+          : [...prev, sectionId]
+      );
     }
   };
 
-  const saveAdvancedConfig = () => {
-    // Update draft state with advanced settings
-    setDraft(prev => ({
-      ...prev,
-      ...advancedSettings
-    }));
-
-    // Close modal
-    setShowAdvancedConfig(false);
-
-    console.log('✅ Advanced tax settings saved:', advancedSettings);
-
-    // Show success message
-    onToast?.('Advanced settings saved! Click "Save Settings" to persist.');
-  };
+  const isSectionExpanded = (sectionId: string) => expandedSections.includes(sectionId);
 
   if (!isOpen) return null;
 
   return (
     <>
-      <div className="bs-overlay" onClick={handleCancel} />
-      <div ref={sheetRef} className="bs-sheet" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="bs-header">
-          <h2 className="bs-title">Business Settings</h2>
-          <button
-            className="bs-close"
-            onClick={handleCancel}
-            aria-label="Close settings"
-          >
-            ×
-          </button>
-        </div>
+      {/* Main Settings Sheet */}
+      <div className="bs-overlay" onClick={handleClose}>
+        <div className="bs-sheet" onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div className="bs-header">
+            <h2 className="bs-title">Business Settings</h2>
+            <button className="bs-close" onClick={handleClose}>×</button>
+          </div>
 
-        {/* Body */}
-        <div className="bs-body">
-          {/* Section 1: Profile */}
-          <section className="bs-section">
-            <h3 className="bs-section-title">Profile</h3>
+          {/* Body */}
+          <div className="bs-body">
+            {/* Phase 2B: Loading State */}
+            {isLoading && <SkeletonLoader />}
 
-            <div className="bs-field">
-              <label htmlFor="bs-business-name" className="bs-label">
-                Business Name *
-              </label>
-              <input
-                id="bs-business-name"
-                type="text"
-                className="bs-input"
-                value={profile.businessName}
-                onChange={e => setProfile({ businessName: e.target.value })}
-                placeholder="Enter your business name"
-                maxLength={50}
-                aria-invalid={profile.businessName.trim() === ''}
-              />
-              <small className="bs-char-count">{profile.businessName.length}/50</small>
-            </div>
+            {/* Phase 2B: Error State */}
+            {!isLoading && loadError && (
+              <ErrorBanner message={loadError} onRetry={handleRetry} />
+            )}
 
-            <div className="bs-field">
-              <label htmlFor="bs-owner-name" className="bs-label">
-                Owner Name
-              </label>
-              <input
-                id="bs-owner-name"
-                type="text"
-                className="bs-input"
-                value={profile.ownerName}
-                onChange={e => setProfile({ ownerName: e.target.value })}
-                placeholder="Enter owner's name"
-                maxLength={30}
-              />
-              <small className="bs-char-count">{profile.ownerName.length}/30</small>
-            </div>
-
-            <div className="bs-field">
-              <label htmlFor="bs-phone" className="bs-label">
-                Business Phone
-              </label>
-              <input
-                id="bs-phone"
-                type="tel"
-                inputMode="tel"
-                className="bs-input"
-                value={profile.phone}
-                onChange={e => setProfile({ phone: e.target.value })}
-                placeholder="08012345678"
-                maxLength={15}
-                aria-invalid={!/^0\d{10}$/.test((profile.phone || "").replace(/\s|-/g, ""))}
-              />
-              {profile.phone && !/^0\d{10}$/.test((profile.phone || "").replace(/\s|-/g, "")) ? (
-                <small className="bs-error">
-                  Enter a valid 11-digit Nigerian number (e.g., 08012345678).
-                </small>
-              ) : (
-                <small className="bs-help">
-                  Nigerian format: 080, 081, 090, 070, etc.
-                </small>
-              )}
-            </div>
-          </section>
-
-          {/* Section 2: Preferences */}
-          {RECEIPT_SETTINGS_ENABLED && (
-            <section className="bs-section">
-              <h3 className="bs-section-title">Preferences</h3>
-
-              {/* Receipt Message */}
-              <div className="bs-field">
-                <label htmlFor="bs-receipt-msg" className="bs-label">
-                  Receipt Message
-                </label>
-                <textarea
-                  id="bs-receipt-msg"
-                  className="bs-input bs-textarea"
-                  value={draft.receiptMessage || ''}
-                  onChange={e => update('receiptMessage', e.target.value)}
-                  placeholder="e.g., Thank you for your patronage!"
-                  maxLength={120}
-                  rows={2}
-                />
-                <small className="bs-char-count">
-                  {(draft.receiptMessage?.length || 0)}/120
-                </small>
-              </div>
-            </section>
-          )}
-
-          {/* Section 3: Data & Reports */}
-          <section className="bs-section">
-            <h3 className="bs-section-title">Data & Reports</h3>
-
-            <div className="bs-action-buttons">
+            {/* Phase 2B: Content (only show when loaded and no error) */}
+            {!isLoading && !loadError && (
+              <>
+                {/* Section 1: Profile */}
+                <div className="bs-section" id="section-profile">
               <button
                 type="button"
-                className="bs-action-btn"
-                onClick={() => {
-                  onClose();
-                  onSendEOD?.();
-                }}
+                className="bs-section-header"
+                onClick={() => handleToggleSection('profile')}
               >
-                📤 Send EOD Report
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">👤 Profile</h3>
+                  <StatusPill
+                    state={formData.businessName.trim() ? 'connected' : 'not_connected'}
+                    label={formData.businessName.trim() ? 'Complete' : 'Incomplete'}
+                  />
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('profile') ? 'open' : ''}`}>›</span>
               </button>
 
-              <button
-                type="button"
-                className="bs-action-btn"
-                onClick={onExportCSV}
-              >
-                📊 Export Data (CSV)
-              </button>
-            </div>
-          </section>
+              {isSectionExpanded('profile') && (
+                <div className="bs-section-content">
+                  <div className="bs-field">
+                    <label htmlFor="business-name" className="bs-label">Business Name *</label>
+                    <input
+                      id="business-name"
+                      type="text"
+                      className="bs-input"
+                      value={formData.businessName}
+                      onChange={e => handleInputChange('businessName', e.target.value)}
+                      placeholder="Enter your business name"
+                      maxLength={50}
+                    />
+                    <small className="bs-char-count">{formData.businessName.length}/50</small>
+                  </div>
 
-          {/* Section 4: Plan & Beta */}
-          <section className="bs-section">
-            <h3 className="bs-section-title">Plan & Beta</h3>
+                  <div className="bs-field">
+                    <label htmlFor="owner-name" className="bs-label">Owner Name</label>
+                    <input
+                      id="owner-name"
+                      type="text"
+                      className="bs-input"
+                      value={formData.ownerName}
+                      onChange={e => handleInputChange('ownerName', e.target.value)}
+                      placeholder="Enter owner's name"
+                      maxLength={30}
+                    />
+                    <small className="bs-char-count">{formData.ownerName.length}/30</small>
+                  </div>
 
-            <div className="bs-plan-badges">
-              {isBetaTester && (
-                <span className="bs-badge bs-badge-beta">🧪 BETA MODE</span>
-              )}
-              <span className="bs-badge">
-                Current Plan: <strong>{currentPlan}</strong>
-              </span>
-              {!isBetaTester && currentPlan === 'FREE' && (
-                <span className="bs-badge bs-badge-warn">
-                  {itemCount}/10 products
-                </span>
-              )}
-              {!isBetaTester && currentPlan === 'STARTER' && (
-                <span className="bs-badge bs-badge-warn">
-                  {itemCount}/500 products
-                </span>
-              )}
-              {isBetaTester && (
-                <span className="bs-badge bs-badge-success">
-                  {itemCount} products (Unlimited)
-                </span>
-              )}
-            </div>
-
-            {/* Beta Tester Toggle */}
-            <div className="bs-field">
-              <div className="bs-toggle-row">
-                <div>
-                  <div className="bs-toggle-label">🧪 Beta Tester Mode</div>
-                  <div className="bs-toggle-desc">
-                    {isBetaTester
-                      ? 'Testing all premium features: Unlimited products, WhatsApp EOD, CSV export'
-                      : 'Enable to test all premium features during beta period'}
+                  <div className="bs-field">
+                    <label htmlFor="phone" className="bs-label">Business Phone</label>
+                    <input
+                      id="phone"
+                      type="tel"
+                      inputMode="tel"
+                      className="bs-input"
+                      value={formData.phone}
+                      onChange={e => handleInputChange('phone', e.target.value)}
+                      placeholder="08012345678"
+                      maxLength={15}
+                    />
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="bs-switch"
-                  role="switch"
-                  aria-checked={isBetaTester}
-                  onClick={() => onToggleBeta?.(!isBetaTester)}
-                >
-                  <span className={`bs-switch-track ${isBetaTester ? 'on' : ''}`}>
-                    <span className="bs-switch-thumb" />
-                  </span>
-                </button>
-              </div>
+              )}
             </div>
 
-            <button
-              type="button"
-              className="bs-action-btn bs-view-plans"
-              onClick={() => {
-                onClose();
-                onViewPlans?.();
-              }}
-            >
-              View Plans
-            </button>
-          </section>
+            {/* Section 2: Payments */}
+            <div className="bs-section" id="section-payments">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('payments')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">💳 Payments</h3>
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('payments') ? 'open' : ''}`}>›</span>
+              </button>
 
-          {/* Section 5: Payment Integration (Collapsed by default) */}
-          <section className="bs-section">
-            <button
-              type="button"
-              className="bs-section-toggle"
-              onClick={() => setShowPayment(!showPayment)}
-              aria-expanded={showPayment}
-            >
-              <h3 className="bs-section-title">💳 Payment Integration</h3>
-              <span className="bs-chevron">{showPayment ? '▼' : '▶'}</span>
-            </button>
+              {isSectionExpanded('payments') && (
+                <PaymentsSection
+                  onToast={onToast}
+                  onOpenPaystackSetup={() => setShowPaystackSetup(true)}
+                />
+              )}
+            </div>
 
-            {showPayment && (
-              <div className="bs-advanced-content" style={{ paddingTop: '16px' }}>
-                <PaymentSettings onToast={onToast} />
-              </div>
-            )}
-          </section>
+            {/* Section 3: Online Store */}
+            <div className="bs-section" id="section-store">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('store')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">🏪 Online Store</h3>
+                  {dirty && (
+                    <StatusPill text="Unsaved changes" variant="warning" />
+                  )}
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('store') ? 'open' : ''}`}>›</span>
+              </button>
 
-          {/* Section 6: Advanced (Collapsed by default) */}
-          <section className="bs-section">
-            <button
-              type="button"
-              className="bs-section-toggle"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              aria-expanded={showAdvanced}
-            >
-              <h3 className="bs-section-title">Advanced</h3>
-              <span className="bs-chevron">{showAdvanced ? '▼' : '▶'}</span>
-            </button>
+              {isSectionExpanded('store') && (
+                <div className="bs-section-content">
+                  <StoreSettings />
+                </div>
+              )}
+            </div>
 
-            {showAdvanced && (
-              <div className="bs-advanced-content">
-                {/* ═══════ TAX CALCULATOR TOGGLE (Phase 1) ═══════ */}
-                <div className="tax-calculator-section">
-                  <h4>📊 Simple Tax Calculator (Beta)</h4>
+            {/* Section 4: Security & Privacy */}
+            <div className="bs-section" id="section-security">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('security')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">🔒 Security & Privacy</h3>
+                  <StatusPill
+                    state={hasPinEnabled ? 'connected' : 'not_connected'}
+                    label={hasPinEnabled ? 'PIN Protected' : 'Not Protected'}
+                  />
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('security') ? 'open' : ''}`}>›</span>
+              </button>
 
-                  <label className="toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={draft?.enableTaxCalculator || false}
-                      onChange={(e) => handleTaxCalculatorToggle(e.target.checked)}
-                    />
-                    <span>Enable Tax Calculator</span>
-                  </label>
+              {isSectionExpanded('security') && (
+                <div className="bs-section-content">
+                  <p className="bs-help">Protect sensitive data (costs, profits) with a PIN.</p>
 
-                  <p className="description">
-                    Track monthly sales, expenses, and estimate VAT (7.5%).
-                    Automatically configured for Nigerian shops.
-                  </p>
-
-                  {console.log('[DEBUG] draft.enableTaxCalculator:', draft?.enableTaxCalculator)}
-                  {draft?.enableTaxCalculator && (
-                    <div className="tax-info-box">
-                      <p className="info-title">✅ What you'll see when enabled:</p>
-                      <ul className="feature-list">
-                        <li>Monthly sales and expenses totals</li>
-                        <li>Your profit (Sales - Expenses)</li>
-                        <li>Estimated VAT to remit (7.5%)</li>
-                      </ul>
-
-                      <div className="default-config-notice">
-                        <p><strong>Pre-configured for:</strong></p>
-                        <ul className="config-list">
-                          <li>✓ VAT-inclusive pricing (Nigerian standard)</li>
-                          <li>✓ Simple monthly summaries</li>
-                          <li>✓ Input VAT from purchases</li>
-                        </ul>
-                      </div>
-
-                      <button
-                        className="advanced-config-btn"
-                        onClick={() => setShowAdvancedConfig(true)}
-                      >
-                        ⚙️ Advanced Configuration (optional)
-                      </button>
-
-                      <div className="example-box">
-                        <p className="example-title"><strong>Example:</strong></p>
-                        <p>Sales: ₦225,000 | Expenses: ₦155,000</p>
-                        <p className="highlight">Profit: ₦70,000 | VAT owed: ~₦7,875</p>
-                      </div>
-
-                      <p className="disclaimer">
-                        💡 <em>Simple estimate only. For official tax filing, consult FIRS or a tax professional.</em>
+                  {hasPinEnabled && pinAction !== 'remove' && pinAction !== 'change' ? (
+                    <div>
+                      <p style={{ color: '#059669', fontSize: '14px', marginBottom: '12px' }}>
+                        ✓ PIN protection is enabled
                       </p>
+                      <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
+                        <button
+                          type="button"
+                          className="bs-action-btn"
+                          onClick={handleChangePin}
+                        >
+                          Change PIN
+                        </button>
+                        <button
+                          type="button"
+                          className="bs-btn-danger"
+                          onClick={handleRemovePin}
+                        >
+                          Remove PIN
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      {pinAction === 'remove' && (
+                        <p style={{ color: '#DC2626', fontSize: '14px', marginBottom: '12px' }}>
+                          ⚠️ PIN will be removed when you click "Save Settings"
+                        </p>
+                      )}
 
-                      <p className="phase-notice">
-                        ⚠️ <strong>Beta:</strong> Dashboard widget coming soon. Toggle now to enable when ready.
+                      <div className="bs-field">
+                        <label htmlFor="new-pin" className="bs-label">New PIN (4+ digits)</label>
+                        <input
+                          id="new-pin"
+                          type="password"
+                          inputMode="numeric"
+                          className="bs-input"
+                          value={newPin}
+                          onChange={e => handlePinInputChange('new', e.target.value)}
+                          placeholder="Enter PIN"
+                          maxLength={6}
+                        />
+                      </div>
+
+                      <div className="bs-field">
+                        <label htmlFor="confirm-pin" className="bs-label">Confirm PIN</label>
+                        <input
+                          id="confirm-pin"
+                          type="password"
+                          inputMode="numeric"
+                          className="bs-input"
+                          value={confirmPin}
+                          onChange={e => handlePinInputChange('confirm', e.target.value)}
+                          placeholder="Confirm PIN"
+                          maxLength={6}
+                        />
+                      </div>
+
+                      {pinError && (
+                        <p style={{ color: '#DC2626', fontSize: '13px', marginTop: '8px' }}>
+                          {pinError}
+                        </p>
+                      )}
+
+                      <p className="bs-help" style={{ marginTop: '8px' }}>
+                        💡 Click "Save Settings" below to apply your PIN
                       </p>
                     </div>
                   )}
                 </div>
+              )}
+            </div>
 
-                <button
-                  type="button"
-                  className="bs-action-btn bs-danger"
-                  onClick={handleResetDemo}
-                >
-                  Reset Demo Data
-                </button>
-                <button
-                  type="button"
-                  className="bs-action-btn"
-                  onClick={handleClearCache}
-                >
-                  Clear Cached Settings
-                </button>
-              </div>
+            {/* Section 5: Account */}
+            <div className="bs-section" id="section-account">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('account')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">👤 Account</h3>
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('account') ? 'open' : ''}`}>›</span>
+              </button>
+
+              {isSectionExpanded('account') && (
+                <div className="bs-section-content">
+                  <div style={{ marginBottom: '16px' }}>
+                    <p className="bs-help" style={{ marginBottom: '8px' }}>
+                      <strong>Email:</strong> {currentUser?.email}
+                    </p>
+                    <p className="bs-help">
+                      <strong>Store:</strong> {userProfile?.storeName || profile.businessName}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="bs-btn-danger"
+                    onClick={handleLogout}
+                    style={{ width: '100%' }}
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Section 6: Tools */}
+            <div className="bs-section" id="section-tools">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('tools')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">🛠️ Tools</h3>
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('tools') ? 'open' : ''}`}>›</span>
+              </button>
+
+              {isSectionExpanded('tools') && (
+                <div className="bs-section-content">
+                  {/* EOD Report Button */}
+                  <button
+                    type="button"
+                    className="bs-btn-secondary"
+                    onClick={() => {
+                      onClose();
+                      onSendEOD?.();
+                    }}
+                    style={{
+                      width: '100%',
+                      marginBottom: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <span>📤</span>
+                    <span>Send EOD Report</span>
+                  </button>
+
+                  {/* Export CSV Button */}
+                  <button
+                    type="button"
+                    className="bs-btn-secondary"
+                    onClick={() => {
+                      onClose();
+                      onExportCSV?.();
+                    }}
+                    style={{
+                      width: '100%',
+                      marginBottom: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      border: 'none'
+                    }}
+                  >
+                    <span>📊</span>
+                    <span>Export Data (CSV)</span>
+                  </button>
+
+                  {/* WhatsApp Support Button */}
+                  <a
+                    href="https://wa.me/message/WNLG4H3IKAG3K1"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bs-btn-secondary"
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      textDecoration: 'none',
+                      background: '#25D366',
+                      color: 'white',
+                      border: 'none'
+                    }}
+                  >
+                    <span>💬</span>
+                    <span>Get Help on WhatsApp</span>
+                  </a>
+
+                  <p className="bs-help" style={{ marginTop: '12px', fontSize: '12px', color: '#6B7280' }}>
+                    Need help? Contact support via WhatsApp for quick assistance.
+                  </p>
+                </div>
+              )}
+            </div>
+              </>
             )}
-          </section>
-        </div>
+          </div>
 
-        {/* Footer */}
-        <div className="bs-footer">
-          <button
-            type="button"
-            className="bs-btn-primary save-settings"
-            onClick={onSave}
-            disabled={TEMP_ALWAYS_ENABLE_SAVE ? false : (!isDirty || !isValid || saving)}
-            data-testid="save-settings"
-          >
-            {saving ? "Saving…" : "Save Settings"}
-          </button>
-          <button
-            type="button"
-            className="bs-btn-secondary"
-            onClick={handleCancel}
-          >
-            Cancel
-          </button>
+          {/* Footer */}
+          <div className="bs-footer">
+            <button type="button" className="bs-btn-secondary" onClick={handleClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={`bs-btn-primary ${saveStatus || ''}`}
+              onClick={handleSave}
+              disabled={!dirty || !formData.businessName.trim() || isSaving}
+              aria-busy={isSaving}
+              aria-disabled={!dirty || !formData.businessName.trim() || isSaving}
+            >
+              {isSaving && <Spinner />}
+              {saveStatus === 'saving' && 'Saving...'}
+              {saveStatus === 'success' && '✓ Saved'}
+              {saveStatus === 'error' && 'Try Again'}
+              {!saveStatus && (dirty ? 'Save Settings' : 'No Changes')}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ═══════ ADVANCED CONFIGURATION MODAL (Phase 2) ═══════ */}
-      {showAdvancedConfig && (
-        <div
-          className="config-modal-overlay"
-          onClick={() => setShowAdvancedConfig(false)}
-        >
-          <div
-            className="config-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3>⚙️ Advanced Tax Configuration</h3>
-              <button
-                className="close-btn"
-                onClick={() => setShowAdvancedConfig(false)}
-                aria-label="Close modal"
-              >
-                ✕
-              </button>
+      {/* Paystack Setup Modal */}
+      {showPaystackSetup && (
+        <div className="bs-overlay" onClick={() => setShowPaystackSetup(false)}>
+          <div className="bs-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="bs-header">
+              <h2 className="bs-title">Paystack Setup</h2>
+              <button className="bs-close" onClick={() => setShowPaystackSetup(false)}>×</button>
             </div>
-
-            <div className="modal-body">
-              <p className="modal-intro">
-                Most shops work fine with default settings. Only change if you understand these options.
-              </p>
-
-              {/* Option 1: Price Mode */}
-              <div className="config-group">
-                <label className="config-label">
-                  How do you handle prices?
-                </label>
-                <select
-                  value={advancedSettings.priceMode}
-                  onChange={(e) => updateAdvancedSetting('priceMode', e.target.value)}
-                  className="config-select"
-                >
-                  <option value="VAT_INCLUSIVE">
-                    VAT-inclusive (recommended - most NG shops)
-                  </option>
-                  <option value="VAT_EXCLUSIVE">
-                    VAT-exclusive (VAT added at checkout)
-                  </option>
-                </select>
-                <p className="config-hint">
-                  💡 Most Nigerian shops include VAT in prices (₦1,075 includes ₦75 VAT).
-                  Choose "inclusive" unless you add VAT separately.
-                </p>
-              </div>
-
-              {/* Option 2: Calculation Mode */}
-              <div className="config-group">
-                <label className="config-label">
-                  Calculation method:
-                </label>
-                <select
-                  value={advancedSettings.taxMode}
-                  onChange={(e) => updateAdvancedSetting('taxMode', e.target.value)}
-                  className="config-select"
-                >
-                  <option value="EOD">
-                    End-of-day summary (simpler, recommended)
-                  </option>
-                  <option value="PER_PRODUCT">
-                    Per-product (for detailed VAT invoices)
-                  </option>
-                </select>
-                <p className="config-hint">
-                  💡 End-of-day works for most shops. Choose per-product only if you print VAT receipts per item.
-                </p>
-              </div>
-
-              {/* Option 3: Input VAT */}
-              <div className="config-group">
-                <label className="config-label">
-                  Track input VAT from:
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={advancedSettings.claimInputVatFromPurchases}
-                    onChange={(e) => updateAdvancedSetting('claimInputVatFromPurchases', e.target.checked)}
-                  />
-                  <span>Purchases (stock from suppliers)</span>
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={advancedSettings.claimInputVatFromExpenses}
-                    onChange={(e) => updateAdvancedSetting('claimInputVatFromExpenses', e.target.checked)}
-                  />
-                  <span>Expenses with VAT (rent, utilities)</span>
-                </label>
-                <p className="config-hint">
-                  💡 Always track purchases VAT. Track expenses VAT only if you know which expenses include VAT.
-                </p>
-              </div>
-
-              {/* VAT Rate Display */}
-              <div className="config-group">
-                <label className="config-label">
-                  VAT Rate:
-                </label>
-                <input
-                  type="text"
-                  value="7.5%"
-                  disabled
-                  className="config-input-disabled"
-                />
-                <p className="config-hint">
-                  Current FIRS rate. This cannot be changed.
-                </p>
-              </div>
+            <div className="bs-body">
+              <PaymentSettings onToast={onToast} />
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="modal-footer">
+      {/* Discard Changes Dialog */}
+      {showDiscardDialog && (
+        <div className="bs-overlay" onClick={() => setShowDiscardDialog(false)}>
+          <div className="bs-dialog" onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', fontWeight: '600' }}>
+              Discard changes?
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#6B7280' }}>
+              You have unsaved edits. Keep editing or discard?
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
-                className="btn-secondary"
-                onClick={resetToDefaults}
+                type="button"
+                className="bs-btn-secondary"
+                onClick={() => setShowDiscardDialog(false)}
               >
-                Reset to Defaults
+                Keep Editing
               </button>
               <button
-                className="btn-primary"
-                onClick={saveAdvancedConfig}
+                type="button"
+                className="bs-btn-danger"
+                onClick={handleDiscard}
               >
-                Save Configuration
+                Discard
               </button>
             </div>
           </div>
