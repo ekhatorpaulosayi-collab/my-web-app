@@ -16,6 +16,7 @@ export default function PaymentSettings({ onToast }: PaymentSettingsProps) {
   const [testKeyValidation, setTestKeyValidation] = useState({ valid: true, message: '' });
   const [liveKeyValidation, setLiveKeyValidation] = useState({ valid: true, message: '' });
   const [isDirty, setIsDirty] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   // Load config on mount
   useEffect(() => {
@@ -75,6 +76,107 @@ export default function PaymentSettings({ onToast }: PaymentSettingsProps) {
         <p className="payment-settings-desc">
           Accept card and bank transfer payments directly in your store
         </p>
+      </div>
+
+      {/* Collapsible Setup Guide */}
+      <div style={{ marginBottom: '16px' }}>
+        <button
+          type="button"
+          onClick={() => setShowSetupGuide(!showSetupGuide)}
+          style={{
+            width: '100%',
+            background: showSetupGuide ? '#F3F4F6' : 'transparent',
+            border: '1px solid #E5E7EB',
+            borderRadius: '8px',
+            padding: '10px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: '500',
+            color: '#374151',
+            transition: 'all 0.2s'
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>📚</span>
+            <span>Setup Guide</span>
+          </span>
+          <span style={{ transform: showSetupGuide ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+            ▼
+          </span>
+        </button>
+
+        {showSetupGuide && (
+          <div style={{
+            marginTop: '8px',
+            padding: '16px',
+            background: '#F9FAFB',
+            border: '1px solid #E5E7EB',
+            borderRadius: '8px',
+            fontSize: '13px',
+            lineHeight: '1.6',
+            color: '#374151'
+          }}>
+            <ol style={{ margin: '0', paddingLeft: '20px' }}>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Create Paystack Account</strong>
+                <br />
+                Sign up for free at{' '}
+                <a
+                  href="https://paystack.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#3b82f6', textDecoration: 'underline' }}
+                >
+                  paystack.com
+                </a>
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Get Your API Keys</strong>
+                <br />
+                Visit{' '}
+                <a
+                  href="https://dashboard.paystack.com/#/settings/developer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#3b82f6', textDecoration: 'underline' }}
+                >
+                  Dashboard → Settings → Developer
+                </a>
+                {' '}and copy your keys
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Enable Paystack Below</strong>
+                <br />
+                Check "Enable Paystack Payments" and "Test Mode"
+              </li>
+              <li style={{ marginBottom: '8px' }}>
+                <strong>Enter Test Keys First</strong>
+                <br />
+                Paste your test public key (starts with <code style={{ background: '#E5E7EB', padding: '2px 6px', borderRadius: '4px' }}>pk_test_</code>)
+              </li>
+              <li>
+                <strong>Test & Go Live</strong>
+                <br />
+                Use test mode to verify everything works, then switch to live mode with your live keys
+              </li>
+            </ol>
+
+            <div style={{
+              marginTop: '12px',
+              padding: '10px',
+              background: '#EEF2FF',
+              border: '1px solid #C7D2FE',
+              borderRadius: '6px',
+              fontSize: '12px',
+              color: '#4338CA'
+            }}>
+              💡 <strong>Tip:</strong> Test cards like <code style={{ background: 'rgba(255,255,255,0.7)', padding: '2px 4px', borderRadius: '3px' }}>4084 0840 8408 4081</code> work in test mode
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Enable Toggle */}

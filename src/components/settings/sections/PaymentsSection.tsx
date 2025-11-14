@@ -75,6 +75,134 @@ export default function PaymentsSection({ onToast, onOpenPaystackSetup }: Paymen
         </div>
       </div>
 
+      {/* Paystack Setup Guide - Empty State */}
+      {!paystackConnected && (
+        <div style={{
+          background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+          border: '1px solid #C7D2FE',
+          borderRadius: '12px',
+          padding: '20px',
+          marginTop: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '20px' }}>🚀</span>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#312E81' }}>
+              Quick Setup Guide
+            </h4>
+          </div>
+
+          <div style={{ fontSize: '13px', color: '#4C1D95', lineHeight: '1.6' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+              <span style={{
+                background: '#818CF8',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: '600',
+                flexShrink: 0
+              }}>1</span>
+              <p style={{ margin: 0 }}>
+                Create a free account at{' '}
+                <a
+                  href="https://paystack.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#4F46E5', textDecoration: 'underline' }}
+                >
+                  paystack.com
+                </a>
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+              <span style={{
+                background: '#818CF8',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: '600',
+                flexShrink: 0
+              }}>2</span>
+              <p style={{ margin: 0 }}>
+                Get your API keys from{' '}
+                <a
+                  href="https://dashboard.paystack.com/#/settings/developer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#4F46E5', textDecoration: 'underline' }}
+                >
+                  Dashboard → Settings → Developer
+                </a>
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+              <span style={{
+                background: '#818CF8',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: '600',
+                flexShrink: 0
+              }}>3</span>
+              <p style={{ margin: 0 }}>
+                Click <strong>"Connect"</strong> above and enter your keys
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <span style={{
+                background: '#818CF8',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: '600',
+                flexShrink: 0
+              }}>4</span>
+              <p style={{ margin: 0 }}>
+                Enable <strong>Test Mode</strong> first to try it out safely
+              </p>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: '16px',
+            padding: '12px',
+            background: 'rgba(255, 255, 255, 0.6)',
+            borderRadius: '8px',
+            fontSize: '12px',
+            color: '#4C1D95',
+            display: 'flex',
+            gap: '8px'
+          }}>
+            <span>💡</span>
+            <span>
+              <strong>Tip:</strong> Start with test keys (pk_test_...) to practice without real charges
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Divider */}
       <div style={{ borderTop: '1px solid #E5E7EB', margin: '16px 0' }} />
 
