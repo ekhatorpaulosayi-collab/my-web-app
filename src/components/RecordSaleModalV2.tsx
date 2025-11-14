@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Settings } from 'lucide-react';
 import '../styles/sales.css';
 import './record-sale.css';
 import { ItemCombobox, type ItemOption } from './sales/ItemCombobox';
@@ -33,8 +32,6 @@ interface RecordSaleModalV2Props {
   onCreateDebt?: (debtData: any) => void;
   showSalesData?: boolean;
   onShowToast?: (message: string, duration?: number) => void;
-  onOpenCalculator?: () => void;
-  onOpenSettings?: () => void;
 }
 
 export default function RecordSaleModalV2({
@@ -46,9 +43,7 @@ export default function RecordSaleModalV2({
   onSaveSale,
   onCreateDebt,
   showSalesData = true,
-  onShowToast,
-  onOpenCalculator,
-  onOpenSettings
+  onShowToast
 }: RecordSaleModalV2Props) {
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -979,29 +974,11 @@ Powered by Storehouse
             {cart.length > 0 && <div style={{ opacity: 0.8, fontSize: '12px' }}>View →</div>}
           </div>
 
-          {/* Bottom Action Bar */}
-          <div className="rs-bottom-bar">
+          {/* Footer */}
+          <div className="rs-footer">
             <button
               type="button"
-              className="rs-bottom-btn"
-              onClick={onOpenCalculator}
-              disabled={isProcessing}
-            >
-              <Calculator size={20} strokeWidth={2} />
-              <span>Calculator</span>
-            </button>
-            <button
-              type="button"
-              className="rs-bottom-btn"
-              onClick={onOpenSettings}
-              disabled={isProcessing}
-            >
-              <Settings size={20} strokeWidth={2} />
-              <span>Settings</span>
-            </button>
-            <button
-              type="button"
-              className="rs-bottom-btn rs-bottom-btn-primary"
+              className="rs-primary"
               onClick={handleCompleteSale}
               disabled={
                 isProcessing ||
@@ -1010,15 +987,10 @@ Powered by Storehouse
                 (isCredit && (!customerName.trim() || !dueDate))
               }
             >
-              <span>{collectingPayment ? 'Processing...' : isProcessing ? 'Processing...' : `Complete (${cart.length})`}</span>
+              {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cart.length})`}
             </button>
-            <button
-              type="button"
-              className="rs-bottom-btn"
-              onClick={onClose}
-              disabled={isProcessing}
-            >
-              <span>Cancel</span>
+            <button type="button" className="rs-link" onClick={onClose} disabled={isProcessing}>
+              Cancel
             </button>
           </div>
         </div>
