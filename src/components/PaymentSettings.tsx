@@ -5,6 +5,7 @@ import {
   validatePublicKey,
   type PaystackConfig
 } from '../utils/paystackSettings';
+import '../styles/PaymentSettings.css';
 
 interface PaymentSettingsProps {
   onToast?: (message: string) => void;
@@ -65,97 +66,142 @@ export default function PaymentSettings({ onToast }: PaymentSettingsProps) {
 
   return (
     <div className="payment-settings">
-      <div className="bs-field">
-        <label className="bs-checkbox">
+      {/* Header with icon and description */}
+      <div className="payment-settings-header">
+        <h4 className="payment-settings-title">
+          <span className="payment-icon">💳</span>
+          Paystack Payment Integration
+        </h4>
+        <p className="payment-settings-desc">
+          Accept card and bank transfer payments directly in your store
+        </p>
+      </div>
+
+      {/* Enable Toggle */}
+      <div className="payment-field">
+        <label className="payment-toggle-label">
           <input
             type="checkbox"
             checked={config.enabled}
             onChange={(e) => updateField('enabled', e.target.checked)}
+            className="payment-checkbox"
           />
-          <span>Enable Paystack payment integration</span>
+          <span className="payment-toggle-text">Enable Paystack Payments</span>
         </label>
-        <p className="bs-help">
-          Accept card and bank transfer payments via Paystack
-        </p>
       </div>
 
       {config.enabled && (
-        <>
-          <div className="bs-field">
-            <label className="bs-checkbox">
+        <div className="payment-enabled-content">
+          {/* Test Mode Toggle */}
+          <div className="payment-field">
+            <label className="payment-toggle-label">
               <input
                 type="checkbox"
                 checked={config.testMode}
                 onChange={(e) => updateField('testMode', e.target.checked)}
+                className="payment-checkbox"
               />
-              <span>Test Mode</span>
+              <span className="payment-toggle-text">Test Mode</span>
             </label>
-            <p className="bs-help">
+            <p className="payment-field-hint">
               Use test keys for development. Uncheck for live transactions.
             </p>
           </div>
 
+          {/* Test Mode Warning Banner */}
           {config.testMode && (
-            <div className="bs-alert bs-alert-warning" style={{ marginBottom: '16px' }}>
-              ⚠️ Test mode active - Payments won't be charged
+            <div className="payment-warning-banner">
+              <span className="warning-icon">⚠️</span>
+              <div className="warning-content">
+                <strong>Test Mode Active</strong>
+                <p>Payments won't be charged. Use test cards only.</p>
+              </div>
             </div>
           )}
 
-          <div className="bs-field">
-            <label htmlFor="paystack-test-key" className="bs-label">
-              Paystack Test Public Key
+          {/* Help Box */}
+          <div className="payment-help-box">
+            <div className="help-box-icon">💡</div>
+            <div className="help-box-content">
+              <strong>Get your API keys from Paystack Dashboard</strong>
+              <p>
+                Visit{' '}
+                <a
+                  href="https://dashboard.paystack.com/settings/developer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="payment-link"
+                >
+                  Paystack Dashboard → Settings → Developer/API
+                </a>
+                {' '}to copy your public keys
+              </p>
+            </div>
+          </div>
+
+          {/* Test Public Key */}
+          <div className="payment-field">
+            <label htmlFor="paystack-test-key" className="payment-label">
+              Test Public Key
+              <span className="label-badge">Test</span>
             </label>
             <input
               id="paystack-test-key"
               type="text"
-              className="bs-input"
+              className={`payment-input ${config.publicKeyTest && !testKeyValidation.valid ? 'input-error' : ''}`}
               value={config.publicKeyTest}
               onChange={(e) => updateField('publicKeyTest', e.target.value)}
               placeholder="pk_test_..."
             />
             {config.publicKeyTest && testKeyValidation.message && (
-              <small className={testKeyValidation.valid ? 'bs-help' : 'bs-error'}>
+              <p className={`payment-field-hint ${testKeyValidation.valid ? 'hint-success' : 'hint-error'}`}>
                 {testKeyValidation.message}
-              </small>
+              </p>
             )}
-            <p className="bs-help" style={{ marginTop: '4px' }}>
-              Get your test key from <a href="https://dashboard.paystack.com/#/settings/developer" target="_blank" rel="noopener noreferrer">Paystack Dashboard</a>
-            </p>
+            {!config.publicKeyTest && (
+              <p className="payment-field-hint">
+                For testing payments without real charges
+              </p>
+            )}
           </div>
 
-          <div className="bs-field">
-            <label htmlFor="paystack-live-key" className="bs-label">
-              Paystack Live Public Key
+          {/* Live Public Key */}
+          <div className="payment-field">
+            <label htmlFor="paystack-live-key" className="payment-label">
+              Live Public Key
+              <span className="label-badge label-badge-live">Live</span>
             </label>
             <input
               id="paystack-live-key"
               type="text"
-              className="bs-input"
+              className={`payment-input ${config.publicKeyLive && !liveKeyValidation.valid ? 'input-error' : ''}`}
               value={config.publicKeyLive}
               onChange={(e) => updateField('publicKeyLive', e.target.value)}
               placeholder="pk_live_..."
             />
             {config.publicKeyLive && liveKeyValidation.message && (
-              <small className={liveKeyValidation.valid ? 'bs-help' : 'bs-error'}>
+              <p className={`payment-field-hint ${liveKeyValidation.valid ? 'hint-success' : 'hint-error'}`}>
                 {liveKeyValidation.message}
-              </small>
+              </p>
             )}
-            <p className="bs-help" style={{ marginTop: '4px' }}>
-              Only use live key when ready for real transactions
-            </p>
+            {!config.publicKeyLive && (
+              <p className="payment-field-hint">
+                Only use when ready for real transactions
+              </p>
+            )}
           </div>
 
+          {/* Save Button */}
           {isDirty && (
             <button
               type="button"
-              className="bs-btn bs-btn-primary"
+              className="payment-save-btn"
               onClick={handleSave}
-              style={{ marginTop: '12px' }}
             >
-              Save Payment Settings
+              💾 Save Payment Settings
             </button>
           )}
-        </>
+        </div>
       )}
     </div>
   );
