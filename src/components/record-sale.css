@@ -537,6 +537,54 @@
 }
 
 /* Footer */
+/* Bottom Action Bar */
+.rs-bottom-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--rs-border);
+  background: var(--rs-bg);
+}
+
+.rs-bottom-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1px solid var(--rs-border);
+  background: var(--rs-bg);
+  color: var(--rs-ink);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 160ms;
+}
+
+.rs-bottom-btn:hover:not(:disabled) {
+  background: var(--rs-card);
+  border-color: var(--rs-brand);
+}
+
+.rs-bottom-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rs-bottom-btn-primary {
+  background: var(--rs-brand);
+  color: white;
+  border-color: var(--rs-brand);
+  font-weight: 600;
+}
+
+.rs-bottom-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
 .rs-footer {
   display: flex;
   align-items: center;
@@ -620,32 +668,30 @@
     font-size: 28px;
   }
 
-  .rs-footer {
+  /* Bottom action bar on mobile */
+  .rs-bottom-bar {
     position: sticky;
     bottom: 0;
     background: #ffffff;
     z-index: 60; /* Above cart bar */
     margin-top: auto;
+    padding: 8px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
   }
 
-  /* Ensure cart bar doesn't overlap footer */
+  .rs-bottom-btn {
+    padding: 10px 4px;
+    font-size: 10px;
+  }
+
+  .rs-bottom-btn span {
+    line-height: 1.2;
+  }
+
+  /* Ensure cart bar doesn't overlap bottom bar */
   .rs-cart-bar {
-    z-index: 55; /* Below footer */
-    margin-bottom: 76px; /* Height of footer */
-  }
-
-  /* Make header buttons more visible on mobile */
-  .rs-header-btn {
-    width: 52px;
-    height: 52px;
-    background: #ffffff;
-    border: 3px solid #2563eb;
-    box-shadow: 0 2px 12px rgba(37, 99, 235, 0.3);
-  }
-
-  .rs-header-btn:active {
-    transform: scale(0.95);
-    background: #eff6ff;
+    z-index: 55; /* Below bottom bar */
+    margin-bottom: 85px; /* Height of bottom bar */
   }
 }
 

@@ -713,41 +713,9 @@ Powered by Storehouse
           {/* Header */}
           <div className="rs-header">
             <h2 id="rs-modal-title-v2">Record Sale</h2>
-            <div className="rs-header-actions">
-              {onOpenCalculator && (
-                <button
-                  type="button"
-                  className="rs-header-btn"
-                  onClick={onOpenCalculator}
-                  aria-label="Open Calculator"
-                  title="Calculator"
-                >
-                  <Calculator
-                    size={24}
-                    strokeWidth={2.5}
-                    style={{ stroke: '#2563eb', fill: 'none' }}
-                  />
-                </button>
-              )}
-              {onOpenSettings && (
-                <button
-                  type="button"
-                  className="rs-header-btn"
-                  onClick={onOpenSettings}
-                  aria-label="Open Settings"
-                  title="Settings"
-                >
-                  <Settings
-                    size={24}
-                    strokeWidth={2.5}
-                    style={{ stroke: '#2563eb', fill: 'none' }}
-                  />
-                </button>
-              )}
-              <button className="rs-close" onClick={onClose} aria-label="Close">
-                ×
-              </button>
-            </div>
+            <button className="rs-close" onClick={onClose} aria-label="Close">
+              ×
+            </button>
           </div>
 
           {/* Offline banner */}
@@ -1011,11 +979,29 @@ Powered by Storehouse
             {cart.length > 0 && <div style={{ opacity: 0.8, fontSize: '12px' }}>View →</div>}
           </div>
 
-          {/* Footer */}
-          <div className="rs-footer">
+          {/* Bottom Action Bar */}
+          <div className="rs-bottom-bar">
             <button
               type="button"
-              className="rs-primary"
+              className="rs-bottom-btn"
+              onClick={onOpenCalculator}
+              disabled={isProcessing}
+            >
+              <Calculator size={20} strokeWidth={2} />
+              <span>Calculator</span>
+            </button>
+            <button
+              type="button"
+              className="rs-bottom-btn"
+              onClick={onOpenSettings}
+              disabled={isProcessing}
+            >
+              <Settings size={20} strokeWidth={2} />
+              <span>Settings</span>
+            </button>
+            <button
+              type="button"
+              className="rs-bottom-btn rs-bottom-btn-primary"
               onClick={handleCompleteSale}
               disabled={
                 isProcessing ||
@@ -1024,10 +1010,15 @@ Powered by Storehouse
                 (isCredit && (!customerName.trim() || !dueDate))
               }
             >
-              {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cart.length})`}
+              <span>{collectingPayment ? 'Processing...' : isProcessing ? 'Processing...' : `Complete (${cart.length})`}</span>
             </button>
-            <button type="button" className="rs-link" onClick={onClose} disabled={isProcessing}>
-              Cancel
+            <button
+              type="button"
+              className="rs-bottom-btn"
+              onClick={onClose}
+              disabled={isProcessing}
+            >
+              <span>Cancel</span>
             </button>
           </div>
         </div>
