@@ -14,6 +14,7 @@ const ImageTest = lazy(() => import('./pages/ImageTest.tsx'));
 const DirectImageTest = lazy(() => import('./pages/DirectImageTest.tsx'));
 const AllVariantsTest = lazy(() => import('./pages/AllVariantsTest.tsx'));
 const DevSaleModal = lazy(() => import('./pages/DevSaleModal.tsx'));
+const StoreSetup = lazy(() => import('./components/StoreSetup.tsx'));
 
 /**
  * App Routes
@@ -151,6 +152,9 @@ export default function AppRoutes() {
 
         {/* Dev preview route for Sale Modal V2 - Public for testing */}
         <Route path="/dev/sale-modal" element={<DevSaleModal />} />
+
+        {/* Store Setup - Clean minimal design for quick store creation */}
+        <Route path="/store-setup" element={<StoreSetup />} />
 
         {/* Redirect legacy settings routes */}
         <Route path="/store-settings" element={<Navigate to="/settings" replace />} />
