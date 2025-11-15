@@ -146,58 +146,208 @@ Low Stock: ${lowStockItems.length}
           onToast={(message) => console.log('[Settings Toast]', message)}
         />
 
-        {/* EOD Report Modal */}
+        {/* EOD Report Modal - Enhanced Visibility */}
         {showEODModal && (
-          <div className="modal-overlay" onClick={() => setShowEODModal(false)}>
-            <div className="modal eod-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>📤 Send EOD Report</h2>
-                <button className="modal-close" onClick={() => setShowEODModal(false)}>×</button>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.75)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 99999,
+              padding: '1rem',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+            onClick={() => setShowEODModal(false)}
+          >
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '16px',
+                maxWidth: '600px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
+                animation: 'slideUp 0.3s ease-out'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{
+                padding: '1.5rem',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '16px 16px 0 0'
+              }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'white' }}>
+                  📤 Send EOD Report
+                </h2>
+                <button
+                  onClick={() => setShowEODModal(false)}
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: 'white',
+                    fontSize: '2rem',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: 1,
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                >
+                  ×
+                </button>
               </div>
-              <div className="modal-body">
-                <p>Choose report format:</p>
-                <div className="format-selector">
-                  <label className={`format-option ${eodFormat === 'readable' ? 'selected' : ''}`}>
+
+              {/* Body */}
+              <div style={{ padding: '1.5rem' }}>
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.9375rem', fontWeight: 600, color: '#374151' }}>
+                  Choose report format:
+                </p>
+
+                {/* Format Selector */}
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem' }}>
+                  <label
+                    style={{
+                      flex: 1,
+                      padding: '1rem',
+                      border: `2px solid ${eodFormat === 'readable' ? '#667eea' : '#e5e7eb'}`,
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      background: eodFormat === 'readable' ? '#f5f7ff' : 'white'
+                    }}
+                  >
                     <input
                       type="radio"
                       name="eodFormat"
                       value="readable"
                       checked={eodFormat === 'readable'}
                       onChange={(e) => setEodFormat(e.target.value)}
+                      style={{ marginRight: '0.5rem' }}
                     />
-                    <div className="format-label">
-                      <strong>Readable</strong>
-                      <span>With emojis and formatting</span>
+                    <div style={{ display: 'inline-block' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>Readable</div>
+                      <div style={{ fontSize: '0.8125rem', color: '#6b7280' }}>With emojis and formatting</div>
                     </div>
                   </label>
-                  <label className={`format-option ${eodFormat === 'monospace' ? 'selected' : ''}`}>
+
+                  <label
+                    style={{
+                      flex: 1,
+                      padding: '1rem',
+                      border: `2px solid ${eodFormat === 'monospace' ? '#667eea' : '#e5e7eb'}`,
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      background: eodFormat === 'monospace' ? '#f5f7ff' : 'white'
+                    }}
+                  >
                     <input
                       type="radio"
                       name="eodFormat"
                       value="monospace"
                       checked={eodFormat === 'monospace'}
                       onChange={(e) => setEodFormat(e.target.value)}
+                      style={{ marginRight: '0.5rem' }}
                     />
-                    <div className="format-label">
-                      <strong>Monospace</strong>
-                      <span>Plain text, compact</span>
+                    <div style={{ display: 'inline-block' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>Monospace</div>
+                      <div style={{ fontSize: '0.8125rem', color: '#6b7280' }}>Plain text, compact</div>
                     </div>
                   </label>
                 </div>
 
-                <div className="report-preview">
-                  <h4>Preview:</h4>
-                  <pre className="preview-text">
+                {/* Preview */}
+                <div style={{
+                  background: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  padding: '1rem'
+                }}>
+                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', fontWeight: 600, color: '#6b7280' }}>
+                    Preview:
+                  </h4>
+                  <pre style={{
+                    margin: 0,
+                    fontFamily: 'monospace',
+                    fontSize: '0.8125rem',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    color: '#1f2937',
+                    lineHeight: 1.6
+                  }}>
                     {generateEODReport(eodFormat)}
                   </pre>
                 </div>
               </div>
-              <div className="modal-actions">
-                <button className="btn-cancel" onClick={() => setShowEODModal(false)}>
+
+              {/* Actions */}
+              <div style={{
+                padding: '1.5rem',
+                borderTop: '1px solid #e5e7eb',
+                display: 'flex',
+                gap: '0.75rem',
+                justifyContent: 'flex-end'
+              }}>
+                <button
+                  onClick={() => setShowEODModal(false)}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: 'white',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '10px',
+                    fontSize: '0.9375rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    color: '#374151'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
                   Cancel
                 </button>
-                <button className="btn-primary" onClick={handleSendEOD}>
-                  Send via WhatsApp
+                <button
+                  onClick={handleSendEOD}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    border: 'none',
+                    borderRadius: '10px',
+                    color: 'white',
+                    fontSize: '0.9375rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                  }}
+                >
+                  💬 Send via WhatsApp
                 </button>
               </div>
             </div>
