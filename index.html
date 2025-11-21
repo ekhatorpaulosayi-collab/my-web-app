@@ -5,7 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="format-detection" content="telephone=no" />
+
+    <!-- DNS Prefetch for external resources -->
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    <link rel="dns-prefetch" href="https://firebaseapp.com" />
+    <link rel="dns-prefetch" href="https://supabase.co" />
+
+    <!-- Preconnect to critical domains -->
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://firebaseapp.com" crossorigin />
+
     <meta name="theme-color" content="#2563eb" />
     <meta name="description" content="Storehouse - Inventory management for Nigerian retailers. Track stock, record sales, manage credits. Works offline." />
     <!-- <link rel="manifest" href="/manifest.webmanifest" /> -->
@@ -13,37 +22,104 @@
     <title>Storehouse - Inventory Management for Nigerian Retailers</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Loading screen for slow networks -->
+      <div id="initial-loader" style="
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        z-index: 99999;
+      ">
+        <div style="text-align: center; padding: 20px;">
+          <div style="font-size: 48px; margin-bottom: 20px;">📦</div>
+          <h2 style="font-size: 24px; font-weight: 600; margin: 0 0 12px 0;">Loading Storehouse...</h2>
+          <p id="load-status" style="font-size: 14px; opacity: 0.9; margin: 0 0 20px 0;">Preparing your inventory...</p>
+
+          <!-- Progress bar -->
+          <div style="width: 300px; max-width: 90vw; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
+            <div id="load-progress" style="height: 100%; background: white; width: 0%; transition: width 0.3s;"></div>
+          </div>
+
+          <!-- Retry button (hidden initially) -->
+          <button id="retry-btn" onclick="location.reload()" style="
+            display: none;
+            margin-top: 24px;
+            padding: 12px 32px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+          ">
+            🔄 Retry Loading
+          </button>
+        </div>
+      </div>
+    </div>
     <div id="portal-root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Register service worker
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('SW registered:', registration);
+      // Loading timeout and progress
+      let progress = 0;
+      const statusEl = document.getElementById('load-status');
+      const progressEl = document.getElementById('load-progress');
+      const retryBtn = document.getElementById('retry-btn');
+      const loaderEl = document.getElementById('initial-loader');
 
-              // Check for updates
-              registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New version available
-                    window.dispatchEvent(new CustomEvent('sw-update-available'));
-                  }
-                });
-              });
-            })
-            .catch((error) => {
-              console.log('SW registration failed:', error);
-            });
+      // Simulate progress for user feedback
+      const progressInterval = setInterval(() => {
+        if (progress < 90) {
+          progress += Math.random() * 15;
+          if (progress > 90) progress = 90;
+          progressEl.style.width = progress + '%';
+        }
+      }, 500);
 
-          // Listen for messages from SW
-          navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'NEW_VERSION_AVAILABLE') {
-              window.dispatchEvent(new CustomEvent('sw-update-available'));
+      // Timeout after 30 seconds
+      const timeoutId = setTimeout(() => {
+        clearInterval(progressInterval);
+        statusEl.textContent = '⚠️ Taking longer than expected...';
+        retryBtn.style.display = 'block';
+        progressEl.style.background = '#FCD34D';
+      }, 30000);
+
+      // Hide loader when React mounts
+      window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const observer = new MutationObserver(() => {
+            const root = document.getElementById('root');
+            if (root && root.children.length > 1) {
+              clearTimeout(timeoutId);
+              clearInterval(progressInterval);
+              progressEl.style.width = '100%';
+              setTimeout(() => {
+                if (loaderEl) loaderEl.style.display = 'none';
+              }, 300);
+              observer.disconnect();
             }
+          });
+
+          observer.observe(document.getElementById('root'), {
+            childList: true,
+            subtree: true
+          });
+        }, 100);
+      });
+
+      // Unregister all service workers
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            registration.unregister();
+            console.log('Service worker unregistered');
           });
         });
       }

@@ -9,12 +9,23 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // Lazy load non-critical routes for better performance
 const Settings = lazy(() => import('./pages/Settings.jsx'));
+const CustomersPage = lazy(() => import('./pages/CustomersPage.tsx'));
+const StaffManagement = lazy(() => import('./pages/StaffManagement.tsx'));
+const ReferralDashboard = lazy(() => import('./pages/ReferralDashboard.tsx'));
+const Invoices = lazy(() => import('./pages/Invoices.tsx'));
+const CreateInvoice = lazy(() => import('./pages/CreateInvoice.tsx'));
+const InvoiceDetail = lazy(() => import('./pages/InvoiceDetail.tsx'));
+const PublicInvoiceView = lazy(() => import('./pages/PublicInvoiceView.tsx'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage.tsx'));
 const ImageTest = lazy(() => import('./pages/ImageTest.tsx'));
 const DirectImageTest = lazy(() => import('./pages/DirectImageTest.tsx'));
 const AllVariantsTest = lazy(() => import('./pages/AllVariantsTest.tsx'));
+const TestVariants = lazy(() => import('./pages/TestVariants.tsx'));
 const DevSaleModal = lazy(() => import('./pages/DevSaleModal.tsx'));
 const StoreSetup = lazy(() => import('./components/StoreSetup.tsx'));
+const StoreQuickSetup = lazy(() => import('./components/StoreQuickSetup.tsx'));
+const StoreSetupComplete = lazy(() => import('./components/StoreSetupComplete.tsx'));
+const OnlineStoreSetup = lazy(() => import('./components/OnlineStoreSetup.tsx'));
 
 /**
  * App Routes
@@ -122,6 +133,64 @@ export default function AppRoutes() {
           }
         />
 
+        {/* Customers page - View all customers and purchase history */}
+        <Route
+          path="/customers"
+          element={
+            <ProtectedRoute>
+              <CustomersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Staff management - Owner only */}
+        <Route
+          path="/staff"
+          element={
+            <ProtectedRoute>
+              <StaffManagement />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Referral dashboard - Earn rewards by inviting friends */}
+        <Route
+          path="/referrals"
+          element={
+            <ProtectedRoute>
+              <ReferralDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Invoices - B2B sales, credit sales, and payment tracking */}
+        <Route
+          path="/invoices"
+          element={
+            <ProtectedRoute>
+              <Invoices />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/invoices/create"
+          element={
+            <ProtectedRoute>
+              <CreateInvoice />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/invoices/:id"
+          element={
+            <ProtectedRoute>
+              <InvoiceDetail />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Image enhancement test pages */}
         <Route
           path="/image-test"
@@ -150,11 +219,44 @@ export default function AppRoutes() {
           }
         />
 
+        {/* Test page for VariantManager component */}
+        <Route
+          path="/test-variants"
+          element={
+            <ProtectedRoute>
+              <TestVariants />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Dev preview route for Sale Modal V2 - Public for testing */}
         <Route path="/dev/sale-modal" element={<DevSaleModal />} />
 
         {/* Store Setup - Clean minimal design for quick store creation */}
         <Route path="/store-setup" element={<StoreSetup />} />
+
+        {/* Store Quick Setup - 30-second store creation (Phase 1) */}
+        <Route path="/quick-setup" element={<StoreQuickSetup />} />
+
+        {/* Store Setup Complete - Post-creation dashboard */}
+        <Route
+          path="/setup-complete"
+          element={
+            <ProtectedRoute>
+              <StoreSetupComplete />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Online Store Setup - Integrated setup with progressive disclosure */}
+        <Route
+          path="/online-store"
+          element={
+            <ProtectedRoute>
+              <OnlineStoreSetup />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Redirect legacy settings routes */}
         <Route path="/store-settings" element={<Navigate to="/settings" replace />} />
@@ -176,6 +278,9 @@ export default function AppRoutes() {
 
         {/* Public storefront - accessible without login */}
         <Route path="/store/:slug" element={<StorefrontPage />} />
+
+        {/* Public invoice view - accessible without login */}
+        <Route path="/invoice/:id" element={<PublicInvoiceView />} />
 
         {/* Catch-all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,0 +1,1064 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { getSettings, saveSettings, type Settings } from '../utils/settings';
+import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
+import { RECEIPT_SETTINGS_ENABLED } from '../config';
+import '../styles/BusinessSettings.css';
+import PaymentSettings from './PaymentSettings';
+import { hasPinSet, setPin, clearPin } from '../lib/pinService';
+import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/storeSlug';
+
+// TEMP: Always enable save button for debugging
+const TEMP_ALWAYS_ENABLE_SAVE = true; // turn off later
+
+// Helper functions
+const trimAll = (o: any) => {
+  const c: any = { ...o };
+  Object.keys(c).forEach(k => { if (typeof c[k] === "string") c[k] = c[k].trim(); });
+  return c;
+};
+
+const isNGPhone = (p?: string) => {
+  if (!p) return true; // optional
+  const s = p.replace(/\s|-/g, "");
+  return /^0\d{10}$/.test(s); // simple: 11 digits, starts with 0
+};
+
+const equalJSON = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+
+type BusinessSettingsProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onExportCSV?: () => void;
+  onSendEOD?: () => void;
+  onViewPlans?: () => void;
+  isBetaTester?: boolean;
+  onToggleBeta?: (value: boolean) => void;
+  currentPlan?: string;
+  itemCount?: number;
+  onToast?: (message: string) => void;
+};
+
+export default function BusinessSettings({
+  isOpen,
+  onClose,
+  onExportCSV,
+  onSendEOD,
+  onViewPlans,
+  isBetaTester = false,
+  onToggleBeta,
+  currentPlan = 'FREE',
+  itemCount = 0,
+  onToast
+}: BusinessSettingsProps) {
+  const { profile, setProfile } = useBusinessProfile();
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [showPaymentLink, setShowPaymentLink] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  // Payment Link state
+  const [paymentLinkEnabled, setPaymentLinkEnabled] = useState(() => {
+    const stored = localStorage.getItem('storehouse-payment-link');
+    return stored ? JSON.parse(stored).enabled : false;
+  });
+  const [paymentPageUrl, setPaymentPageUrl] = useState(() => {
+    const stored = localStorage.getItem('storehouse-payment-link');
+    return stored ? JSON.parse(stored).url : '';
+  });
+
+  // Advanced Tax Configuration modal state (Phase 2)
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+
+  // PIN Security state
+  const [hasPinEnabled, setHasPinEnabled] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  // New state management
+  const persisted = getSettings();
+  const persistedProfile = useRef(profile);
+  const [draft, setDraft] = useState<Settings>(persisted);
+  const [saving, setSaving] = useState(false);
+
+  // Advanced settings state (Phase 2)
+  const [advancedSettings, setAdvancedSettings] = useState({
+    priceMode: draft.priceMode || 'VAT_INCLUSIVE',
+    taxMode: draft.taxMode || 'EOD',
+    claimInputVatFromPurchases: draft.claimInputVatFromPurchases ?? true,
+    claimInputVatFromExpenses: draft.claimInputVatFromExpenses ?? false,
+  });
+
+  // Load settings when opened
+  useEffect(() => {
+    if (isOpen) {
+      const current = getSettings();
+      setDraft(current);
+      persistedProfile.current = profile;
+      setShowAdvanced(false);
+      setShowPayment(false);
+      setShowPaymentLink(false);
+      setShowSecurity(false);
+
+      // Check PIN status
+      hasPinSet().then(setHasPinEnabled);
+      setNewPin('');
+      setConfirmPin('');
+      setPinError('');
+
+      // Load payment link settings
+      const paymentLinkData = localStorage.getItem('storehouse-payment-link');
+      if (paymentLinkData) {
+        const parsed = JSON.parse(paymentLinkData);
+        setPaymentLinkEnabled(parsed.enabled || false);
+        setPaymentPageUrl(parsed.url || '');
+      }
+    }
+  }, [isOpen]);
+
+  // Compute base objects for comparison (trim and remove ignored fields)
+  const basePersisted: any = trimAll({ ...persisted, quickSellFromTable: false });
+  const baseDraft: any = trimAll({ ...draft, quickSellFromTable: false });
+
+  // If receipt options are hidden, ignore them in compare
+  delete basePersisted.receiptMessage;
+  delete basePersisted.offerReceiptAfterSale;
+  delete basePersisted.autoSendReceiptToSaved;
+  delete baseDraft.receiptMessage;
+  delete baseDraft.offerReceiptAfterSale;
+  delete baseDraft.autoSendReceiptToSaved;
+
+  // Compute dirty and valid states
+  const profileChanged = JSON.stringify(profile) !== JSON.stringify(persistedProfile.current);
+  const isDirty = !equalJSON(baseDraft, basePersisted) || profileChanged;
+  const isValid =
+    (draft.businessName?.trim().length ?? 0) > 0 &&
+    isNGPhone(draft.businessPhone);
+
+  // DEBUG: Log why save would be disabled
+  useEffect(() => {
+    console.debug("[Settings] isDirty:", isDirty, "isValid:", isValid, "saving:", saving, {
+      phone: draft.businessPhone,
+      ngPhone: isNGPhone(draft.businessPhone),
+      profileChanged,
+      draft: baseDraft,
+      persisted: basePersisted
+    });
+  }, [isDirty, isValid, saving, draft.businessPhone, profileChanged]);
+
+  const update = (k: keyof Settings, v: any) => setDraft(d => ({ ...d, [k]: v }));
+
+  // Save handler with validation on click
+  const onSave = async () => {
+    if (!TEMP_ALWAYS_ENABLE_SAVE && (!isDirty || !isValid || saving)) return;
+    if (!isValid) {
+      alert("Please enter a valid Nigerian phone (11 digits, starts with 0) and a business name.");
+      return;
+    }
+
+    // Check if store slug will change
+    const slugChange = checkSlugChange(profile.businessName);
+
+    // Warn user if slug is changing and they already had one
+    if (slugChange.willChange) {
+      const shouldProceed = window.confirm(
+        `⚠️ Your store link will change!\n\n` +
+        `Old link: /store/${slugChange.oldSlug}\n` +
+        `New link: /store/${slugChange.newSlug}\n\n` +
+        `If you've already shared your old link, customers won't be able to find your store.\n\n` +
+        `Continue with name change?`
+      );
+
+      if (!shouldProceed) {
+        setSaving(false);
+        return; // Cancel the change
+      }
+    }
+
+    try {
+      setSaving(true);
+
+      // Generate and save store slug from business name
+      const storeSlug = generateStoreSlug(profile.businessName);
+      saveStoreSlug(storeSlug);
+
+      // Save profile to context (handles localStorage and title update)
+      setProfile({
+        businessName: profile.businessName,
+        ownerName: profile.ownerName,
+        phone: profile.phone
+      });
+
+      // Merge and save settings
+      const toSave = { ...persisted, ...trimAll(draft) };
+      saveSettings(toSave);
+      window.dispatchEvent(new CustomEvent("settings:updated"));
+      onToast?.('✅ Settings saved! Your store link is ready.');
+      onClose();
+    } catch (e) {
+      console.error("Save settings failed", e);
+      alert("Could not save settings. See console for details.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Focus trap and keyboard handlers
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCancel();
+      }
+      if (e.key === 'Enter' && e.metaKey) {
+        onSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isDirty, draft]);
+
+  const handleCancel = () => {
+    setDraft(persisted);
+    onClose();
+  };
+
+  const handleResetDemo = () => {
+    if (!confirm('Reset all demo data? This will clear your inventory, sales, and debts.')) return;
+    // TODO: Wire to actual reset function
+    onToast?.('Demo reset not yet implemented');
+  };
+
+  const handleClearCache = () => {
+    if (!confirm('Clear cached settings? You will need to re-enter your preferences.')) return;
+    localStorage.removeItem('storehouse-settings');
+    const defaults = getSettings();
+    setDraft(defaults);
+    onToast?.('Settings cache cleared');
+  };
+
+  // PIN Security Handlers
+  const handleSetPin = async () => {
+    setPinError('');
+
+    if (!newPin || newPin.length < 4) {
+      setPinError('PIN must be at least 4 digits');
+      return;
+    }
+
+    if (newPin !== confirmPin) {
+      setPinError('PINs do not match');
+      return;
+    }
+
+    try {
+      await setPin(newPin);
+      setHasPinEnabled(true);
+      setNewPin('');
+      setConfirmPin('');
+      onToast?.('PIN set successfully');
+      window.dispatchEvent(new CustomEvent('pin:locked')); // Lock after setting
+    } catch (error: any) {
+      setPinError(error.message || 'Failed to set PIN');
+    }
+  };
+
+  const handleRemovePin = async () => {
+    if (!confirm('Remove PIN protection? Costs and profits will be visible to anyone.')) return;
+
+    try {
+      await clearPin();
+      setHasPinEnabled(false);
+      setNewPin('');
+      setConfirmPin('');
+      onToast?.('PIN protection removed');
+      window.dispatchEvent(new CustomEvent('pin:unlocked')); // Unlock after removing
+    } catch (error: any) {
+      onToast?.('Failed to remove PIN');
+    }
+  };
+
+  // Payment Link Handlers
+  const handleSavePaymentLink = () => {
+    try {
+      const paymentLinkData = {
+        enabled: paymentLinkEnabled,
+        url: paymentPageUrl.trim()
+      };
+
+      localStorage.setItem('storehouse-payment-link', JSON.stringify(paymentLinkData));
+
+      // Dispatch custom event so PaymentLinkCard can update
+      window.dispatchEvent(new CustomEvent('payment-link-updated'));
+
+      onToast?.('💳 Payment link settings saved');
+    } catch (error) {
+      console.error('Failed to save payment link:', error);
+      onToast?.('Failed to save payment link');
+    }
+  };
+
+  const handleCopyPaymentLink = async () => {
+    if (!paymentPageUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(paymentPageUrl);
+      onToast?.('📋 Link copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      onToast?.('Failed to copy link');
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!paymentPageUrl) return;
+
+    const businessName = profile.businessName || 'My Store';
+    const message = `Hi! 👋\n\nMake payments to *${businessName}* securely using this link:\n\n${paymentPageUrl}\n\nThank you! 🙏`;
+
+    // Encode the message for URL
+    const encodedMessage = encodeURIComponent(message);
+
+    // Determine if mobile or desktop
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const whatsappUrl = isMobile
+      ? `whatsapp://send?text=${encodedMessage}`
+      : `https://web.whatsapp.com/send?text=${encodedMessage}`;
+
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // Validate URL
+  const isValidPaymentUrl = (url: string): boolean => {
+    if (!url) return false;
+    try {
+      const urlObj = new URL(url);
+      // Check if it's a Paystack payment page URL or similar
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  // Tax Estimator Toggle Handler
+  const handleTaxCalculatorToggle = (isEnabled: boolean) => {
+    try {
+      // Update draft with new toggle state
+      const updatedDraft = {
+        ...draft,
+        enableTaxCalculator: isEnabled,
+        // Set default tax rate if enabling for FIRST time
+        ...(isEnabled && !draft.hasOwnProperty('enableTaxCalculator') ? {
+          taxRate: 0.07, // 7% income tax estimate for small businesses
+        } : {})
+      };
+
+      setDraft(updatedDraft);
+
+      console.log(`✅ Tax Estimator ${isEnabled ? 'enabled' : 'disabled'}`);
+
+    } catch (error) {
+      console.error('❌ Error updating tax estimator setting:', error);
+      onToast?.('Failed to update tax estimator setting');
+    }
+  };
+
+  // Advanced Configuration Handlers (Phase 2)
+  const updateAdvancedSetting = (key: string, value: any) => {
+    setAdvancedSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const resetToDefaults = () => {
+    const confirmed = window.confirm(
+      'Reset to default settings? This will set:\n\n' +
+      '• VAT-inclusive pricing\n' +
+      '• End-of-day calculations\n' +
+      '• Track purchases VAT only'
+    );
+
+    if (confirmed) {
+      setAdvancedSettings({
+        priceMode: 'VAT_INCLUSIVE',
+        taxMode: 'EOD',
+        claimInputVatFromPurchases: true,
+        claimInputVatFromExpenses: false,
+      });
+    }
+  };
+
+  const saveAdvancedConfig = () => {
+    // Update draft state with advanced settings
+    setDraft(prev => ({
+      ...prev,
+      ...advancedSettings
+    }));
+
+    // Close modal
+    setShowAdvancedConfig(false);
+
+    console.log('✅ Advanced tax settings saved:', advancedSettings);
+
+    // Show success message
+    onToast?.('Advanced settings saved! Click "Save Settings" to persist.');
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div className="bs-overlay" onClick={handleCancel} />
+      <div ref={sheetRef} className="bs-sheet" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bs-header">
+          <h2 className="bs-title">Business Settings</h2>
+          <button
+            className="bs-close"
+            onClick={handleCancel}
+            aria-label="Close settings"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="bs-body">
+          {/* Section 1: Profile */}
+          <section className="bs-section">
+            <h3 className="bs-section-title">Profile</h3>
+
+            <div className="bs-field">
+              <label htmlFor="bs-business-name" className="bs-label">
+                Business Name *
+              </label>
+              <input
+                id="bs-business-name"
+                type="text"
+                className="bs-input"
+                value={profile.businessName}
+                onChange={e => setProfile({ businessName: e.target.value })}
+                placeholder="Enter your business name"
+                maxLength={50}
+                aria-invalid={profile.businessName.trim() === ''}
+              />
+              <small className="bs-char-count">{profile.businessName.length}/50</small>
+            </div>
+
+            <div className="bs-field">
+              <label htmlFor="bs-owner-name" className="bs-label">
+                Owner Name
+              </label>
+              <input
+                id="bs-owner-name"
+                type="text"
+                className="bs-input"
+                value={profile.ownerName}
+                onChange={e => setProfile({ ownerName: e.target.value })}
+                placeholder="Enter owner's name"
+                maxLength={30}
+              />
+              <small className="bs-char-count">{profile.ownerName.length}/30</small>
+            </div>
+
+            <div className="bs-field">
+              <label htmlFor="bs-phone" className="bs-label">
+                Business Phone
+              </label>
+              <input
+                id="bs-phone"
+                type="tel"
+                inputMode="tel"
+                className="bs-input"
+                value={profile.phone}
+                onChange={e => setProfile({ phone: e.target.value })}
+                placeholder="08012345678"
+                maxLength={15}
+                aria-invalid={!/^0\d{10}$/.test((profile.phone || "").replace(/\s|-/g, ""))}
+              />
+              {profile.phone && !/^0\d{10}$/.test((profile.phone || "").replace(/\s|-/g, "")) ? (
+                <small className="bs-error">
+                  Enter a valid 11-digit Nigerian number (e.g., 08012345678).
+                </small>
+              ) : (
+                <small className="bs-help">
+                  Nigerian format: 080, 081, 090, 070, etc.
+                </small>
+              )}
+            </div>
+          </section>
+
+          {/* Section 2: Preferences */}
+          {RECEIPT_SETTINGS_ENABLED && (
+            <section className="bs-section">
+              <h3 className="bs-section-title">Preferences</h3>
+
+              {/* Receipt Message */}
+              <div className="bs-field">
+                <label htmlFor="bs-receipt-msg" className="bs-label">
+                  Receipt Message
+                </label>
+                <textarea
+                  id="bs-receipt-msg"
+                  className="bs-input bs-textarea"
+                  value={draft.receiptMessage || ''}
+                  onChange={e => update('receiptMessage', e.target.value)}
+                  placeholder="e.g., Thank you for your patronage!"
+                  maxLength={120}
+                  rows={2}
+                />
+                <small className="bs-char-count">
+                  {(draft.receiptMessage?.length || 0)}/120
+                </small>
+              </div>
+            </section>
+          )}
+
+          {/* Section 3: Data & Reports */}
+          <section className="bs-section">
+            <h3 className="bs-section-title">Data & Reports</h3>
+
+            <div className="bs-action-buttons">
+              <button
+                type="button"
+                className="bs-action-btn"
+                onClick={() => {
+                  onClose();
+                  onSendEOD?.();
+                }}
+              >
+                📤 Send EOD Report
+              </button>
+
+              <button
+                type="button"
+                className="bs-action-btn"
+                onClick={onExportCSV}
+              >
+                📊 Export Data (CSV)
+              </button>
+            </div>
+          </section>
+
+          {/* Section 4: Plan & Beta */}
+          <section className="bs-section">
+            <h3 className="bs-section-title">Plan & Beta</h3>
+
+            <div className="bs-plan-badges">
+              {isBetaTester && (
+                <span className="bs-badge bs-badge-beta">🧪 BETA MODE</span>
+              )}
+              <span className="bs-badge">
+                Current Plan: <strong>{currentPlan}</strong>
+              </span>
+              {!isBetaTester && currentPlan === 'FREE' && (
+                <span className="bs-badge bs-badge-warn">
+                  {itemCount}/10 products
+                </span>
+              )}
+              {!isBetaTester && currentPlan === 'STARTER' && (
+                <span className="bs-badge bs-badge-warn">
+                  {itemCount}/500 products
+                </span>
+              )}
+              {isBetaTester && (
+                <span className="bs-badge bs-badge-success">
+                  {itemCount} products (Unlimited)
+                </span>
+              )}
+            </div>
+
+            {/* Beta Tester Toggle */}
+            <div className="bs-field">
+              <div className="bs-toggle-row">
+                <div>
+                  <div className="bs-toggle-label">🧪 Beta Tester Mode</div>
+                  <div className="bs-toggle-desc">
+                    {isBetaTester
+                      ? 'Testing all premium features: Unlimited products, WhatsApp EOD, CSV export'
+                      : 'Enable to test all premium features during beta period'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="bs-switch"
+                  role="switch"
+                  aria-checked={isBetaTester}
+                  onClick={() => onToggleBeta?.(!isBetaTester)}
+                >
+                  <span className={`bs-switch-track ${isBetaTester ? 'on' : ''}`}>
+                    <span className="bs-switch-thumb" />
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="bs-action-btn bs-view-plans"
+              onClick={() => {
+                onClose();
+                onViewPlans?.();
+              }}
+            >
+              View Plans
+            </button>
+          </section>
+
+          {/* Section 5: Payment Integration (Collapsed by default) */}
+          <section className="bs-section">
+            <button
+              type="button"
+              className="bs-section-toggle"
+              onClick={() => setShowPayment(!showPayment)}
+              aria-expanded={showPayment}
+            >
+              <h3 className="bs-section-title">💳 Payment Integration</h3>
+              <span className="bs-chevron">{showPayment ? '▼' : '▶'}</span>
+            </button>
+
+            {showPayment && (
+              <div className="bs-advanced-content" style={{ paddingTop: '16px' }}>
+                <PaymentSettings onToast={onToast} />
+              </div>
+            )}
+          </section>
+
+          {/* Section 5.2: Payment Link Sharing (NEW) */}
+          <section className="bs-section">
+            <button
+              type="button"
+              className="bs-section-toggle"
+              onClick={() => setShowPaymentLink(!showPaymentLink)}
+              aria-expanded={showPaymentLink}
+            >
+              <h3 className="bs-section-title">💳 Payment Link (Easy Sharing)</h3>
+              <span className="bs-chevron">{showPaymentLink ? '▼' : '▶'}</span>
+            </button>
+
+            {showPaymentLink && (
+              <div className="bs-advanced-content" style={{ paddingTop: '16px' }}>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1.5rem' }}>
+                  Create a payment page on Paystack and share the link with customers via WhatsApp
+                </p>
+
+                {/* Enable checkbox */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={paymentLinkEnabled}
+                      onChange={(e) => setPaymentLinkEnabled(e.target.checked)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '0.9375rem', fontWeight: '500' }}>
+                      Enable Payment Link Sharing
+                    </span>
+                  </label>
+                </div>
+
+                {paymentLinkEnabled && (
+                  <>
+                    {/* Payment Page URL Input */}
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                        Paystack Payment Page URL
+                      </label>
+                      <input
+                        type="url"
+                        value={paymentPageUrl}
+                        onChange={(e) => setPaymentPageUrl(e.target.value)}
+                        placeholder="https://paystack.com/pay/your-store-name"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.9375rem',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                      <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                        Don't have one?{' '}
+                        <a
+                          href="https://dashboard.paystack.com/payment-pages"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#2563eb', textDecoration: 'underline' }}
+                        >
+                          Create your payment page on Paystack Dashboard
+                        </a>
+                      </p>
+                    </div>
+
+                    {/* URL Validation & Preview */}
+                    {paymentPageUrl && (
+                      <div style={{ marginBottom: '1rem' }}>
+                        {isValidPaymentUrl(paymentPageUrl) ? (
+                          <div style={{
+                            padding: '1rem',
+                            backgroundColor: '#f0fdf4',
+                            border: '1px solid #86efac',
+                            borderRadius: '0.5rem',
+                            marginBottom: '1rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                              <span style={{ fontSize: '1.25rem' }}>✅</span>
+                              <strong style={{ color: '#16a34a', fontSize: '0.9375rem' }}>Payment link configured</strong>
+                            </div>
+                            <p style={{ fontSize: '0.8125rem', color: '#15803d', margin: '0 0 0.75rem 0', wordBreak: 'break-all' }}>
+                              {paymentPageUrl}
+                            </p>
+
+                            {/* Action buttons */}
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={handleCopyPaymentLink}
+                                style={{
+                                  padding: '0.625rem 1rem',
+                                  background: 'white',
+                                  border: '1px solid #16a34a',
+                                  borderRadius: '0.5rem',
+                                  color: '#16a34a',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '500',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.375rem'
+                                }}
+                              >
+                                📋 Copy Link
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleShareWhatsApp}
+                                style={{
+                                  padding: '0.625rem 1rem',
+                                  background: '#25d366',
+                                  border: 'none',
+                                  borderRadius: '0.5rem',
+                                  color: 'white',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '500',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.375rem'
+                                }}
+                              >
+                                💬 Share on WhatsApp
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{
+                            padding: '0.75rem',
+                            backgroundColor: '#fef2f2',
+                            border: '1px solid #fca5a5',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem',
+                            color: '#991b1b'
+                          }}>
+                            ❌ Please enter a valid URL (must start with http:// or https://)
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Save button */}
+                    <button
+                      type="button"
+                      onClick={handleSavePaymentLink}
+                      disabled={!isValidPaymentUrl(paymentPageUrl)}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        background: isValidPaymentUrl(paymentPageUrl) ? '#2563eb' : '#d1d5db',
+                        border: 'none',
+                        borderRadius: '0.5rem',
+                        color: 'white',
+                        fontSize: '0.9375rem',
+                        fontWeight: '600',
+                        cursor: isValidPaymentUrl(paymentPageUrl) ? 'pointer' : 'not-allowed'
+                      }}
+                    >
+                      💾 Save Payment Link Settings
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Section 5.5: Security & Privacy (Collapsed by default) */}
+          <section className="bs-section">
+            <button
+              type="button"
+              className="bs-section-toggle"
+              onClick={() => setShowSecurity(!showSecurity)}
+              aria-expanded={showSecurity}
+            >
+              <h3 className="bs-section-title">🔒 Security & Privacy</h3>
+              <span className="bs-chevron">{showSecurity ? '▼' : '▶'}</span>
+            </button>
+
+            {showSecurity && (
+              <div className="bs-advanced-content" style={{ paddingTop: '16px' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                    📱 PIN Protection
+                  </h4>
+                  <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+                    Protect sensitive cost and profit information with a PIN. When locked, only selling prices and quantities will be visible.
+                  </p>
+
+                  {hasPinEnabled ? (
+                    <div>
+                      <div style={{
+                        padding: '1rem',
+                        backgroundColor: '#f0fdf4',
+                        border: '1px solid #86efac',
+                        borderRadius: '0.5rem',
+                        marginBottom: '1rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '1.25rem' }}>✅</span>
+                          <strong style={{ color: '#16a34a' }}>PIN Protection Active</strong>
+                        </div>
+                        <p style={{ fontSize: '0.875rem', color: '#15803d', margin: 0 }}>
+                          Your costs and profits are protected. Use the lock button to unlock temporarily.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleRemovePin}
+                        style={{
+                          padding: '0.75rem 1rem',
+                          border: '1px solid #dc2626',
+                          borderRadius: '0.5rem',
+                          background: 'white',
+                          color: '#dc2626',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Remove PIN Protection
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{
+                        padding: '1rem',
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fca5a5',
+                        borderRadius: '0.5rem',
+                        marginBottom: '1rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '1.25rem' }}>🔓</span>
+                          <strong style={{ color: '#dc2626' }}>No PIN Protection</strong>
+                        </div>
+                        <p style={{ fontSize: '0.875rem', color: '#991b1b', margin: 0 }}>
+                          Costs and profits are visible to anyone with access to this device.
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem' }}>
+                            New PIN (minimum 4 digits)
+                          </label>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={newPin}
+                            onChange={(e) => {
+                              setNewPin(e.target.value);
+                              setPinError('');
+                            }}
+                            placeholder="Enter PIN"
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem',
+                              fontSize: '1rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.5rem',
+                              fontFamily: 'monospace',
+                              letterSpacing: '0.25em'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem' }}>
+                            Confirm PIN
+                          </label>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={confirmPin}
+                            onChange={(e) => {
+                              setConfirmPin(e.target.value);
+                              setPinError('');
+                            }}
+                            placeholder="Confirm PIN"
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem',
+                              fontSize: '1rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.5rem',
+                              fontFamily: 'monospace',
+                              letterSpacing: '0.25em'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {pinError && (
+                        <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                          {pinError}
+                        </p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleSetPin}
+                        disabled={!newPin || !confirmPin}
+                        style={{
+                          padding: '0.75rem 1rem',
+                          border: 'none',
+                          borderRadius: '0.5rem',
+                          background: (!newPin || !confirmPin) ? '#d1d5db' : '#16a34a',
+                          color: 'white',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          cursor: (!newPin || !confirmPin) ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        Set PIN Protection
+                      </button>
+
+                      <p style={{
+                        fontSize: '0.75rem',
+                        color: '#9ca3af',
+                        marginTop: '0.75rem',
+                        lineHeight: '1.5'
+                      }}>
+                        💡 Your PIN is stored securely on this device only. If you forget it, you'll need to remove and reset it.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Section 6: Advanced (Collapsed by default) */}
+          <section className="bs-section">
+            <button
+              type="button"
+              className="bs-section-toggle"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              aria-expanded={showAdvanced}
+            >
+              <h3 className="bs-section-title">Advanced</h3>
+              <span className="bs-chevron">{showAdvanced ? '▼' : '▶'}</span>
+            </button>
+
+            {showAdvanced && (
+              <div className="bs-advanced-content">
+                {/* ═══════ PROFIT & TAX ESTIMATOR (SIMPLE) ═══════ */}
+                <div className="tax-calculator-section">
+                  <h4>📊 Profit &amp; Tax (Simple)</h4>
+
+                  <label className="toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={draft?.enableTaxEstimator || false}
+                      onChange={(e) => {
+                        setDraft({ ...draft, enableTaxEstimator: e.target.checked });
+                      }}
+                    />
+                    <span>Show Profit &amp; Estimated Tax on Dashboard</span>
+                  </label>
+
+                  <p className="description">
+                    Estimate based on profit (Sales − Expenses). No filing guidance.
+                  </p>
+
+                  {draft?.enableTaxEstimator && (
+                    <div className="tax-info-box" style={{ marginTop: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                        Tax Rate
+                      </label>
+                      <select
+                        value={draft?.taxRatePct ?? 2}
+                        onChange={(e) => setDraft({...draft, taxRatePct: Number(e.target.value)})}
+                        style={{padding: '0.5rem', fontSize: '16px'}}
+                      >
+                        <option value="1">1%</option>
+                        <option value="2">2%</option>
+                        <option value="5">5%</option>
+                        <option value="7">7%</option>
+                      </select>
+                      <p className="disclaimer" style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>
+                        💡 <em>Simple estimate only. Consult a tax professional for filing.</em>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="bs-action-btn bs-danger"
+                  onClick={handleResetDemo}
+                >
+                  Reset Demo Data
+                </button>
+                <button
+                  type="button"
+                  className="bs-action-btn"
+                  onClick={handleClearCache}
+                >
+                  Clear Cached Settings
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Footer */}
+        <div className="bs-footer">
+          <button
+            type="button"
+            className="bs-btn-primary save-settings"
+            onClick={onSave}
+            disabled={TEMP_ALWAYS_ENABLE_SAVE ? false : (!isDirty || !isValid || saving)}
+            data-testid="save-settings"
+          >
+            {saving ? "Saving…" : "Save Settings"}
+          </button>
+          <button
+            type="button"
+            className="bs-btn-secondary"
+            onClick={handleCancel}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      {/* Advanced configuration modal removed - simple tax estimator doesn't need complex VAT settings */}
+    </>
+  );
+}

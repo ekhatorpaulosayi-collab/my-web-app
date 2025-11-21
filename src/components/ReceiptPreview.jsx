@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/receipt.css';
 import { formatNaira } from '../utils/money.ts';
+import { downloadPDFReceipt, downloadReceiptImage } from '../utils/receiptGenerator.ts';
 
 // Helper: Format currency in NGN (kobo to naira)
 const formatNGN = (kobo) => {
@@ -155,6 +156,46 @@ const ReceiptPreview = ({ sale, business = {} }) => {
     window.print();
   }, []);
 
+  const handleDownloadPDF = useCallback(async () => {
+    try {
+      const receiptData = {
+        businessName: business.name || 'Storehouse Shop',
+        businessPhone: business.phone,
+        businessAddress: business.address,
+        date: dateTimeFormat(sale.createdAt),
+        receiptNumber: shortId(sale.id),
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.qty || 0,
+          price: (item.unitKobo || 0) / 100,
+          total: ((item.qty || 0) * (item.unitKobo || 0)) / 100
+        })),
+        subtotal: subtotal / 100,
+        discount: (sale.discountKobo || 0) / 100,
+        total: (subtotal - (sale.discountKobo || 0) + (sale.vatKobo || 0)) / 100,
+        paymentMethod: sale.paymentMethod || 'cash',
+        customerName: sale.customerName,
+        customerPhone: sale.phone,
+        staffName: sale.recorded_by_staff_name
+      };
+
+      await downloadPDFReceipt(receiptData, `receipt-${shortId(sale.id)}.pdf`);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF receipt');
+    }
+  }, [sale, business, items, subtotal]);
+
+  const handleDownloadImage = useCallback(async () => {
+    try {
+      // Use the receipt card element
+      await downloadReceiptImage('receipt-card-' + sale.id, `receipt-${shortId(sale.id)}.png`);
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      alert('Failed to download image receipt');
+    }
+  }, [sale.id]);
+
   // Calculate totals
   const items = sale.items || [{
     name: sale.itemName,
@@ -168,7 +209,7 @@ const ReceiptPreview = ({ sale, business = {} }) => {
   const total = subtotal - discount + vat;
 
   return (
-    <div className="receiptCard receiptPrintable">
+    <div id={'receipt-card-' + sale.id} className="receiptCard receiptPrintable">
       {/* Header */}
       <div className="receiptHeader">
         <div className="receiptBusinessName">
@@ -304,6 +345,20 @@ const ReceiptPreview = ({ sale, business = {} }) => {
           aria-label="Copy receipt text"
         >
           {copySuccess ? '✓ Copied!' : '📋 Copy'}
+        </button>
+        <button
+          className="btnOutline"
+          onClick={handleDownloadPDF}
+          aria-label="Download as PDF"
+        >
+          📄 PDF
+        </button>
+        <button
+          className="btnOutline"
+          onClick={handleDownloadImage}
+          aria-label="Download as Image"
+        >
+          🖼️ Image
         </button>
         <button
           className="btnOutline"

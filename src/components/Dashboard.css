@@ -1,0 +1,107 @@
+/**
+ * Dashboard v2.0 Styles
+ * Mobile-first widget-based dashboard
+ */
+
+.dashboard-v2 {
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Hero Actions */
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.hero-btn {
+  height: 64px;
+  border-radius: 16px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hero-btn:active {
+  transform: scale(0.98);
+}
+
+.hero-btn-primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.hero-btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.hero-btn-secondary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.hero-btn-secondary:hover {
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.hero-btn-icon {
+  font-size: 24px;
+}
+
+.hero-btn-text {
+  font-size: 16px;
+}
+
+/* Widgets Grid */
+.dashboard-widgets {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .dashboard-widgets {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-widgets {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Tablet and larger */
+@media (min-width: 768px) {
+  .dashboard-v2 {
+    padding: 24px;
+  }
+
+  .dashboard-hero {
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .hero-btn {
+    height: 72px;
+    gap: 16px;
+  }
+
+  .hero-btn-icon {
+    font-size: 28px;
+  }
+
+  .hero-btn-text {
+    font-size: 18px;
+  }
+}

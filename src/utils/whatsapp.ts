@@ -101,6 +101,29 @@ export function isValidNigerianPhone(phone: string): boolean {
 }
 
 /**
+ * Format Nigerian phone number for display
+ * Example: 08012345678 → 0801 234 5678
+ */
+export function formatPhoneDisplay(phone: string): string {
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, '');
+
+  // If it starts with 234, convert to 0 format
+  let localFormat = digits;
+  if (digits.startsWith('234') && digits.length === 13) {
+    localFormat = '0' + digits.slice(3);
+  }
+
+  // Format as: 0801 234 5678
+  if (localFormat.length === 11 && localFormat.startsWith('0')) {
+    return `${localFormat.slice(0, 4)} ${localFormat.slice(4, 7)} ${localFormat.slice(7)}`;
+  }
+
+  // Return as-is if doesn't match expected format
+  return phone;
+}
+
+/**
  * Detect if user is on a mobile device
  */
 export function isMobileDevice(): boolean {

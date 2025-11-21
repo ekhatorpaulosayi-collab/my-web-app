@@ -23,6 +23,9 @@ export type Settings = {
   priceMode?: 'VAT_INCLUSIVE' | 'VAT_EXCLUSIVE';
   claimInputVatFromPurchases?: boolean;
   claimInputVatFromExpenses?: boolean;
+  // Simple Profit & Tax Estimator (Phase 2) - NEW
+  enableTaxEstimator?: boolean;  // Show profit & tax panel on dashboard
+  taxRatePct?: number;            // Tax rate percentage (default 2%)
 };
 
 const STORAGE_KEY = 'storehouse-settings';
@@ -31,7 +34,7 @@ const DEFAULT_SETTINGS: Settings = {
   businessName: '',
   ownerName: '',
   phoneNumber: '',
-  quickSellEnabled: false, // force default OFF
+  quickSellEnabled: true, // Enable by default for ultra-minimal dashboard
   currency: 'NGN',
   numberFormat: 'en-NG',
   theme: 'light',
@@ -42,7 +45,10 @@ const DEFAULT_SETTINGS: Settings = {
   autoOfferReceipt: true,
   autoSendReceiptToSavedCustomers: false,
   lowStockThreshold: 3,
-  defaultHistoryRange: 'today'
+  defaultHistoryRange: 'today',
+  // Simple Profit & Tax Estimator defaults
+  enableTaxEstimator: false, // Opt-in (default FALSE)
+  taxRatePct: 2              // Default 2%
 };
 
 /**
@@ -98,4 +104,34 @@ export function validatePhoneNG(str: string): boolean {
   const regex = /^0[789][01]\d{8}$/;
 
   return regex.test(cleaned);
+}
+
+/**
+ * Save a partial setting (for auto-save toggles)
+ */
+export async function savePartial({ path, value }: { path: string; value: any }): Promise<void> {
+  try {
+    const current = getSettings();
+    const keys = path.split('.');
+    let target: any = current;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+      target = target[keys[i]];
+    }
+
+    target[keys[keys.length - 1]] = value;
+    saveSettings(current);
+    console.debug('[Settings] toggle saved', { path, value });
+  } catch (error) {
+    console.debug('[Settings] save failed', error);
+    throw error;
+  }
+}
+
+/**
+ * Save all settings (for form submission)
+ */
+export async function saveAll(payload: Settings): Promise<void> {
+  saveSettings(payload);
+  console.debug('[Settings] saved form');
 }

@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadStoreLogo } from '../utils/imageUpload';
+import { useStore, useStoreActions } from '../lib/supabase-hooks';
+import { supabase } from '../lib/supabase';
+import { uploadStoreLogo } from '../lib/supabase-storage';
 import { makeAllItemsPublic } from '../utils/makeItemsPublic';
 import { Share2, Camera, Link, Loader, Check, X, Eye } from 'lucide-react';
 import type { StoreProfile } from '../types';
+import { NIGERIAN_BANKS, validateAccountNumber, formatAccountNumber } from '../utils/nigerianBanks';
+import { ABOUT_TEMPLATES, countCharacters } from '../utils/aboutTemplates';
+import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
+import { useAutoSave, getSaveStatusMessage, getSaveStatusColor } from '../hooks/useAutoSave';
+import { showFriendlyError } from '../utils/friendlyErrors';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
   const { currentUser: user } = useAuth();
+
+  // Load store from Supabase
+  const { store, loading: storeLoading } = useStore(user?.uid);
+  const { updateStore, saving } = useStoreActions(user?.uid);
+
   const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>('');
@@ -20,6 +30,13 @@ export const StoreSettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [slugError, setSlugError] = useState('');
+  const [showQRCode, setShowQRCode] = useState(false);
+
+  // Custom domain state
+  const [customDomain, setCustomDomain] = useState('');
+  const [customDomainVerified, setCustomDomainVerified] = useState(false);
+  const [subdomain, setSubdomain] = useState('');
+  const [verifyingDomain, setVerifyingDomain] = useState(false);
 
   // Payment details state
   const [bankName, setBankName] = useState('');
@@ -72,61 +89,88 @@ export const StoreSettings: React.FC = () => {
     return null;
   };
 
-  // Load existing store profile
+  // Load existing store profile from Supabase hook
   useEffect(() => {
-    if (!user) return;
+    if (!store) return;
 
-    const loadProfile = async () => {
-      const docRef = doc(db, 'stores', user.uid);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data() as StoreProfile;
-        setStoreProfile(data);
-        setStoreSlug(data.storeSlug || '');
-        setBusinessName(data.businessName || '');
-        setWhatsappNumber(data.whatsappNumber || '');
-        setAddress(data.address || '');
-        if (data.logoUrl) setLogoPreview(data.logoUrl);
-
-        // Load payment details
-        setBankName(data.bankName || '');
-        setAccountNumber(data.accountNumber || '');
-        setAccountName(data.accountName || '');
-        setPaymentMethods(data.acceptedPaymentMethods || []);
-        setPaymentInstructions(data.paymentInstructions || '');
-
-        // Load Paystack settings
-        setPaystackEnabled(data.paystackEnabled || false);
-        setPaystackPublicKey(data.paystackPublicKey || '');
-        setPaystackTestMode(data.paystackTestMode ?? true);
-
-        // Load delivery information
-        setDeliveryAreas(data.deliveryAreas || []);
-        setDeliveryFee(data.deliveryFee || '');
-        setDeliveryTime(data.deliveryTime || '');
-        setMinimumOrder(data.minimumOrder || '');
-
-        // Load business hours
-        setBusinessHours(data.businessHours || '');
-        setDaysOfOperation(data.daysOfOperation || []);
-
-        // Load social media
-        setInstagramUrl(data.instagramUrl || '');
-        setFacebookUrl(data.facebookUrl || '');
-        setTiktokUrl(data.tiktokUrl || '');
-        setTwitterUrl(data.twitterUrl || '');
-
-        // Load about & policies
-        setAboutUs(data.aboutUs || '');
-        setReturnPolicy(data.returnPolicy || '');
-      }
+    // Map Supabase data to local state
+    const data: any = {
+      storeSlug: store.store_slug,
+      businessName: store.business_name,
+      whatsappNumber: store.whatsapp_number,
+      address: store.address,
+      logoUrl: store.logo_url,
+      subdomain: store.subdomain,
+      customDomain: store.custom_domain,
+      customDomainVerified: store.custom_domain_verified,
+      bankName: store.bank_name,
+      accountNumber: store.account_number,
+      accountName: store.account_name,
+      acceptedPaymentMethods: store.accepted_payment_methods,
+      paymentInstructions: store.payment_instructions,
+      paystackEnabled: store.paystack_enabled,
+      paystackPublicKey: store.paystack_public_key,
+      paystackTestMode: store.paystack_test_mode,
+      deliveryAreas: store.delivery_areas,
+      deliveryFee: store.delivery_fee,
+      deliveryTime: store.delivery_time,
+      minimumOrder: store.minimum_order,
+      businessHours: store.business_hours,
+      daysOfOperation: store.days_of_operation,
+      instagramUrl: store.instagram_url,
+      facebookUrl: store.facebook_url,
+      tiktokUrl: store.tiktok_url,
+      twitterUrl: store.twitter_url,
+      aboutUs: store.about_us,
+      returnPolicy: store.return_policy,
     };
 
-    loadProfile();
-  }, [user]);
+    setStoreProfile(data as StoreProfile);
+    setStoreSlug(data.storeSlug || '');
+    setBusinessName(data.businessName || '');
+    setWhatsappNumber(data.whatsappNumber || '');
+    setAddress(data.address || '');
+    if (data.logoUrl) setLogoPreview(data.logoUrl);
 
-  // Check slug availability
+    // Load domain settings
+    setSubdomain(data.subdomain || '');
+    setCustomDomain(data.customDomain || '');
+    setCustomDomainVerified(data.customDomainVerified || false);
+
+    // Load payment details
+    setBankName(data.bankName || '');
+    setAccountNumber(data.accountNumber || '');
+    setAccountName(data.accountName || '');
+    setPaymentMethods(data.acceptedPaymentMethods || []);
+    setPaymentInstructions(data.paymentInstructions || '');
+
+    // Load Paystack settings
+    setPaystackEnabled(data.paystackEnabled || false);
+    setPaystackPublicKey(data.paystackPublicKey || '');
+    setPaystackTestMode(data.paystackTestMode ?? true);
+
+    // Load delivery information
+    setDeliveryAreas(data.deliveryAreas || []);
+    setDeliveryFee(data.deliveryFee || '');
+    setDeliveryTime(data.deliveryTime || '');
+    setMinimumOrder(data.minimumOrder || '');
+
+    // Load business hours
+    setBusinessHours(data.businessHours || '');
+    setDaysOfOperation(data.daysOfOperation || []);
+
+    // Load social media
+    setInstagramUrl(data.instagramUrl || '');
+    setFacebookUrl(data.facebookUrl || '');
+    setTiktokUrl(data.tiktokUrl || '');
+    setTwitterUrl(data.twitterUrl || '');
+
+    // Load about & policies
+    setAboutUs(data.aboutUs || '');
+    setReturnPolicy(data.returnPolicy || '');
+  }, [store]);
+
+  // Check slug availability (Supabase)
   const checkSlugAvailability = async (slug: string) => {
     const normalized = normalizeSlug(slug);
     const error = validateSlug(normalized);
@@ -140,8 +184,17 @@ export const StoreSettings: React.FC = () => {
     setSlugError('');
 
     try {
-      const slugDoc = await getDoc(doc(db, 'slugs', normalized));
-      const available = !slugDoc.exists() || slugDoc.data()?.ownerId === user?.uid;
+      const { data, error: queryError } = await supabase
+        .from('stores')
+        .select('user_id')
+        .eq('store_slug', normalized)
+        .maybeSingle();
+
+      if (queryError && queryError.code !== 'PGRST116') {
+        throw queryError;
+      }
+
+      const available = !data || data.user_id === user?.uid;
       setSlugAvailable(available);
     } catch (error) {
       console.error('Error checking slug:', error);
@@ -160,12 +213,12 @@ export const StoreSettings: React.FC = () => {
     return () => clearTimeout(timer);
   }, [storeSlug]);
 
-  // Handle logo file selection
+  // Handle logo file selection with 2MB limit
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image must be less than 5MB');
+      if (file.size > 2 * 1024 * 1024) {
+        alert('⚠️ Image must be less than 2MB\n\nPlease use a smaller image or compress it before uploading.');
         return;
       }
       setLogoFile(file);
@@ -173,9 +226,9 @@ export const StoreSettings: React.FC = () => {
     }
   };
 
-  // Save store settings with transaction
+  // Save store settings (Supabase)
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !store?.id) return;
 
     // Validate required fields
     const missingFields: string[] = [];
@@ -206,88 +259,57 @@ export const StoreSettings: React.FC = () => {
         logoUrl = await uploadStoreLogo(logoFile, user.uid, storeProfile?.logoUrl);
       }
 
-      // Transaction to atomically claim slug and update store
-      await runTransaction(db, async (transaction) => {
-        const slugRef = doc(db, 'slugs', normalizedSlug);
-        const storeRef = doc(db, 'stores', user.uid);
+      // Update store profile in Supabase
+      const profileData = {
+        business_name: businessName.trim(),
+        store_slug: normalizedSlug,
+        subdomain: normalizedSlug, // Auto-sync subdomain with slug
+        custom_domain: customDomain.trim() || null,
+        logo_url: logoUrl || '',
+        whatsapp_number: whatsappNumber.trim(),
+        address: address.trim(),
+        is_public: true,
+        // Payment details
+        bank_name: bankName.trim(),
+        account_number: accountNumber.trim(),
+        account_name: accountName.trim(),
+        accepted_payment_methods: paymentMethods,
+        payment_instructions: paymentInstructions.trim(),
+        // Paystack integration
+        paystack_enabled: paystackEnabled,
+        paystack_public_key: paystackPublicKey.trim(),
+        paystack_test_mode: paystackTestMode,
+        // Delivery information
+        delivery_areas: deliveryAreas,
+        delivery_fee: deliveryFee.trim(),
+        delivery_time: deliveryTime.trim(),
+        minimum_order: minimumOrder.trim(),
+        // Business hours
+        business_hours: businessHours.trim(),
+        days_of_operation: daysOfOperation,
+        // Social media
+        instagram_url: instagramUrl.trim(),
+        facebook_url: facebookUrl.trim(),
+        tiktok_url: tiktokUrl.trim(),
+        twitter_url: twitterUrl.trim(),
+        // About & Policies
+        about_us: aboutUs.trim(),
+        return_policy: returnPolicy.trim()
+      };
 
-        // Check slug ownership
-        const slugSnap = await transaction.get(slugRef);
-        if (slugSnap.exists() && slugSnap.data().ownerId !== user.uid) {
-          throw new Error('This store URL is already taken');
-        }
-
-        // Claim/update slug ownership
-        transaction.set(slugRef, {
-          ownerId: user.uid,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        // Update store profile
-        const profileData = {
-          businessName: businessName.trim(),
-          storeSlug: normalizedSlug,
-          logoUrl: logoUrl || '',
-          whatsappNumber: whatsappNumber.trim(),
-          address: address.trim(),
-          ownerId: user.uid,
-          isPublic: true,
-          updatedAt: serverTimestamp(),
-          createdAt: storeProfile?.createdAt || serverTimestamp(),
-          // Payment details
-          bankName: bankName.trim(),
-          accountNumber: accountNumber.trim(),
-          accountName: accountName.trim(),
-          acceptedPaymentMethods: paymentMethods,
-          paymentInstructions: paymentInstructions.trim(),
-          // Paystack integration
-          paystackEnabled: paystackEnabled,
-          paystackPublicKey: paystackPublicKey.trim(),
-          paystackTestMode: paystackTestMode,
-          // Delivery information
-          deliveryAreas: deliveryAreas,
-          deliveryFee: deliveryFee.trim(),
-          deliveryTime: deliveryTime.trim(),
-          minimumOrder: minimumOrder.trim(),
-          // Business hours
-          businessHours: businessHours.trim(),
-          daysOfOperation: daysOfOperation,
-          // Social media
-          instagramUrl: instagramUrl.trim(),
-          facebookUrl: facebookUrl.trim(),
-          tiktokUrl: tiktokUrl.trim(),
-          twitterUrl: twitterUrl.trim(),
-          // About & Policies
-          aboutUs: aboutUs.trim(),
-          returnPolicy: returnPolicy.trim()
-        };
-
-        transaction.set(storeRef, profileData, { merge: true });
-      });
+      await updateStore(store.id, profileData);
 
       alert('Store settings saved successfully!');
-
-      // Reload profile to get server timestamps
-      const updatedDoc = await getDoc(doc(db, 'stores', user.uid));
-      if (updatedDoc.exists()) {
-        setStoreProfile(updatedDoc.data() as StoreProfile);
-      }
 
     } catch (error: any) {
       console.error('Error saving:', error);
 
-      // Provide helpful error messages
-      let errorMessage = 'Failed to save settings';
-
-      if (error.message?.includes('permission')) {
-        errorMessage = '⚠️ Permission Error\n\nPlease make sure you are logged in and have access to save settings.\n\nTry logging out and back in if the problem persists.';
-      } else if (error.message?.includes('taken')) {
-        errorMessage = '❌ This store URL is already taken.\n\nPlease choose a different URL.';
-      } else if (error.message) {
-        errorMessage = `❌ Error:\n\n${error.message}`;
+      // Show friendly error message
+      if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
+        alert('❌ This store URL is already taken.\n\nPlease choose a different URL.');
+      } else {
+        showFriendlyError(error);
       }
-
-      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -305,7 +327,7 @@ export const StoreSettings: React.FC = () => {
       alert(`✅ Success! ${result.updated} items are now public and visible on your storefront.`);
     } catch (error: any) {
       console.error('Error making items public:', error);
-      alert('Failed to update items. Please try again.');
+      showFriendlyError(error);
     } finally {
       setLoading(false);
     }
@@ -407,6 +429,231 @@ export const StoreSettings: React.FC = () => {
             Copy Link
           </button>
         </div>
+
+        {/* QR Code Section */}
+        {storeSlug && slugAvailable && (
+          <div style={{ marginTop: '16px' }}>
+            <button
+              type="button"
+              onClick={() => setShowQRCode(!showQRCode)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'white',
+                border: '2px solid #667eea',
+                borderRadius: '8px',
+                color: '#667eea',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#F5F7FF';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'white';
+              }}
+            >
+              <span style={{ fontSize: '20px' }}>📱</span>
+              <span>{showQRCode ? 'Hide QR Code' : 'Show QR Code'}</span>
+            </button>
+
+            {showQRCode && (
+              <div style={{
+                marginTop: '16px',
+                padding: '20px',
+                background: '#F9FAFB',
+                borderRadius: '12px',
+                border: '1px solid #E5E7EB',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px',
+              }}>
+                <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, textAlign: 'center' }}>
+                  Customers can scan this QR code to visit your store
+                </p>
+                <img
+                  src={generateStoreQRCode(normalizeSlug(storeSlug), 300)}
+                  alt="Store QR Code"
+                  style={{
+                    width: '200px',
+                    height: '200px',
+                    borderRadius: '8px',
+                    border: '2px solid #E5E7EB',
+                    background: 'white',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await downloadQRCode(storeUrl, `${normalizeSlug(storeSlug)}-qr-code.png`);
+                      alert('✅ QR Code downloaded successfully!');
+                    } catch (error) {
+                      alert('Failed to download QR code. Please try again.');
+                    }
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#667eea',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#5568d3';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#667eea';
+                  }}
+                >
+                  Download QR Code
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Custom Domain Section */}
+      <div className="form-group" style={{
+        background: '#ffffff',
+        padding: '24px',
+        borderRadius: '12px',
+        border: '1px solid #E5E7EB',
+        marginBottom: '2rem'
+      }}>
+        <label style={{ fontSize: '1rem', fontWeight: 600, color: '#202223', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          🌐 Custom Domain
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            padding: '2px 8px',
+            background: '#F3F4F6',
+            color: '#6B7280',
+            borderRadius: '4px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Optional
+          </span>
+        </label>
+        <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.5rem 0 1rem' }}>
+          Connect your own domain name (e.g., mybusiness.com) for a professional online presence
+        </p>
+
+        {/* Show subdomain as default option */}
+        <div style={{
+          padding: '16px',
+          background: '#F0FDF4',
+          border: '2px solid #86EFAC',
+          borderRadius: '8px',
+          marginBottom: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <span style={{ fontSize: '24px', flexShrink: 0 }}>✅</span>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#166534', marginBottom: '4px' }}>
+                Your free subdomain is ready!
+              </div>
+              <code style={{
+                fontSize: '13px',
+                background: 'white',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                color: '#059669',
+                fontWeight: 600,
+                display: 'inline-block',
+                marginTop: '4px'
+              }}>
+                {subdomain || storeSlug}.storehouse.app
+              </code>
+              <div style={{ fontSize: '12px', color: '#16803D', marginTop: '8px' }}>
+                This works immediately - no setup required!
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom domain input */}
+        <div>
+          <label style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '8px', display: 'block' }}>
+            Custom Domain (Optional)
+          </label>
+          <input
+            type="text"
+            value={customDomain}
+            onChange={(e) => setCustomDomain(e.target.value.toLowerCase().trim())}
+            placeholder="www.mybusiness.com"
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              fontSize: '14px',
+              border: customDomainVerified ? '2px solid #10b981' : '1px solid #D1D5DB',
+              borderRadius: '8px',
+              outline: 'none',
+              fontFamily: 'monospace'
+            }}
+          />
+
+          {customDomainVerified && (
+            <div style={{
+              marginTop: '8px',
+              fontSize: '13px',
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <Check size={16} />
+              Domain verified and active
+            </div>
+          )}
+
+          {customDomain && !customDomainVerified && (
+            <div style={{
+              marginTop: '12px',
+              padding: '12px',
+              background: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#92400E'
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: '8px' }}>
+                ⚠️ DNS Setup Required
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                Add this CNAME record in your domain settings:
+              </div>
+              <div style={{
+                background: 'white',
+                padding: '8px',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                marginBottom: '8px'
+              }}>
+                <div><strong>Type:</strong> CNAME</div>
+                <div><strong>Name:</strong> www (or @)</div>
+                <div><strong>Value:</strong> {subdomain || storeSlug}.storehouse.app</div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#78350F' }}>
+                After adding the DNS record, save your settings. Verification can take up to 24 hours.
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Business Name */}
@@ -464,27 +711,55 @@ export const StoreSettings: React.FC = () => {
           Add your bank account details so customers know where to send payment. This will be displayed on your storefront.
         </p>
 
-        {/* Bank Name */}
+        {/* Bank Name - Enhanced with Dropdown */}
         <div className="form-group">
           <label>Bank Name</label>
-          <input
-            type="text"
+          <select
             value={bankName}
             onChange={(e) => setBankName(e.target.value)}
-            placeholder="e.g., GTBank, Access Bank, Zenith Bank"
-          />
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              fontSize: '16px',
+              border: '1px solid #D1D5DB',
+              borderRadius: '8px',
+              background: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">Select your bank</option>
+            {NIGERIAN_BANKS.map(bank => (
+              <option key={bank} value={bank}>{bank}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Account Number */}
+        {/* Account Number - Enhanced with Validation */}
         <div className="form-group">
           <label>Account Number</label>
           <input
             type="text"
             value={accountNumber}
-            onChange={(e) => setAccountNumber(e.target.value)}
+            onChange={(e) => {
+              const formatted = formatAccountNumber(e.target.value);
+              setAccountNumber(formatted);
+            }}
             placeholder="0123456789"
             maxLength={10}
+            style={{
+              borderColor: accountNumber && !validateAccountNumber(accountNumber) ? '#DC2626' : '#D1D5DB',
+            }}
           />
+          {accountNumber && !validateAccountNumber(accountNumber) && (
+            <p style={{ fontSize: '13px', color: '#DC2626', marginTop: '6px' }}>
+              Account number must be exactly 10 digits
+            </p>
+          )}
+          {accountNumber && validateAccountNumber(accountNumber) && (
+            <p style={{ fontSize: '13px', color: '#059669', marginTop: '6px' }}>
+              ✓ Valid account number
+            </p>
+          )}
         </div>
 
         {/* Account Name */}
@@ -497,6 +772,26 @@ export const StoreSettings: React.FC = () => {
             placeholder="Paul Osayi Enterprise"
           />
         </div>
+
+        {/* Payment Details Preview */}
+        {bankName && accountNumber && accountName && validateAccountNumber(accountNumber) && (
+          <div style={{
+            marginTop: '1.5rem',
+            padding: '16px',
+            background: '#F0FDF4',
+            border: '1px solid #86EFAC',
+            borderRadius: '8px',
+          }}>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: '#166534', marginBottom: '8px' }}>
+              ✓ Customer Preview
+            </p>
+            <div style={{ fontSize: '14px', color: '#166534', lineHeight: 1.6 }}>
+              <div><strong>Bank:</strong> {bankName}</div>
+              <div><strong>Account:</strong> {accountNumber}</div>
+              <div><strong>Name:</strong> {accountName}</div>
+            </div>
+          </div>
+        )}
 
         {/* Payment Methods */}
         <div className="form-group">
@@ -857,42 +1152,130 @@ export const StoreSettings: React.FC = () => {
           />
         </div>
 
-        {/* Days of Operation */}
+        {/* Days of Operation - Enhanced with Toggle Switches */}
         <div className="form-group">
-          <label>Days of Operation</label>
-          <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.75rem' }}>
-            Select the days you're open:
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <label style={{ margin: 0 }}>Days of Operation</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                  setDaysOfOperation(weekdays);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  background: 'white',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#667eea',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#F3F4F6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                Weekdays Only
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                  setDaysOfOperation(allDays);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  background: 'white',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#667eea',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#F3F4F6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                Select All Days
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
               <label
                 key={day}
                 style={{
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 16px',
-                  background: daysOfOperation.includes(day) ? '#8b5cf6' : 'white',
-                  color: daysOfOperation.includes(day) ? 'white' : '#1e293b',
-                  border: '2px solid #e2e8f0',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  background: daysOfOperation.includes(day) ? '#F5F7FF' : 'white',
+                  border: `2px solid ${daysOfOperation.includes(day) ? '#667eea' : '#e2e8f0'}`,
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
+                  fontSize: '0.9375rem',
+                  fontWeight: 500,
                   transition: 'all 0.2s',
                   userSelect: 'none'
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={daysOfOperation.includes(day)}
-                  onChange={() => toggleDay(day)}
-                  style={{ margin: 0, cursor: 'pointer' }}
-                />
-                {day}
+                <span style={{ color: daysOfOperation.includes(day) ? '#667eea' : '#1e293b' }}>
+                  {day}
+                </span>
+                {/* Toggle Switch */}
+                <div
+                  onClick={() => toggleDay(day)}
+                  style={{
+                    width: '48px',
+                    height: '24px',
+                    background: daysOfOperation.includes(day) ? '#667eea' : '#D1D5DB',
+                    borderRadius: '12px',
+                    position: 'relative',
+                    transition: 'all 0.2s',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    width: '20px',
+                    height: '20px',
+                    background: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: daysOfOperation.includes(day) ? '26px' : '2px',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                  }}></div>
+                </div>
               </label>
             ))}
           </div>
+
+          {/* Preview */}
+          {daysOfOperation.length > 0 && businessHours && (
+            <div style={{
+              marginTop: '16px',
+              padding: '12px 16px',
+              background: '#F0FDF4',
+              border: '1px solid #86EFAC',
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: '#166534',
+            }}>
+              <strong>Preview:</strong> {daysOfOperation.join(', ')} | {businessHours}
+            </div>
+          )}
         </div>
       </div>
 
@@ -917,44 +1300,92 @@ export const StoreSettings: React.FC = () => {
           Connect your social media accounts to build trust and reach more customers.
         </p>
 
+        {/* Instagram */}
         <div className="form-group">
-          <label>Instagram URL</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>📸</span>
+            Instagram URL (Optional)
+          </label>
           <input
             type="url"
             value={instagramUrl}
             onChange={(e) => setInstagramUrl(e.target.value)}
             placeholder="https://instagram.com/yourbusiness"
+            style={{
+              borderColor: instagramUrl && !instagramUrl.includes('instagram.com') ? '#FFA500' : '#D1D5DB',
+            }}
           />
+          {instagramUrl && !instagramUrl.includes('instagram.com') && (
+            <p style={{ fontSize: '13px', color: '#EA580C', marginTop: '6px' }}>
+              ⚠️ Make sure this is a valid Instagram URL
+            </p>
+          )}
         </div>
 
+        {/* Facebook */}
         <div className="form-group">
-          <label>Facebook URL</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>👥</span>
+            Facebook URL (Optional)
+          </label>
           <input
             type="url"
             value={facebookUrl}
             onChange={(e) => setFacebookUrl(e.target.value)}
             placeholder="https://facebook.com/yourbusiness"
+            style={{
+              borderColor: facebookUrl && !facebookUrl.includes('facebook.com') ? '#FFA500' : '#D1D5DB',
+            }}
           />
+          {facebookUrl && !facebookUrl.includes('facebook.com') && (
+            <p style={{ fontSize: '13px', color: '#EA580C', marginTop: '6px' }}>
+              ⚠️ Make sure this is a valid Facebook URL
+            </p>
+          )}
         </div>
 
+        {/* TikTok */}
         <div className="form-group">
-          <label>TikTok URL (Optional)</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>🎵</span>
+            TikTok URL (Optional)
+          </label>
           <input
             type="url"
             value={tiktokUrl}
             onChange={(e) => setTiktokUrl(e.target.value)}
             placeholder="https://tiktok.com/@yourbusiness"
+            style={{
+              borderColor: tiktokUrl && !tiktokUrl.includes('tiktok.com') ? '#FFA500' : '#D1D5DB',
+            }}
           />
+          {tiktokUrl && !tiktokUrl.includes('tiktok.com') && (
+            <p style={{ fontSize: '13px', color: '#EA580C', marginTop: '6px' }}>
+              ⚠️ Make sure this is a valid TikTok URL
+            </p>
+          )}
         </div>
 
+        {/* Twitter/X */}
         <div className="form-group">
-          <label>Twitter/X URL (Optional)</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>🐦</span>
+            Twitter/X URL (Optional)
+          </label>
           <input
             type="url"
             value={twitterUrl}
             onChange={(e) => setTwitterUrl(e.target.value)}
             placeholder="https://twitter.com/yourbusiness"
+            style={{
+              borderColor: twitterUrl && !(twitterUrl.includes('twitter.com') || twitterUrl.includes('x.com')) ? '#FFA500' : '#D1D5DB',
+            }}
           />
+          {twitterUrl && !(twitterUrl.includes('twitter.com') || twitterUrl.includes('x.com')) && (
+            <p style={{ fontSize: '13px', color: '#EA580C', marginTop: '6px' }}>
+              ⚠️ Make sure this is a valid Twitter/X URL
+            </p>
+          )}
         </div>
       </div>
 
@@ -979,14 +1410,73 @@ export const StoreSettings: React.FC = () => {
           Tell your story! Why should customers choose you?
         </p>
 
+        {/* Template Buttons */}
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
+            Quick Start Templates:
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {ABOUT_TEMPLATES.map(template => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => setAboutUs(template.content)}
+                style={{
+                  padding: '8px 14px',
+                  background: 'white',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#667eea',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#667eea';
+                  e.currentTarget.style.background = '#F5F7FF';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#E5E7EB';
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                <span>{template.icon}</span>
+                <span>{template.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="form-group">
-          <label>About Us</label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <label style={{ margin: 0 }}>About Us</label>
+            <span style={{
+              fontSize: '13px',
+              color: countCharacters(aboutUs) > 500 ? '#DC2626' : '#6B7280',
+              fontWeight: 600,
+            }}>
+              {countCharacters(aboutUs)}/500
+            </span>
+          </div>
           <textarea
             value={aboutUs}
             onChange={(e) => setAboutUs(e.target.value)}
             placeholder="Tell customers about your business, your experience, what makes you special..."
             rows={5}
+            maxLength={500}
+            style={{
+              borderColor: countCharacters(aboutUs) > 500 ? '#DC2626' : '#D1D5DB',
+            }}
           />
+          {countCharacters(aboutUs) > 500 && (
+            <p style={{ fontSize: '13px', color: '#DC2626', marginTop: '6px' }}>
+              Text exceeds maximum length of 500 characters
+            </p>
+          )}
         </div>
       </div>
 
@@ -1022,30 +1512,126 @@ export const StoreSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* Logo Upload */}
-      <div className="form-group">
-        <label>Store Logo</label>
-        <div className="logo-upload-container">
-          <div className="logo-preview">
+      {/* Logo Upload - Enhanced Circular Design */}
+      <div className="form-group" style={cleanCardStyle}>
+        <h3 style={{
+          margin: '0 0 1rem 0',
+          fontSize: '1.25rem',
+          color: '#202223',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          📸 Store Logo
+        </h3>
+        <p style={{
+          margin: '0 0 1.5rem 0',
+          fontSize: '0.875rem',
+          color: '#6B7280',
+          lineHeight: 1.6
+        }}>
+          Upload a logo to make your store look professional. Max file size: 2MB
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+          {/* Circular Logo Preview */}
+          <div style={{
+            width: '150px',
+            height: '150px',
+            borderRadius: '50%',
+            border: '3px solid #E5E7EB',
+            overflow: 'hidden',
+            background: logoPreview ? 'transparent' : '#F9FAFB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+          }}>
             {logoPreview ? (
-              <img src={logoPreview} alt="Store logo" />
+              <img
+                src={logoPreview}
+                alt="Store logo"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
             ) : (
-              <div className="logo-placeholder">
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#9CA3AF',
+              }}>
                 <Camera size={40} />
-                <span>Add Logo</span>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>No Logo</span>
               </div>
             )}
           </div>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleLogoChange}
-            id="logo-input"
-            hidden
-          />
-          <label htmlFor="logo-input" className="btn btn-secondary">
-            Choose Image
-          </label>
+
+          {/* Upload/Remove Buttons */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleLogoChange}
+              id="logo-input"
+              hidden
+            />
+            <label
+              htmlFor="logo-input"
+              style={{
+                padding: '10px 20px',
+                background: '#667eea',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#5568d3';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#667eea';
+              }}
+            >
+              {logoPreview ? 'Change Logo' : 'Choose Image'}
+            </label>
+
+            {logoPreview && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLogoPreview('');
+                  setLogoFile(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: 'white',
+                  color: '#DC2626',
+                  border: '2px solid #DC2626',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#FEE2E2';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                Remove Logo
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

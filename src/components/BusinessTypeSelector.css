@@ -1,0 +1,349 @@
+/**
+ * Business Type Selector Styles
+ * Mobile-first design optimized for Nigerian Android phones
+ */
+
+.business-selector-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 9999;
+  overflow-y: auto;
+}
+
+.business-selector-modal {
+  background: white;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.bts-header {
+  text-align: center;
+  padding: 32px 24px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.bts-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #111827;
+}
+
+.bts-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #111827;
+}
+
+.bts-subtitle {
+  font-size: 15px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Content */
+.bts-content {
+  padding: 24px;
+}
+
+.bts-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: #111827;
+}
+
+.bts-description {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 24px;
+}
+
+/* Grid */
+.bts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 480px) {
+  .bts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Card */
+.bts-card {
+  position: relative;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 144px; /* 44px+ tap target with padding */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.bts-card:active {
+  transform: scale(0.98);
+}
+
+.bts-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.bts-card-selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f0f3ff 0%, #e8ebff 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.bts-card-icon {
+  font-size: 36px;
+  margin-bottom: 4px;
+}
+
+.bts-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.bts-card-desc {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.bts-card-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  background: #667eea;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* PIN Section */
+.bts-pin-section {
+  padding: 24px;
+}
+
+.bts-form-group {
+  margin-bottom: 20px;
+}
+
+.bts-form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.bts-pin-input {
+  width: 100%;
+  height: 56px; /* 44px+ for touch */
+  padding: 0 16px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 8px;
+  text-align: center;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.bts-pin-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.bts-pin-info {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 14px;
+  color: #0c4a6e;
+  margin-top: 20px;
+}
+
+.bts-pin-info ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.bts-pin-info li {
+  margin: 4px 0;
+}
+
+/* Error */
+.bts-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+/* Actions */
+.bts-actions {
+  padding: 20px 24px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 12px;
+}
+
+.bts-btn {
+  flex: 1;
+  height: 52px; /* 44px+ for touch */
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bts-btn:active {
+  transform: scale(0.98);
+}
+
+.bts-btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.bts-btn-primary:hover {
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.bts-btn-primary:disabled {
+  background: #d1d5db;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.bts-btn-secondary {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+.bts-btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.bts-btn-large {
+  width: 100%;
+}
+
+/* Mobile optimizations */
+@media (max-width: 479px) {
+  .business-selector-modal {
+    border-radius: 0;
+    min-height: 100vh;
+  }
+
+  .bts-header h1 {
+    font-size: 24px;
+  }
+
+  .bts-content h3 {
+    font-size: 17px;
+  }
+
+  .bts-grid {
+    gap: 10px;
+  }
+
+  .bts-card {
+    min-height: 120px;
+    padding: 16px;
+  }
+
+  .bts-card-icon {
+    font-size: 32px;
+  }
+
+  .bts-card-title {
+    font-size: 15px;
+  }
+
+  .bts-card-desc {
+    font-size: 12px;
+  }
+}
+
+/* Tablet and larger */
+@media (min-width: 768px) {
+  .business-selector-overlay {
+    padding: 32px;
+  }
+
+  .bts-header {
+    padding: 40px 32px 32px;
+  }
+
+  .bts-content {
+    padding: 32px;
+  }
+
+  .bts-pin-section {
+    padding: 32px;
+  }
+
+  .bts-actions {
+    padding: 24px 32px 32px;
+  }
+}

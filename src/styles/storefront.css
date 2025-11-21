@@ -204,6 +204,9 @@
   outline: none;
   color: #1e293b;
   font-weight: 500;
+  -webkit-text-fill-color: #1e293b; /* Force text color on iOS */
+  -webkit-appearance: none; /* Remove iOS default styling */
+  appearance: none;
 }
 
 .search-input::placeholder {
@@ -607,6 +610,93 @@
 }
 
 /* ==================== RESPONSIVE ==================== */
+
+/* Mobile-first optimizations for touch devices */
+@media (max-width: 639px) {
+  .storefront-header {
+    padding: 2rem 1rem 3rem;
+  }
+
+  .storefront-title {
+    font-size: 1.75rem;
+  }
+
+  .storefront-main {
+    padding: 0 1rem;
+    margin-top: -2rem;
+  }
+
+  .storefront-controls {
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .search-box {
+    padding: 0.875rem 1rem;
+  }
+
+  .search-input {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    color: #1e293b !important; /* Force dark text on mobile */
+    -webkit-text-fill-color: #1e293b !important; /* iOS autocomplete fix */
+    opacity: 1 !important; /* Prevent iOS making text transparent */
+  }
+
+  /* Prevent iOS autofill from hiding text */
+  .search-input:-webkit-autofill,
+  .search-input:-webkit-autofill:hover,
+  .search-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #1e293b !important;
+    -webkit-box-shadow: 0 0 0px 1000px transparent inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .product-grid {
+    gap: 1.25rem;
+  }
+
+  .product-name {
+    font-size: 1rem;
+  }
+
+  .product-price {
+    font-size: 1.5rem;
+  }
+
+  /* Larger touch targets for mobile */
+  .btn-add-to-cart,
+  .btn-quick-order,
+  .btn-order,
+  .btn-whatsapp {
+    min-height: 48px;
+    font-size: 1rem;
+  }
+
+  .btn-quick-order {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* Modal optimizations */
+  .product-modal-overlay {
+    padding: 5px !important;
+  }
+
+  .product-modal-content {
+    border-radius: 12px !important;
+    max-height: 98vh !important;
+  }
+
+  /* Prevent text selection on touch */
+  .product-card,
+  .category-btn,
+  button {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
 @media (min-width: 640px) {
   .storefront-title {
     font-size: 2.5rem;
@@ -615,6 +705,13 @@
   .storefront-info {
     flex-direction: row;
     justify-content: center;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .product-grid {
+    gap: 1.5rem;
   }
 }
 
@@ -629,6 +726,25 @@
 
   .product-grid {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Remove hover effects on touch devices */
+  .product-card:hover {
+    transform: none;
+  }
+
+  .product-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s;
+  }
+
+  /* Larger touch targets */
+  button {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 
@@ -657,6 +773,9 @@
 .product-modal-content {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f1f5f9;
+  border: none !important;
+  border-top: none !important;
+  outline: none !important;
 }
 
 .product-modal-content::-webkit-scrollbar {
@@ -675,6 +794,11 @@
 
 .product-modal-content::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.product-modal-overlay {
+  border: none !important;
+  outline: none !important;
 }
 
 /* ==================== SMART PICTURE STYLES ==================== */

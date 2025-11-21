@@ -7,11 +7,27 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "functions:build": "cd functions && npm run build",
+    "functions:deploy": "firebase deploy --only functions",
+    "deploy:imaging": "npm run functions:build && npm run functions:deploy"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.81.1",
+    "@types/papaparse": "^5.5.0",
+    "bcryptjs": "^3.0.3",
+    "chart.js": "^4.5.1",
+    "dotenv": "^17.2.3",
+    "firebase": "^12.5.0",
+    "firebase-admin": "^13.6.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.4",
+    "lucide-react": "^0.552.0",
+    "papaparse": "^5.5.3",
     "react": "^19.1.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.5",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
@@ -23,6 +39,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "vite-plugin-compression2": "^2.3.1"
   }
 }

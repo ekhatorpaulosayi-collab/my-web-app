@@ -1,0 +1,193 @@
+/**
+ * Metric Card Styles
+ * Modern, colorful cards for the 4 primary metrics
+ */
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 640px) {
+  .metric-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .metric-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.metric-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.metric-card-clickable {
+  cursor: pointer;
+}
+
+.metric-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.metric-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.metric-card-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.metric-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.metric-card-body {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.metric-card-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card-trend {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.metric-card-trend-up {
+  color: #16a34a;
+  background: #f0fdf4;
+}
+
+.metric-card-trend-down {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.metric-card-subtitle {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* Variant Styles */
+
+/* Highlight variant - for PROFIT */
+.metric-card-highlight {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #86efac;
+}
+
+.metric-card-highlight .metric-card-label {
+  color: #065f46;
+  font-weight: 700;
+}
+
+.metric-card-highlight .metric-card-value {
+  color: #047857;
+  font-size: 32px;
+}
+
+.metric-card-highlight .metric-card-subtitle {
+  color: #059669;
+}
+
+/* Success variant */
+.metric-card-success {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.metric-card-success .metric-card-value {
+  color: #16a34a;
+}
+
+/* Warning variant - for DEBT */
+.metric-card-warning {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.metric-card-warning .metric-card-label {
+  color: #92400e;
+}
+
+.metric-card-warning .metric-card-value {
+  color: #d97706;
+}
+
+.metric-card-warning .metric-card-subtitle {
+  color: #b45309;
+}
+
+/* Danger variant - for LOW STOCK */
+.metric-card-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.metric-card-danger .metric-card-label {
+  color: #991b1b;
+}
+
+.metric-card-danger .metric-card-value {
+  color: #dc2626;
+}
+
+.metric-card-danger .metric-card-subtitle {
+  color: #b91c1c;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .metric-card {
+    padding: 14px;
+  }
+
+  .metric-card-value {
+    font-size: 24px;
+  }
+
+  .metric-card-highlight .metric-card-value {
+    font-size: 28px;
+  }
+}

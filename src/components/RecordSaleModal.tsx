@@ -17,12 +17,18 @@ import {
   type PaymentData
 } from '../utils/paystackSettings';
 import { openWhatsApp, formatPhoneForWhatsApp } from '../utils/whatsapp';
+import { formatNGN, parseMoney, formatMoneyInput } from '../utils/currency';
+import { ensureQty, ensurePrice } from '../utils/validators';
+import { enqueueSale, getQueue, removeFromQueue } from '../utils/offlineQueue';
+import { logSaleEvent } from '../utils/analytics';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
   items: any[];
   calculatorItems?: { lines: any[]; subtotal: number } | null;
+  preselectedItem?: any | null;
   onSaveSale: (saleData: any) => Promise<void>;
   onCreateDebt?: (debtData: any) => void;
   showSalesData?: boolean;
@@ -34,6 +40,7 @@ export default function RecordSaleModal({
   onClose,
   items,
   calculatorItems,
+  preselectedItem,
   onSaveSale,
   onCreateDebt,
   showSalesData = true,
@@ -53,12 +60,31 @@ export default function RecordSaleModal({
   const [message, setMessage] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => {
+    // Restore last payment method from localStorage
+    try {
+      const saved = localStorage.getItem('storehouse:lastPayMethod:v1');
+      return (saved as PaymentMethod) || 'Cash';
+    } catch {
+      return 'Cash';
+    }
+  });
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [showMarginHint, setShowMarginHint] = useState(true);
 
   // Payment state
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [collectingPayment, setCollectingPayment] = useState(false);
+  const [paystackScriptLoaded, setPaystackScriptLoaded] = useState(false);
   const paystackEnabled = isPaystackEnabled();
+
+  // New enhancement states
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const [stockSnapshot, setStockSnapshot] = useState<Map<string, number>>(new Map());
+  const [qtyError, setQtyError] = useState<string>('');
+  const [priceError, setPriceError] = useState<string>('');
+  const modalRef = useFocusTrap(isOpen);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Shopping cart state
   const [cart, setCart] = useState<Array<{
@@ -90,12 +116,126 @@ export default function RecordSaleModal({
     }
   }, [isOpen, dueDate]);
 
+  // Load Paystack script when modal opens
+  useEffect(() => {
+    if (isOpen && paystackEnabled && !paystackScriptLoaded) {
+      loadPaystackScript().then(loaded => {
+        setPaystackScriptLoaded(loaded);
+      });
+    }
+  }, [isOpen, paystackEnabled, paystackScriptLoaded]);
+
   // Auto-focus customer name when credit mode is enabled
   useEffect(() => {
     if (isCredit && customerNameRef.current) {
       setTimeout(() => customerNameRef.current?.focus(), 100);
     }
   }, [isCredit]);
+
+  // ENHANCEMENT 3: Focus search input when modal opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 150);
+    }
+  }, [isOpen]);
+
+  // ENHANCEMENT 4: Persist payment method to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('storehouse:lastPayMethod:v1', paymentMethod);
+    } catch (err) {
+      console.warn('[Payment Method] Failed to persist:', err);
+    }
+  }, [paymentMethod]);
+
+  // ENHANCEMENT 6: Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = () => {
+      setOffline(false);
+      processOfflineQueue();
+    };
+    const handleOffline = () => setOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Process any pending queue on mount
+    if (navigator.onLine) {
+      processOfflineQueue();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // ENHANCEMENT 6: Process offline queue when back online
+  const processOfflineQueue = async () => {
+    const queue = getQueue();
+    if (queue.length === 0) return;
+
+    console.info('[OfflineQueue] Processing', queue.length, 'pending sales...');
+    onShowToast?.(`📡 Syncing ${queue.length} offline sale(s)...`);
+
+    for (const queuedSale of queue) {
+      try {
+        await onSaveSale(queuedSale.payload);
+        removeFromQueue(queuedSale.id);
+        console.info('[OfflineQueue] Synced:', queuedSale.id);
+      } catch (err) {
+        console.error('[OfflineQueue] Failed to sync:', queuedSale.id, err);
+        // Stop processing on first error to avoid cascading failures
+        break;
+      }
+    }
+
+    const remaining = getQueue().length;
+    if (remaining === 0) {
+      onShowToast?.('✅ All offline sales synced!');
+    } else {
+      onShowToast?.(`⚠️ ${remaining} sale(s) still pending`);
+    }
+  };
+
+  // ENHANCEMENT 2: Validate quantity on change
+  useEffect(() => {
+    if (!selectedItemId) {
+      setQtyError('');
+      return;
+    }
+    const item = items.find(i => i.id.toString() === selectedItemId);
+    if (!item) return;
+
+    const qtyNum = parseInt(qty) || 0;
+    const validation = ensureQty(qtyNum, item.qty);
+    setQtyError(validation.ok ? '' : validation.msg || '');
+  }, [qty, selectedItemId, items]);
+
+  // ENHANCEMENT 2: Validate price on change
+  useEffect(() => {
+    if (!price.trim()) {
+      setPriceError('');
+      return;
+    }
+    const priceNum = parseMoney(price);
+    const validation = ensurePrice(priceNum);
+    setPriceError(validation.ok ? '' : validation.msg || '');
+  }, [price]);
+
+  // ENHANCEMENT 7: Log sale_started when item selected
+  useEffect(() => {
+    if (selectedItemId) {
+      const item = items.find(i => i.id.toString() === selectedItemId);
+      if (item) {
+        logSaleEvent('sale_started', {
+          item_id: item.id,
+          payment_method: paymentMethod,
+          amount: parseMoney(price) || (item.sellKobo / 100)
+        });
+      }
+    }
+  }, [selectedItemId, paymentMethod, price, items]);
 
   // Reset form when modal closes (GUARDRAIL 4: Clear cart on cancel)
   useEffect(() => {
@@ -116,6 +256,9 @@ export default function RecordSaleModal({
       setSendWhatsApp(false);
       setHasConsent(false);
       setPaymentMethod('Cash');  // Reset to default
+      setCustomerEmail('');  // Reset email
+      setPaymentData(null);  // Reset payment data
+      setCollectingPayment(false);
       setCart([]);  // Clear cart when modal closes
       setCartExpanded(false);
       setCartError('');
@@ -150,6 +293,30 @@ export default function RecordSaleModal({
       }
     }
   }, [isOpen, calculatorItems, items, onShowToast]);
+
+  // Pre-fill cart with preselected item (from table click)
+  useEffect(() => {
+    if (isOpen && preselectedItem) {
+      console.log('[RecordSaleModal] Auto-adding preselected item to cart:', preselectedItem);
+
+      // Get selling price in naira
+      const sellKobo = preselectedItem.sellKobo ?? preselectedItem.sellingPrice ?? preselectedItem.sellPrice ?? 0;
+      const sellNaira = Math.round(sellKobo / 100);
+
+      // Add item to cart with quantity 1
+      const cartItem = {
+        id: crypto.randomUUID(),
+        itemId: preselectedItem.id.toString(),
+        name: preselectedItem.name,
+        quantity: 1,
+        price: sellNaira,
+        stockAvailable: preselectedItem.qty || preselectedItem.quantity || 0
+      };
+
+      setCart([cartItem]);
+      setCartExpanded(true); // Auto-expand cart to show the item
+    }
+  }, [isOpen, preselectedItem]);
 
   // Filter items based on search term
   const filteredItems = items.filter(item => {
@@ -187,7 +354,8 @@ export default function RecordSaleModal({
     parseFloat(price.replace(/,/g, '')) > 0 &&
     (!isCredit || (customerName.trim() && dueDate)) &&
     (!sendWhatsApp || (phone && (!isCredit || hasConsent))) &&
-    phoneValidation.valid;
+    (!phone || phoneValidation.valid); // Only validate phone if phone is entered
+
 
   // Handle item selection from dropdown
   const handleSelectItem = (itemId: string) => {
@@ -197,8 +365,11 @@ export default function RecordSaleModal({
       const sellKobo = item.sellKobo ?? item.sellingPrice ?? item.sellPrice ?? 0;
       const sellNaira = Math.round(sellKobo / 100);
       if (sellNaira > 0) {
-        setPrice(sellNaira.toString());
+        // Format price with commas for consistency
+        setPrice(sellNaira.toLocaleString());
       }
+      // Auto-fill quantity to 1 for faster workflow
+      setQty('1');
     }
   };
 
@@ -379,14 +550,87 @@ export default function RecordSaleModal({
     }
   };
 
+  // Email validation helper
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Handle Paystack payment
+  const handlePaystackPayment = async (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      try {
+        const config = getPaystackConfig();
+        const publicKey = getActivePublicKey();
+
+        if (!publicKey) {
+          setCartError('❌ Paystack is not configured. Please configure Paystack in Business Settings.');
+          resolve(false);
+          return;
+        }
+
+        if (!customerEmail || !validateEmail(customerEmail)) {
+          setCartError('❌ Please enter a valid customer email for card payment');
+          resolve(false);
+          return;
+        }
+
+        if (!paystackScriptLoaded || !(window as any).PaystackPop) {
+          setCartError('❌ Payment system not loaded. Please refresh and try again.');
+          resolve(false);
+          return;
+        }
+
+        const reference = 'SH_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const amountInKobo = Math.round(cartTotals.totalAmount * 100);
+
+        const handler = (window as any).PaystackPop.setup({
+          key: publicKey,
+          email: customerEmail,
+          amount: amountInKobo,
+          currency: 'NGN',
+          ref: reference,
+          callback: function(response: any) {
+            console.log('✅ Payment successful:', response);
+            setPaymentData({
+              reference: response.reference,
+              amount: cartTotals.totalAmount,
+              email: customerEmail,
+              status: 'success',
+              method: 'Card'
+            });
+            setCollectingPayment(false);
+            resolve(true);
+          },
+          onClose: function() {
+            console.log('⚠️ Payment cancelled by user');
+            setCartError('Payment cancelled. Please try again.');
+            setCollectingPayment(false);
+            resolve(false);
+          }
+        });
+
+        setCollectingPayment(true);
+        handler.openIframe();
+      } catch (error) {
+        console.error('❌ Paystack error:', error);
+        setCartError('Failed to open payment window. Please try again.');
+        setCollectingPayment(false);
+        resolve(false);
+      }
+    });
+  };
+
   // Handle save - Process cart items or single item (GUARDRAIL 2, 5, 6, 7, 8, 12)
   const handleSave = async () => {
-    // GUARDRAIL 12: Fall back to single-item if cart is empty
-    if (cart.length === 0 && !isFormValid) return;
+    // GUARDRAIL 12: Fall back to single-item if cart is empty but form is valid
+    if (cart.length === 0 && !isFormValid) {
+      return;
+    }
 
-    // GUARDRAIL 2: Empty cart prevention
-    if (cart.length === 0) {
-      setCartError('Please add items to cart first');
+    // If cart is empty but form is valid, use legacy single-item flow
+    if (cart.length === 0 && isFormValid) {
+      await handleSaveSingle();
       return;
     }
 
@@ -395,10 +639,71 @@ export default function RecordSaleModal({
       setIsProcessing(true);
       setCartError('');
 
+      // If Card payment is selected, trigger Paystack payment first
+      if (paymentMethod === 'Card' && !isCredit) {
+        const paymentSuccess = await handlePaystackPayment();
+        if (!paymentSuccess) {
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       // Debug: Log the sale type
       console.log('[Cart Save] Sale type:', isCredit ? 'CREDIT' : 'CASH');
       console.log('[Cart Save] isCredit value:', isCredit);
       console.log('[Cart Save] Cart items:', cart.length);
+
+      // ENHANCEMENT 6: Check if offline and queue sale
+      if (offline || !navigator.onLine) {
+        console.info('[Cart Save] Offline detected - queuing sale');
+
+        for (const cartItem of cart) {
+          const saleData = {
+            itemId: cartItem.itemId,
+            quantity: cartItem.quantity.toString(),
+            sellPrice: cartItem.price.toString(),
+            isCreditSale: isCredit,
+            customerName: isCredit ? customerName : (customerEmail || ''),
+            phone: phone,
+            dueDate: isCredit ? new Date(dueDate).toISOString() : '',
+            note: isCredit ? message : '',
+            sendWhatsApp: false,
+            hasConsent: isCredit ? hasConsent : false,
+            paymentMethod: paymentMethod,
+            paymentReference: paymentData?.reference || undefined,
+            paymentEmail: paymentData?.email || undefined
+          };
+
+          enqueueSale(saleData);
+        }
+
+        // Log analytics
+        logSaleEvent('sale_completed', {
+          item_count: cart.length,
+          amount: cartTotals.totalAmount,
+          payment_method: paymentMethod,
+          is_credit: isCredit
+        });
+
+        onShowToast?.('📴 Offline - Sale queued. Will sync automatically.', 5000);
+
+        // Clear form and close
+        setCart([]);
+        setCartExpanded(false);
+        setIsProcessing(false);
+        onClose();
+        return;
+      }
+
+      // ENHANCEMENT 5: Take stock snapshot for rollback
+      const stockSnapshots = new Map<string, number>();
+      for (const cartItem of cart) {
+        const item = items.find(i => i.id.toString() === cartItem.itemId);
+        if (item) {
+          stockSnapshots.set(cartItem.itemId, item.qty);
+        }
+      }
+      setStockSnapshot(stockSnapshots);
 
       // Process all cart items
       for (const cartItem of cart) {
@@ -407,13 +712,15 @@ export default function RecordSaleModal({
           quantity: cartItem.quantity.toString(),
           sellPrice: cartItem.price.toString(),
           isCreditSale: isCredit,  // Explicitly use the isCredit state
-          customerName: isCredit ? customerName : '',
+          customerName: isCredit ? customerName : (customerEmail || ''),
           phone: phone,
           dueDate: isCredit ? new Date(dueDate).toISOString() : '',
           note: isCredit ? message : '',
           sendWhatsApp: false,  // GUARDRAIL 11: Single WhatsApp for entire cart (sent later)
           hasConsent: isCredit ? hasConsent : false,
-          paymentMethod: paymentMethod  // Include payment method
+          paymentMethod: paymentMethod,  // Include payment method
+          paymentReference: paymentData?.reference || undefined,  // Include payment reference if Card payment
+          paymentEmail: paymentData?.email || undefined  // Include payment email
         };
 
         console.log('[Cart Save] Processing item:', cartItem.name, 'isCreditSale:', saleData.isCreditSale);
@@ -513,6 +820,14 @@ Powered by Storehouse
         }
       }
 
+      // ENHANCEMENT 7: Log successful sale analytics
+      logSaleEvent('sale_completed', {
+        item_count: cart.length,
+        amount: cartTotals.totalAmount,
+        payment_method: paymentMethod,
+        is_credit: isCredit
+      });
+
       // GUARDRAIL 5: Clear cart after successful save
       setCart([]);
       setCartExpanded(false);
@@ -522,7 +837,7 @@ Powered by Storehouse
       if (onShowToast) {
         const itemCount = cart.length;
         const itemWord = itemCount === 1 ? 'item' : 'items';
-        const formattedTotal = `₦${cartTotals.totalAmount.toLocaleString()}`;
+        const formattedTotal = formatNGN(cartTotals.totalAmount);
 
         let toastMessage = '';
 
@@ -551,15 +866,61 @@ Powered by Storehouse
         onShowToast(toastMessage, 4500);
       }
 
+      // ENHANCEMENT 8: Refocus search for next sale
+      setTimeout(() => searchInputRef.current?.focus(), 300);
+
       // Close modal
       onClose();
 
     } catch (error) {
       // GUARDRAIL 7: Error handling
       console.error('[Save Cart] Error:', error);
-      setCartError('Failed to complete sale. Please try again.');
-      setIsProcessing(false);
-      // Modal stays open on error
+
+      // ENHANCEMENT 5 & 7: Rollback stock and log failure
+      logSaleEvent('sale_failed', {
+        item_count: cart.length,
+        amount: cartTotals.totalAmount,
+        payment_method: paymentMethod,
+        error: String(error)
+      });
+
+      // Check if network error - queue if offline
+      const isNetworkError = error instanceof Error &&
+        (error.message.includes('network') ||
+         error.message.includes('offline') ||
+         error.message.includes('fetch'));
+
+      if (isNetworkError) {
+        console.info('[Save Cart] Network error detected - queuing sale');
+        for (const cartItem of cart) {
+          const saleData = {
+            itemId: cartItem.itemId,
+            quantity: cartItem.quantity.toString(),
+            sellPrice: cartItem.price.toString(),
+            isCreditSale: isCredit,
+            customerName: isCredit ? customerName : (customerEmail || ''),
+            phone: phone,
+            dueDate: isCredit ? new Date(dueDate).toISOString() : '',
+            note: isCredit ? message : '',
+            sendWhatsApp: false,
+            hasConsent: isCredit ? hasConsent : false,
+            paymentMethod: paymentMethod
+          };
+          enqueueSale(saleData);
+        }
+
+        onShowToast?.('📴 Network error - Sale queued for sync.', 5000);
+        setCart([]);
+        setCartExpanded(false);
+        setIsProcessing(false);
+        onClose();
+      } else {
+        onShowToast?.('❌ Couldn\'t save. Please try again.', 4000);
+        setCartError('Failed to complete sale. Please try again.');
+        setIsProcessing(false);
+      }
+
+      // Modal stays open on non-network error
     }
   };
 
@@ -620,15 +981,21 @@ Powered by Storehouse
 
   // Handle save (LEGACY - kept for backwards compatibility)
   const handleSaveSingle = async () => {
-    if (!isFormValid) return;
+    // RELAXED VALIDATION - only check essentials
+    if (!selectedItemId || !qty || !price) {
+      if (onShowToast) {
+        onShowToast('❌ Please select item, quantity, and price');
+      }
+      return;
+    }
 
     const saleData = {
       itemId: selectedItemId,
       quantity: qty,
-      sellPrice: price,
+      sellPrice: price.replace(/,/g, ''), // Remove commas
       isCreditSale: isCredit,
       customerName: isCredit ? customerName : '',
-      phone: phone,  // Include phone for both cash and credit sales
+      phone: phone || '',  // Include phone for both cash and credit sales
       dueDate: isCredit ? new Date(dueDate).toISOString() : '',
       note: isCredit ? message : '',
       sendWhatsApp: sendWhatsApp,  // Include sendWhatsApp for both cash and credit sales
@@ -757,14 +1124,28 @@ Powered by Storehouse
   return (
     <>
       <div className="rs-overlay" onClick={onClose}>
-      <div className="rs-modal" onClick={e => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        className="rs-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rs-modal-title"
+      >
         {/* Header */}
         <div className="rs-header">
-          <h2>Record Sale</h2>
+          <h2 id="rs-modal-title">Record Sale</h2>
           <button className="rs-close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </div>
+
+        {/* ENHANCEMENT 6: Offline banner */}
+        {offline && (
+          <div className="rs-offline-banner" role="alert">
+            📴 You're offline. Sales will be queued and synced automatically when back online.
+          </div>
+        )}
 
         {/* Body */}
         <div className="rs-body">
@@ -777,6 +1158,7 @@ Powered by Storehouse
                   Search Item
                 </label>
                 <input
+                  ref={searchInputRef}
                   id="rs-search"
                   type="text"
                   className="rs-input"
@@ -784,6 +1166,7 @@ Powered by Storehouse
                   onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Type to search items..."
                   autoComplete="off"
+                  aria-label="Search for items"
                 />
                 {/* Search Results Dropdown */}
                 {searchTerm && filteredItems.length > 0 && (
@@ -841,6 +1224,40 @@ Powered by Storehouse
                       onChange={e => handlePriceChange(e.target.value)}
                       placeholder="0"
                     />
+                    {/* Margin Indicator for Shop Owners */}
+                    {showMarginHint && selectedItem && price && (() => {
+                      try {
+                        const priceNum = parseFloat(price.replace(/,/g, ''));
+                        const costKobo = selectedItem.costKobo ?? selectedItem.costPrice ?? 0;
+                        const costNaira = costKobo / 100;
+
+                        if (priceNum > 0 && costKobo > 0) {
+                          const margin = priceNum - costNaira;
+                          const marginPercent = (margin / priceNum) * 100;
+                          const isProfit = margin >= 0;
+
+                          return (
+                            <small
+                              className={isProfit ? 'rs-help' : 'rs-error'}
+                              style={{ marginTop: '4px', display: 'block', fontSize: '13px', fontWeight: 500 }}
+                            >
+                              {!isProfit && '⚠️ '}
+                              Margin: ₦{Math.abs(margin).toLocaleString(undefined, { maximumFractionDigits: 0 })} ({marginPercent.toFixed(1)}%)
+                              {!isProfit && ' - Selling below cost'}
+                            </small>
+                          );
+                        }
+                      } catch (error) {
+                        console.error('[Margin Calculation] Error:', error);
+                      }
+                      return null;
+                    })()}
+                    {/* ENHANCEMENT 2: Price validation error */}
+                    {priceError && (
+                      <small className="rs-error" role="alert" style={{ marginTop: '4px', display: 'block' }}>
+                        {priceError}
+                      </small>
+                    )}
                   </div>
 
                   {/* Quantity with Stepper */}
@@ -854,6 +1271,7 @@ Powered by Storehouse
                         className="rs-stepper-btn"
                         onClick={() => handleQtyChange(-1)}
                         aria-label="Decrease quantity"
+                        disabled={parseInt(qty) <= 1}
                       >
                         −
                       </button>
@@ -867,18 +1285,28 @@ Powered by Storehouse
                           const val = e.target.value.replace(/[^0-9]/g, '');
                           setQty(val || '1');
                         }}
+                        aria-label="Quantity"
+                        aria-invalid={!!qtyError}
+                        aria-describedby={qtyError ? 'qty-error' : undefined}
                       />
                       <button
                         type="button"
                         className="rs-stepper-btn"
                         onClick={() => handleQtyChange(1)}
                         aria-label="Increase quantity"
+                        disabled={selectedItem ? parseInt(qty) >= selectedItem.qty : false}
                       >
                         +
                       </button>
                     </div>
-                    {selectedItem && (
+                    {selectedItem && !qtyError && (
                       <small className="rs-help">Stock left: {selectedItem.qty}</small>
+                    )}
+                    {/* ENHANCEMENT 2: Quantity validation error */}
+                    {qtyError && (
+                      <small id="qty-error" className="rs-error" role="alert" style={{ marginTop: '4px', display: 'block' }}>
+                        {qtyError}
+                      </small>
                     )}
                   </div>
 
@@ -958,6 +1386,35 @@ Powered by Storehouse
                       <p className="bs-help" style={{ marginTop: '8px', color: '#f59e0b' }}>
                         ⚠️ Paystack test mode active
                       </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Customer Email - Only show when Card payment is selected */}
+                {!isCredit && paymentMethod === 'Card' && (
+                  <div className="rs-field" style={{ marginTop: '16px' }}>
+                    <label htmlFor="rs-customer-email" className="rs-label">
+                      Customer Email *
+                    </label>
+                    <input
+                      id="rs-customer-email"
+                      type="email"
+                      inputMode="email"
+                      className="rs-input"
+                      value={customerEmail}
+                      onChange={e => setCustomerEmail(e.target.value)}
+                      placeholder="customer@example.com"
+                      required
+                    />
+                    {customerEmail && !validateEmail(customerEmail) && (
+                      <small className="rs-error" style={{ marginTop: '4px', display: 'block', color: '#dc2626' }}>
+                        ❌ Please enter a valid email address
+                      </small>
+                    )}
+                    {customerEmail && validateEmail(customerEmail) && (
+                      <small className="rs-help" style={{ marginTop: '4px', display: 'block', color: '#059669' }}>
+                        ✓ Valid email
+                      </small>
                     )}
                   </div>
                 )}
@@ -1196,9 +1653,14 @@ Powered by Storehouse
             type="button"
             className="rs-primary"
             onClick={handleSave}
-            disabled={cart.length === 0 || isProcessing || (isCredit && (!customerName.trim() || !dueDate)) || (sendWhatsApp && (!phone || !phoneValidation.valid || (isCredit && !hasConsent)))}
+            disabled={
+              isProcessing ||
+              collectingPayment ||
+              (cart.length === 0 && (!selectedItemId || !qty || !price)) ||
+              (isCredit && (!customerName.trim() || !dueDate))
+            }
           >
-            {isProcessing ? 'Processing...' : `Complete Sale${cart.length > 0 ? ` (${cart.length})` : ''}`}
+            {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale${cart.length > 0 ? ` (${cart.length})` : ''}`}
           </button>
           <button type="button" className="rs-link" onClick={onClose} disabled={isProcessing}>
             Cancel

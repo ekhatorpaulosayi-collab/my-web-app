@@ -5,7 +5,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
+  z-index: 10001;
   animation: bs-fade-in 200ms ease-out;
 }
 
@@ -23,7 +23,7 @@
   position: fixed;
   inset: 0;
   background: #FFFFFF;
-  z-index: 1001;
+  z-index: 10002;
   display: flex;
   flex-direction: column;
   animation: bs-slide-up 200ms ease-out;
@@ -113,6 +113,14 @@
   flex: 1;
   overflow-y: auto;
   padding: 16px 24px 24px;
+  /* Mobile fix: ensure space for footer */
+  padding-bottom: 100px;
+}
+
+@media (min-width: 640px) {
+  .bs-body {
+    padding-bottom: 24px;
+  }
 }
 
 /* Section */
@@ -408,8 +416,10 @@
 
 /* Footer */
 .bs-footer {
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -417,8 +427,16 @@
   border-top: 1px solid #EAECEF;
   flex-shrink: 0;
   background: #FFFFFF;
-  z-index: 1001;
+  z-index: 1002;
   pointer-events: auto;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+@media (min-width: 640px) {
+  .bs-footer {
+    position: sticky;
+    box-shadow: none;
+  }
 }
 
 .bs-btn-primary {
@@ -883,5 +901,464 @@
   .btn-secondary,
   .btn-primary {
     width: 100%;
+  }
+}
+
+/* ============================================
+   PHASE-1 ADDITIONS
+   ============================================ */
+
+/* Status Pills */
+.stx-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.stx-pill.connected {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.stx-pill.not_connected {
+  background: #E5E7EB;
+  color: #374151;
+}
+
+.stx-pill.error {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.stx-pill.updating {
+  background: #DBEAFE;
+  color: #1E40AF;
+}
+
+/* Section Title Row with Status */
+.bs-section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+/* Payments Section Layout */
+.payments-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.payments-card .actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Discard Dialog */
+.bs-dialog {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1002;
+}
+
+/* Danger Button */
+.bs-btn-danger {
+  padding: 10px 20px;
+  background: #DC2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bs-btn-danger:hover {
+  background: #B91C1C;
+}
+
+.bs-btn-danger:active {
+  transform: scale(0.98);
+}
+
+/* Responsive adjustments for payments card */
+@media (max-width: 640px) {
+  .payments-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payments-card .actions {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+}
+
+/* ============================================
+   MOBILE FIXES - Section Headers & Footer
+   ============================================ */
+
+/* Section Header Button (Accordion) */
+.bs-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #F8F9FA;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.bs-section-header:hover {
+  background: #F1F3F5;
+  border-color: #2063F0;
+}
+
+.bs-section-header:active {
+  transform: scale(0.98);
+}
+
+/* Remove black background effect */
+.bs-section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.bs-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #171F2D;
+  margin: 0;
+}
+
+/* Chevron indicator */
+.bs-chevron {
+  font-size: 20px;
+  color: #6B778C;
+  transition: transform 0.2s;
+  font-weight: bold;
+}
+
+.bs-chevron.open {
+  transform: rotate(90deg);
+}
+
+/* Section content */
+.bs-section-content {
+  padding: 16px;
+  background: #FFFFFF;
+  border-radius: 8px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   CRITICAL MOBILE FIX - Must be last to override everything
+   ============================================ */
+@media (max-width: 767px) {
+  /* Force sheet to use flexbox layout - ABOVE mobile bottom nav */
+  .bs-sheet {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+    z-index: 10002 !important;
+    /* Account for fixed footer */
+    padding-bottom: 0 !important;
+  }
+
+  /* Header stays at top */
+  .bs-header {
+    flex-shrink: 0 !important;
+    position: relative !important;
+    z-index: 3 !important;
+  }
+
+  /* Body scrolls in middle - ADD PADDING FOR FIXED FOOTER */
+  .bs-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    /* Critical: Add padding for fixed footer (72px footer + 16px buffer) */
+    padding-bottom: 100px !important;
+    z-index: 2 !important;
+  }
+
+  /* Footer MUST be FIXED to viewport bottom - ALWAYS VISIBLE */
+  .bs-footer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100vw !important;
+    max-width: 100% !important;
+    background: #FFFFFF !important;
+    border-top: 2px solid #E5E7EB !important;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15) !important;
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px)) 20px !important;
+    margin: 0 !important;
+    /* Critical: Higher z-index than sheet itself */
+    z-index: 10003 !important;
+    min-height: 72px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Ensure buttons are visible and touchable */
+  .bs-footer .bs-btn-primary,
+  .bs-footer .bs-btn-secondary {
+    display: block !important;
+    flex: 1 !important;
+    min-height: 48px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    touch-action: manipulation !important;
+  }
+}
+
+/* ============================================
+   BULLETPROOF FIX - Hide mobile nav when Settings open
+   ============================================ */
+@media (max-width: 767px) {
+  /* Hide mobile bottom nav when settings is open */
+  body.settings-open .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  /* Prevent body scroll when settings is open */
+  body.settings-open {
+    overflow: hidden !important;
+  }
+}
+
+/* ============================================
+   PHASE 2B - SKELETON LOADING
+   ============================================ */
+.settings-skeleton {
+  padding: 16px;
+}
+
+.skeleton-section {
+  padding: 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.skeleton-section:last-child {
+  border-bottom: none;
+}
+
+.skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skeleton-line {
+  height: 16px;
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+    background: #f0f0f0;
+  }
+}
+
+/* ============================================
+   PHASE 2B - ERROR BANNER
+   ============================================ */
+.settings-error {
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-content {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.error-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.error-text strong {
+  display: block;
+  color: #c00;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.error-text p {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.error-retry-btn {
+  background: #fff;
+  border: 1px solid #c00;
+  color: #c00;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.error-retry-btn:hover {
+  background: #fee;
+}
+
+.error-retry-btn:active {
+  transform: scale(0.98);
+}
+
+/* ============================================
+   PHASE 2B - SPINNER
+   ============================================ */
+.spinner {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   PHASE 2B - SAVE BUTTON STATES
+   ============================================ */
+.bs-btn-primary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.bs-btn-primary.saving {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.bs-btn-primary.success {
+  background: #10B981 !important;
+  border-color: #10B981 !important;
+}
+
+.bs-btn-primary.error {
+  background: #DC2626 !important;
+  border-color: #DC2626 !important;
+}
+
+/* ============================================
+   PHASE 2B - TOAST NOTIFICATIONS
+   ============================================ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #333;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10000;
+  opacity: 0;
+  transition: all 0.3s ease;
+  max-width: 90%;
+  text-align: center;
+}
+
+.toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast-success {
+  background: #10B981;
+}
+
+.toast-error {
+  background: #DC2626;
+}
+
+.toast-info {
+  background: #3B82F6;
+}
+
+@media (max-width: 768px) {
+  .toast {
+    bottom: 80px; /* Above mobile nav */
   }
 }

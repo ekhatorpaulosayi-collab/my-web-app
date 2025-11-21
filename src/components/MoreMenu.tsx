@@ -4,7 +4,9 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Settings, Share2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift } from 'lucide-react';
+import { useStaff } from '../contexts/StaffContext';
 import './MoreMenu.css';
 
 interface MoreMenuProps {
@@ -17,6 +19,9 @@ interface MoreMenuProps {
   onViewExpenses?: () => void;
   onViewSettings?: () => void;
   onShowOnlineStore?: () => void;
+  onSendDailySummary?: () => void;
+  onExportData?: () => void;
+  onStaffModeToggle?: () => void;
 }
 
 export const MoreMenu: React.FC<MoreMenuProps> = ({
@@ -28,9 +33,14 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
   onViewCustomers,
   onViewExpenses,
   onViewSettings,
-  onShowOnlineStore
+  onShowOnlineStore,
+  onSendDailySummary,
+  onExportData,
+  onStaffModeToggle
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const navigate = useNavigate();
+  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff } = useStaff();
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -53,6 +63,65 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
   }, [onClose]);
 
   const menuItems = [
+    // Staff Mode Toggle (show if in staff mode)
+    ...(isStaffMode ? [{
+      icon: LogOut,
+      label: 'Exit Staff Mode',
+      description: `Logged in as ${currentStaff?.name}`,
+      action: () => {
+        exitStaffMode();
+        alert('Exited staff mode');
+      }
+    }] : []),
+
+    // Staff Mode Login (show if owner and not in staff mode)
+    ...(!isStaffMode && canManageStaff() ? [{
+      icon: Users,
+      label: 'Staff Mode',
+      description: 'Login as staff member',
+      action: onStaffModeToggle
+    }] : []),
+
+    // Staff Management (owner only)
+    ...(canManageStaff() && !isStaffMode ? [{
+      icon: UserCog,
+      label: 'Manage Staff',
+      description: 'Add & manage team',
+      action: () => navigate('/staff')
+    }] : []),
+
+    {
+      icon: Gift,
+      label: 'Referral Program',
+      description: 'Invite friends, earn rewards',
+      action: () => navigate('/referrals')
+    },
+    {
+      icon: Receipt,
+      label: 'Professional Invoices',
+      description: 'B2B sales & payment tracking',
+      action: () => navigate('/invoices')
+    },
+    {
+      icon: HelpCircle,
+      label: 'Getting Started Guide',
+      description: 'Show setup checklist',
+      action: () => {
+        window.dispatchEvent(new Event('show-getting-started'));
+      }
+    },
+    {
+      icon: Send,
+      label: 'Daily Sales Summary',
+      description: 'Send today\'s report',
+      action: onSendDailySummary
+    },
+    {
+      icon: Download,
+      label: 'Export Data (CSV)',
+      description: 'Download all data',
+      action: onExportData
+    },
     {
       icon: Share2,
       label: 'Online Store',
@@ -79,39 +148,36 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     },
     {
       icon: FileText,
-      label: 'Reports',
-      description: 'Sales analytics',
+      label: 'Sales History',
+      description: 'View all transactions',
       action: onViewReports
     },
     {
       icon: Users,
-      label: 'Customers',
-      description: 'Manage customers',
+      label: 'Debt/Credit Sales',
+      description: 'Track customer debts',
       action: onViewCustomers
+    },
+    {
+      icon: UserCircle2,
+      label: 'All Customers',
+      description: 'View customer history',
+      action: () => navigate('/customers')
     },
     {
       icon: Receipt,
       label: 'Expenses',
       description: 'Track expenses',
       action: onViewExpenses
-    },
-    {
-      icon: Settings,
-      label: 'Settings',
-      description: 'App preferences',
-      action: onViewSettings
-    },
+    }
   ];
 
   const handleItemClick = (action?: () => void) => {
     // Close dialog first
     dialogRef.current?.close();
     onClose();
-
-    // Execute action after a small delay to ensure modal is closed
-    if (action) {
-      setTimeout(() => action(), 100);
-    }
+    // Execute action immediately
+    action?.();
   };
 
   return (

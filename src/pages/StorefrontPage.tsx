@@ -5,25 +5,31 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2 } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
 import type { StoreProfile } from '../types';
-import { SmartPicture } from '../components/SmartPicture';
+import type { ProductVariant } from '../types/variants';
+import { OptimizedImage } from '../components/OptimizedImage';
 import { CartProvider, useCart } from '../contexts/CartContext';
 import { Cart } from '../components/Cart';
+import { VariantSelector } from '../components/VariantSelector';
+import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
+import { shareProductToWhatsApp } from '../utils/shareToWhatsApp';
+import { getProductVariants } from '../lib/supabase-variants';
 import '../styles/storefront.css';
 
 interface Product {
   id: string;
   name: string;
-  sellKobo: number;
-  qty: number;
+  selling_price: number; // Now in kobo from Supabase
+  quantity: number;
   category?: string;
-  isPublic: boolean;
-  imageUrl?: string;
-  imageHash?: string; // Content hash for enhanced images
+  description?: string;
+  is_public: boolean;
+  image_url?: string;
+  image_thumbnail?: string;
+  attributes?: Record<string, any>;
 }
 
 function StorefrontContent() {
@@ -38,59 +44,117 @@ function StorefrontContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProductVariants, setSelectedProductVariants] = useState<ProductVariant[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
 
   // Load store data and products
   useEffect(() => {
     const loadStorefront = async () => {
-      if (!slug) {
-        setError('Store not found');
-        setLoading(false);
-        return;
-      }
-
       try {
-        // 1. Get store owner ID from slug
-        const slugDoc = await getDoc(doc(db, 'slugs', slug));
+        // Determine how to lookup the store based on URL
+        const hostname = window.location.hostname;
+        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+        const isStorehouseApp = hostname.endsWith('.storehouse.app') || hostname === 'storehouse.app';
 
-        if (!slugDoc.exists()) {
+        let storeData = null;
+        let storeError = null;
+
+        // Strategy 1: Custom domain (e.g., mybusiness.com)
+        if (!isLocalhost && !isStorehouseApp) {
+          console.log('[Storefront] Trying custom domain lookup:', hostname);
+          const result = await supabase
+            .from('stores')
+            .select('*')
+            .eq('custom_domain', hostname)
+            .eq('custom_domain_verified', true)
+            .eq('is_public', true)
+            .single();
+
+          storeData = result.data;
+          storeError = result.error;
+        }
+
+        // Strategy 2: Subdomain (e.g., myshop.storehouse.app)
+        if (!storeData && isStorehouseApp && hostname !== 'storehouse.app') {
+          const subdomain = hostname.split('.')[0];
+          console.log('[Storefront] Trying subdomain lookup:', subdomain);
+          const result = await supabase
+            .from('stores')
+            .select('*')
+            .eq('subdomain', subdomain)
+            .eq('is_public', true)
+            .single();
+
+          storeData = result.data;
+          storeError = result.error;
+        }
+
+        // Strategy 3: Path-based slug (e.g., /store/myshop) - fallback for localhost and default domain
+        if (!storeData && slug) {
+          console.log('[Storefront] Trying slug lookup:', slug);
+          const result = await supabase
+            .from('stores')
+            .select('*')
+            .eq('store_slug', slug)
+            .eq('is_public', true)
+            .single();
+
+          storeData = result.data;
+          storeError = result.error;
+        }
+
+        // Handle errors
+
+        if (storeError || !storeData) {
+          console.error('[Storefront] Store not found:', storeError);
           setError('Store not found');
           setLoading(false);
           return;
         }
 
-        const ownerId = slugDoc.data().ownerId;
+        console.log('[Storefront] Store found:', storeData.business_name);
 
-        // 2. Get store profile
-        const storeDoc = await getDoc(doc(db, 'stores', ownerId));
+        // Convert snake_case to camelCase for StoreProfile compatibility
+        const store: StoreProfile = {
+          id: storeData.id,
+          businessName: storeData.business_name,
+          whatsappNumber: storeData.whatsapp_number,
+          address: storeData.address,
+          logoUrl: storeData.logo_url,
+          primaryColor: storeData.primary_color,
+          isPublic: storeData.is_public,
+        } as StoreProfile;
 
-        if (!storeDoc.exists()) {
-          setError('Store not found');
-          setLoading(false);
-          return;
+        setStore(store);
+
+        // 2. Get public products
+        const { data: productsData, error: productsError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('user_id', storeData.user_id)
+          .eq('is_public', true)
+          .eq('is_active', true)
+          .gt('quantity', 0)
+          .order('name');
+
+        if (productsError) {
+          console.error('[Storefront] Error loading products:', productsError);
         }
 
-        const storeData = storeDoc.data() as StoreProfile;
+        console.log('[Storefront] Products loaded:', productsData?.length || 0, 'products');
 
-        // Check if store is public
-        if (!storeData.isPublic) {
-          setError('This store is currently private');
-          setLoading(false);
-          return;
-        }
-
-        setStore(storeData);
-
-        // 3. Get public items from the products collection
-        const itemsRef = collection(db, 'users', ownerId, 'products');
-        const itemsQuery = query(itemsRef, where('isPublic', '==', true));
-        const itemsSnapshot = await getDocs(itemsQuery);
-
-        const publicProducts = itemsSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
-          .filter(item => !item.isDeleted && (item.qty || 0) > 0) as Product[];
+        const publicProducts = (productsData || []).map(product => ({
+          id: product.id,
+          name: product.name,
+          selling_price: product.selling_price,
+          quantity: product.quantity,
+          category: product.category,
+          is_public: product.is_public,
+          image_url: product.image_url,
+          image_thumbnail: product.image_thumbnail,
+        })) as Product[];
 
         setProducts(publicProducts);
         setLoading(false);
@@ -103,6 +167,28 @@ function StorefrontContent() {
 
     loadStorefront();
   }, [slug]);
+
+  // Load variants when product is selected for detail view
+  useEffect(() => {
+    const loadVariants = async () => {
+      if (!selectedProduct) {
+        setSelectedProductVariants([]);
+        setSelectedVariant(null);
+        return;
+      }
+
+      try {
+        const variants = await getProductVariants(selectedProduct.id);
+        setSelectedProductVariants(variants);
+        console.log('[Storefront] Loaded', variants.length, 'variants for', selectedProduct.name);
+      } catch (error) {
+        console.error('[Storefront] Error loading variants:', error);
+        setSelectedProductVariants([]);
+      }
+    };
+
+    loadVariants();
+  }, [selectedProduct]);
 
   // Get unique categories
   const categories = useMemo(() => {
@@ -261,36 +347,53 @@ function StorefrontContent() {
                   onClick={() => setSelectedProduct(product)}
                   style={{ cursor: 'pointer' }}
                 >
-                  {/* Enhanced Product Image */}
-                  {product.imageHash ? (
-                    <div style={{ marginBottom: '12px' }}>
-                      <SmartPicture
-                        contentHash={product.imageHash}
-                        alt={product.name}
-                        width={800}
-                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 400px"
-                        className="product-grid-image"
-                      />
-                    </div>
-                  ) : product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      loading="lazy"
+                  {/* Product Image - Click to zoom full-screen directly */}
+                  {product.image_thumbnail || product.image_url ? (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewerImageUrl(product.image_url || product.image_thumbnail || null);
+                        setImageViewerOpen(true);
+                      }}
                       style={{
-                        width: '100%',
-                        height: '240px',
-                        objectFit: 'cover',
-                        objectPosition: 'center',
+                        position: 'relative',
+                        cursor: 'zoom-in',
                         borderRadius: '8px 8px 0 0',
                         marginBottom: '12px',
-                        backgroundColor: '#f8fafc',
-                        imageRendering: 'high-quality'
+                        overflow: 'hidden',
+                        width: '100%',
+                        height: '240px',
+                        backgroundColor: '#f3f4f6'
                       }}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    >
+                      <img
+                        src={product.image_url || product.image_thumbnail}
+                        alt={product.name}
+                        loading="lazy"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                      {/* Zoom badge - highly visible */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        right: '12px',
+                        backgroundColor: 'rgba(59, 130, 246, 0.95)',
+                        color: 'white',
+                        padding: '8px 14px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                        pointerEvents: 'none',
+                        zIndex: 2
+                      }}>
+                        🔍 ZOOM
+                      </div>
+                    </div>
                   ) : (
                     <div style={{
                       width: '100%',
@@ -322,14 +425,57 @@ function StorefrontContent() {
 
                   <div className="product-card-body">
                     <div className="product-price">
-                      {currencyNGN(product.sellKobo)}
+                      {currencyNGN(product.selling_price)}
                     </div>
 
+                    {/* Category-Specific Attributes */}
+                    {product.attributes && Object.keys(product.attributes).length > 0 && (() => {
+                      const displayFieldKeys = getDisplayFields(product.category);
+                      const attributesToShow = displayFieldKeys
+                        .map(key => ({
+                          key,
+                          value: product.attributes?.[key],
+                          icon: getAttributeIcon(product.category, key)
+                        }))
+                        .filter(attr => attr.value);
+
+                      if (attributesToShow.length === 0) return null;
+
+                      return (
+                        <div style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                          marginBottom: '12px'
+                        }}>
+                          {attributesToShow.map(attr => (
+                            <span
+                              key={attr.key}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '4px 10px',
+                                background: '#f3f4f6',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                color: '#6b7280'
+                              }}
+                            >
+                              <span style={{ fontSize: '14px' }}>{attr.icon}</span>
+                              <span>{formatAttributeValue(attr.key, attr.value)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
                     <div className="product-stock">
-                      {product.qty > 10 ? (
+                      {product.quantity > 10 ? (
                         <span className="stock-badge stock-available">In Stock</span>
-                      ) : product.qty > 0 ? (
-                        <span className="stock-badge stock-low">Only {product.qty} left</span>
+                      ) : product.quantity > 0 ? (
+                        <span className="stock-badge stock-low">Only {product.quantity} left</span>
                       ) : (
                         <span className="stock-badge stock-out">Out of Stock</span>
                       )}
@@ -338,24 +484,33 @@ function StorefrontContent() {
                 </div>
 
                 {/* Action buttons - not part of clickable area */}
-                {product.qty > 0 && (
+                {product.quantity > 0 && (
                   <div style={{ display: 'flex', gap: '0.75rem', padding: '0 1.5rem 1.5rem' }}>
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         console.log('Add to cart clicked for:', product.name);
+
+                        // Check if product has variants
                         try {
+                          const variants = await getProductVariants(product.id);
+                          if (variants.length > 0) {
+                            // Product has variants - open detail modal
+                            setSelectedProduct(product);
+                            return;
+                          }
+
+                          // No variants - add directly to cart
                           addItem({
                             id: product.id,
                             name: product.name,
-                            price: product.sellKobo,
-                            imageUrl: product.imageUrl,
-                            imageHash: product.imageHash,
+                            price: product.selling_price,
+                            imageUrl: product.image_url,
                             category: product.category,
-                            maxQty: product.qty
+                            maxQty: product.quantity,
+                            attributes: product.attributes || {}
                           });
                           console.log('Item added successfully');
-                          // Open cart to show visual feedback
                           openCart();
                         } catch (error) {
                           console.error('Error adding to cart:', error);
@@ -378,7 +533,7 @@ function StorefrontContent() {
                           } else if (!phone.startsWith('234')) {
                             phone = '234' + phone;
                           }
-                          const message = `Hi, I'm interested in ordering *${product.name}* (${currencyNGN(product.sellKobo)})`;
+                          const message = `Hi, I'm interested in ordering *${product.name}* (${currencyNGN(product.selling_price)})`;
                           window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
                         }}
                         className="btn-quick-order"
@@ -386,6 +541,52 @@ function StorefrontContent() {
                         <Phone size={18} />
                       </button>
                     )}
+
+                    {/* Share to WhatsApp Status Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const productUrl = `${window.location.origin}/store/${slug}`;
+                        shareProductToWhatsApp({
+                          name: product.name,
+                          price: product.selling_price,
+                          selling_price: product.selling_price,
+                          description: product.description,
+                          category: product.category,
+                          quantity: product.quantity
+                        }, productUrl);
+                      }}
+                      className="btn-share"
+                      title="Share to WhatsApp Status"
+                      style={{
+                        padding: '0.75rem',
+                        backgroundColor: '#25d366',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 4px rgba(37, 211, 102, 0.2)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#20ba5a';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 211, 102, 0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#25d366';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 211, 102, 0.2)';
+                      }}
+                    >
+                      <Share2 size={18} />
+                    </button>
                   </div>
                 )}
               </div>
@@ -904,9 +1105,11 @@ function StorefrontContent() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px',
+            padding: '10px',
             zIndex: 9999,
-            animation: 'fadeIn 0.2s ease-in-out'
+            animation: 'fadeIn 0.2s ease-in-out',
+            border: 'none',
+            outline: 'none'
           }}
         >
           <div
@@ -917,76 +1120,103 @@ function StorefrontContent() {
               borderRadius: '16px',
               maxWidth: '600px',
               width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
+              maxHeight: '95vh',
+              overflow: 'hidden',
+              overflowY: 'auto',
               position: 'relative',
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
-              animation: 'slideUp 0.3s ease-out'
+              animation: 'slideUp 0.3s ease-out',
+              border: 'none',
+              outline: 'none',
+              borderTop: 'none',
+              boxSizing: 'border-box'
             }}
           >
-            {/* Close Button */}
+            {/* Close Button - Mobile optimized with larger touch target */}
             <button
               onClick={() => setSelectedProduct(null)}
               style={{
                 position: 'absolute',
-                top: '16px',
-                right: '16px',
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                border: 'none',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
+                top: '8px',
+                right: '8px',
+                width: '44px',
+                height: '44px',
+                minWidth: '44px',
+                minHeight: '44px',
+                border: '2px solid #e5e7eb',
+                backgroundColor: '#f9fafb',
+                color: '#000000',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                zIndex: 10,
+                zIndex: 10000,
                 transition: 'all 0.2s',
-                backdropFilter: 'blur(10px)'
+                outline: 'none',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                WebkitTapHighlightColor: 'transparent'
+              }}
+              onTouchStart={(e) => {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#dc2626';
+              }}
+              onTouchEnd={(e) => {
+                setTimeout(() => {
+                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                  e.currentTarget.style.color = '#000000';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }, 150);
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
-                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.backgroundColor = '#dc2626';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#dc2626';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
                 e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.backgroundColor = '#f9fafb';
+                e.currentTarget.style.color = '#000000';
+                e.currentTarget.style.borderColor = '#e5e7eb';
               }}
             >
-              <X size={24} />
+              <X size={28} strokeWidth={2.5} />
             </button>
 
-            {/* Large Product Image */}
-            {selectedProduct.imageHash ? (
-              <div style={{
-                borderRadius: '16px 16px 0 0',
-                backgroundColor: '#f8fafc',
-                padding: '20px'
-              }}>
-                <SmartPicture
-                  contentHash={selectedProduct.imageHash}
+            {/* Large Product Image - Click to view full screen */}
+            {selectedProduct.image_thumbnail || selectedProduct.image_url ? (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log('[Storefront] Image clicked, opening viewer');
+                  setViewerImageUrl(selectedProduct.image_url || selectedProduct.image_thumbnail || null);
+                  setImageViewerOpen(true);
+                }}
+                style={{
+                  backgroundColor: '#ffffff',
+                  padding: '20px',
+                  width: '100%',
+                  cursor: 'zoom-in',
+                  position: 'relative',
+                  userSelect: 'none',
+                  border: 'none',
+                  outline: 'none',
+                  boxShadow: 'none'
+                }}
+              >
+                <img
+                  src={selectedProduct.image_url || selectedProduct.image_thumbnail}
                   alt={selectedProduct.name}
-                  width={1600}
-                  sizes="(max-width: 768px) 100vw, 600px"
-                  priority={true}
-                  className="product-modal-image"
+                  style={{
+                    width: '100%',
+                    height: 'auto',
+                    display: 'block',
+                    objectFit: 'contain'
+                  }}
                 />
               </div>
-            ) : selectedProduct.imageUrl ? (
-              <img
-                src={selectedProduct.imageUrl}
-                alt={selectedProduct.name}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  maxHeight: '400px',
-                  objectFit: 'contain',
-                  borderRadius: '16px 16px 0 0',
-                  backgroundColor: '#f8fafc',
-                  padding: '20px'
-                }}
-              />
             ) : (
               <div style={{
                 width: '100%',
@@ -1045,12 +1275,56 @@ function StorefrontContent() {
                 marginBottom: '16px',
                 letterSpacing: '-0.02em'
               }}>
-                {currencyNGN(selectedProduct.sellKobo)}
+                {currencyNGN(
+                  selectedVariant?.price_override || selectedProduct.selling_price
+                )}
               </div>
+
+              {/* Product Description */}
+              {selectedProduct.description && (
+                <div style={{
+                  marginBottom: '24px',
+                  padding: '16px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <p style={{
+                    fontSize: '15px',
+                    lineHeight: '1.7',
+                    color: '#6b7280',
+                    margin: 0,
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    {selectedProduct.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Variant Selector */}
+              {selectedProductVariants.length > 0 && (
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: '#1f2937',
+                    marginBottom: '12px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}>
+                    Select Options
+                  </h3>
+                  <VariantSelector
+                    variants={selectedProductVariants}
+                    onVariantChange={setSelectedVariant}
+                    primaryColor={store?.primaryColor || '#3b82f6'}
+                  />
+                </div>
+              )}
 
               {/* Stock Status */}
               <div style={{ marginBottom: '24px' }}>
-                {selectedProduct.qty > 10 ? (
+                {selectedProduct.quantity > 10 ? (
                   <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1070,7 +1344,7 @@ function StorefrontContent() {
                     }}></span>
                     In Stock
                   </div>
-                ) : selectedProduct.qty > 0 ? (
+                ) : selectedProduct.quantity > 0 ? (
                   <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1088,7 +1362,7 @@ function StorefrontContent() {
                       borderRadius: '50%',
                       backgroundColor: '#f59e0b'
                     }}></span>
-                    Only {selectedProduct.qty} left
+                    Only {selectedProduct.quantity} left
                   </div>
                 ) : (
                   <div style={{
@@ -1113,8 +1387,161 @@ function StorefrontContent() {
                 )}
               </div>
 
-              {/* Order Button */}
-              {store?.whatsappNumber && selectedProduct.qty > 0 && (
+              {/* All Product Attributes */}
+              {selectedProduct.attributes && Object.keys(selectedProduct.attributes).length > 0 && (
+                <div style={{
+                  marginBottom: '24px',
+                  padding: '20px',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <h3 style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: '#1f2937',
+                    marginBottom: '16px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}>
+                    Product Details
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {Object.entries(selectedProduct.attributes)
+                      .filter(([_, value]) => value)
+                      .map(([key, value]) => (
+                        <div
+                          key={key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 12px',
+                            background: 'white',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb'
+                          }}
+                        >
+                          <span style={{ fontSize: '18px' }}>
+                            {getAttributeIcon(selectedProduct.category, key)}
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#6b7280',
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              marginBottom: '2px'
+                            }}>
+                              {key.replace(/([A-Z])/g, ' $1').trim()}
+                            </div>
+                            <div style={{
+                              fontSize: '14px',
+                              color: '#1f2937',
+                              fontWeight: 600
+                            }}>
+                              {formatAttributeValue(key, value)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add to Cart Button */}
+              {selectedProduct.quantity > 0 && (
+                <button
+                  onClick={() => {
+                    // Check if product has variants but none selected
+                    if (selectedProductVariants.length > 0 && !selectedVariant) {
+                      alert('Please select product options first');
+                      return;
+                    }
+
+                    // Check if selected variant is out of stock
+                    if (selectedVariant && selectedVariant.quantity === 0) {
+                      alert('This option is out of stock');
+                      return;
+                    }
+
+                    try {
+                      const itemToAdd = selectedVariant
+                        ? {
+                            id: selectedProduct.id,
+                            name: selectedProduct.name,
+                            price: selectedVariant.price_override || selectedProduct.selling_price,
+                            imageUrl: selectedVariant.image_url || selectedProduct.image_url,
+                            category: selectedProduct.category,
+                            maxQty: selectedVariant.quantity,
+                            attributes: selectedProduct.attributes || {},
+                            variantId: selectedVariant.id,
+                            variantName: selectedVariant.variant_name,
+                          }
+                        : {
+                            id: selectedProduct.id,
+                            name: selectedProduct.name,
+                            price: selectedProduct.selling_price,
+                            imageUrl: selectedProduct.image_url,
+                            category: selectedProduct.category,
+                            maxQty: selectedProduct.quantity,
+                            attributes: selectedProduct.attributes || {},
+                          };
+
+                      addItem(itemToAdd);
+                      openCart();
+                      setSelectedProduct(null); // Close modal
+                    } catch (error) {
+                      console.error('Error adding to cart:', error);
+                      alert('Failed to add item to cart');
+                    }
+                  }}
+                  disabled={selectedProductVariants.length > 0 && !selectedVariant}
+                  style={{
+                    width: '100%',
+                    padding: '16px 24px',
+                    backgroundColor: (selectedProductVariants.length > 0 && !selectedVariant)
+                      ? '#9ca3af'
+                      : store?.primaryColor || '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    cursor: (selectedProductVariants.length > 0 && !selectedVariant) ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                    marginBottom: '12px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!(selectedProductVariants.length > 0 && !selectedVariant)) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+                  }}
+                >
+                  <ShoppingCart size={20} />
+                  {selectedProductVariants.length > 0 && !selectedVariant
+                    ? 'Select Options First'
+                    : 'Add to Cart'}
+                </button>
+              )}
+
+              {/* Order via WhatsApp Button */}
+              {store?.whatsappNumber && selectedProduct.quantity > 0 && (
                 <button
                   onClick={() => {
                     let phone = store.whatsappNumber!.replace(/\D/g, '');
@@ -1123,7 +1550,10 @@ function StorefrontContent() {
                     } else if (!phone.startsWith('234')) {
                       phone = '234' + phone;
                     }
-                    const message = `Hi, I'm interested in ordering *${selectedProduct.name}* (${currencyNGN(selectedProduct.sellKobo)})`;
+
+                    const variantInfo = selectedVariant ? ` - ${selectedVariant.variant_name}` : '';
+                    const price = selectedVariant?.price_override || selectedProduct.selling_price;
+                    const message = `Hi, I'm interested in ordering *${selectedProduct.name}${variantInfo}* (${currencyNGN(price)})`;
                     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
                   }}
                   style={{
@@ -1158,7 +1588,105 @@ function StorefrontContent() {
                   Order via WhatsApp
                 </button>
               )}
+
+              {/* Share to WhatsApp Status */}
+              <button
+                onClick={() => {
+                  const productUrl = `${window.location.origin}/store/${slug}`;
+                  shareProductToWhatsApp({
+                    name: selectedProduct.name,
+                    price: selectedProduct.selling_price,
+                    selling_price: selectedProduct.selling_price,
+                    description: selectedProduct.description,
+                    category: selectedProduct.category,
+                    quantity: selectedProduct.quantity
+                  }, productUrl);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '14px 24px',
+                  backgroundColor: 'white',
+                  color: '#25d366',
+                  border: '2px solid #25d366',
+                  borderRadius: '12px',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s',
+                  marginTop: '12px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f0fdf4';
+                  e.currentTarget.style.borderColor = '#20ba5a';
+                  e.currentTarget.style.color = '#20ba5a';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white';
+                  e.currentTarget.style.borderColor = '#25d366';
+                  e.currentTarget.style.color = '#25d366';
+                }}
+              >
+                <Share2 size={20} />
+                Share to WhatsApp Status
+              </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Screen Image Viewer */}
+      {imageViewerOpen && viewerImageUrl && (
+        <div
+          onClick={() => setImageViewerOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            cursor: 'zoom-out',
+            animation: 'fadeIn 0.2s ease-in-out'
+          }}
+        >
+          <OptimizedImage
+            src={viewerImageUrl}
+            alt="Product image"
+            width={1600}
+            height={1600}
+            sizes="100vw"
+            objectFit="contain"
+            priority={true}
+            style={{
+              maxWidth: '95vw',
+              maxHeight: '95vh',
+              objectFit: 'contain'
+            }}
+          />
+          {/* Close hint */}
+          <div style={{
+            position: 'absolute',
+            bottom: '32px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            color: '#1f2937',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            pointerEvents: 'none'
+          }}>
+            Click anywhere to close
           </div>
         </div>
       )}

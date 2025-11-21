@@ -1,0 +1,80 @@
+/**
+ * Collapsible Card Styles
+ */
+
+.collapseCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: white;
+  overflow: hidden;
+}
+
+.collapseHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.collapseHeader:hover {
+  background-color: #f9fafb;
+}
+
+.collapseHeader:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.collapseHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.collapseHeaderLeft h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  color: #6b7280;
+  transition: transform 0.2s;
+}
+
+.collapseBody {
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 5000px;
+  opacity: 1;
+}
+
+.collapseBody.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.collapseHeaderRight {
+  margin-left: auto;
+}
+
+@media (min-width: 768px) {
+  .collapseHeader {
+    padding: 16px 20px;
+  }
+
+  .collapseHeaderLeft h3 {
+    font-size: 17px;
+  }
+}

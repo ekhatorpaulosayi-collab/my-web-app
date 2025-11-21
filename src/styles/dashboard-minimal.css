@@ -1,0 +1,727 @@
+/**
+ * Storehouse Dashboard - Shopify-Grade Design
+ * Professional color grading, spacing, and performance
+ */
+
+:root {
+  /* Shopify-Inspired Professional Palette */
+  --primary: #00894F;
+  --primary-hover: #007F44;
+  --primary-light: #E6F4ED;
+
+  /* Backgrounds */
+  --bg-body: #F6F6F7;
+  --bg-card: #FFFFFF;
+  --bg-hover: #F3F4F6;
+  --bg-subtle: #F9FAFB;
+
+  /* Text */
+  --text-heading: #202223;
+  --text-body: #6B7280;
+  --text-subtle: #9CA3AF;
+
+  /* Borders */
+  --border: #E5E7EB;
+  --border-hover: #D1D5DB;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-base: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+}
+
+.dashboard-minimal {
+  max-width: 100%;
+  padding: var(--space-base);
+  max-width: 1200px;
+  margin: 0 auto;
+  background: var(--bg-body);
+  min-height: 100vh;
+}
+
+/* Date Display */
+.dashboard-date {
+  font-size: 0.875rem;
+  color: var(--text-body);
+  margin-bottom: var(--space-base);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .dashboard-date {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Action Buttons - Responsive Professional Design */
+.action-buttons {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-heading);
+  border: 1px solid var(--border);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-card);
+  color: var(--text-body);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  min-height: 40px;
+}
+
+.btn-more:hover {
+  background: var(--bg-hover);
+  color: var(--text-heading);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Mobile - Touch-friendly sizing */
+@media (max-width: 768px) {
+  .btn-primary,
+  .btn-secondary,
+  .btn-more {
+    min-height: 48px;
+    padding: 12px 20px;
+    font-size: 16px;
+  }
+}
+
+/* Card Base - Professional Shopify Style */
+.sales-card,
+.quick-sell-card,
+.search-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-xl);
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s ease;
+}
+
+.sales-card:hover,
+.quick-sell-card:hover,
+.search-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.sales-card h3,
+.quick-sell-card h3,
+.search-card h3 {
+  margin: 0 0 var(--space-base) 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-heading);
+  letter-spacing: -0.01em;
+}
+
+/* Sales Header with Toggle */
+.sales-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.sales-header h3 {
+  margin: 0;
+}
+
+.toggle-visibility-btn {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.toggle-visibility-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* Quick Sell Collapsible Header */
+.quick-sell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.quick-sell-header h3 {
+  margin: 0;
+}
+
+.collapse-toggle-btn {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  pointer-events: none; /* Let parent handle clicks */
+}
+
+.quick-sell-header:hover .collapse-toggle-btn {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* Today's Sales */
+.sales-total {
+  font-size: 36px;
+  font-weight: 700;
+  color: #10b981;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-count {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.recent-sales-header {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.sale-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f9fafb;
+}
+
+.sale-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sale-staff-info {
+  font-size: 11px;
+  color: #9ca3af;
+  padding-left: 82px;
+  font-style: italic;
+}
+
+.sale-time {
+  font-size: 13px;
+  color: #9ca3af;
+  min-width: 70px;
+}
+
+.sale-item {
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sale-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Staff Performance Widget */
+.staff-performance-widget {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--space-base);
+  margin: var(--space-base) 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.staff-performance-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.staff-performance-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.staff-performance-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.staff-count {
+  font-size: 12px;
+  color: var(--text-subtle);
+  padding: 2px 8px;
+  background: var(--bg-subtle);
+  border-radius: 12px;
+}
+
+.staff-performance-list {
+  margin-top: var(--space-base);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.staff-performance-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.staff-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.staff-role-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.staff-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  text-align: right;
+}
+
+.staff-stat {
+  font-size: 13px;
+  color: var(--text-body);
+}
+
+.staff-revenue {
+  font-size: 15px;
+  font-weight: 600;
+  color: #10b981;
+  min-width: 80px;
+}
+
+.stat-label {
+  color: var(--text-subtle);
+}
+
+/* Quick Sell Grid - Balanced Professional & Touch-Friendly */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+}
+
+@media (min-width: 640px) {
+  .items-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-base);
+  }
+}
+
+@media (min-width: 1024px) {
+  .items-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.quick-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-lg);
+  min-height: 100px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.quick-item:hover {
+  background: var(--bg-card);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.quick-item:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-md);
+}
+
+.quick-item-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin-bottom: var(--space-xs);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.quick-item-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: var(--space-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-item-qty {
+  font-size: 13px;
+  color: var(--text-body);
+  font-weight: 500;
+}
+
+/* Mobile - Larger for touch */
+@media (max-width: 768px) {
+  .quick-item {
+    min-height: 110px;
+    padding: var(--space-xl);
+  }
+
+  .quick-item-name {
+    font-size: 16px;
+  }
+
+  .quick-item-price {
+    font-size: 22px;
+  }
+
+  .quick-item-qty {
+    font-size: 14px;
+  }
+}
+
+/* Search Items - Professional Shopify Style */
+.search-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-base);
+  padding: var(--space-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.search-icon {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  color: #111827;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+}
+
+/* Shopify-Grade Table */
+.items-table-wrapper {
+  overflow-x: auto;
+  margin: -4px calc(var(--space-xl) * -1) calc(var(--space-xl) * -1);
+  padding: 4px var(--space-xl) var(--space-xl);
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.items-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.items-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 10;
+}
+
+.items-table thead th {
+  padding: var(--space-md) var(--space-md);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-body);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.items-table thead th.text-right {
+  text-align: right;
+}
+
+.items-table thead th.text-center {
+  text-align: center;
+}
+
+.items-table tbody .item-row {
+  cursor: pointer;
+  transition: all 0.1s ease;
+  background: var(--bg-card);
+}
+
+/* Shopify-style alternating rows */
+.items-table tbody .item-row:nth-child(even) {
+  background: var(--bg-subtle);
+}
+
+.items-table tbody .item-row:hover {
+  background: var(--primary-light);
+}
+
+.items-table tbody td {
+  padding: var(--space-md) var(--space-md);
+  font-size: 14px;
+  color: var(--text-heading);
+  border-bottom: 1px solid var(--border);
+}
+
+.items-table tbody td.text-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.items-table tbody td.text-center {
+  text-align: center;
+}
+
+.item-name {
+  font-weight: 500;
+  color: var(--text-heading);
+}
+
+/* Loading indicator for infinite scroll */
+.items-loading {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-body);
+  font-size: 14px;
+}
+
+.items-loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Delete Item Button */
+.delete-item-btn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0;
+}
+
+.item-row:hover .delete-item-btn {
+  opacity: 1;
+}
+
+.delete-item-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 32px 20px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 640px) {
+  .dashboard-minimal {
+    padding: 12px;
+  }
+
+  .action-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-more {
+    grid-column: 1;
+  }
+
+  .sales-card,
+  .quick-sell-card,
+  .search-card {
+    padding: 16px;
+  }
+
+  .sales-total {
+    font-size: 28px;
+  }
+
+  .sale-row {
+    flex-wrap: wrap;
+  }
+
+  .sale-time {
+    min-width: auto;
+  }
+}
+
+/* Hide all old complex components */
+.collapseCard,
+.metric-row,
+.smart-notification,
+.dashboard-actions,
+.dashboard-core-actions,
+.dashboard-widgets,
+.sticky-actions,
+.kpi-row {
+  display: none !important;
+}
+
+/* Hide old App.jsx components that duplicate Dashboard elements */
+.share-store-card,
+.mainColumn {
+  display: none !important;
+}

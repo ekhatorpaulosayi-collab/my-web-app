@@ -1,0 +1,81 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+
+    // Check if user is authenticated
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Validate image file type
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // Validate file size (max 5MB)
+    function isValidSize() {
+      return request.resource.size <= 5 * 1024 * 1024;
+    }
+
+
+    // ============================================================================
+    // STORE LOGOS
+    // Store owners can upload/update/delete their own logos
+    // Max 5MB, images only
+    // ============================================================================
+    match /stores/{userId}/{fileName} {
+      // Owner can read their own logo
+      allow read: if isOwner(userId);
+
+      // Anyone can read public store logos
+      allow read: if fileName.matches('logo-.*');
+
+      // Owner can upload/update logo
+      allow write: if isOwner(userId)
+        && isImage()
+        && isValidSize();
+
+      // Owner can delete their logo
+      allow delete: if isOwner(userId);
+    }
+
+
+    // ============================================================================
+    // PRODUCT IMAGES (Future feature)
+    // ============================================================================
+    match /products/{userId}/{productId}/{fileName} {
+      allow read: if true; // Public read for product images
+      allow write: if isOwner(userId)
+        && isImage()
+        && isValidSize();
+      allow delete: if isOwner(userId);
+    }
+
+
+    // ============================================================================
+    // RECEIPTS/ATTACHMENTS (Future feature)
+    // ============================================================================
+    match /receipts/{userId}/{receiptId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+        && isImage()
+        && isValidSize();
+      allow delete: if isOwner(userId);
+    }
+
+
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

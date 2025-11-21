@@ -1,0 +1,247 @@
+/**
+ * Dashboard Common Styles
+ * Shared card styles, table improvements, zebra stripes
+ */
+
+/* Dashboard Layout */
+.dashboard-primary-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-primary-features {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-primary-features {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.dashboard-secondary-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Widget Cards Styling */
+.widget-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Card base */
+.card,
+.dashboard-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+@media (min-width: 768px) {
+  .card,
+  .dashboard-card {
+    padding: 24px;
+  }
+}
+
+/* Table improvements */
+.itemsTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.itemsTable thead {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+  box-shadow: 0 1px 0 #e5e7eb;
+}
+
+.itemsTable thead th {
+  padding: 12px 8px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.itemsTable thead th.colQty,
+.itemsTable thead th.colPrice,
+.itemsTable thead th.colProfit {
+  text-align: right;
+}
+
+.itemsTable tbody tr {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.15s;
+}
+
+.itemsTable tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.itemsTable tbody tr:hover {
+  background-color: #f3f4f6;
+}
+
+.itemsTable tbody td {
+  padding: 12px 8px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.itemsTable tbody td.qty-col,
+.itemsTable tbody td.price-col,
+.itemsTable tbody td.profit-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  .itemsTable thead th {
+    padding: 14px 12px;
+  }
+  .itemsTable tbody td {
+    padding: 14px 12px;
+  }
+}
+
+/* Calm Mode Toggle */
+.pillToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #f3f4f6;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.pillToggle:hover {
+  background: #e5e7eb;
+}
+
+.pillToggle input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Muted Button */
+.muted {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.muted:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+/* Dashboard Core Actions */
+.dashboard-core-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.dashboard-core-actions .btn-primary,
+.dashboard-core-actions .btn-secondary {
+  flex: 1;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dashboard-core-actions .btn-primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  max-width: 200px;
+}
+
+.dashboard-core-actions .btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.dashboard-core-actions .btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  flex: 0 1 auto;
+}
+
+.dashboard-core-actions .btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+/* Widget Group Content */
+.widget-group-content {
+  padding: 16px;
+}
+
+@media (min-width: 768px) {
+  .widget-group-content {
+    padding: 20px;
+  }
+}
+
+/* Inventory Count Widget */
+.inventory-count-widget .metric-large {
+  font-size: 36px;
+  font-weight: bold;
+  color: #1f2937;
+  margin: 8px 0;
+}
+
+.inventory-count-widget .metric-label {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.inventory-count-widget .metric-secondary {
+  color: #9ca3af;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* SMOKE TEST:
+ * 1. Toggle Calm Mode ON → all groups collapse
+ * 2. Expand "Inventory Health" → see items; refresh → persists
+ * 3. Calm Mode OFF → previous states preserved
+ * 4. Tax widget shows only if feature flag enabled
+ */

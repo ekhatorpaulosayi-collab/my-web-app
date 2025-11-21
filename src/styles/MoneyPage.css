@@ -1,0 +1,265 @@
+/* Money Page Overlay */
+.money-page-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Money Page Container */
+.money-page-container {
+  background: white;
+  border-radius: 12px;
+  width: 95%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Header */
+.money-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid #e5e7eb;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: white;
+}
+
+.money-page-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.money-page-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: background 0.2s;
+}
+
+.money-page-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Content */
+.money-page-content {
+  padding: 2rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Items Section */
+.money-items-section {
+  margin-top: 2rem;
+}
+
+.money-items-section h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #171F2D;
+}
+
+/* Search Bar */
+.money-search-bar {
+  margin-bottom: 1.5rem;
+}
+
+.money-search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.money-search-input:focus {
+  border-color: #16a34a;
+}
+
+/* Table Container */
+.money-table-container {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+/* Items Table */
+.money-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 15px;
+}
+
+/* Header */
+.money-items-table thead th {
+  background: #F9FBFF;
+  border-bottom: 2px solid #E1E7EF;
+  padding: 14px 16px;
+  font-weight: 600;
+  text-align: left;
+  color: #171F2D;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+}
+
+/* Body Rows */
+.money-items-table tbody tr {
+  border-bottom: 1px solid #E1E7EF;
+  transition: background-color 0.15s;
+}
+
+.money-items-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.money-items-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.money-items-table td {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+/* Column Widths */
+.money-items-table thead th:nth-child(1),
+.money-items-table tbody td:nth-child(1) {
+  width: 30%;
+  text-align: left;
+}
+
+.money-items-table thead th:nth-child(2),
+.money-items-table tbody td:nth-child(2) {
+  width: 12%;
+  text-align: right;
+}
+
+.money-items-table thead th:nth-child(3),
+.money-items-table tbody td:nth-child(3) {
+  width: 18%;
+  text-align: right;
+}
+
+.money-items-table thead th:nth-child(4),
+.money-items-table tbody td:nth-child(4) {
+  width: 18%;
+  text-align: right;
+}
+
+.money-items-table thead th:nth-child(5),
+.money-items-table tbody td:nth-child(5) {
+  width: 22%;
+  text-align: right;
+}
+
+/* Cell Styles */
+.cell-item {
+  font-weight: 500;
+  color: #171F2D;
+}
+
+.cell-qty,
+.cell-cost,
+.cell-price,
+.cell-profit {
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.cell-cost {
+  color: #6b7280;
+}
+
+.cell-price {
+  color: #171F2D;
+}
+
+.cell-profit {
+  font-weight: 600;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .money-page-container {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .money-page-header {
+    padding: 1rem 1.5rem;
+  }
+
+  .money-page-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .money-page-content {
+    padding: 1.5rem;
+  }
+
+  .money-items-table {
+    font-size: 14px;
+  }
+
+  .money-items-table thead th,
+  .money-items-table tbody td {
+    padding: 10px 8px;
+  }
+
+  /* Adjust column widths for mobile */
+  .money-items-table thead th:nth-child(1),
+  .money-items-table tbody td:nth-child(1) {
+    width: 35%;
+  }
+
+  .money-items-table thead th:nth-child(2),
+  .money-items-table tbody td:nth-child(2) {
+    width: 10%;
+  }
+
+  .money-items-table thead th:nth-child(3),
+  .money-items-table tbody td:nth-child(3) {
+    width: 15%;
+  }
+
+  .money-items-table thead th:nth-child(4),
+  .money-items-table tbody td:nth-child(4) {
+    width: 15%;
+  }
+
+  .money-items-table thead th:nth-child(5),
+  .money-items-table tbody td:nth-child(5) {
+    width: 25%;
+  }
+}

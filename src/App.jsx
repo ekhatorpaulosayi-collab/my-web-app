@@ -3,9 +3,10 @@ import './App.css';
 import { useNavigate } from 'react-router-dom';
 import './styles/dashboard.css';
 import { useStrings } from './hooks/useStrings';
-import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign, Camera, X } from 'lucide-react';
+import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign, Camera, X, Share2 } from 'lucide-react';
 import TestPayment from './pages/TestPayment';
 import { usePreferences } from './contexts/PreferencesContext.tsx';
+import { useStaff } from './contexts/StaffContext.tsx';
 import { BusinessTypeSelector } from './components/BusinessTypeSelector.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { DashboardCustomize } from './components/DashboardCustomize.tsx';
@@ -64,6 +65,7 @@ import { formatNaira, safeMoney } from './utils/money.ts';
 import { useBusinessProfile } from './contexts/BusinessProfile.jsx';
 import CurrentDate from './components/CurrentDate.tsx';
 import { calculateTax, getCurrentMonth, shareViaWhatsApp, downloadTaxSummary } from './utils/taxCalculations.ts';
+import { shareProductToWhatsApp } from './utils/shareToWhatsApp';
 import ExpenseModal from './components/ExpenseModal.tsx';
 import { saveExpense, getCurrentMonthExpenses, calculateTotalExpenses } from './lib/expenses.ts';
 import ExpensesPage from './pages/ExpensesPage.tsx';
@@ -72,17 +74,23 @@ import MoneyPage from './pages/MoneyPage.jsx';
 import { hasPinSet, verifyPin, isUnlocked, unlock, lock } from './lib/pinService.ts';
 import ShareStoreCard from './components/ShareStoreCard.jsx';
 import { useAuth } from './contexts/AuthContext';
+import { useUser } from './lib/supabase-hooks';
 import {
-  getProducts as getFirebaseProducts,
+  getProducts,
   subscribeToProducts,
-  addProduct as addFirebaseProduct,
-  updateProduct as updateFirebaseProduct,
-  deleteProduct as deleteFirebaseProduct,
+  addProduct,
+  updateProduct,
+  deleteProduct,
   productExists
-} from './services/firebaseProducts';
-import { migrateUserData } from './services/dataMigration';
+} from './services/supabaseProducts';
+// import { migrateUserData } from './services/dataMigration'; // Disabled - migration not needed
 import { CSVImport } from './components/CSVImport.tsx';
-import { uploadProductImage } from './utils/imageUpload.ts';
+import { uploadProductImage } from './lib/supabase-storage';
+import { ContextualPromptToast } from './components/ContextualPromptToast.tsx';
+import { useContextualPrompts } from './hooks/useContextualPrompts.ts';
+import { getCategoryAttributes, formatAttributeValue, getAttributeIcon } from './config/categoryAttributes.ts';
+import { VariantManager } from './components/VariantManager.tsx';
+import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
 
 function App() {
   const navigate = useNavigate();
@@ -95,8 +103,17 @@ function App() {
   // Auth context - get current user for Firebase operations
   const { currentUser } = useAuth();
 
+  // Get Supabase user (converts Firebase UID to Supabase UUID)
+  const { user: supabaseUser } = useUser(currentUser);
+
   // Preferences context - dashboard widgets and customization
   const { isFirstTimeSetup, completeSetup } = usePreferences();
+
+  // Staff context - track who records sales
+  const { currentStaff } = useStaff();
+
+  // Contextual prompts - smart suggestions based on usage
+  const { prompt, dismissPrompt: dismissContextualPrompt } = useContextualPrompts();
 
   // Dashboard customization modal
   const [showDashboardCustomize, setShowDashboardCustomize] = useState(false);
@@ -210,12 +227,14 @@ function App() {
   // Add Item form state
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Fashion & Clothing', // Default category
+    category: 'Fashion', // Default category
+    description: '', // Product description (optional)
     qty: '',
     purchasePrice: '',
     sellingPrice: '',
     reorderLevel: '10', // Default reorder level
-    isPublic: true // Default to public for storefront
+    isPublic: true, // Default to public for storefront
+    attributes: {} // Category-specific attributes
   });
 
   // State for formatted price displays
@@ -234,6 +253,13 @@ function App() {
   // Product image upload state
   const [productImageFile, setProductImageFile] = useState(null);
   const [productImagePreview, setProductImagePreview] = useState('');
+
+  // Product variants state
+  const [productVariants, setProductVariants] = useState([]);
+
+  // Inventory table variants state
+  const [expandedProducts, setExpandedProducts] = useState(new Set());
+  const [productVariantsMap, setProductVariantsMap] = useState({});
 
   // Sales tracking state (now from IndexedDB)
   const [sales, setSales] = useState([]);
@@ -814,14 +840,19 @@ function App() {
         await initDB();
         await seedDemoItems();
 
-        // Load products from Firebase FIRST (most critical for UI)
-        console.log('[App] Loading products from Firebase...');
-        const firebaseProducts = await getFirebaseProducts(currentUser.uid);
-        console.log('[App] Loaded', firebaseProducts.length, 'products from Firebase');
-        setItems(firebaseProducts);
+        // Load products from Supabase FIRST (most critical for UI)
+        console.log('[App] Loading products from Supabase...');
+        console.log('[App] Firebase UID:', currentUser.uid);
+        console.log('[App] Supabase UUID:', supabaseUser?.id);
+        const products = await getProducts(currentUser.uid);  // Use Firebase UID during migration
+        console.log('[App] Loaded', products.length, 'products from Supabase');
+        setItems(products);
         // UI already showing, just update with data
 
-        // Defer migration check to background
+        // Migration check disabled - already using Supabase
+        // Keeping this commented out to avoid Firebase permission errors in console
+        // If you need to re-enable migration, uncomment the code below:
+        /*
         setTimeout(async () => {
           console.log('[App] Checking migration status in background...');
           try {
@@ -831,6 +862,7 @@ function App() {
             console.error('[App] Migration failed:', error);
           }
         }, 100);
+        */
 
         // Load sales from IndexedDB in background
         const db = await getDB();
@@ -915,7 +947,7 @@ function App() {
       await initializeData();
 
       console.log('[App] Setting up real-time product subscription...');
-      unsubscribe = subscribeToProducts(currentUser.uid, (products, error) => {
+      unsubscribe = subscribeToProducts(currentUser.uid, (products, error) => {  // Use Firebase UID
         if (error) {
           console.error('[App] Product subscription error:', error);
           return;
@@ -948,6 +980,36 @@ function App() {
       localStorage.setItem('storehouse-plan', 'STARTER');
     }
   }, []);
+
+  // Fetch variants for all products when items change
+  useEffect(() => {
+    if (items.length > 0) {
+      const fetchAllVariants = async () => {
+        console.log('[App] 🔍 Fetching variants for', items.length, 'products...');
+        const variantsMap = {};
+
+        for (const item of items) {
+          try {
+            const variants = await getProductVariants(item.id.toString());
+            if (variants.length > 0) {
+              console.log(`[App] ✅ Found ${variants.length} variants for product:`, item.name);
+              variantsMap[item.id] = variants;
+            }
+          } catch (error) {
+            console.error(`[App] Failed to fetch variants for product ${item.id}:`, error);
+          }
+        }
+
+        console.log('[App] 📦 Total products with variants:', Object.keys(variantsMap).length);
+        setProductVariantsMap(variantsMap);
+      };
+
+      fetchAllVariants();
+    } else {
+      // Clear variants map when no items
+      setProductVariantsMap({});
+    }
+  }, [items]);
 
   // Keyboard shortcuts for calculator
   useEffect(() => {
@@ -1548,14 +1610,42 @@ Thank you for your business! 🙏
           if (existing) {
             setExistingItem(existing);
             setStockMode('add'); // Default to 'add' mode
+
+            // Load existing variants if any
+            console.log('[handleInputChange] Loading variants for existing item:', existing.id);
+            getProductVariants(existing.id.toString())
+              .then(variants => {
+                if (variants && variants.length > 0) {
+                  console.log('[handleInputChange] ✅ Loaded', variants.length, 'existing variants');
+                  // Convert to the format expected by VariantManager
+                  const formattedVariants = variants.map(v => ({
+                    variant_name: v.variant_name,
+                    sku: v.sku,
+                    quantity: v.quantity,
+                    price_override: v.price_override,
+                    attributes: v.attributes,
+                    is_active: v.is_active
+                  }));
+                  setProductVariants(formattedVariants);
+                } else {
+                  console.log('[handleInputChange] No variants found for this product');
+                  setProductVariants([]);
+                }
+              })
+              .catch(err => {
+                console.error('[handleInputChange] Error loading variants:', err);
+                setProductVariants([]);
+              });
           } else {
             setExistingItem(null);
+            setProductVariants([]); // Clear variants when no existing item
           }
         } catch (err) {
           console.warn('[handleInputChange] Error checking existing item:', err);
         }
       } else if (name === 'name' && !value.trim()) {
         setExistingItem(null);
+        setProductVariants([]); // Clear variants when name is cleared
       }
     }
   };
@@ -1587,11 +1677,14 @@ Thank you for your business! 🙏
       return;
     }
 
-    const qtyInput = parseInt(formData.qty);
-    if (!formData.qty || isNaN(qtyInput) || qtyInput <= 0) {
-      console.log('[handleSave] Validation failed: qty invalid');
-      displayToast('Please enter a valid quantity greater than 0');
-      return;
+    // Skip quantity validation if product has variants (variants have their own quantities)
+    if (productVariants.length === 0) {
+      const qtyInput = parseInt(formData.qty);
+      if (!formData.qty || isNaN(qtyInput) || qtyInput <= 0) {
+        console.log('[handleSave] Validation failed: qty invalid');
+        displayToast('Please enter a valid quantity greater than 0');
+        return;
+      }
     }
 
     if (!formData.purchasePrice || parseFloat(formData.purchasePrice) < 0) {
@@ -1625,8 +1718,13 @@ Thank you for your business! 🙏
         const oldQty = existingItem.qty;
         const oldPurchaseKobo = existingItem.purchaseKobo || 0;
 
-        if (stockMode === 'add') {
-          // ADD MODE: Increment stock
+        // If product has variants, calculate total quantity from variants
+        const totalVariantQty = productVariants.length > 0
+          ? productVariants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+          : inputQty;
+
+        if (stockMode === 'add' && productVariants.length === 0) {
+          // ADD MODE: Increment stock (only for non-variant products)
           const delta = inputQty;
           const newQty = oldQty + delta;
 
@@ -1636,12 +1734,12 @@ Thank you for your business! 🙏
           );
 
           const updatedItem = {
-            qty: newQty,
-            purchaseKobo: newPurchaseKobo,
-            sellKobo: Math.round(selling * 100) // Update selling price if provided
+            quantity: newQty,  // Changed from 'qty'
+            cost_price: newPurchaseKobo / 100,  // Changed from 'purchaseKobo', convert to naira
+            selling_price: selling  // Changed from 'sellKobo', service converts to kobo
           };
 
-          await updateFirebaseProduct(currentUser.uid, existingItem.id, updatedItem);
+          await updateProduct(currentUser.uid, existingItem.id, updatedItem);
           console.log('[handleSave] ✅ Stock added:', { oldQty, delta, newQty });
           displayToast(`✅ Added ${delta} units to ${existingItem.name}!`);
 
@@ -1658,31 +1756,54 @@ Thank you for your business! 🙏
           displayToast(`✓ Added ${delta} to ${existingItem.name}: ${oldQty} → ${newQty}`);
 
         } else {
-          // REPLACE MODE: Set total stock
-          const newTotal = inputQty;
+          // REPLACE MODE: Set total stock (or update product with variants)
+          const newTotal = totalVariantQty;
           const qtyDiff = newTotal - oldQty;
 
           const updatedItem = {
-            qty: newTotal,
-            purchaseKobo: Math.round(purchase * 100),
-            sellKobo: Math.round(selling * 100)
+            quantity: newTotal,  // Sum of variants or new total
+            cost_price: purchase,  // Changed from 'purchaseKobo', service converts to kobo
+            selling_price: selling  // Changed from 'sellKobo', service converts to kobo
           };
 
-          await updateFirebaseProduct(currentUser.uid, existingItem.id, updatedItem);
-          console.log('[handleSave] ✅ Stock replaced:', { oldQty, newTotal });
-          displayToast(`✅ Stock updated to ${newTotal} units for ${existingItem.name}!`);
+          await updateProduct(currentUser.uid, existingItem.id, updatedItem);
+          console.log('[handleSave] ✅ Stock updated:', { oldQty, newTotal, hasVariants: productVariants.length > 0 });
+          displayToast(`✅ ${existingItem.name} updated!`);
 
-          // Log stock movement
-          logStockMovement({
-            itemId: existingItem.id,
-            type: 'adjust',
-            qty: qtyDiff,
-            unitCost: Math.round(purchase * 100),
-            reason: 'stock_take',
-            at: new Date().toISOString()
-          });
+          // Log stock movement (only if no variants)
+          if (productVariants.length === 0) {
+            logStockMovement({
+              itemId: existingItem.id,
+              type: 'adjust',
+              qty: qtyDiff,
+              unitCost: Math.round(purchase * 100),
+              reason: 'stock_take',
+              at: new Date().toISOString()
+            });
+          }
 
-          displayToast(`✓ Stock set to ${newTotal} for ${existingItem.name}`);
+          // Save variants if any exist
+          if (productVariants.length > 0) {
+            try {
+              console.log('[handleSave] Creating/updating variants...', productVariants);
+              console.log('[handleSave] Product ID:', existingItem.id);
+              console.log('[handleSave] User ID (supabaseUser):', supabaseUser?.id);
+              console.log('[handleSave] User ID (currentUser):', currentUser?.uid);
+              displayToast('💾 Saving variants...');
+
+              // Use supabaseUser.id for variants
+              if (!supabaseUser?.id) {
+                throw new Error('Supabase user ID not available. Please try logging out and back in.');
+              }
+              await createVariants(existingItem.id, supabaseUser.id, productVariants);
+
+              console.log('[handleSave] ✅ Variants saved successfully');
+              displayToast(`✓ ${existingItem.name} updated with ${productVariants.length} variants!`);
+            } catch (error) {
+              console.error('[handleSave] Failed to save variants:', error);
+              displayToast('⚠ Product updated but variants failed. Please try again.');
+            }
+          }
         }
 
       } else {
@@ -1711,22 +1832,67 @@ Thank you for your business! 🙏
           }
         }
 
+        // Filter out empty attribute values
+        const cleanAttributes = Object.entries(formData.attributes || {})
+          .filter(([_, value]) => value && value.toString().trim() !== '')
+          .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+
+        // Calculate total quantity from variants if they exist
+        const totalVariantQty = productVariants.length > 0
+          ? productVariants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+          : inputQty;
+
+        console.log('[handleSave] Quantity calculation:', {
+          hasVariants: productVariants.length > 0,
+          variantCount: productVariants.length,
+          variantQuantities: productVariants.map(v => v.quantity),
+          totalVariantQty,
+          inputQty
+        });
+
         const newItem = {
           name: formData.name.trim(),
           category: formData.category || 'General Merchandise',
-          qty: inputQty,
-          purchaseKobo: Math.round(purchase * 100),
-          sellKobo: Math.round(selling * 100),
-          reorderLevel: parseInt(formData.reorderLevel) || 10,
-          imageUrl: imageUrl,  // Add image URL
-          isPublic: formData.isPublic,  // Public visibility setting
+          description: formData.description?.trim() || null,  // Product description (optional)
+          quantity: totalVariantQty,  // Sum of all variant quantities, or base quantity if no variants
+          cost_price: purchase,  // Changed from 'purchaseKobo', service converts to kobo
+          selling_price: selling,  // Changed from 'sellKobo', service converts to kobo
+          low_stock_threshold: parseInt(formData.reorderLevel) || 10,  // Changed from 'reorderLevel'
+          image_url: imageUrl,  // Changed from 'imageUrl' to 'image_url'
+          is_public: formData.isPublic !== false,  // Default to true (public) unless explicitly set to false
+          is_active: true,  // Add is_active field
+          attributes: cleanAttributes,  // Category-specific attributes
           isDemo: false
         };
 
         console.log('[handleSave] Creating new item:', newItem);
-        const addedItem = await addFirebaseProduct(currentUser.uid, newItem);
+        const addedItem = await addProduct(currentUser.uid, newItem);
         console.log('[handleSave] ✅ Item added to Firebase:', addedItem);
-        displayToast('✓ Item added successfully!');
+
+        // Save variants if any exist
+        if (productVariants.length > 0) {
+          try {
+            console.log('[handleSave] Creating variants...', productVariants);
+            console.log('[handleSave] Product ID:', addedItem.id);
+            console.log('[handleSave] User ID (supabaseUser):', supabaseUser?.id);
+            console.log('[handleSave] User ID (currentUser):', currentUser?.uid);
+            displayToast('💾 Saving variants...');
+
+            // Use supabaseUser.id for variants (not Firebase UID)
+            if (!supabaseUser?.id) {
+              throw new Error('Supabase user ID not available. Please try logging out and back in.');
+            }
+            await createVariants(addedItem.id, supabaseUser.id, productVariants);
+
+            console.log('[handleSave] ✅ Variants saved successfully');
+            displayToast(`✓ Item added with ${productVariants.length} variants!`);
+          } catch (error) {
+            console.error('[handleSave] Failed to save variants:', error);
+            displayToast('⚠ Item saved but variants failed. Please edit the item to add variants.');
+          }
+        } else {
+          displayToast('✓ Item added successfully!');
+        }
 
         // Clear image state
         setProductImageFile(null);
@@ -1741,9 +1907,16 @@ Thank you for your business! 🙏
         localStorage.setItem('demoItemsActive', 'false');
       }
 
-      // Note: Items will update automatically via real-time subscription
-      // No need to manually reload - Firebase listener handles it
-      console.log('[handleSave] ✅ Item saved to Firebase, waiting for real-time update...');
+      // IMPORTANT: Manually refetch items to ensure UI updates immediately
+      // This is especially important on mobile where real-time subscriptions can be unreliable
+      console.log('[handleSave] 📥 Manually refetching items to ensure UI updates...');
+      try {
+        const updatedItems = await getProducts(currentUser.uid);
+        setItems(updatedItems);
+        console.log('[handleSave] ✅ Items refetched successfully:', updatedItems.length);
+      } catch (error) {
+        console.error('[handleSave] ⚠️ Failed to refetch items, relying on real-time subscription:', error);
+      }
 
       // Clear search query to ensure new item is visible
       setSearchQuery('');
@@ -1753,17 +1926,20 @@ Thank you for your business! 🙏
       setShowModal(false);
       setFormData({
         name: '',
-        category: 'Fashion & Clothing',
+        category: 'Fashion',
+        description: '',
         qty: '',
         purchasePrice: '',
         sellingPrice: '',
         reorderLevel: '10',
-        isPublic: true  // Reset to public by default
+        isPublic: true,  // Reset to public by default
+        attributes: {}  // Reset attributes
       });
       setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
       setCalculatedProfit({ profit: 0, margin: 0 });
       setExistingItem(null);
       setStockMode('add');
+      setProductVariants([]);
       console.log('[handleSave] ✅ SUCCESS! Item should now be visible in inventory table');
     } catch (error) {
       console.error('[handleSave] Error:', error);
@@ -1822,11 +1998,73 @@ Thank you for your business! 🙏
   const handleDeleteItem = async (itemId) => {
     try {
       console.log('[App] Deleting item:', itemId);
-      await deleteFirebaseProduct(currentUser.uid, itemId);
+      await deleteProduct(currentUser.uid, itemId);
       displayToast('✓ Item deleted successfully');
     } catch (error) {
       console.error('[App] Error deleting item:', error);
       displayToast('❌ Failed to delete item');
+    }
+  };
+
+  // Handle edit item
+  const handleEditItem = async (item) => {
+    try {
+      console.log('[App] Edit item clicked:', item);
+
+      // Set existing item first
+      setExistingItem(item);
+
+      // Pre-populate form with item data
+      setFormData({
+        name: item.name || '',
+        category: item.category || 'General Merchandise',
+        qty: (item.qty || item.quantity || 0).toString(),
+        purchasePrice: '', // Will be set by formatNumberWithCommas
+        sellingPrice: '', // Will be set by formatNumberWithCommas
+        reorderLevel: (item.low_stock_threshold || item.reorderLevel || 10).toString(),
+        description: item.description || '',
+        isPublic: item.is_public !== false,
+        attributes: item.attributes || {}
+      });
+
+      // Format prices
+      const costPrice = item.cost_price || item.purchaseKobo / 100 || 0;
+      const sellPrice = item.selling_price || item.sellKobo / 100 || 0;
+
+      setFormattedPrices({
+        purchasePrice: formatNumberWithCommas(costPrice.toString()),
+        sellingPrice: formatNumberWithCommas(sellPrice.toString())
+      });
+
+      // Load existing variants if any
+      console.log('[App] Loading variants for product:', item.id);
+      const variants = await getProductVariants(item.id.toString());
+      if (variants && variants.length > 0) {
+        console.log('[App] ✅ Loaded', variants.length, 'existing variants for editing');
+        const formattedVariants = variants.map(v => ({
+          variant_name: v.variant_name,
+          sku: v.sku,
+          quantity: v.quantity,
+          price_override: v.price_override,
+          attributes: v.attributes,
+          is_active: v.is_active
+        }));
+        setProductVariants(formattedVariants);
+        // Set stock mode to 'replace' for products with variants
+        setStockMode('replace');
+      } else {
+        console.log('[App] No variants found for this product');
+        setProductVariants([]);
+        // Default to 'add' mode for products without variants
+        setStockMode('add');
+      }
+
+      // Open the modal
+      setShowModal(true);
+
+    } catch (error) {
+      console.error('[App] Error loading item for edit:', error);
+      displayToast('❌ Failed to load item data');
     }
   };
 
@@ -2219,12 +2457,22 @@ Thank you for your business! 🙏
         throw new Error(`Not enough stock. Only ${selectedItem.qty || 0} available.`);
       }
 
-      // Update product quantity in Firebase (non-blocking - don't fail sale if this fails)
+      // Update product quantity in Supabase (non-blocking - don't fail sale if this fails)
       try {
-        await updateFirebaseProduct(currentUser.uid, selectedItem.id, {
-          qty: selectedItem.qty - qty
+        await updateProduct(currentUser.uid, selectedItem.id, {
+          quantity: selectedItem.qty - qty  // Use 'quantity' for Supabase
         });
-        console.log('[handleSaveSale] ✅ Product quantity updated in Firebase');
+        console.log('[handleSaveSale] ✅ Product quantity updated in Supabase');
+
+        // INSTANT UI UPDATE: Update local state immediately (optimistic update)
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === selectedItem.id
+              ? { ...item, qty: item.qty - qty, quantity: item.quantity - qty }
+              : item
+          )
+        );
+        console.log('[handleSaveSale] ✅ Local inventory updated instantly');
 
         // Log stock movement
         logStockMovement({
@@ -2235,9 +2483,9 @@ Thank you for your business! 🙏
           reason: 'sale',
           at: new Date().toISOString()
         });
-      } catch (firebaseError) {
-        console.warn('[handleSaveSale] ⚠️ Failed to update product in Firebase, but continuing with sale:', firebaseError);
-        // Continue with sale even if Firebase update fails
+      } catch (supabaseError) {
+        console.warn('[handleSaveSale] ⚠️ Failed to update product in Supabase, but continuing with sale:', supabaseError);
+        // Continue with sale even if Supabase update fails
       }
 
       // Wrap the sales/customer/credits transaction in a promise
@@ -2278,7 +2526,11 @@ Thank you for your business! 🙏
           paymentMethod: formData.isCreditSale ? 'credit' : (formData.paymentMethod || 'cash'),
           // Include customer info if present
           customerName: formData.customerName || null,
-          dueDate: formData.dueDate || null
+          dueDate: formData.dueDate || null,
+          // Staff tracking - who recorded this sale
+          recorded_by_staff_id: currentStaff?.id || null,
+          recorded_by_staff_name: currentStaff?.name || null,
+          recorded_by_staff_role: currentStaff?.role || null
         };
 
         salesStore.add(saleData);
@@ -2770,6 +3022,13 @@ Low Stock: ${lowStockItems.length}
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
     setShowEODModal(false);
+  };
+
+  // Export CSV handler
+  const handleExportCSV = () => {
+    console.log('[App] Export CSV triggered from More menu');
+    // TODO: Implement CSV export functionality
+    alert('Export CSV functionality coming soon! This will download all your inventory, sales, and customer data.');
   };
 
   // First Sale Modal check
@@ -3370,6 +3629,7 @@ Low Stock: ${lowStockItems.length}
         items={items}
         credits={credits}
         customers={Object.values(creditCustomers)}
+        productVariantsMap={productVariantsMap}
         onRecordSale={handleRecordSale}
         onAddItem={() => setShowModal(true)}
         onViewHistory={() => setShowSalesHistory(true)}
@@ -3379,7 +3639,13 @@ Low Stock: ${lowStockItems.length}
         onViewExpenses={() => setShowExpensesPage(true)}
         onViewSettings={() => navigate('/settings')}
         onDeleteItem={handleDeleteItem}
+        onEditItem={handleEditItem}
         onShowCSVImport={() => setShowCSVImport(true)}
+        onSendDailySummary={() => {
+          console.log('[Dashboard] Daily Sales Summary triggered');
+          setShowEODModal(true);
+        }}
+        onExportData={handleExportCSV}
         userId={currentUser?.uid}
         hasOpenModal={showRecordSale || showModal || showSettings || showSalesHistory || showCreditsDrawer || showDashboardCustomize || showCSVImport}
       />
@@ -3432,7 +3698,7 @@ Low Stock: ${lowStockItems.length}
                   </td>
                 </tr>
               ) : (
-                getFilteredItems().map(item => {
+                getFilteredItems().flatMap(item => {
                   const sellNaira = Math.round((item.sellKobo ?? item.sellingPrice ?? 0) / 100);
 
                   // Format number with commas, no spaces
@@ -3440,23 +3706,127 @@ Low Stock: ${lowStockItems.length}
                     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
                   };
 
-                  return (
+                  // Check if product has variants
+                  const variants = productVariantsMap[item.id] || [];
+                  const hasVariants = variants.length > 0;
+                  const isExpanded = expandedProducts.has(item.id);
+
+                  // Calculate total quantity across all variants
+                  const totalVariantQty = hasVariants
+                    ? variants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+                    : 0;
+
+                  // Toggle expand/collapse
+                  const toggleExpand = (e) => {
+                    e.stopPropagation();
+                    setExpandedProducts(prev => {
+                      const newSet = new Set(prev);
+                      if (newSet.has(item.id)) {
+                        newSet.delete(item.id);
+                      } else {
+                        newSet.add(item.id);
+                      }
+                      return newSet;
+                    });
+                  };
+
+                  // Main product row
+                  const productRow = (
                     <tr
                       key={item.id}
                       onClick={() => {
-                        if (settings.quickSellEnabled) {
+                        if (settings.quickSellEnabled && !hasVariants) {
                           window.dispatchEvent(new CustomEvent('open-record-sale', {
                             detail: { itemId: item.id }
                           }));
                         }
                       }}
-                      style={{ cursor: settings.quickSellEnabled ? 'pointer' : 'default' }}
+                      style={{
+                        cursor: settings.quickSellEnabled && !hasVariants ? 'pointer' : 'default',
+                        background: hasVariants ? '#f9fafb' : 'white'
+                      }}
                     >
-                      <td className="cellItem">{item.name}</td>
-                      <td className="cellQty">{formatNumber(item.qty ?? 0)}</td>
+                      <td className="cellItem" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {hasVariants && (
+                          <span
+                            onClick={toggleExpand}
+                            style={{
+                              cursor: 'pointer',
+                              fontSize: '16px',
+                              userSelect: 'none',
+                              transition: 'transform 0.2s',
+                              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              display: 'inline-block'
+                            }}
+                          >
+                            ▶
+                          </span>
+                        )}
+                        <span>{item.name}</span>
+                        {hasVariants && (
+                          <span style={{
+                            fontSize: '11px',
+                            background: '#e0e7ff',
+                            color: '#4338ca',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontWeight: 600
+                          }}>
+                            {variants.length} variants
+                          </span>
+                        )}
+                      </td>
+                      <td className="cellQty">
+                        {hasVariants ? formatNumber(totalVariantQty) : formatNumber(item.qty ?? 0)}
+                      </td>
                       <td className="cellPrice">₦{formatNumber(sellNaira)}</td>
                     </tr>
                   );
+
+                  // Variant rows (only shown when expanded)
+                  const variantRows = isExpanded && hasVariants
+                    ? variants.map((variant) => {
+                        const variantPrice = variant.price_override
+                          ? Math.round(variant.price_override / 100)
+                          : sellNaira;
+
+                        return (
+                          <tr
+                            key={`${item.id}-${variant.id}`}
+                            onClick={() => {
+                              if (settings.quickSellEnabled) {
+                                window.dispatchEvent(new CustomEvent('open-record-sale', {
+                                  detail: { itemId: item.id, variantId: variant.id }
+                                }));
+                              }
+                            }}
+                            style={{
+                              cursor: settings.quickSellEnabled ? 'pointer' : 'default',
+                              background: '#fafafa'
+                            }}
+                          >
+                            <td className="cellItem" style={{ paddingLeft: '40px', fontSize: '13px', color: '#6b7280' }}>
+                              ↳ {variant.variant_name}
+                            </td>
+                            <td className="cellQty" style={{ fontSize: '13px', color: variant.quantity > 0 ? '#059669' : '#dc2626' }}>
+                              {formatNumber(variant.quantity)}
+                            </td>
+                            <td className="cellPrice" style={{ fontSize: '13px' }}>
+                              {variantPrice !== sellNaira && (
+                                <span style={{ color: '#3b82f6', fontWeight: 600 }}>
+                                  ₦{formatNumber(variantPrice)}
+                                </span>
+                              )}
+                              {variantPrice === sellNaira && (
+                                <span style={{ color: '#9ca3af' }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    : [];
+
+                  return [productRow, ...variantRows];
                 })
               )}
             </tbody>
@@ -3468,22 +3838,46 @@ Low Stock: ${lowStockItems.length}
       {showModal && (
         <div className="modal-overlay" onClick={() => {
           setShowModal(false);
+          setFormData({
+            name: '',
+            category: 'Fashion',
+            description: '',
+            qty: '',
+            purchasePrice: '',
+            sellingPrice: '',
+            reorderLevel: '10',
+            isPublic: true,
+            attributes: {}
+          });
           setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
           setExistingItem(null);
           setStockMode('add');
           setProductImageFile(null);
           setProductImagePreview('');
+          setProductVariants([]);
         }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Add New Item</h2>
               <button className="modal-close" onClick={() => {
                 setShowModal(false);
+                setFormData({
+                  name: '',
+                  category: 'Fashion',
+                  description: '',
+                  qty: '',
+                  purchasePrice: '',
+                  sellingPrice: '',
+                  reorderLevel: '10',
+                  isPublic: true,
+                  attributes: {}
+                });
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
                 setExistingItem(null);
                 setStockMode('add');
                 setProductImageFile(null);
                 setProductImagePreview('');
+                setProductVariants([]);
               }}>×</button>
             </div>
 
@@ -3500,26 +3894,224 @@ Low Stock: ${lowStockItems.length}
             </div>
 
             <div className="form-group">
+              <label>Product Description (Optional)</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Tell customers about this product..."
+                className="form-input"
+                rows={3}
+                style={{
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  minHeight: '80px'
+                }}
+              />
+              <p style={{
+                fontSize: '12px',
+                color: '#64748b',
+                marginTop: '6px',
+                marginBottom: 0
+              }}>
+                Add details like features, benefits, or usage instructions
+              </p>
+            </div>
+
+            <div className="form-group">
               <label>Category</label>
               <select
                 name="category"
                 value={formData.category}
-                onChange={handleInputChange}
+                onChange={(e) => {
+                  // Clear attributes when category changes
+                  setFormData({
+                    ...formData,
+                    category: e.target.value,
+                    attributes: {}
+                  });
+                }}
                 className="form-input"
               >
-                <option value="Fashion & Clothing">Fashion & Clothing</option>
-                <option value="Electronics & Accessories">Electronics & Accessories</option>
-                <option value="Building Materials">Building Materials</option>
-                <option value="Beauty & Personal Care">Beauty & Personal Care</option>
-                <option value="Home & Garden">Home & Garden</option>
-                <option value="Sports & Recreation">Sports & Recreation</option>
-                <option value="Books & Stationery">Books & Stationery</option>
-                <option value="Automotive">Automotive</option>
-                <option value="Health & Pharmacy">Health & Pharmacy</option>
-                <option value="General Merchandise">General Merchandise</option>
+                <option value="Fashion">Fashion</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Food & Beverages">Food & Beverages</option>
+                <option value="Beauty & Cosmetics">Beauty & Cosmetics</option>
+                <option value="Furniture">Furniture</option>
+                <option value="Books">Books</option>
+                <option value="Phones & Accessories">Phones & Accessories</option>
+                <option value="Shoes">Shoes</option>
                 <option value="Other">Other</option>
               </select>
             </div>
+
+            {/* Dynamic Category-Specific Attributes */}
+            {(() => {
+              const categoryConfig = getCategoryAttributes(formData.category);
+              if (!categoryConfig) return null;
+
+              return (
+                <div style={{
+                  background: '#f9fafb',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '12px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#6b7280'
+                  }}>
+                    <span style={{ fontSize: '18px' }}>{categoryConfig.icon}</span>
+                    <span>{categoryConfig.name} Details (Optional)</span>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {categoryConfig.fields.map((field) => (
+                      <div key={field.key} className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '13px',
+                          marginBottom: '6px'
+                        }}>
+                          {field.icon && <span>{field.icon}</span>}
+                          <span>{field.label}</span>
+                          {field.required && <span style={{ color: '#ef4444' }}>*</span>}
+                        </label>
+
+                        {field.type === 'select' ? (
+                          <select
+                            value={formData.attributes[field.key] || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              attributes: {
+                                ...formData.attributes,
+                                [field.key]: e.target.value
+                              }
+                            })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '14px',
+                              background: 'white'
+                            }}
+                          >
+                            <option value="">{field.placeholder || 'Select...'}</option>
+                            {field.options?.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        ) : field.type === 'textarea' ? (
+                          <textarea
+                            value={formData.attributes[field.key] || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              attributes: {
+                                ...formData.attributes,
+                                [field.key]: e.target.value
+                              }
+                            })}
+                            placeholder={field.placeholder}
+                            rows={2}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '14px',
+                              resize: 'vertical',
+                              fontFamily: 'inherit'
+                            }}
+                          />
+                        ) : field.type === 'number' ? (
+                          <input
+                            type="number"
+                            value={formData.attributes[field.key] || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              attributes: {
+                                ...formData.attributes,
+                                [field.key]: e.target.value
+                              }
+                            })}
+                            placeholder={field.placeholder}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '14px'
+                            }}
+                          />
+                        ) : field.type === 'date' ? (
+                          <input
+                            type="date"
+                            value={formData.attributes[field.key] || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              attributes: {
+                                ...formData.attributes,
+                                [field.key]: e.target.value
+                              }
+                            })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '14px'
+                            }}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={formData.attributes[field.key] || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              attributes: {
+                                ...formData.attributes,
+                                [field.key]: e.target.value
+                              }
+                            })}
+                            placeholder={field.placeholder}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              fontSize: '14px'
+                            }}
+                          />
+                        )}
+
+                        {field.helpText && (
+                          <p style={{
+                            fontSize: '11px',
+                            color: '#64748b',
+                            margin: '4px 0 0 0'
+                          }}>
+                            {field.helpText}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Product Image Upload */}
             <div className="form-group">
@@ -3659,17 +4251,24 @@ Low Stock: ${lowStockItems.length}
               </label>
             </div>
 
-            <div className="form-group">
-              <label>Quantity</label>
-              <input
-                type="number"
-                name="qty"
-                value={formData.qty}
-                onChange={handleInputChange}
-                placeholder="0"
-                min="0"
-                className="form-input"
-              />
+            {/* Product Variants */}
+            <VariantManager
+              onVariantsChange={setProductVariants}
+            />
+
+            {/* Quantity field - hidden if product has variants */}
+            {productVariants.length === 0 && (
+              <div className="form-group">
+                <label>Quantity</label>
+                <input
+                  type="number"
+                  name="qty"
+                  value={formData.qty}
+                  onChange={handleInputChange}
+                  placeholder="0"
+                  min="0"
+                  className="form-input"
+                />
 
               {/* Stock mode UI - shown only when updating existing item */}
               {existingItem && (
@@ -3758,6 +4357,7 @@ Low Stock: ${lowStockItems.length}
                 </div>
               )}
             </div>
+            )}
 
             <div className="form-row">
               <div className="form-group">
@@ -3829,6 +4429,7 @@ Low Stock: ${lowStockItems.length}
                 setStockMode('add');
                 setProductImageFile(null);
                 setProductImagePreview('');
+                setProductVariants([]);
               }}>
                 Cancel
               </button>
@@ -5156,33 +5757,19 @@ Low Stock: ${lowStockItems.length}
         <DashboardCustomize onClose={() => setShowDashboardCustomize(false)} />
       )}
 
-      {/* Footer Spacer - prevents bottom nav from overlapping content */}
+      {/* Footer Spacer - prevents content from being cut off at bottom */}
       <div className="footer-spacer"></div>
-
-      {/* Mobile Bottom Navigation */}
-      <nav className="mobile-bottom-nav">
-        <button
-          className="bottom-nav-btn"
-          onClick={handleCalculator}
-          aria-label="Open calculator"
-        >
-          <Calculator size={24} strokeWidth={2} />
-          <span className="bottom-nav-label">Calculator</span>
-        </button>
-        <button
-          className="bottom-nav-btn"
-          onClick={() => navigate('/settings')}
-          aria-label="Business Settings"
-        >
-          <Settings size={24} strokeWidth={2} />
-          <span className="bottom-nav-label">Settings</span>
-        </button>
-      </nav>
 
       {/* Footer */}
       <footer className="app-footer powered">
         <p>⚡ Powered by {strings.app.name}</p>
       </footer>
+
+      {/* Contextual Prompt Toast - Smart suggestions based on usage */}
+      <ContextualPromptToast
+        prompt={prompt}
+        onDismiss={dismissContextualPrompt}
+      />
     </div>
   );
 }

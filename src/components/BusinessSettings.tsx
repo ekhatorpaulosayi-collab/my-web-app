@@ -10,7 +10,8 @@ import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/stor
 import PaymentsSection from './settings/sections/PaymentsSection';
 import { StatusPill } from './common/StatusPill';
 import { useDirty } from '../hooks/useDirty';
-import { logOut } from '../lib/authService';
+// MIGRATION: Using Supabase auth
+import { logOut } from '../lib/authService-supabase';
 import { StoreSettings } from './StoreSettings';
 
 type BusinessSettingsProps = {
@@ -613,22 +614,15 @@ export default function BusinessSettings({
               <button
                 type="button"
                 className="bs-section-header"
-                onClick={() => handleToggleSection('store')}
+                onClick={() => navigate('/online-store')}
               >
                 <div className="bs-section-title-row">
                   <h3 className="bs-section-title">🏪 Online Store</h3>
-                  {dirty && (
-                    <StatusPill text="Unsaved changes" variant="warning" />
-                  )}
+                  <span style={{ fontSize: '14px', color: '#667eea', fontWeight: '500' }}>
+                    Setup →
+                  </span>
                 </div>
-                <span className={`bs-chevron ${isSectionExpanded('store') ? 'open' : ''}`}>›</span>
               </button>
-
-              {isSectionExpanded('store') && (
-                <div className="bs-section-content">
-                  <StoreSettings />
-                </div>
-              )}
             </div>
 
             {/* Section 4: Security & Privacy */}
@@ -761,63 +755,21 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 6: Tools */}
-            <div className="bs-section" id="section-tools">
+            {/* Section 6: Help & Support */}
+            <div className="bs-section" id="section-help">
               <button
                 type="button"
                 className="bs-section-header"
-                onClick={() => handleToggleSection('tools')}
+                onClick={() => handleToggleSection('help')}
               >
                 <div className="bs-section-title-row">
-                  <h3 className="bs-section-title">🛠️ Tools</h3>
+                  <h3 className="bs-section-title">💬 Help & Support</h3>
                 </div>
-                <span className={`bs-chevron ${isSectionExpanded('tools') ? 'open' : ''}`}>›</span>
+                <span className={`bs-chevron ${isSectionExpanded('help') ? 'open' : ''}`}>›</span>
               </button>
 
-              {isSectionExpanded('tools') && (
+              {isSectionExpanded('help') && (
                 <div className="bs-section-content">
-                  {/* EOD Report Button */}
-                  <button
-                    type="button"
-                    className="bs-btn-secondary"
-                    onClick={onSendEOD}
-                    style={{
-                      width: '100%',
-                      marginBottom: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <span>📤</span>
-                    <span>Send EOD Report</span>
-                  </button>
-
-                  {/* Export CSV Button */}
-                  <button
-                    type="button"
-                    className="bs-btn-secondary"
-                    onClick={() => {
-                      onClose();
-                      onExportCSV?.();
-                    }}
-                    style={{
-                      width: '100%',
-                      marginBottom: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      border: 'none'
-                    }}
-                  >
-                    <span>📊</span>
-                    <span>Export Data (CSV)</span>
-                  </button>
-
                   {/* WhatsApp Support Button */}
                   <a
                     href="https://wa.me/message/WNLG4H3IKAG3K1"

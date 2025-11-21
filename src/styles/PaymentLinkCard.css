@@ -1,0 +1,197 @@
+/* Payment Link Card */
+.payment-link-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 1.5rem;
+  color: white;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  margin-bottom: 1.5rem;
+}
+
+.payment-link-card-setup {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border: 2px dashed #9ca3af;
+  color: #374151;
+  box-shadow: none;
+}
+
+/* Header */
+.payment-link-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.payment-link-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.payment-link-settings-icon {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.payment-link-settings-icon:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* Body */
+.payment-link-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* URL Display */
+.payment-link-url-display {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.875rem;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.payment-link-url {
+  font-size: 0.875rem;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  word-break: break-all;
+  display: block;
+  opacity: 0.95;
+}
+
+/* Actions */
+.payment-link-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.payment-link-btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.payment-link-btn-copy {
+  background: white;
+  color: #667eea;
+}
+
+.payment-link-btn-copy:hover {
+  background: #f9fafb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.payment-link-btn-whatsapp {
+  background: #25d366;
+  color: white;
+}
+
+.payment-link-btn-whatsapp:hover {
+  background: #20ba5a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+}
+
+/* Help text */
+.payment-link-help {
+  font-size: 0.8125rem;
+  opacity: 0.9;
+  margin: 0;
+  text-align: center;
+}
+
+/* Setup state */
+.payment-link-setup-text {
+  font-size: 0.9375rem;
+  color: #6b7280;
+  margin: 0 0 1rem 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.payment-link-setup-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.875rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.payment-link-setup-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .payment-link-card {
+    padding: 1.25rem;
+  }
+
+  .payment-link-title {
+    font-size: 1rem;
+  }
+
+  .payment-link-actions {
+    flex-direction: column;
+  }
+
+  .payment-link-btn {
+    min-width: 100%;
+  }
+
+  .payment-link-url {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Animation for copied state */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.payment-link-btn-copy:active {
+  animation: pulse 0.3s ease-in-out;
+}

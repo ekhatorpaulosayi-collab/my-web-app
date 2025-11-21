@@ -52,3 +52,5 @@
 .trial-strip, .top-banner, .promo-banner {
   z-index: 1000;
 }
+
+/* Header is always visible - removed modal hiding to fix mobile loading issue */

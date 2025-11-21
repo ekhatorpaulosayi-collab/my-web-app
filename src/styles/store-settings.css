@@ -1,0 +1,149 @@
+/* src/styles/store-settings.css */
+.store-settings {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  /* Force white background on all devices */
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  /* Prevent iOS/Android auto-styling */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #9ca3af;
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 768px) {
+  .form-group input,
+  .form-group textarea {
+    font-size: 16px; /* Prevent iOS zoom on focus */
+    padding: 12px;
+    min-height: 44px; /* Touch-friendly */
+  }
+}
+
+.logo-upload-container {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.logo-preview {
+  width: 120px;
+  height: 120px;
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.logo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #9ca3af;
+}
+
+.url-input-container {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.url-prefix {
+  padding: 10px;
+  background: #f9fafb;
+  color: #6b7280;
+  border-right: 1px solid #e5e7eb;
+}
+
+.url-input-container input {
+  border: none;
+  flex: 1;
+}
+
+.availability-icon {
+  padding: 0 10px;
+}
+
+.availability-icon.available {
+  color: #10b981;
+}
+
+.availability-icon.taken {
+  color: #ef4444;
+}
+
+.error-text {
+  color: #ef4444;
+  font-size: 14px;
+  margin-top: 4px;
+  display: block;
+}
+
+.share-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.share-preview code {
+  flex: 1;
+  font-size: 14px;
+}
+
+.btn-whatsapp {
+  background: #25d366;
+  color: white;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

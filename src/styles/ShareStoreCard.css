@@ -1,0 +1,223 @@
+/* Share Store Card */
+.share-store-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: white;
+}
+
+.share-store-title {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.store-url-display {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+  word-break: break-all;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.store-url-display:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.share-buttons {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.share-button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.share-button:hover {
+  opacity: 0.9;
+}
+
+.share-button:active {
+  transform: scale(0.95);
+}
+
+.copy-button {
+  background: white;
+  color: #667eea;
+}
+
+.whatsapp-button {
+  background: #25D366;
+  color: white;
+}
+
+.help-text {
+  font-size: 13px;
+  opacity: 0.9;
+  margin: 12px 0 0 0;
+  text-align: center;
+}
+
+/* Setup state (when no business name) */
+.share-store-card-setup {
+  background: #E3F2FD;
+  color: #1976D2;
+  border: 2px dashed #64B5F6;
+}
+
+.setup-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.setup-icon {
+  font-size: 48px;
+}
+
+.setup-text h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1565C0;
+}
+
+.setup-text p {
+  margin: 0;
+  font-size: 14px;
+  color: #1976D2;
+  opacity: 0.9;
+}
+
+.setup-button {
+  margin-top: 8px;
+  padding: 12px 24px;
+  background: #1976D2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.setup-button:hover {
+  background: #1565C0;
+}
+
+.setup-button:active {
+  transform: scale(0.95);
+}
+
+/* Responsive Design */
+
+/* Mobile (< 768px) */
+@media (max-width: 767px) {
+  .share-store-card {
+    margin: 12px;
+    padding: 16px;
+  }
+
+  .share-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .share-button {
+    width: 100%;
+    padding: 14px;
+  }
+
+  .store-url-display {
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  .share-store-title {
+    font-size: 16px;
+  }
+
+  .help-text {
+    font-size: 12px;
+  }
+}
+
+/* Desktop (>= 768px) */
+@media (min-width: 768px) {
+  .share-store-card {
+    max-width: 600px;
+    margin: 16px auto;
+    padding: 24px;
+  }
+
+  .store-url-display {
+    font-size: 16px;
+    padding: 14px;
+  }
+
+  .share-buttons {
+    gap: 16px;
+  }
+
+  .share-button {
+    padding: 14px 20px;
+    font-size: 15px;
+  }
+}
+
+/* Tablet (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .share-store-card {
+    margin: 16px 20px;
+  }
+}
+
+/* Large Desktop (>= 1200px) */
+@media (min-width: 1200px) {
+  .share-store-card {
+    max-width: 700px;
+  }
+}
+
+/* Accessibility */
+.share-button:focus {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.setup-button:focus {
+  outline: 2px solid #1976D2;
+  outline-offset: 2px;
+}
+
+/* Animation for copy success */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.copy-button.copied {
+  animation: pulse 0.3s ease-in-out;
+}

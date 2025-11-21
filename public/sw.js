@@ -1,89 +1,29 @@
-const CACHE_VERSION = 'v40-eod-fix';
-const CACHE_NAME = `storehouse-${CACHE_VERSION}`;
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest'
-];
+// SERVICE WORKER DISABLED - Unregister immediately
+console.log('[SW] Service Worker disabled - unregistering and clearing all caches');
 
-// Install event - cache app shell
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-  );
-});
-
-// Activate event - clean up old caches
+// Delete ALL caches on activation
 self.addEventListener('activate', (event) => {
-  self.clients.claim();
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      console.log('[SW] Deleting all caches:', cacheNames);
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
+        cacheNames.map((cacheName) => caches.delete(cacheName))
       );
     }).then(() => {
-      // Notify all clients about the new version
-      return self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({
-            type: 'NEW_VERSION_AVAILABLE',
-            version: CACHE_VERSION
-          });
-        });
-      });
+      console.log('[SW] All caches deleted, unregistering service worker');
+      return self.registration.unregister();
     })
   );
 });
 
-// Fetch event - network first, fall back to cache
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone the response
-        const responseToCache = response.clone();
-
-        // Cache the fetched resource
-        caches.open(CACHE_NAME)
-          .then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-
-        return response;
-      })
-      .catch(() => {
-        // If network fails, try cache
-        return caches.match(event.request)
-          .then((response) => {
-            if (response) {
-              return response;
-            }
-            // If not in cache, return offline page or error
-            return new Response('Offline - Please check your connection', {
-              status: 503,
-              statusText: 'Service Unavailable',
-              headers: new Headers({
-                'Content-Type': 'text/plain'
-              })
-            });
-          });
-      })
-  );
+// Install - immediately skip waiting
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing - will unregister');
+  self.skipWaiting();
 });
 
-// Listen for messages from the app
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+// Fetch - do nothing, let all requests pass through normally
+self.addEventListener('fetch', (event) => {
+  // Do nothing - let browser handle fetch naturally
+  return;
 });

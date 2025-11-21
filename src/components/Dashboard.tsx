@@ -4,12 +4,20 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2 } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
 import { MoreMenu } from './MoreMenu';
+import { GettingStartedChecklist } from './GettingStartedChecklist';
+import { StaffPinLogin } from './StaffPinLogin';
+import { StaffPerformanceWidget } from './StaffPerformanceWidget';
+import { ReferralRewardsWidget } from './ReferralRewardsWidget';
+import { useStaff } from '../contexts/StaffContext';
 import { currencyNGN } from '../utils/format';
+import { useStore } from '../lib/supabase-hooks';
+import { SalesChart } from './SalesChart';
+import { useNavigate } from 'react-router-dom';
 import '../styles/dashboard-minimal.css';
 
 interface DashboardProps {
@@ -17,6 +25,7 @@ interface DashboardProps {
   items: any[];
   credits: any[];
   customers: any[];
+  productVariantsMap?: Record<string, any[]>;
   onRecordSale: () => void;
   onAddItem: () => void;
   onViewHistory: () => void;
@@ -26,6 +35,10 @@ interface DashboardProps {
   onViewExpenses?: () => void;
   onViewSettings?: () => void;
   onDeleteItem?: (itemId: string | number) => void;
+  onEditItem?: (item: any) => void;
+  onShowCSVImport?: () => void;
+  onSendDailySummary?: () => void;
+  onExportData?: () => void;
   hasOpenModal?: boolean;
   userId?: string;
 }
@@ -33,6 +46,7 @@ interface DashboardProps {
 export function Dashboard({
   sales,
   items,
+  productVariantsMap = {},
   onRecordSale,
   onAddItem,
   onViewHistory,
@@ -42,10 +56,24 @@ export function Dashboard({
   onViewExpenses,
   onViewSettings,
   onDeleteItem,
+  onEditItem,
+  onShowCSVImport,
+  onSendDailySummary,
+  onExportData,
   userId,
 }: DashboardProps) {
+  const navigate = useNavigate();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Staff permissions
+  const { canEditProducts, canDeleteProducts, canAddProducts } = useStaff();
+
+  // Load store from Supabase
+  const { store, loading: storeLoading } = useStore(userId);
+  const storeSlug = store?.store_slug || '';
+  const businessName = store?.business_name || 'My Store';
 
   // Load showSalesData from localStorage (default to true if not set)
   const [showSalesData, setShowSalesData] = useState(() => {
@@ -58,6 +86,10 @@ export function Dashboard({
     const saved = localStorage.getItem('storehouse-quick-sell-expanded');
     return saved === null ? true : saved === 'true';
   });
+
+  // Infinite scroll state
+  const [displayedItemsCount, setDisplayedItemsCount] = useState(20);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Save showSalesData to localStorage whenever it changes
   useEffect(() => {
@@ -129,7 +161,9 @@ export function Dashboard({
               hour12: true
             }),
             amount: (s.sellKobo || 0) * (s.qty || 0),
-            itemName: itemName || 'Unknown'
+            itemName: itemName || 'Unknown',
+            staffName: s.recorded_by_staff_name || null,
+            staffRole: s.recorded_by_staff_role || null
           };
         })
     };
@@ -149,7 +183,7 @@ export function Dashboard({
       }));
   }, [items]);
 
-  // Filtered items for search
+  // Filtered items for search (all items, no slice)
   const filteredItems = useMemo(() => {
     // Remove duplicates by both ID and name (in case same item has multiple IDs)
     const seenIds = new Set<string>();
@@ -186,8 +220,39 @@ export function Dashboard({
     // Sort alphabetically by name
     filtered.sort((a, b) => a.name.localeCompare(b.name));
 
-    return filtered.slice(0, 20);
+    return filtered; // Return all filtered items
   }, [items, searchQuery]);
+
+  // Items to display (with infinite scroll limit)
+  const displayedItems = useMemo(() => {
+    return filteredItems.slice(0, displayedItemsCount);
+  }, [filteredItems, displayedItemsCount]);
+
+  // Reset displayed count when search query changes
+  useEffect(() => {
+    setDisplayedItemsCount(20);
+  }, [searchQuery]);
+
+  // Load more items for infinite scroll
+  const loadMoreItems = () => {
+    if (isLoadingMore || displayedItemsCount >= filteredItems.length) return;
+
+    setIsLoadingMore(true);
+    // Simulate slight delay for smooth UX
+    setTimeout(() => {
+      setDisplayedItemsCount(prev => prev + 20);
+      setIsLoadingMore(false);
+    }, 300);
+  };
+
+  // Handle scroll in table wrapper
+  const handleTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // Load more when within 150px of bottom
+    if (scrollHeight - scrollTop <= clientHeight + 150 && !isLoadingMore) {
+      loadMoreItems();
+    }
+  };
 
   const handleQuickSell = (item: typeof quickSellItems[0]) => {
     // Trigger the open-record-sale event to open modal with pre-selected item
@@ -223,11 +288,51 @@ export function Dashboard({
     }
   };
 
+  // Handle edit item
+  const handleEditItem = (item: any, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click event
+    console.log('[Dashboard] Edit item clicked:', item.name);
+    if (onEditItem) {
+      onEditItem(item);
+    }
+  };
+
+  // Construct full store URL
+  const storeUrl = storeSlug
+    ? `${window.location.origin}/store/${storeSlug}`
+    : window.location.origin;
+
+  // Get today's date
+  const today = new Date();
+  const dateString = today.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
     <div className="dashboard-minimal">
+      {/* Date Display */}
+      <div className="dashboard-date">{dateString}</div>
+
+      {/* Getting Started Checklist */}
+      <GettingStartedChecklist
+        hasItems={items.length > 0}
+        hasSales={sales.length > 0}
+        hasStoreUrl={!!storeSlug}
+        onAddItem={onAddItem}
+        onRecordSale={onRecordSale}
+        onSetupStore={onViewSettings || (() => {})}
+      />
+
       {/* 1. Share Store Banner */}
       {!heroDismissed && (
-        <ShareStoreBanner onDismiss={handleDismissHero} />
+        <ShareStoreBanner
+          storeUrl={storeUrl}
+          storeName={businessName}
+          onDismiss={handleDismissHero}
+        />
       )}
 
       {/* 2. Core Action Buttons */}
@@ -235,9 +340,11 @@ export function Dashboard({
         <button className="btn-primary" onClick={onRecordSale}>
           💰 Record Sale
         </button>
-        <button className="btn-secondary" onClick={onAddItem}>
-          + Add Item
-        </button>
+        {canAddProducts() && (
+          <button className="btn-secondary" onClick={onAddItem}>
+            + Add Item
+          </button>
+        )}
         <button className="btn-more" onClick={() => setShowMoreMenu(true)}>
           <MoreHorizontal size={20} />
           More
@@ -265,9 +372,16 @@ export function Dashboard({
             <div className="recent-sales-header">Recent</div>
             {todaySales.recent.map((sale, index) => (
               <div key={index} className="sale-row">
-                <span className="sale-time">{sale.time}</span>
-                <span className="sale-item">{sale.itemName}</span>
-                <span className="sale-amount">{showSalesData ? currencyNGN(sale.amount) : '***'}</span>
+                <div className="sale-row-main">
+                  <span className="sale-time">{sale.time}</span>
+                  <span className="sale-item">{sale.itemName}</span>
+                  <span className="sale-amount">{showSalesData ? currencyNGN(sale.amount) : '***'}</span>
+                </div>
+                {sale.staffName && (
+                  <div className="sale-staff-info">
+                    👤 by {sale.staffName} {sale.staffRole && `(${sale.staffRole})`}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -277,6 +391,28 @@ export function Dashboard({
           <div className="empty-state">No sales yet today</div>
         )}
       </div>
+
+      {/* Staff Performance Widget - Only shows if staff recorded sales today */}
+      <StaffPerformanceWidget
+        sales={todaySales.recent.length > 0 ? sales.filter(s => {
+          const todayRange = getTodayRange();
+          return s.createdAt >= todayRange.start && s.createdAt < todayRange.end;
+        }) : []}
+        showSalesData={showSalesData}
+      />
+
+      {/* Referral Rewards Widget - Shows if user has referrals */}
+      <ReferralRewardsWidget
+        userId={userId}
+        onOpenFullDashboard={() => navigate('/referrals')}
+      />
+
+      {/* Sales Trend Chart - Last 7 days */}
+      {sales.length > 0 && (
+        <div style={{ margin: '16px 0' }}>
+          <SalesChart sales={sales} days={7} />
+        </div>
+      )}
 
       {/* 4. Quick Sell Grid */}
       <div className="quick-sell-card">
@@ -297,21 +433,61 @@ export function Dashboard({
         {quickSellExpanded && (
           <>
             {quickSellItems.length > 0 ? (
-              <div className="items-grid">
-                {quickSellItems.map(item => (
-                  <button
-                    key={item.id}
-                    className="quick-item"
-                    onClick={() => handleQuickSell(item)}
-                  >
-                    <div className="quick-item-name">{item.name}</div>
-                    <div className="quick-item-price">{currencyNGN(item.price)}</div>
-                    <div className="quick-item-qty">{item.quantity} in stock</div>
-                  </button>
-                ))}
-              </div>
+              <>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#6b7280',
+                  marginBottom: '16px',
+                  textAlign: 'center'
+                }}>
+                  👇 Tap any item to record a sale
+                </p>
+                <div className="items-grid">
+                  {quickSellItems.map(item => (
+                    <button
+                      key={item.id}
+                      className="quick-item"
+                      onClick={() => handleQuickSell(item)}
+                    >
+                      <div className="quick-item-name">{item.name}</div>
+                      <div className="quick-item-price">{currencyNGN(item.price)}</div>
+                      <div className="quick-item-qty">📦 {item.quantity} in stock</div>
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
-              <div className="empty-state">No items available</div>
+              <div style={{
+                textAlign: 'center',
+                padding: '32px 20px',
+                background: '#f9fafb',
+                borderRadius: '12px',
+                border: '2px dashed #d1d5db'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📦</div>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600, color: '#374151' }}>
+                  No Items Yet
+                </h4>
+                <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#6b7280' }}>
+                  Add products to your inventory first.<br />
+                  They'll appear here for quick selling!
+                </p>
+                <button
+                  onClick={onAddItem}
+                  style={{
+                    background: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  + Add Your First Item
+                </button>
+              </div>
             )}
           </>
         )}
@@ -328,44 +504,125 @@ export function Dashboard({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input"
           />
+          {onShowCSVImport && (
+            <button
+              onClick={onShowCSVImport}
+              style={{
+                padding: '8px 12px',
+                background: '#f3f4f6',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                marginLeft: '8px'
+              }}
+            >
+              📥 Import
+            </button>
+          )}
         </div>
 
         {filteredItems.length > 0 ? (
-          <div className="items-table-wrapper">
-            <table className="items-table">
-              <thead>
-                <tr>
-                  <th>ITEM</th>
-                  <th className="text-right">QTY</th>
-                  <th className="text-right">PRICE</th>
-                  <th className="text-center" style={{ width: '50px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map(item => (
-                  <tr
-                    key={item.id}
-                    onClick={() => handleSelectItem(item)}
-                    className="item-row"
-                  >
-                    <td className="item-name">{item.name}</td>
-                    <td className="text-right">{item.qty || 0}</td>
-                    <td className="text-right">{currencyNGN(getItemPrice(item))}</td>
-                    <td className="text-center">
-                      <button
-                        className="delete-item-btn"
-                        onClick={(e) => handleDeleteItem(item, e)}
-                        aria-label={`Delete ${item.name}`}
-                        title="Delete item"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
+          <>
+            <div className="items-table-wrapper" onScroll={handleTableScroll}>
+              <table className="items-table">
+                <thead>
+                  <tr>
+                    <th>ITEM</th>
+                    <th className="text-right">QTY</th>
+                    <th className="text-right">PRICE</th>
+                    <th className="text-center" style={{ width: '50px' }}></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {displayedItems.map(item => {
+                    const variants = productVariantsMap[item.id] || [];
+                    const hasVariants = variants.length > 0;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() => handleSelectItem(item)}
+                        className="item-row"
+                      >
+                        <td className="item-name">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {item.name}
+                            {hasVariants && (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 600
+                              }}>
+                                {variants.length} variant{variants.length !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="text-right">{item.qty || 0}</td>
+                        <td className="text-right">{currencyNGN(getItemPrice(item))}</td>
+                        <td className="text-center">
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                            {canEditProducts() && (
+                              <button
+                                className="edit-item-btn"
+                                onClick={(e) => handleEditItem(item, e)}
+                                aria-label={`Edit ${item.name}`}
+                                title="Edit item"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#3b82f6',
+                                  transition: 'color 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = '#2563eb'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = '#3b82f6'}
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                            {canDeleteProducts() && (
+                              <button
+                                className="delete-item-btn"
+                                onClick={(e) => handleDeleteItem(item, e)}
+                                aria-label={`Delete ${item.name}`}
+                                title="Delete item"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {isLoadingMore && (
+                <div className="items-loading">
+                  <div className="items-loading-spinner"></div>
+                  <span style={{ marginLeft: '8px' }}>Loading more items...</span>
+                </div>
+              )}
+              {displayedItems.length < filteredItems.length && !isLoadingMore && (
+                <div className="items-loading" style={{ color: 'var(--text-subtle)' }}>
+                  Showing {displayedItems.length} of {filteredItems.length} items
+                </div>
+              )}
+            </div>
+          </>
         ) : (
           <div className="empty-state">No items found</div>
         )}
@@ -386,8 +643,20 @@ export function Dashboard({
           onViewExpenses={onViewExpenses}
           onViewSettings={onViewSettings}
           onShowOnlineStore={heroDismissed ? handleShowHero : undefined}
+          onSendDailySummary={onSendDailySummary}
+          onExportData={onExportData}
+          onStaffModeToggle={() => {
+            setShowMoreMenu(false);
+            setShowStaffLogin(true);
+          }}
         />
       )}
+
+      {/* Staff PIN Login Modal */}
+      <StaffPinLogin
+        isOpen={showStaffLogin}
+        onClose={() => setShowStaffLogin(false)}
+      />
     </div>
   );
 }

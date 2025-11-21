@@ -1,0 +1,357 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+
+    // Check if user is authenticated
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Validate string length
+    function validString(value, minLen, maxLen) {
+      return value is string
+        && value.size() >= minLen
+        && value.size() <= maxLen;
+    }
+
+    // Validate positive integer (for prices in kobo)
+    function validPrice(value) {
+      return value is int
+        && value >= 0
+        && value <= 100000000; // Max ₦1M (100M kobo)
+    }
+
+    // Validate non-negative integer (for quantities)
+    function validQuantity(value) {
+      return value is int && value >= 0;
+    }
+
+    // Validate boolean
+    function validBool(value) {
+      return value is bool;
+    }
+
+    // Validate timestamp
+    function validTimestamp(value) {
+      return value is timestamp;
+    }
+
+    // Check if only allowed fields are present
+    function onlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+
+    // ============================================================================
+    // USER PROFILES
+    // Users can only read/write their own profile
+    // ============================================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && onlyAllowedFields(['email', 'displayName', 'photoURL', 'createdAt', 'lastLogin'])
+        && validString(request.resource.data.email, 3, 254)
+        && validTimestamp(request.resource.data.createdAt);
+      allow update: if isOwner(userId)
+        && onlyAllowedFields(['email', 'displayName', 'photoURL', 'createdAt', 'lastLogin']);
+      allow delete: if isOwner(userId);
+
+      // ==========================================================================
+      // METADATA SUBCOLLECTION
+      // Store migration status and other user metadata
+      // ==========================================================================
+      match /metadata/{document} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // ==========================================================================
+      // PRODUCTS SUBCOLLECTION (Legacy path - same as items)
+      // Owner: full CRUD access
+      // Public: read-only IF item.isPublic == true
+      // ==========================================================================
+      match /products/{productId} {
+        // Owners can always read their own products
+        allow read: if isOwner(userId);
+
+        // Public can read products ONLY if product has isPublic = true
+        allow get: if resource.data.isPublic == true;
+        allow list: if resource.data.isPublic == true;
+
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'name', 'sellKobo', 'purchaseKobo', 'qty', 'category',
+            'barcode', 'reorderLevel', 'isDeleted', 'isPublic',
+            'imageUrl', 'isDemo', 'createdAt', 'updatedAt'
+          ])
+          && validString(request.resource.data.name, 2, 100)
+          && validPrice(request.resource.data.sellKobo)
+          && validQuantity(request.resource.data.qty);
+
+        allow update: if isOwner(userId)
+          && onlyAllowedFields([
+            'name', 'sellKobo', 'purchaseKobo', 'qty', 'category',
+            'barcode', 'reorderLevel', 'isDeleted', 'isPublic',
+            'imageUrl', 'isDemo', 'createdAt', 'updatedAt'
+          ]);
+
+        allow delete: if isOwner(userId);
+      }
+    }
+
+
+    // ============================================================================
+    // STORE PROFILES
+    // Store owners can manage their store settings
+    // Public can read if isPublic == true
+    // ============================================================================
+    match /stores/{userId} {
+      allow read: if isOwner(userId) || resource.data.isPublic == true;
+
+      allow create: if isOwner(userId)
+        && onlyAllowedFields([
+          'businessName', 'storeSlug', 'logoUrl', 'whatsappNumber',
+          'address', 'primaryColor', 'ownerId', 'isPublic',
+          'bankName', 'accountNumber', 'accountName',
+          'acceptedPaymentMethods', 'paymentInstructions',
+          'paystackEnabled', 'paystackPublicKey', 'paystackTestMode',
+          'deliveryAreas', 'deliveryFee', 'deliveryTime', 'minimumOrder',
+          'businessHours', 'daysOfOperation',
+          'instagramUrl', 'facebookUrl', 'tiktokUrl', 'twitterUrl',
+          'aboutUs', 'returnPolicy',
+          'createdAt', 'updatedAt'
+        ])
+        && validString(request.resource.data.businessName, 2, 100)
+        && validString(request.resource.data.storeSlug, 3, 30)
+        && validBool(request.resource.data.isPublic)
+        && request.resource.data.ownerId == userId
+        && validTimestamp(request.resource.data.createdAt);
+
+      allow update: if isOwner(userId)
+        && onlyAllowedFields([
+          'businessName', 'storeSlug', 'logoUrl', 'whatsappNumber',
+          'address', 'primaryColor', 'ownerId', 'isPublic',
+          'bankName', 'accountNumber', 'accountName',
+          'acceptedPaymentMethods', 'paymentInstructions',
+          'paystackEnabled', 'paystackPublicKey', 'paystackTestMode',
+          'deliveryAreas', 'deliveryFee', 'deliveryTime', 'minimumOrder',
+          'businessHours', 'daysOfOperation',
+          'instagramUrl', 'facebookUrl', 'tiktokUrl', 'twitterUrl',
+          'aboutUs', 'returnPolicy',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.ownerId == userId; // Cannot change ownership
+
+      allow delete: if isOwner(userId);
+
+
+      // ==========================================================================
+      // INVENTORY ITEMS
+      // Owner: full CRUD access
+      // Public: read-only IF store.isPublic == true AND item.isPublic == true
+      // ==========================================================================
+      match /items/{itemId} {
+        // Owners can always read their own items
+        allow read: if isOwner(userId);
+
+        // Public can read items ONLY if item has isPublic = true
+        // (We denormalize isPublic to avoid get() call on store)
+        allow get: if resource.data.isPublic == true;
+        allow list: if resource.data.isPublic == true;
+
+        // Only owner can create items
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'name', 'sellKobo', 'costPrice', 'qty', 'category',
+            'barcode', 'lowStockThreshold', 'isDeleted', 'isPublic',
+            'createdAt', 'updatedAt'
+          ])
+          && validString(request.resource.data.name, 2, 100)
+          && validPrice(request.resource.data.sellKobo)
+          && validPrice(request.resource.data.costPrice)
+          && validQuantity(request.resource.data.qty)
+          && validBool(request.resource.data.isDeleted)
+          && validBool(request.resource.data.isPublic)
+          && validTimestamp(request.resource.data.createdAt);
+
+        // Only owner can update items
+        allow update: if isOwner(userId)
+          && onlyAllowedFields([
+            'name', 'sellKobo', 'costPrice', 'qty', 'category',
+            'barcode', 'lowStockThreshold', 'isDeleted', 'isPublic',
+            'createdAt', 'updatedAt'
+          ]);
+
+        // Only owner can delete items
+        allow delete: if isOwner(userId);
+      }
+
+
+      // ==========================================================================
+      // SALES RECORDS - ALWAYS PRIVATE
+      // Only owner can access (competition cannot see sales data)
+      // ==========================================================================
+      match /sales/{saleId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'itemId', 'itemName', 'sellKobo', 'qty', 'timestamp',
+            'paymentMethod', 'isCredit', 'customerName', 'dueDate',
+            'createdAt'
+          ])
+          && validString(request.resource.data.itemName, 1, 100)
+          && validPrice(request.resource.data.sellKobo)
+          && validQuantity(request.resource.data.qty)
+          && request.resource.data.paymentMethod in ['cash', 'transfer', 'pos', 'paystack']
+          && validBool(request.resource.data.isCredit)
+          && validTimestamp(request.resource.data.createdAt);
+
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+
+      // ==========================================================================
+      // CUSTOMERS - PRIVATE
+      // Only owner can access customer data
+      // ==========================================================================
+      match /customers/{customerId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'name', 'lowerName', 'phone', 'address',
+            'createdAt', 'updatedAt'
+          ])
+          && validString(request.resource.data.name, 2, 100)
+          && validTimestamp(request.resource.data.createdAt);
+
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+
+      // ==========================================================================
+      // DEBTS/CREDITS - ALWAYS PRIVATE
+      // Extremely sensitive financial data
+      // ==========================================================================
+      match /credits/{creditId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'saleId', 'customerId', 'totalAmount', 'balance',
+            'dueDate', 'status', 'installmentPlan',
+            'createdAt', 'updatedAt'
+          ])
+          && validPrice(request.resource.data.totalAmount)
+          && validPrice(request.resource.data.balance)
+          && request.resource.data.status in ['open', 'paid', 'overdue']
+          && validTimestamp(request.resource.data.createdAt);
+
+        allow update: if isOwner(userId)
+          && request.resource.data.saleId == resource.data.saleId // Cannot change saleId
+          && request.resource.data.customerId == resource.data.customerId; // Cannot change customer
+
+        allow delete: if isOwner(userId);
+      }
+
+
+      // ==========================================================================
+      // PAYMENTS - PRIVATE
+      // Payment records against debts
+      // ==========================================================================
+      match /payments/{paymentId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'creditId', 'amount', 'method', 'notes', 'createdAt'
+          ])
+          && validPrice(request.resource.data.amount)
+          && request.resource.data.method in ['cash', 'transfer', 'pos']
+          && validTimestamp(request.resource.data.createdAt);
+
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+
+      // ==========================================================================
+      // EXPENSES - ALWAYS PRIVATE
+      // Business expense tracking (sensitive)
+      // ==========================================================================
+      match /expenses/{expenseId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && onlyAllowedFields([
+            'description', 'amount', 'category', 'date',
+            'paymentMethod', 'notes', 'createdAt'
+          ])
+          && validString(request.resource.data.description, 2, 200)
+          && validPrice(request.resource.data.amount)
+          && validTimestamp(request.resource.data.createdAt);
+
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+
+      // ==========================================================================
+      // SETTINGS - PRIVATE
+      // App configuration and preferences
+      // ==========================================================================
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+
+    // ============================================================================
+    // STORE URL SLUGS
+    // Public read (for slug availability checks)
+    // Only owner can claim/update/delete their slug
+    // Prevent duplicate slugs with !exists() check
+    // ============================================================================
+    match /slugs/{slug} {
+      // Anyone can check if slug exists (for availability)
+      allow read: if true;
+
+      // Only authenticated users can create slugs
+      // Slug must not already exist (prevent duplicates)
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/slugs/$(slug))
+        && onlyAllowedFields(['ownerId', 'updatedAt'])
+        && request.resource.data.ownerId == request.auth.uid;
+
+      // Only owner can update their slug
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid // Cannot transfer ownership
+        && onlyAllowedFields(['ownerId', 'updatedAt']);
+
+      // Only owner can delete their slug
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+
+    // ============================================================================
+    // TEST COLLECTION (DEVELOPMENT ONLY)
+    // ⚠️ REMOVE THIS IN PRODUCTION ⚠️
+    // ============================================================================
+    match /test/{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 12, 1); // Auto-expire
+    }
+  }
+}

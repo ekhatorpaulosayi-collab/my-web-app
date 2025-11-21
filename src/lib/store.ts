@@ -8,13 +8,14 @@ export type SaleRow = {
   itemId?: string;
   itemName?: string;
   qty: number;
-  unitPrice: number;      // naira
-  amount: number;         // naira
+  unitPrice: number;      // naira (selling price)
+  amount: number;         // naira (total sale amount)
   payment: PaymentMethod;
   customerName?: string;
   phone?: string;
   note?: string;
   relatedDebtId?: string; // if this row came from a credit being paid later
+  cogsKobo?: number;      // Cost of Goods Sold in kobo (cost price × quantity)
 };
 
 export type Debt = {

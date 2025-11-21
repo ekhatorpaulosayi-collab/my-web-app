@@ -1,0 +1,142 @@
+/**
+ * Smart Notification Bar Styles
+ */
+
+.smart-notification {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  gap: 12px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.smart-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.smart-notification-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.smart-notification-message {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.smart-notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.smart-notification-action {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.smart-notification-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+.smart-notification-dismiss:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Low Stock Variant (Red/Warning) */
+.smart-notification-low_stock {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.smart-notification-low_stock .smart-notification-action {
+  background: #dc2626;
+  color: white;
+}
+
+.smart-notification-low_stock .smart-notification-action:hover {
+  background: #b91c1c;
+}
+
+/* Debt Variant (Orange/Urgent) */
+.smart-notification-debt {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.smart-notification-debt .smart-notification-action {
+  background: #f59e0b;
+  color: white;
+}
+
+.smart-notification-debt .smart-notification-action:hover {
+  background: #d97706;
+}
+
+/* Milestone Variant (Green/Positive) */
+.smart-notification-milestone {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.smart-notification-milestone .smart-notification-icon {
+  color: #16a34a;
+}
+
+@media (max-width: 640px) {
+  .smart-notification {
+    flex-wrap: wrap;
+  }
+
+  .smart-notification-content {
+    flex: 1 1 100%;
+    margin-bottom: 8px;
+  }
+
+  .smart-notification-actions {
+    flex: 1 1 auto;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

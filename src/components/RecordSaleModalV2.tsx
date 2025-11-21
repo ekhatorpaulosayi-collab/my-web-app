@@ -21,6 +21,8 @@ import {
   type PaymentMethod,
   type PaymentData
 } from '../utils/paystackSettings';
+import { getProductVariants } from '../lib/supabase-variants';
+import type { ProductVariant } from '../types/variants';
 
 interface RecordSaleModalV2Props {
   isOpen: boolean;
@@ -48,6 +50,11 @@ export default function RecordSaleModalV2({
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+
+  // Variant state
+  const [productVariants, setProductVariants] = useState<Record<string, ProductVariant[]>>({});
+  const [showVariantPicker, setShowVariantPicker] = useState(false);
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<ItemOption | null>(null);
 
   // Payment & customer state
   const [isCredit, setIsCredit] = useState(false);
@@ -136,6 +143,30 @@ export default function RecordSaleModalV2({
     };
   }, []);
 
+  // Fetch variants for all products
+  useEffect(() => {
+    if (isOpen && items.length > 0) {
+      const fetchVariants = async () => {
+        const variantsMap: Record<string, ProductVariant[]> = {};
+
+        for (const item of items) {
+          try {
+            const variants = await getProductVariants(item.id.toString());
+            if (variants.length > 0) {
+              variantsMap[item.id.toString()] = variants;
+            }
+          } catch (error) {
+            console.error(`Failed to fetch variants for product ${item.id}:`, error);
+          }
+        }
+
+        setProductVariants(variantsMap);
+      };
+
+      fetchVariants();
+    }
+  }, [isOpen, items]);
+
   // Process offline queue
   const processOfflineQueue = async () => {
     const queue = getQueue();
@@ -211,11 +242,30 @@ export default function RecordSaleModalV2({
     }
   }, [isOpen, calculatorItems, items, onShowToast]);
 
-  // Pre-fill cart with preselected item
+  // Pre-fill cart with preselected item (or show variant picker if has variants)
   useEffect(() => {
     if (isOpen && preselectedItem) {
-      console.log('[V2] Auto-adding preselected item to cart:', preselectedItem);
+      console.log('[V2] Processing preselected item:', preselectedItem);
 
+      // Check if product has variants
+      const variants = productVariants[preselectedItem.id.toString()];
+      if (variants && variants.length > 0) {
+        console.log('[V2] Preselected item has variants, showing picker:', variants);
+        // Show variant picker instead of auto-adding
+        const itemOption: ItemOption = {
+          id: preselectedItem.id.toString(),
+          name: preselectedItem.name,
+          category: preselectedItem.category || '',
+          price: Math.round((preselectedItem.sellKobo ?? preselectedItem.sellingPrice ?? preselectedItem.sellPrice ?? 0) / 100),
+          stock: preselectedItem.qty || preselectedItem.quantity || 0
+        };
+        setSelectedProductForVariant(itemOption);
+        setShowVariantPicker(true);
+        return;
+      }
+
+      // No variants - auto-add to cart
+      console.log('[V2] Auto-adding preselected item to cart (no variants)');
       const sellKobo = preselectedItem.sellKobo ?? preselectedItem.sellingPrice ?? preselectedItem.sellPrice ?? 0;
       const sellNaira = Math.round(sellKobo / 100);
 
@@ -230,7 +280,7 @@ export default function RecordSaleModalV2({
 
       setCart([cartItem]);
     }
-  }, [isOpen, preselectedItem]);
+  }, [isOpen, preselectedItem, productVariants]);
 
   // Transform items for ItemCombobox
   const itemOptions: ItemOption[] = items.map(item => ({
@@ -254,8 +304,17 @@ export default function RecordSaleModalV2({
     console.log('[V2 handleSelectItem] Item selected:', item);
     setError('');
 
+    // Check if product has variants
+    const variants = productVariants[item.id];
+    if (variants && variants.length > 0) {
+      console.log('[V2 handleSelectItem] Product has variants, showing picker:', variants);
+      setSelectedProductForVariant(item);
+      setShowVariantPicker(true);
+      return;
+    }
+
     // Check stock availability
-    const existingCartItem = cart.find(ci => ci.itemId === item.id);
+    const existingCartItem = cart.find(ci => ci.itemId === item.id && !ci.variantId);
     const totalQtyInCart = existingCartItem ? existingCartItem.quantity : 0;
 
     console.log('[V2 handleSelectItem] Existing cart item:', existingCartItem);
@@ -273,7 +332,7 @@ export default function RecordSaleModalV2({
       const newQty = existingCartItem.quantity + 1;
       console.log('[V2 handleSelectItem] Updating existing item, new qty:', newQty);
       setCart(prev => prev.map(ci =>
-        ci.itemId === item.id
+        ci.itemId === item.id && !ci.variantId
           ? { ...ci, quantity: newQty }
           : ci
       ));
@@ -301,6 +360,73 @@ export default function RecordSaleModalV2({
       item_id: item.id,
       payment_method: paymentMethod,
       amount: item.price
+    });
+  };
+
+  // Handle variant selection
+  const handleVariantSelected = (variant: ProductVariant) => {
+    if (!selectedProductForVariant) return;
+
+    console.log('[V2 handleVariantSelected] Variant selected:', variant);
+    setError('');
+
+    // Check if variant has stock
+    if (variant.quantity <= 0) {
+      setError(`${variant.variant_name} is out of stock`);
+      onShowToast?.(`⚠️ ${variant.variant_name} is out of stock`, 3000);
+      return;
+    }
+
+    // Check if this specific variant is already in cart
+    const existingCartItem = cart.find(ci => ci.variantId === variant.id);
+    const totalQtyInCart = existingCartItem ? existingCartItem.quantity : 0;
+
+    if (totalQtyInCart >= variant.quantity) {
+      setError(`All ${variant.quantity} units of ${variant.variant_name} are already in cart`);
+      onShowToast?.(`⚠️ All stock already in cart for ${variant.variant_name}`, 3000);
+      return;
+    }
+
+    // Get price (variant price override or product base price)
+    const variantPrice = variant.price_override
+      ? Math.round(variant.price_override / 100)
+      : selectedProductForVariant.price;
+
+    // Merge if already in cart, otherwise add new
+    if (existingCartItem) {
+      const newQty = existingCartItem.quantity + 1;
+      console.log('[V2 handleVariantSelected] Updating existing variant, new qty:', newQty);
+      setCart(prev => prev.map(ci =>
+        ci.variantId === variant.id
+          ? { ...ci, quantity: newQty }
+          : ci
+      ));
+      onShowToast?.(`🛒 Updated ${selectedProductForVariant.name} - ${variant.variant_name} (qty: ${newQty})`, 2000);
+    } else {
+      const cartItem: CartItem = {
+        id: crypto.randomUUID(),
+        itemId: selectedProductForVariant.id,
+        variantId: variant.id,
+        name: `${selectedProductForVariant.name} - ${variant.variant_name}`,
+        quantity: 1,
+        price: variantPrice,
+        stockAvailable: variant.quantity
+      };
+      console.log('[V2 handleVariantSelected] Adding new variant to cart:', cartItem);
+      setCart(prev => [...prev, cartItem]);
+      onShowToast?.(`🛒 Added ${cartItem.name} to cart`, 2000);
+    }
+
+    // Close variant picker
+    setShowVariantPicker(false);
+    setSelectedProductForVariant(null);
+
+    // Log analytics
+    logSaleEvent('sale_started', {
+      item_id: selectedProductForVariant.id,
+      variant_id: variant.id,
+      payment_method: paymentMethod,
+      amount: variantPrice
     });
   };
 
@@ -1006,6 +1132,115 @@ Powered by Storehouse
               onRemove={handleRemoveFromCart}
               onClose={() => setCartDrawerOpen(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Variant Picker Modal */}
+      {showVariantPicker && selectedProductForVariant && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => {
+            setShowVariantPicker(false);
+            setSelectedProductForVariant(null);
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '70vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, marginBottom: '8px', fontSize: '18px', fontWeight: 700 }}>
+                Select Variant
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                {selectedProductForVariant.name}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {productVariants[selectedProductForVariant.id]?.map((variant) => (
+                <button
+                  key={variant.id}
+                  onClick={() => handleVariantSelected(variant)}
+                  disabled={variant.quantity <= 0}
+                  style={{
+                    padding: '16px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    background: variant.quantity > 0 ? 'white' : '#f9fafb',
+                    cursor: variant.quantity > 0 ? 'pointer' : 'not-allowed',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    opacity: variant.quantity > 0 ? 1 : 0.6
+                  }}
+                  onMouseEnter={(e) => {
+                    if (variant.quantity > 0) {
+                      e.currentTarget.style.borderColor = '#00894F';
+                      e.currentTarget.style.background = '#f0fdf4';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (variant.quantity > 0) {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.background = 'white';
+                    }
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '15px', fontWeight: 600, color: '#1f2937' }}>
+                      {variant.variant_name}
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#00894F' }}>
+                      ₦{((variant.price_override || selectedProductForVariant.price * 100) / 100).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '13px', color: variant.quantity > 0 ? '#16a34a' : '#ef4444' }}>
+                    {variant.quantity > 0 ? `${variant.quantity} in stock` : 'Out of stock'}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowVariantPicker(false);
+                setSelectedProductForVariant(null);
+              }}
+              style={{
+                marginTop: '16px',
+                width: '100%',
+                padding: '12px',
+                background: '#f3f4f6',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getDebts, markDebtPaidNotify, type Debt as LocalStorageDebt } from '../state/debts';
+import { getDebts, markDebtPaidNotify, recordPaymentNotify, recordInstallmentPaymentNotify, addDebtNotify, createDebtWithInstallments, getNextPendingInstallment, type Debt as LocalStorageDebt, type InstallmentFrequency } from '../state/debts';
 import { openWhatsApp } from '../utils/wa';
+import { RecordPaymentModal } from './RecordPaymentModal';
+import { CreateDebtModal } from './CreateDebtModal';
 
 // Adapter type to match the component's expected format
 type Debt = {
@@ -8,10 +10,15 @@ type Debt = {
   name: string;
   phone?: string;
   amount: number;
+  totalAmount: number;
+  amountPaid: number;
+  amountRemaining: number;
   dueDate?: string;
   createdAt: string;
   paid: boolean;
   paidAt?: string | null;
+  status: string;
+  installmentPlan?: LocalStorageDebt['installmentPlan'];
 };
 
 // Local money formatter fallback to avoid crashes
@@ -55,6 +62,8 @@ export default function CustomerDebtDrawer({
   const [searchQuery, setSearchQuery] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [confirmMarkPaid, setConfirmMarkPaid] = useState<Debt | null>(null);
+  const [recordPaymentDebt, setRecordPaymentDebt] = useState<LocalStorageDebt | null>(null);
+  const [showCreateDebtModal, setShowCreateDebtModal] = useState(false);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -68,11 +77,16 @@ export default function CustomerDebtDrawer({
       id: d.id,
       name: d.customerName, // Map customerName to name
       phone: d.phone,
-      amount: d.amount,
+      amount: d.totalAmount, // Use totalAmount for display
+      totalAmount: d.totalAmount,
+      amountPaid: d.amountPaid,
+      amountRemaining: d.amountRemaining,
       dueDate: d.dueDate,
       createdAt: d.createdAt,
       paid: d.status === 'paid', // Map status to paid boolean
-      paidAt: d.status === 'paid' ? d.createdAt : null // Use createdAt as fallback for paidAt
+      paidAt: d.status === 'paid' ? d.createdAt : null, // Use createdAt as fallback for paidAt
+      status: d.status,
+      installmentPlan: d.installmentPlan
     }));
 
     setDebts(convertedDebts);
@@ -182,10 +196,211 @@ export default function CustomerDebtDrawer({
         })
       : 'soon';
 
-    const msg = `Hello ${debt.name}, you have an outstanding balance of ${formatNaira(debt.amount)} due ${dueDateStr}. Please make payment at your earliest convenience. Thank you! — ${businessName}`;
+    const msg = `Hello ${debt.name}, you have an outstanding balance of ${formatNaira(debt.amountRemaining)} due ${dueDateStr}. Please make payment at your earliest convenience. Thank you! — ${businessName}`;
 
     openWhatsApp(debt.phone, msg);
     onToast?.('WhatsApp reminder opened');
+  }
+
+  // Record payment handler
+  function handleRecordPayment(debtId: string, amount: number, method?: string) {
+    try {
+      let payment;
+
+      // Get the debt to check for installment plan
+      const localDebts = getDebts();
+      const debt = localDebts.find(d => d.id === debtId);
+
+      if (debt?.installmentPlan) {
+        // Smart installment detection
+        const nextInstallment = getNextPendingInstallment(debt);
+
+        if (nextInstallment) {
+          // Record as installment payment
+          payment = recordInstallmentPaymentNotify(
+            debtId,
+            nextInstallment.number,
+            amount,
+            method
+          );
+        } else {
+          // No pending installments, use regular payment
+          payment = recordPaymentNotify(debtId, amount, method);
+        }
+      } else {
+        // Regular debt without installment plan
+        payment = recordPaymentNotify(debtId, amount, method);
+      }
+
+      if (!payment) {
+        onToast?.('Failed to record payment. Please check the amount.');
+        return;
+      }
+
+      // Reload debts to reflect changes
+      const updatedDebts = getDebts();
+      const convertedDebts: Debt[] = updatedDebts.map(d => ({
+        id: d.id,
+        name: d.customerName,
+        phone: d.phone,
+        amount: d.totalAmount,
+        totalAmount: d.totalAmount,
+        amountPaid: d.amountPaid,
+        amountRemaining: d.amountRemaining,
+        dueDate: d.dueDate,
+        createdAt: d.createdAt,
+        paid: d.status === 'paid',
+        paidAt: d.status === 'paid' ? d.createdAt : null,
+        status: d.status,
+        installmentPlan: d.installmentPlan
+      }));
+      setDebts(convertedDebts);
+
+      onToast?.(`✓ Payment of ${formatNaira(amount)} recorded • ${payment.id}`);
+    } catch (error) {
+      console.error('[Record Payment] Error:', error);
+      onToast?.('Failed to record payment. Please try again.');
+    }
+  }
+
+  // Send payment receipt via WhatsApp
+  function handleSendReceipt(debt: Debt) {
+    if (!debt.phone) {
+      onToast?.('No phone number for this customer');
+      return;
+    }
+
+    let receipt: string;
+
+    if (debt.installmentPlan) {
+      // Installment-specific receipt
+      const paidInstallments = debt.installmentPlan.schedule.filter(i => i.status === 'paid').length;
+      const totalInstallments = debt.installmentPlan.totalInstallments;
+      const frequencyText = debt.installmentPlan.frequency === 'biweekly'
+        ? 'Bi-weekly'
+        : debt.installmentPlan.frequency.charAt(0).toUpperCase() + debt.installmentPlan.frequency.slice(1);
+
+      // Get next installment info
+      const localDebts = getDebts();
+      const fullDebt = localDebts.find(d => d.id === debt.id);
+      const nextInstallment = fullDebt ? getNextPendingInstallment(fullDebt) : null;
+
+      receipt = `🧾 Installment Receipt - ${businessName}
+
+Customer: ${debt.name}
+📋 ${frequencyText} Payment Plan
+━━━━━━━━━━━━━━━━━━
+Total Amount: ${formatNaira(debt.totalAmount)}
+Installments: ${paidInstallments} of ${totalInstallments} paid
+Payment/Installment: ${formatNaira(debt.installmentPlan.installmentAmount)}
+
+Progress: ${'█'.repeat(Math.floor(paidInstallments / totalInstallments * 10))}${'░'.repeat(10 - Math.floor(paidInstallments / totalInstallments * 10))} ${Math.round(paidInstallments / totalInstallments * 100)}%
+
+━━━━━━━━━━━━━━━━━━
+Amount Paid: ${formatNaira(debt.amountPaid)}
+Balance Due: ${formatNaira(debt.amountRemaining)}
+━━━━━━━━━━━━━━━━━━
+
+${nextInstallment ? `⏰ Next Payment:\n   ${formatNaira(nextInstallment.amount)} due ${new Date(nextInstallment.dueDate).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })}` : '✅ All installments paid!'}
+
+${debt.status === 'paid' ? '✅ FULLY PAID - Thank you!' : '⏳ Keep up the good work!'}
+
+Date: ${new Date().toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+Thank you for your payment! 🙏`;
+    } else {
+      // Regular receipt
+      receipt = `🧾 Payment Receipt - ${businessName}
+
+Customer: ${debt.name}
+━━━━━━━━━━━━━━━━━━
+Total Debt: ${formatNaira(debt.totalAmount)}
+Amount Paid: ${formatNaira(debt.amountPaid)}
+Balance Due: ${formatNaira(debt.amountRemaining)}
+━━━━━━━━━━━━━━━━━━
+
+${debt.status === 'paid' ? '✅ FULLY PAID - Thank you!' : '⏳ Payment pending'}
+
+Date: ${new Date().toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+Thank you for your payment! 🙏`;
+    }
+
+    openWhatsApp(debt.phone, receipt);
+    onToast?.('WhatsApp receipt opened');
+  }
+
+  // Create new debt handler
+  function handleCreateDebt(
+    customerName: string,
+    phone: string,
+    totalAmount: number,
+    hasInstallments: boolean,
+    numInstallments?: number,
+    frequency?: InstallmentFrequency,
+    startDate?: string
+  ) {
+    try {
+      let newDebt: LocalStorageDebt;
+
+      if (hasInstallments && numInstallments && frequency && startDate) {
+        // Create debt with installment plan
+        newDebt = createDebtWithInstallments(
+          customerName,
+          phone || undefined,
+          totalAmount,
+          numInstallments,
+          frequency,
+          startDate
+        );
+      } else {
+        // Create simple debt (single payment)
+        // Set due date to 30 days from now as default
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 30);
+
+        newDebt = {
+          id: `DEBT-${Date.now()}`,
+          customerName,
+          phone: phone || undefined,
+          totalAmount,
+          amountPaid: 0,
+          amountRemaining: totalAmount,
+          payments: [],
+          dueDate: dueDate.toISOString().split('T')[0],
+          createdAt: new Date().toISOString(),
+          status: 'open'
+        };
+      }
+
+      // Add to localStorage with notification
+      addDebtNotify(newDebt);
+
+      // Reload debts to reflect changes
+      const localDebts = getDebts();
+      const convertedDebts: Debt[] = localDebts.map(d => ({
+        id: d.id,
+        name: d.customerName,
+        phone: d.phone,
+        amount: d.totalAmount,
+        totalAmount: d.totalAmount,
+        amountPaid: d.amountPaid,
+        amountRemaining: d.amountRemaining,
+        dueDate: d.dueDate,
+        createdAt: d.createdAt,
+        paid: d.status === 'paid',
+        paidAt: d.status === 'paid' ? d.createdAt : null,
+        status: d.status,
+        installmentPlan: d.installmentPlan
+      }));
+      setDebts(convertedDebts);
+
+      const planType = hasInstallments ? 'installment plan' : 'debt';
+      onToast?.(`✓ Created ${planType} for ${customerName}`);
+    } catch (error) {
+      console.error('[Create Debt] Error:', error);
+      onToast?.('Failed to create debt. Please try again.');
+    }
   }
 
   if (!isOpen) return null;
@@ -200,11 +415,29 @@ export default function CustomerDebtDrawer({
             ←
           </button>
           <div className="debt-header-content">
-            <h2 className="debt-drawer-title">Customer Debt</h2>
+            <h2 className="debt-drawer-title">Debt/Credit Sales</h2>
             <p className="debt-drawer-subtitle">
               Total: {formatNaira(total)} ({count} {count === 1 ? 'person' : 'people'})
             </p>
           </div>
+          <button
+            onClick={() => setShowCreateDebtModal(true)}
+            style={{
+              padding: '8px 16px',
+              background: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginRight: '8px'
+            }}
+            title="Create new debt"
+            aria-label="Create new debt"
+          >
+            + Add
+          </button>
           <button className="drawer-close" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -299,8 +532,122 @@ export default function CustomerDebtDrawer({
                   <div className="debt-card-content">
                     <div className="debt-card-top">
                       <div className="debt-card-name">{debt.name}</div>
-                      <div className="debt-card-amount">{formatNaira(debt.amount)}</div>
+                      <div className="debt-card-amount">{formatNaira(debt.totalAmount)}</div>
                     </div>
+
+                    {debt.phone && (
+                      <a
+                        href={`tel:${digitsOnly(debt.phone)}`}
+                        className="debt-card-phone"
+                      >
+                        📞 {debt.phone}
+                      </a>
+                    )}
+
+                    {/* Balance Summary */}
+                    {!debt.paid && debt.amountPaid > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        background: '#f0f9ff',
+                        borderRadius: '6px',
+                        margin: '8px 0',
+                        fontSize: '13px'
+                      }}>
+                        <span style={{ color: '#0369a1', fontWeight: 500 }}>
+                          Paid: {formatNaira(debt.amountPaid)}
+                        </span>
+                        <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                          Balance: {formatNaira(debt.amountRemaining)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Installment Progress */}
+                    {debt.installmentPlan && (
+                      <div style={{
+                        padding: '12px',
+                        background: '#fef3c7',
+                        borderRadius: '8px',
+                        margin: '8px 0',
+                        fontSize: '13px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{ fontWeight: 600, color: '#92400e' }}>
+                            📋 Installment Plan
+                          </span>
+                          <span style={{ color: '#78350f', fontSize: '12px' }}>
+                            {debt.installmentPlan.frequency === 'biweekly' ? 'Bi-weekly' : debt.installmentPlan.frequency.charAt(0).toUpperCase() + debt.installmentPlan.frequency.slice(1)}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        {(() => {
+                          const paidInstallments = debt.installmentPlan.schedule.filter(i => i.status === 'paid').length;
+                          const totalInstallments = debt.installmentPlan.totalInstallments;
+                          const progressPercent = (paidInstallments / totalInstallments) * 100;
+
+                          return (
+                            <>
+                              <div style={{
+                                width: '100%',
+                                height: '8px',
+                                background: '#fde68a',
+                                borderRadius: '4px',
+                                overflow: 'hidden',
+                                marginBottom: '6px'
+                              }}>
+                                <div style={{
+                                  width: `${progressPercent}%`,
+                                  height: '100%',
+                                  background: '#10b981',
+                                  transition: 'width 0.3s ease'
+                                }} />
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                fontSize: '12px',
+                                color: '#78350f'
+                              }}>
+                                <span>{paidInstallments} of {totalInstallments} paid</span>
+                                <span>{formatNaira(debt.installmentPlan.installmentAmount)}/installment</span>
+                              </div>
+
+                              {/* Next installment info */}
+                              {!debt.paid && (() => {
+                                const localDebts = getDebts();
+                                const fullDebt = localDebts.find(d => d.id === debt.id);
+                                if (!fullDebt) return null;
+
+                                const nextInstallment = getNextPendingInstallment(fullDebt);
+                                if (!nextInstallment) return null;
+
+                                const nextDate = new Date(nextInstallment.dueDate);
+                                const formattedDate = nextDate.toLocaleDateString('en-NG', {
+                                  day: '2-digit',
+                                  month: 'short'
+                                });
+
+                                return (
+                                  <div style={{
+                                    marginTop: '8px',
+                                    padding: '6px 8px',
+                                    background: '#fffbeb',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    color: '#78350f'
+                                  }}>
+                                    Next: {formatNaira(nextInstallment.amount)} due {formattedDate}
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
 
                     {dueDateText && (
                       <div
@@ -310,50 +657,94 @@ export default function CustomerDebtDrawer({
                       </div>
                     )}
 
-                    {debt.phone && (
-                      <a
-                        href={`tel:${digitsOnly(debt.phone)}`}
-                        className="debt-card-phone"
-                      >
-                        {debt.phone}
-                      </a>
-                    )}
-
                     {debt.paid && debt.paidAt && (
                       <div className="debt-paid-info">
-                        Paid on {new Date(debt.paidAt).toLocaleDateString('en-NG')}
+                        ✅ Paid on {new Date(debt.paidAt).toLocaleDateString('en-NG')}
                       </div>
                     )}
 
                     {!debt.paid && (
-                      <div className="debt-card-actions">
+                      <div className="debt-card-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginTop: '12px' }}>
+                        <button
+                          className="debt-btn-remind"
+                          onClick={() => {
+                            const localDebts = getDebts();
+                            const fullDebt = localDebts.find(d => d.id === debt.id);
+                            if (fullDebt) {
+                              setRecordPaymentDebt(fullDebt);
+                            }
+                          }}
+                          title="Record partial or full payment"
+                          aria-label={`Record payment for ${debt.name}`}
+                          style={{
+                            padding: '10px',
+                            background: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          💳 Record Payment
+                        </button>
+                        <button
+                          className="debt-btn-mark-paid"
+                          onClick={() => handleSendReceipt(debt)}
+                          disabled={!hasPhone}
+                          title={hasPhone ? 'Send receipt via WhatsApp' : 'No phone number'}
+                          aria-label={`Send receipt to ${debt.name}`}
+                          style={{
+                            padding: '10px',
+                            background: hasPhone ? '#0ea5e9' : '#d1d5db',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: hasPhone ? 'pointer' : 'not-allowed'
+                          }}
+                        >
+                          📲 Send Receipt
+                        </button>
                         <button
                           className="debt-btn-remind"
                           onClick={() => handleSendReminder(debt)}
                           disabled={!hasPhone}
                           title={hasPhone ? 'Send WhatsApp reminder' : 'No phone number'}
                           aria-label={`Send WhatsApp reminder to ${debt.name}`}
+                          style={{
+                            padding: '10px',
+                            background: hasPhone ? 'white' : '#f3f4f6',
+                            color: hasPhone ? '#374151' : '#9ca3af',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: hasPhone ? 'pointer' : 'not-allowed'
+                          }}
                         >
-                          📱 Remind
+                          💬 Remind
                         </button>
                         <button
                           className="debt-btn-mark-paid"
                           onClick={() => setConfirmMarkPaid(debt)}
-                          title="Mark as paid"
+                          title="Mark as fully paid"
                           aria-label={`Mark ${debt.name} as paid`}
+                          style={{
+                            padding: '10px',
+                            background: 'white',
+                            color: '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
                         >
                           ✓ Mark Paid
                         </button>
-                        {hasPhone && (
-                          <a
-                            href={`tel:${digitsOnly(debt.phone)}`}
-                            className="debt-btn-call"
-                            aria-label={`Call ${debt.name}`}
-                            title="Call"
-                          >
-                            ☎
-                          </a>
-                        )}
                       </div>
                     )}
                   </div>
@@ -398,6 +789,21 @@ export default function CustomerDebtDrawer({
           </div>
         </div>
       )}
+
+      {/* Record Payment Modal */}
+      <RecordPaymentModal
+        debt={recordPaymentDebt}
+        isOpen={!!recordPaymentDebt}
+        onClose={() => setRecordPaymentDebt(null)}
+        onRecordPayment={handleRecordPayment}
+      />
+
+      {/* Create Debt Modal */}
+      <CreateDebtModal
+        isOpen={showCreateDebtModal}
+        onClose={() => setShowCreateDebtModal(false)}
+        onCreateDebt={handleCreateDebt}
+      />
     </>
   );
 }
