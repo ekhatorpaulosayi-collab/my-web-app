@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, ArrowLeft, Phone, Mail, Calendar, ShoppingBag, DollarSign, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchSales } from '../services/supabaseService';
+import { useSales } from '../lib/supabase-hooks';
 import { getDebts } from '../state/debts';
 import { openWhatsApp } from '../utils/wa';
 
@@ -30,8 +30,9 @@ export default function CustomersPage() {
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [sales, setSales] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Use the sales hook to fetch data
+  const { sales, loading } = useSales(currentUser?.uid, undefined, undefined);
 
   // Load business settings for WhatsApp messages
   const [businessName, setBusinessName] = useState('');
@@ -50,25 +51,6 @@ export default function CustomersPage() {
       setBusinessName('Your Store');
     }
   }, []);
-
-  // Fetch sales data
-  useEffect(() => {
-    if (!currentUser?.uid) return;
-
-    const loadSales = async () => {
-      try {
-        setLoading(true);
-        const salesData = await fetchSales(currentUser.uid);
-        setSales(salesData || []);
-      } catch (error) {
-        console.error('[CustomersPage] Error loading sales:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadSales();
-  }, [currentUser?.uid]);
 
   // Aggregate customer data from sales and debts
   const customers = useMemo(() => {
