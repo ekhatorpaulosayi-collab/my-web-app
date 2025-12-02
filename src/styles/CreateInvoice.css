@@ -134,7 +134,32 @@
   border-radius: 6px;
   font-size: 0.875rem;
   color: #1e293b;
+  background-color: #ffffff !important;
   transition: all 0.2s;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Override WebKit autofill styles */
+.form-group input:-webkit-autofill,
+.form-group input:-webkit-autofill:hover,
+.form-group input:-webkit-autofill:focus,
+.form-group input:-webkit-autofill:active,
+.form-group select:-webkit-autofill,
+.form-group select:-webkit-autofill:hover,
+.form-group select:-webkit-autofill:focus,
+.form-group select:-webkit-autofill:active,
+.form-group textarea:-webkit-autofill,
+.form-group textarea:-webkit-autofill:hover,
+.form-group textarea:-webkit-autofill:focus,
+.form-group textarea:-webkit-autofill:active {
+  -webkit-text-fill-color: #1e293b !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  background-color: #ffffff !important;
+  background-clip: content-box !important;
 }
 
 .form-group input:focus,
@@ -143,6 +168,7 @@
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background-color: #ffffff !important;
 }
 
 .form-group textarea {
@@ -199,11 +225,26 @@
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   font-size: 0.875rem;
+  background-color: #ffffff !important;
+  color: #1e293b;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.item-col-name input:-webkit-autofill,
+.item-col-name input:-webkit-autofill:hover,
+.item-col-name input:-webkit-autofill:focus,
+.item-col-name input:-webkit-autofill:active {
+  -webkit-text-fill-color: #1e293b !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  background-color: #ffffff !important;
 }
 
 .item-col-name .item-description {
   font-size: 0.8125rem;
   color: #64748b;
+  background-color: #ffffff !important;
 }
 
 .item-col-qty input,
@@ -214,6 +255,24 @@
   border-radius: 4px;
   font-size: 0.875rem;
   text-align: right;
+  background-color: #ffffff !important;
+  color: #1e293b;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.item-col-qty input:-webkit-autofill,
+.item-col-qty input:-webkit-autofill:hover,
+.item-col-qty input:-webkit-autofill:focus,
+.item-col-qty input:-webkit-autofill:active,
+.item-col-price input:-webkit-autofill,
+.item-col-price input:-webkit-autofill:hover,
+.item-col-price input:-webkit-autofill:focus,
+.item-col-price input:-webkit-autofill:active {
+  -webkit-text-fill-color: #1e293b !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  background-color: #ffffff !important;
 }
 
 .item-col-total {
