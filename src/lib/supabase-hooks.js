@@ -89,42 +89,33 @@ export function useUser(firebaseUser) {
           return;
         }
 
-        // Try to find user by Firebase UID
+        // MIGRATED TO SUPABASE AUTH - Use auth.users table directly
+        // No need to sync Firebase UID anymore since we're using Supabase Auth
         let { data: existingUser, error: fetchError } = await supabase
           .from('users')
           .select('*')
-          .eq('firebase_uid', firebaseUser.uid)
+          .eq('id', firebaseUser.uid) // Now using Supabase Auth user ID
           .single();
 
         if (fetchError && fetchError.code !== 'PGRST116') {
           throw fetchError;
         }
 
-        // Create user if doesn't exist
+        // User should already exist from Supabase Auth signup
+        // If not found, it means auth.users exists but users table record missing
         if (!existingUser) {
-          const { data: newUser, error: createError } = await supabase
-            .from('users')
-            .insert({
-              firebase_uid: firebaseUser.uid,
-              phone_number: firebaseUser.phoneNumber || '+1234567890', // Valid E.164 format placeholder
-              email: firebaseUser.email,
-              full_name: firebaseUser.displayName,
-              device_type: 'web',
-              app_version: '2.0.0',
-              last_login_at: new Date().toISOString(),
-            })
-            .select()
-            .single();
-
-          if (createError) throw createError;
-          existingUser = newUser;
-        } else {
-          // Update last login
-          await supabase
-            .from('users')
-            .update({ last_login_at: new Date().toISOString() })
-            .eq('id', existingUser.id);
+          console.warn('[Supabase] User exists in auth but not in users table - this should not happen');
+          // Don't try to create - let the auth flow handle it
+          setUser(null);
+          setError(new Error('User profile not found'));
+          return;
         }
+
+        // Update last login
+        await supabase
+          .from('users')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', existingUser.id);
 
         cache.set(cacheKey, existingUser);
         setUser(existingUser);
