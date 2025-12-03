@@ -5,6 +5,8 @@ import App from './App.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
+import AuthConfirm from './pages/AuthConfirm.jsx';
+import UpdatePassword from './pages/UpdatePassword.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // Lazy load non-critical routes for better performance
@@ -16,6 +18,7 @@ const Invoices = lazy(() => import('./pages/Invoices.tsx'));
 const CreateInvoice = lazy(() => import('./pages/CreateInvoice.tsx'));
 const InvoiceDetail = lazy(() => import('./pages/InvoiceDetail.tsx'));
 const PublicInvoiceView = lazy(() => import('./pages/PublicInvoiceView.tsx'));
+const ReviewManagement = lazy(() => import('./pages/ReviewManagement.tsx'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage.tsx'));
 const ImageTest = lazy(() => import('./pages/ImageTest.tsx'));
 const DirectImageTest = lazy(() => import('./pages/DirectImageTest.tsx'));
@@ -26,6 +29,9 @@ const StoreSetup = lazy(() => import('./components/StoreSetup.tsx'));
 const StoreQuickSetup = lazy(() => import('./components/StoreQuickSetup.tsx'));
 const StoreSetupComplete = lazy(() => import('./components/StoreSetupComplete.tsx'));
 const OnlineStoreSetup = lazy(() => import('./components/OnlineStoreSetup.tsx'));
+const ErrorMonitoringDashboard = lazy(() => import('./pages/ErrorMonitoringDashboard.tsx'));
+const WhatsAppAI = lazy(() => import('./pages/WhatsAppAI.tsx'));
+const HelpCenter = lazy(() => import('./pages/HelpCenter.tsx'));
 
 /**
  * App Routes
@@ -122,6 +128,14 @@ export default function AppRoutes() {
             loading ? <LoadingScreen /> : currentUser ? <Navigate to="/" replace /> : <ForgotPassword />
           }
         />
+        <Route
+          path="/auth/confirm"
+          element={<AuthConfirm />}
+        />
+        <Route
+          path="/update-password"
+          element={<UpdatePassword />}
+        />
 
         {/* Protected routes */}
         <Route
@@ -163,6 +177,36 @@ export default function AppRoutes() {
           }
         />
 
+        {/* Error Monitoring Dashboard - Admin only */}
+        <Route
+          path="/admin/monitoring"
+          element={
+            <ProtectedRoute>
+              <ErrorMonitoringDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* WhatsApp AI - Automated customer support */}
+        <Route
+          path="/whatsapp-ai"
+          element={
+            <ProtectedRoute>
+              <WhatsAppAI />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Help Center - Browse all documentation guides */}
+        <Route
+          path="/help"
+          element={
+            <ProtectedRoute>
+              <HelpCenter />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Invoices - B2B sales, credit sales, and payment tracking */}
         <Route
           path="/invoices"
@@ -187,6 +231,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <InvoiceDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Review Management - Moderate and respond to customer reviews */}
+        <Route
+          path="/reviews"
+          element={
+            <ProtectedRoute>
+              <ReviewManagement />
             </ProtectedRoute>
           }
         />
