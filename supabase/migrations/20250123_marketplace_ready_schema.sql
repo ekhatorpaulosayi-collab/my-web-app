@@ -108,12 +108,14 @@ CREATE INDEX IF NOT EXISTS idx_marketplace_analytics_created
 ALTER TABLE public.marketplace_analytics ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can only see their own analytics
+DROP POLICY IF EXISTS marketplace_analytics_select_own ON public.marketplace_analytics;
 CREATE POLICY marketplace_analytics_select_own
   ON public.marketplace_analytics
   FOR SELECT
-  USING (store_id = auth.uid());
+  USING (store_id::text = auth.uid()::text);
 
 -- Policy: Anyone can insert analytics (for tracking public views)
+DROP POLICY IF EXISTS marketplace_analytics_insert_all ON public.marketplace_analytics;
 CREATE POLICY marketplace_analytics_insert_all
   ON public.marketplace_analytics
   FOR INSERT
@@ -151,12 +153,14 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_paystack
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can only see their own subscriptions
+DROP POLICY IF EXISTS subscriptions_select_own ON public.subscriptions;
 CREATE POLICY subscriptions_select_own
   ON public.subscriptions
   FOR SELECT
   USING (user_id = auth.uid());
 
 -- Policy: Users can insert their own subscriptions
+DROP POLICY IF EXISTS subscriptions_insert_own ON public.subscriptions;
 CREATE POLICY subscriptions_insert_own
   ON public.subscriptions
   FOR INSERT
@@ -188,6 +192,7 @@ CREATE INDEX IF NOT EXISTS idx_moderation_queue_status
 ALTER TABLE public.moderation_queue ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Anyone can report (insert)
+DROP POLICY IF EXISTS moderation_queue_insert_all ON public.moderation_queue;
 CREATE POLICY moderation_queue_insert_all
   ON public.moderation_queue
   FOR INSERT
@@ -195,6 +200,7 @@ CREATE POLICY moderation_queue_insert_all
 
 -- Policy: Only admins can view (you'll need to add is_admin column to users later)
 -- For now, restrict to authenticated users
+DROP POLICY IF EXISTS moderation_queue_select_auth ON public.moderation_queue;
 CREATE POLICY moderation_queue_select_auth
   ON public.moderation_queue
   FOR SELECT

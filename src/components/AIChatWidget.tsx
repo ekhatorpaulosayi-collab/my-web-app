@@ -45,59 +45,164 @@ export default function AIChatWidget({
   const [showSupport, setShowSupport] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
+  const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-open for new users OR on Online Store Setup page
+  // Detect user type (visitor, shopper, or authenticated user)
+  useEffect(() => {
+    if (user) {
+      setUserType('user'); // Logged in = onboarding mode
+    } else if (storeSlug) {
+      setUserType('shopper'); // On storefront = shopping assistant
+    } else {
+      setUserType('visitor'); // Landing page = marketing mode
+    }
+  }, [user, storeSlug]);
+
+  // Auto-open with context-aware welcome messages
   useEffect(() => {
     const isOnlineStoreSetup = location.pathname.includes('/online-store-setup');
+    const isLandingPage = location.pathname === '/' || location.pathname === '/home';
 
     // Auto-open for Online Store Setup (first visit only)
-    if (isOnlineStoreSetup) {
+    if (isOnlineStoreSetup && user) {
       const hasSeenStoreSetupChat = localStorage.getItem('storehouse_store_setup_chat_seen');
       if (!hasSeenStoreSetupChat) {
         setTimeout(() => {
           setIsOpen(true);
-          // Add welcome message specific to store setup
           setMessages([{
             role: 'assistant',
             content: "👋 Hi! Setting up your online store? I'm here to help! Ask me anything about choosing a store URL, adding payment details, or customizing your store!",
             timestamp: new Date(),
           }]);
           localStorage.setItem('storehouse_store_setup_chat_seen', 'true');
-        }, 3000); // Open after 3 seconds to let user see the page first
+        }, 3000);
       }
       return;
     }
 
-    // Auto-open for new users on other pages
-    if (autoOpen && contextType === 'onboarding') {
+    // Marketing mode: Auto-open for landing page visitors (not logged in)
+    if (!user && isLandingPage) {
+      const hasSeenMarketingChat = localStorage.getItem('storehouse_marketing_chat_seen');
+      if (!hasSeenMarketingChat) {
+        setTimeout(() => {
+          setIsOpen(true);
+          setMessages([{
+            role: 'assistant',
+            content: "👋 Hi there! Looking to manage your inventory and grow your business?\n\nI can show you how Storehouse helps 5,000+ Nigerian businesses:\n\n✅ Track products & profit in real-time\n✅ Create an online store in 3 minutes\n✅ Accept payments via OPay, Moniepoint, Banks\n✅ 100% FREE to start (no credit card needed)\n\nWhat would you like to know?",
+            timestamp: new Date(),
+          }]);
+          localStorage.setItem('storehouse_marketing_chat_seen', 'true');
+        }, 5000); // 5 seconds for visitors to read page first
+      }
+      return;
+    }
+
+    // Onboarding mode: Auto-open for new authenticated users
+    if (autoOpen && user && contextType === 'onboarding') {
       const hasSeenChat = localStorage.getItem('storehouse_chat_seen');
       if (!hasSeenChat) {
         setTimeout(() => {
           setIsOpen(true);
-          // Add welcome message
           setMessages([{
             role: 'assistant',
-            content: "👋 Hi! I'm your Storehouse guide! What brings you here today?",
+            content: "🎉 Welcome to Storehouse! I'm your personal guide.\n\nLet's get you started with a quick win! In the next 5 minutes, you'll:\n\n1️⃣ Add your first product (1 min)\n2️⃣ Record a test sale (1 min)\n3️⃣ Create your online store (3 min)\n\nReady? Ask me: \"Show me the 5-minute checklist\"",
             timestamp: new Date(),
           }]);
           localStorage.setItem('storehouse_chat_seen', 'true');
-        }, 2000); // Open after 2 seconds
+        }, 2000);
       }
     }
-  }, [autoOpen, contextType, location.pathname]);
+  }, [autoOpen, contextType, location.pathname, user]);
 
-  // Load suggested questions based on app context
+  // Load suggested questions based on user type and app context
   useEffect(() => {
-    const suggestions = getSuggestedQuestions(appContext);
+    let suggestions: string[] = [];
+
+    if (userType === 'visitor') {
+      // Marketing questions for non-logged-in visitors
+      suggestions = [
+        "What makes Storehouse different from Excel?",
+        "Can I really create an online store in 3 minutes?",
+        "How much does it cost?",
+        "Is my business data secure?",
+        "Can I accept OPay and bank transfers?",
+        "Do I need to know coding?",
+      ];
+    } else if (userType === 'shopper') {
+      // Shopping assistant questions for storefront visitors
+      suggestions = [
+        "What payment methods do you accept?",
+        "How do I place an order?",
+        "Do you deliver?",
+        "Can I get a bulk discount?",
+      ];
+    } else {
+      // Onboarding questions for authenticated users (context-aware)
+      suggestions = getSuggestedQuestions(appContext);
+    }
+
     setSuggestedQuestions(suggestions);
-  }, [appContext]);
+  }, [appContext, userType]);
 
   // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Progressive feature showcasing: Detect milestones and suggest next steps
+  useEffect(() => {
+    if (!user || userType !== 'user') return; // Only for authenticated users
+
+    // Milestone 1: User just added their first product
+    if (appContext.hasProducts && !appContext.hasSales) {
+      const hasSeenSalesSuggestion = localStorage.getItem('storehouse_seen_sales_suggestion');
+      if (!hasSeenSalesSuggestion && messages.length > 0) {
+        setTimeout(() => {
+          const showcaseMessage: Message = {
+            role: 'assistant',
+            content: "🎉 Great job adding your first product!\n\n💡 **Next feature:** Want to see how sales tracking works?\n\nStorehouse automatically calculates your profit when you record sales. Your cost price vs selling price = instant profit insights!\n\nInterested in recording a test sale?",
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, showcaseMessage]);
+          localStorage.setItem('storehouse_seen_sales_suggestion', 'true');
+        }, 3000); // 3 seconds after adding product
+      }
+    }
+
+    // Milestone 2: User recorded their first sale
+    if (appContext.hasSales && !appContext.hasOnlineStore) {
+      const hasSeenStoreSuggestion = localStorage.getItem('storehouse_seen_store_suggestion');
+      if (!hasSeenStoreSuggestion && messages.length > 0) {
+        setTimeout(() => {
+          const showcaseMessage: Message = {
+            role: 'assistant',
+            content: "💰 Awesome! You're tracking sales and profit now!\n\n💡 **Next feature:** Did you know you can create an online store in 3 minutes?\n\nYour customers can:\n✅ Browse products 24/7\n✅ Send orders via WhatsApp\n✅ Pay with OPay, Moniepoint, or Banks\n\nWant me to show you how?",
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, showcaseMessage]);
+          localStorage.setItem('storehouse_seen_store_suggestion', 'true');
+        }, 4000);
+      }
+    }
+
+    // Milestone 3: User created their online store
+    if (appContext.hasOnlineStore) {
+      const hasSeenPaymentSuggestion = localStorage.getItem('storehouse_seen_payment_suggestion');
+      if (!hasSeenPaymentSuggestion && messages.length > 0) {
+        setTimeout(() => {
+          const showcaseMessage: Message = {
+            role: 'assistant',
+            content: "🎊 Your store is live! Congratulations!\n\n💡 **Pro tip:** Have you added payment methods yet?\n\nMost customers prefer:\n🟢 OPay (instant settlement)\n🔵 Moniepoint (business banking)\n🟣 PalmPay (youth demographic)\n\nAdding multiple payment options increases sales by 30-50%!\n\nWant to add OPay or Moniepoint now?",
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, showcaseMessage]);
+          localStorage.setItem('storehouse_seen_payment_suggestion', 'true');
+        }, 5000);
+      }
+    }
+  }, [appContext.hasProducts, appContext.hasSales, appContext.hasOnlineStore, user, userType, messages.length]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || loading) return;
@@ -274,7 +379,9 @@ export default function AIChatWidget({
                   Storehouse Assistant
                 </div>
                 <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>
-                  {contextType === 'onboarding' ? 'Your Setup Guide' :
+                  {userType === 'visitor' ? 'Your Business Growth Partner' :
+                   userType === 'shopper' ? 'Shopping Assistant' :
+                   contextType === 'onboarding' ? 'Your Setup Guide' :
                    contextType === 'help' ? 'Here to Help' : 'Product Inquiries'}
                 </div>
               </div>

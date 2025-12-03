@@ -41,11 +41,11 @@ CREATE TABLE IF NOT EXISTS product_reviews (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_product_reviews_product_id ON product_reviews(product_id);
-CREATE INDEX idx_product_reviews_store_user_id ON product_reviews(store_user_id);
-CREATE INDEX idx_product_reviews_status ON product_reviews(status);
-CREATE INDEX idx_product_reviews_rating ON product_reviews(rating);
-CREATE INDEX idx_product_reviews_created_at ON product_reviews(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_product_id ON product_reviews(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_store_user_id ON product_reviews(store_user_id);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_status ON product_reviews(status);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_rating ON product_reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_created_at ON product_reviews(created_at DESC);
 
 -- ============================================
 -- 2. REVIEW HELPFULNESS VOTES TABLE
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS review_votes (
   UNIQUE(review_id, voter_identifier)
 );
 
-CREATE INDEX idx_review_votes_review_id ON review_votes(review_id);
+CREATE INDEX IF NOT EXISTS idx_review_votes_review_id ON review_votes(review_id);
 
 -- ============================================
 -- 3. PRODUCT REVIEW STATISTICS TABLE
@@ -202,43 +202,51 @@ ALTER TABLE product_review_stats ENABLE ROW LEVEL SECURITY;
 
 -- Product Reviews Policies
 -- Anyone can view approved reviews
+DROP POLICY IF EXISTS "Anyone can view approved reviews" ON product_reviews;
 CREATE POLICY "Anyone can view approved reviews"
   ON product_reviews FOR SELECT
   USING (status = 'approved');
 
 -- Anyone can submit a review (will be pending)
+DROP POLICY IF EXISTS "Anyone can submit reviews" ON product_reviews;
 CREATE POLICY "Anyone can submit reviews"
   ON product_reviews FOR INSERT
   WITH CHECK (status = 'pending');
 
 -- Store owners can view all reviews for their products
+DROP POLICY IF EXISTS "Store owners can view their reviews" ON product_reviews;
 CREATE POLICY "Store owners can view their reviews"
   ON product_reviews FOR SELECT
   USING (store_user_id = auth.uid());
 
 -- Store owners can update their reviews (approve/reject/respond)
+DROP POLICY IF EXISTS "Store owners can moderate their reviews" ON product_reviews;
 CREATE POLICY "Store owners can moderate their reviews"
   ON product_reviews FOR UPDATE
   USING (store_user_id = auth.uid());
 
 -- Review Votes Policies
 -- Anyone can view votes
+DROP POLICY IF EXISTS "Anyone can view review votes" ON review_votes;
 CREATE POLICY "Anyone can view review votes"
   ON review_votes FOR SELECT
   USING (true);
 
 -- Anyone can submit votes
+DROP POLICY IF EXISTS "Anyone can vote on reviews" ON review_votes;
 CREATE POLICY "Anyone can vote on reviews"
   ON review_votes FOR INSERT
   WITH CHECK (true);
 
 -- Review Stats Policies
 -- Anyone can view stats
+DROP POLICY IF EXISTS "Anyone can view review stats" ON product_review_stats;
 CREATE POLICY "Anyone can view review stats"
   ON product_review_stats FOR SELECT
   USING (true);
 
 -- System can update stats (via triggers)
+DROP POLICY IF EXISTS "System can update review stats" ON product_review_stats;
 CREATE POLICY "System can update review stats"
   ON product_review_stats FOR ALL
   USING (true);
