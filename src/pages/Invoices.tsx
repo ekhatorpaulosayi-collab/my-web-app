@@ -318,8 +318,10 @@ export default function Invoices() {
                     onClick={() => navigate(`/invoices/${invoice.id}`)}
                     className="invoice-row"
                   >
-                    <td className="invoice-number">{invoice.invoice_number}</td>
-                    <td>
+                    <td className="invoice-number" data-label="Invoice #">
+                      {invoice.invoice_number}
+                    </td>
+                    <td data-label="Customer">
                       <div className="customer-cell">
                         <p className="customer-name">{invoice.customer_name}</p>
                         {invoice.customer_email && (
@@ -327,14 +329,14 @@ export default function Invoices() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Issue Date">
                       {new Date(invoice.issue_date).toLocaleDateString('en-NG', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric',
                       })}
                     </td>
-                    <td>
+                    <td data-label="Due Date">
                       <div className="due-date-cell">
                         <p>
                           {new Date(invoice.due_date).toLocaleDateString('en-NG', {
@@ -350,14 +352,16 @@ export default function Invoices() {
                         )}
                       </div>
                     </td>
-                    <td className="amount">{formatCurrency(invoice.total_kobo)}</td>
-                    <td className="amount paid">
+                    <td className="amount" data-label="Amount">
+                      {formatCurrency(invoice.total_kobo)}
+                    </td>
+                    <td className="amount paid" data-label="Paid">
                       {formatCurrency(invoice.amount_paid_kobo)}
                     </td>
-                    <td className="amount balance">
+                    <td className="amount balance" data-label="Balance">
                       {formatCurrency(invoice.balance_due_kobo)}
                     </td>
-                    <td>{getStatusBadge(invoice.status)}</td>
+                    <td data-label="Status">{getStatusBadge(invoice.status)}</td>
                     <td className="actions-cell">
                       <button
                         className="action-btn"

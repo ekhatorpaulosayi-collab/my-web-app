@@ -453,10 +453,87 @@
     white-space: nowrap;
   }
 
-  .invoices-table th,
+  /* Convert table to card layout on mobile - NO horizontal scroll */
+  .invoices-table-container {
+    overflow-x: visible;
+  }
+
+  .invoices-table {
+    min-width: unset;
+    display: block;
+  }
+
+  .invoices-table thead {
+    display: none;
+  }
+
+  .invoices-table tbody {
+    display: block;
+  }
+
+  .invoices-table tbody tr {
+    display: block;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .invoices-table tbody tr:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
   .invoices-table td {
-    padding: 0.75rem;
-    font-size: 0.8125rem;
+    display: block;
+    padding: 0.5rem 0;
+    border: none;
+    text-align: left !important;
+  }
+
+  .invoices-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #64748b;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .invoice-number {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .customer-cell {
+    margin-bottom: 0.5rem;
+  }
+
+  .customer-name {
+    font-size: 0.9375rem;
+  }
+
+  .amount {
+    font-size: 0.9375rem;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    margin-top: 0.25rem;
+  }
+
+  .actions-cell {
+    text-align: left !important;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 0.5rem;
+  }
+
+  .actions-cell::before {
+    display: none;
   }
 }
 
