@@ -186,7 +186,7 @@ export function getSuggestedQuestions(context?: AppContext): string[] {
 
   // Always include common questions
   suggestions.push("Why can't I see the edit button?");
-  suggestions.push("How do I send daily reports via WhatsApp?");
+  suggestions.push("How do I add payment methods like OPay?");
 
   // Return up to 6 suggestions
   return suggestions.slice(0, 6);

@@ -310,6 +310,148 @@ Storehouse works perfectly on phones, tablets, and computers!
     lastUpdated: '2025-11-30',
   },
 
+  {
+    id: 'first-5-minutes-checklist',
+    category: 'getting-started',
+    title: '✅ Your First 5 Minutes',
+    subtitle: 'Quick wins to get started fast',
+    difficulty: 'beginner',
+    estimatedTime: '5 minutes',
+    priority: 100, // HIGHEST PRIORITY for new users
+    description: 'Complete these 3 quick steps to see how Storehouse works!',
+    content: `Welcome to Storehouse! 🎉 Let's get you started with **3 quick wins** in just 5 minutes!
+
+**Why this matters:** These 3 steps will help you understand how Storehouse works before diving deeper.
+
+---
+
+## ✅ Step 1: Add Your First Product (1 minute)
+
+**What you'll learn:** How inventory tracking works
+
+**Quick Actions:**
+1. Tap **"+ Add Item"** button at top of products list
+2. Fill in the basics:
+   - **Product Name**: "Test Product"
+   - **Cost Price**: ₦500 (what you paid)
+   - **Selling Price**: ₦800 (what customers pay)
+   - **Quantity**: 10
+3. Tap **"Add Product"**
+
+🎊 **Success!** You just added your first product. Storehouse is now tracking this inventory.
+
+**What happened:**
+- Product added to your inventory
+- Stock: 10 units
+- Expected profit per sale: ₦300 (₦800 - ₦500)
+
+---
+
+## ✅ Step 2: Record a Test Sale (1 minute)
+
+**What you'll learn:** How sales tracking works
+
+**Quick Actions:**
+1. Find your test product in the list
+2. Tap **"Record Sale"** button next to it
+3. Quantity sold: **2** units
+4. Payment method: **Cash**
+5. Tap **"Complete Sale"**
+
+🎊 **Success!** You just recorded your first sale!
+
+**What happened:**
+- 2 units sold
+- Revenue: ₦1,600 (2 × ₦800)
+- Profit: ₦600 (2 × ₦300)
+- Remaining stock: 8 units (10 - 2)
+- Dashboard updated with today's sales
+
+**Check your dashboard:**
+- Today's Sales: ₦1,600
+- Today's Profit: ₦600
+- See your recent sale in the sales list
+
+---
+
+## ✅ Step 3: Set Up Your Online Store (3 minutes)
+
+**What you'll learn:** How to sell online 24/7
+
+**Quick Actions:**
+1. Tap **More** (bottom navigation)
+2. Tap **Online Store**
+3. Fill in the basics:
+   - **Store Name**: Auto-filled from business name
+   - **Store URL**: Choose a unique slug (e.g., "my-test-store")
+   - **WhatsApp Number**: Your business WhatsApp
+4. Tap **"Create Store"**
+5. **Copy your store URL** and open it in a new tab!
+
+🎊 **Success!** You now have an online store at storehouse.ng/store/YOUR-SLUG
+
+**What happened:**
+- Your products are now online
+- Customers can browse 24/7
+- Orders come via WhatsApp
+- You can accept online payments (add Paystack later)
+
+**Try it:**
+- Open your store URL in a browser
+- Browse your test product
+- Add to cart
+- See the checkout flow
+
+---
+
+## 🎯 What's Next?
+
+You've completed the basics! Now you can:
+
+**Build Your Inventory:**
+- Add your real products (tap "+ Add Item")
+- Upload product images
+- Set low stock alerts
+- Organize by categories
+
+**Start Selling:**
+- Record real sales as they happen
+- Track cash, transfer, and POS payments
+- Send WhatsApp receipts to customers
+- View daily sales reports
+
+**Grow Your Business:**
+- Share your online store link
+- Add payment methods (OPay, Moniepoint, etc.)
+- Create professional invoices
+- Add staff members
+- Track customer debts
+
+---
+
+## 💡 Pro Tips:
+
+1. **Add products in bulk:** Click More → Import Products → Upload Excel
+2. **Set low stock alerts:** Get notified when products run low
+3. **Use the chat widget:** Ask me anything! I'm here 24/7
+4. **Check daily reports:** Dashboard shows today's performance at a glance
+
+---
+
+## 🆘 Need Help?
+
+- 💬 **Chat with me** (this widget!) - I'm your AI guide
+- 📚 **Browse Help Docs** - Search for specific topics
+- 📱 **WhatsApp Support** - Available on business plan
+
+---
+
+**🎉 Congratulations!** You've completed your first 5 minutes. You're now ready to use Storehouse to manage your business!`,
+    relatedDocs: ['add-first-product', 'record-first-sale', 'create-online-store', 'dashboard-tour'],
+    keywords: ['first 5 minutes', 'quick start', 'getting started', 'onboarding', 'new user', 'checklist', 'quick wins', 'tutorial', 'first steps'],
+    lastUpdated: '2025-12-03',
+  },
+
   // ============================================
   // PRODUCT MANAGEMENT (8 guides)
   // ============================================
@@ -3815,6 +3957,266 @@ Check where you appear:
     lastUpdated: '2025-11-30',
   },
 
+  {
+    id: 'setup-multi-payment-methods',
+    category: 'online-store',
+    title: 'Add Payment Methods (OPay, Moniepoint, etc.)',
+    subtitle: 'Let customers pay with their preferred method',
+    difficulty: 'beginner',
+    estimatedTime: '5 minutes',
+    priority: 90,
+    description: 'Add multiple payment options to your online store - OPay, Moniepoint, PalmPay, Kuda, Banks, and more!',
+    content: `**🚀 NEW FEATURE! Multi-Payment Methods**
+
+Give your customers MORE ways to pay = MORE sales! 💰
+
+**Supported Payment Methods:**
+
+🟢 **OPay** - Digital wallet (instant)
+🔵 **Moniepoint** - Business banking (instant)
+🟣 **PalmPay** - Mobile wallet (instant)
+🟣 **Kuda Bank** - Digital bank (instant)
+🏦 **Traditional Banks** - GTBank, Access, Zenith, etc.
+💳 **Other** - Chipper Cash, Payoneer, etc.
+💳 **Paystack** - Card payments (existing feature)
+📱 **WhatsApp** - Chat-based checkout (existing feature)
+
+**Why Add Multiple Payment Methods?**
+
+✅ **Increase conversions** - 30-50% more customers complete orders
+✅ **Youth prefer digital wallets** - OPay, PalmPay dominate 18-35 demographic
+✅ **Older customers prefer banks** - Traditional bank transfers
+✅ **Instant settlements** - OPay/Moniepoint arrive instantly vs hours for banks
+✅ **Lower/zero fees** - Digital wallets often charge ₦0 vs ₦50-100 for bank transfers
+✅ **Professional appearance** - Looks like Jumia, Konga, Amazon
+
+---
+
+## 📱 How to Add Payment Methods
+
+**Step 1: Go to Settings**
+1. Tap **More** (bottom navigation)
+2. Tap **Settings** (⚙️)
+3. Scroll to **💳 Payment Methods** section
+4. Tap to expand
+
+**Step 2: Add Your First Payment Method**
+1. Tap **"Add Payment Method"** button
+2. Select payment type (e.g., **OPay**)
+3. Fill in details:
+   - **Account Number**: 7012345678
+   - **Account Name**: Your Business Name
+   - **Instructions** (optional): "Send payment screenshot to WhatsApp"
+4. Tap **"Add Payment Method"**
+
+🎊 **Success!** Your first payment method is added!
+
+**Step 3: Add More Methods (Optional)**
+- Repeat for Moniepoint, PalmPay, Banks, etc.
+- We recommend 2-3 payment methods for best results
+
+---
+
+## 💡 Example Setup (Recommended)
+
+**Most Effective Combination:**
+
+1. **OPay** (for youth/tech-savvy customers)
+   - Account: 7012345678
+   - Name: Fashion Store
+
+2. **GTBank** (for older customers/corporate)
+   - Bank: GTBank
+   - Account: 0123456789
+   - Name: Fashion Store Ltd
+
+3. **Paystack** (for card payments)
+   - Already set up in Paystack Setup section
+
+**Result:** You now accept 8+ payment methods! 🚀
+
+---
+
+## 🎨 How Customers See It
+
+**On Your Storefront:**
+
+\`\`\`
+💳 Payment Methods
+▼ (Click to expand)
+
+🟢 OPay
+Account: 7012345678 [Copy 📋]
+Name: Fashion Store
+
+🏦 GTBank
+Account: 0123456789 [Copy 📋]
+Name: Fashion Store Ltd
+\`\`\`
+
+**During Checkout:**
+
+\`\`\`
+Select Payment Method:
+⚡ Pay with Card (Paystack)
+🟢 OPay (7012345678)
+🏦 GTBank (0123456789)
+📱 Order via WhatsApp
+\`\`\`
+
+When customer selects OPay:
+\`\`\`
+💰 PAYMENT DETAILS
+Account Number: 7012345678 [Copy]
+Account Name: Fashion Store
+
+📝 Send payment screenshot to WhatsApp
+\`\`\`
+
+---
+
+## ⚙️ Manage Payment Methods
+
+**Enable/Disable:**
+- Toggle payment methods ON/OFF without deleting
+- Hide temporarily (e.g., bank account during maintenance)
+
+**Edit Details:**
+- Update account numbers
+- Change instructions
+- Modify account names
+
+**Delete:**
+- Remove payment methods you no longer use
+
+**Copy Account Numbers:**
+- Quick copy buttons throughout
+- Easy to share with customers
+
+---
+
+## 🇳🇬 Nigerian Payment Method Guide
+
+**OPay** (Most Popular)
+- ✅ Instant settlement
+- ✅ Zero fees for receiving
+- ✅ Youth demographic
+- ✅ Easy to verify
+- Account starts with: **70**
+
+**Moniepoint** (Business Favorite)
+- ✅ Built for businesses
+- ✅ Instant settlement
+- ✅ POS integration available
+- ✅ Business analytics
+- Account starts with: **60**
+
+**PalmPay** (Fast Growing)
+- ✅ Instant transfers
+- ✅ Cashback rewards
+- ✅ Youth-focused
+- Account starts with: **80**
+
+**Kuda Bank** (Tech-Savvy)
+- ✅ Digital-first bank
+- ✅ Free transfers
+- ✅ Modern users
+- Account starts with: **20**
+
+**Traditional Banks** (Trusted)
+- ✅ Older customers prefer
+- ✅ Corporate payments
+- ✅ Familiar to everyone
+- ⚠️ May take 1-3 hours to settle
+
+---
+
+## 🎯 Pro Tips
+
+**1. Start with 2-3 methods:**
+- Don't overwhelm customers
+- OPay + Bank is a great combo
+
+**2. Add clear instructions:**
+- "Send screenshot after payment"
+- "WhatsApp us for confirmation"
+- "Use your name as reference"
+
+**3. Test the flow:**
+- Open your store in a new tab
+- Add to cart
+- Try the checkout with each payment method
+- Make sure account numbers copy correctly
+
+**4. Promote your payment options:**
+- "We accept OPay, Moniepoint, Bank Transfer & Cards!"
+- Mention in Instagram/Facebook posts
+- Add to WhatsApp status
+
+**5. Monitor which methods work best:**
+- Check Settings → Reports
+- See which payment methods customers prefer
+- Double down on popular ones
+
+---
+
+## ❓ FAQs
+
+**Q: Do I need all payment methods?**
+A: No! Start with 1-2 that YOU already use. OPay + GTBank covers 80% of customers.
+
+**Q: Are there fees?**
+A: OPay, Moniepoint, PalmPay = Usually ₦0 to receive. Banks = ₦50-100 for customers. Paystack = 1.5% + ₦100.
+
+**Q: How long to receive payment?**
+A: OPay/Moniepoint/PalmPay = Instant (seconds). Banks = 1-3 hours. Paystack = Instant to dashboard, settles next day.
+
+**Q: Can I change account numbers later?**
+A: Yes! Edit anytime in Settings → Payment Methods.
+
+**Q: What if a customer pays wrong account?**
+A: All accounts are YOURS, so money still reaches you. Verify via bank app.
+
+**Q: Should I remove Paystack if I add OPay?**
+A: No! Keep both. Some customers prefer cards. More options = more sales.
+
+**Q: Can customers pay with multiple methods?**
+A: Not yet, but coming soon! For now, they choose one method per order.
+
+---
+
+## 🚀 Next Steps
+
+After adding payment methods:
+
+1. **Share your store link** everywhere
+   - WhatsApp status
+   - Instagram bio
+   - Facebook posts
+
+2. **Add Paystack** for card payments
+   - Settings → Paystack Setup
+   - Get public key from paystack.com
+   - Enable card payments
+
+3. **Monitor performance**
+   - Check which methods customers use most
+   - Adjust based on data
+
+4. **Grow your sales**
+   - More payment options = less cart abandonment
+   - Watch your conversion rate increase!
+
+---
+
+**🎉 Congratulations!** You're now accepting payments like Jumia and Konga!
+
+This is a HUGE competitive advantage. Most small businesses only accept one payment method. You accept 8+! 💪`,
+    relatedDocs: ['create-online-store', 'manage-online-orders', 'business-settings'],
+    keywords: ['opay', 'moniepoint', 'palmpay', 'kuda', 'payment methods', 'bank transfer', 'online payment', 'digital wallet', 'multi-payment', 'payment options', 'how to add opay', 'accept moniepoint'],
+    lastUpdated: '2025-12-03',
+  },
+
   // ============================================
   // REPORTS & SETTINGS (4 guides)
   // ============================================
@@ -3916,229 +4318,9 @@ Storehouse shows your business metrics across different pages:
 - Shows today's sales, revenue, and top products
 - Configure in Settings → WhatsApp Reports section
 
-Learn more in the "Daily WhatsApp Reports" guide.`,
-    relatedDocs: ['whatsapp-daily-reports', 'business-settings', 'export-data'],
+View detailed analytics in the Reports section.`,
+    relatedDocs: ['business-settings', 'export-data', 'dashboard-tour'],
     keywords: ['reports', 'analytics', 'business performance', 'sales report', 'profit report'],
-    lastUpdated: '2025-11-30',
-  },
-
-  {
-    id: 'whatsapp-daily-reports',
-    category: 'reports',
-    title: 'Daily WhatsApp Business Reports',
-    subtitle: 'Get automated sales summaries every evening',
-    difficulty: 'beginner',
-    estimatedTime: '4 minutes',
-    priority: 90,
-    description: 'Receive automatic daily business reports via WhatsApp showing sales, profit, and key metrics.',
-    content: `**What Are Daily Reports?**
-
-Every evening at 6 PM, Storehouse sends you a WhatsApp message with:
-- Today's total sales
-- Today's profit
-- Top-selling products
-- Low stock alerts
-- Customer debts collected
-
-**Example Daily Report:**
-
-\`\`\`
-🏪 STOREHOUSE DAILY REPORT
-📅 30 November 2025
-
----------------------------
-💰 SALES TODAY
----------------------------
-Total Sales: 24 transactions
-Revenue: ₦87,500
-Profit: ₦28,300 (32% margin)
-
-💳 PAYMENT BREAKDOWN
----------------------------
-Cash: ₦45,000 (51%)
-Transfer: ₦32,500 (37%)
-POS: ₦10,000 (11%)
-
-⭐ TOP PRODUCTS SOLD
----------------------------
-1. Indomie x 45 = ₦6,750
-2. Golden Penny Flour x 2 = ₦70,000
-3. Coca-Cola x 12 = ₦3,000
-
-📦 STOCK ALERTS
----------------------------
-⚠️ Low Stock:
-- Indomie (15 left)
-- Coca-Cola (8 left)
-
-🔴 Out of Stock:
-- Milo 400g
-- Maggi Cubes
-
-💸 DEBTS COLLECTED
----------------------------
-₦12,000 received from:
-- Mama Caro (₦7,000)
-- Tunde (₦5,000)
-
----------------------------
-Keep up the great work! 🎉
-
-View full report: [Link]
-\`\`\`
-
-**Enable Daily Reports:**
-
-**Step 1: Go to Settings**
-- Click **Settings** → **Notifications**
-
-**Step 2: Enable WhatsApp Reports**
-- Toggle **Daily WhatsApp Report** ON
-- Set delivery time (default: 6 PM)
-- Confirm your WhatsApp number
-
-**Step 3: Customize What's Included**
-
-Choose what to include:
-✅ Sales summary (always included)
-✅ Profit breakdown
-✅ Top products
-✅ Stock alerts
-✅ Debt collections
-✅ Staff performance (if you have staff)
-✅ Comparison with yesterday
-
-**Customize Report Time:**
-
-Choose when to receive:
-- 6:00 PM (default - after business hours)
-- 8:00 PM (if you close late)
-- 7:00 AM (next morning with coffee!)
-
-**Who Gets the Report?**
-
-Send reports to:
-- ✅ Business Owner (you)
-- ✅ Business Partners (if any)
-- ✅ Your Accountant
-- ✅ Store Manager
-
-Just add their WhatsApp numbers in Settings.
-
-**Weekly Reports:**
-
-Get summarized weekly report every Monday:
-
-\`\`\`
-📊 WEEKLY REPORT - 25 NOV - 1 DEC 2025
-
-Total Sales: 167 transactions
-Total Revenue: ₦487,500
-Total Profit: ₦156,300 (32% margin)
-
-Best Day: Friday 29 Nov (₦98,000)
-Slowest Day: Monday 25 Nov (₦34,000)
-
-Top Product: Golden Penny Flour (₦245,000)
-
-New Customers: 12
-Returning Customers: 68
-
-💡 INSIGHT: Sales increased 18% vs last week!
-\`\`\`
-
-**Monthly Reports:**
-
-Detailed monthly summary every 1st of the month:
-
-\`\`\`
-📈 MONTHLY REPORT - NOVEMBER 2025
-
-Sales: ₦1,845,000 (487 transactions)
-Profit: ₦210,000 (11% margin)
-Growth: +23% vs October
-
-Customers: 127 (23 new)
-Products Sold: 1,234 units
-
-Top Category: Grains & Cereals (₦1,190,000)
-
-Staff Performance:
-- Tunde: 127 sales (₦487,500)
-- Ada: 234 sales (₦892,000)
-
-Recommendations:
-- Restock Indomie (selling fast!)
-- Follow up on ₦78,000 overdue debts
-- Consider weekend promotions (Fridays peak!)
-\`\`\`
-
-**Benefits of Daily Reports:**
-
-✅ **Know Your Numbers Daily**
-- No surprises at month-end
-- Track performance in real-time
-
-✅ **Stay On Top of Stock**
-- Reorder before you run out
-- Avoid lost sales
-
-✅ **Monitor Staff**
-- See who's performing
-- Spot issues early
-
-✅ **Track Debts**
-- Know who paid today
-- Follow up on overdue
-
-✅ **Make Quick Decisions**
-- "Sales down today? Run a promo tomorrow!"
-- "Indomie selling fast? Order more!"
-
-**Share Reports:**
-
-Forward report to:
-- Your accountant (for bookkeeping)
-- Business partner (keep them informed)
-- Investors (show growth)
-
-**Report History:**
-
-Access past reports:
-- Go to **Reports** → **Daily Reports**
-- View any past day
-- Compare trends
-
-**Notifications:**
-
-Besides WhatsApp, get notifications for:
-- **SMS** - If WhatsApp unavailable
-- **Email** - For detailed PDF report
-- **In-App** - When you log in to Storehouse
-
-**Privacy:**
-
-Reports are encrypted:
-- Only you and people you authorize see them
-- Delivered via end-to-end encrypted WhatsApp
-- Not shared with anyone else
-
-**Troubleshooting:**
-
-**Not receiving reports?**
-- Check WhatsApp number in Settings
-- Verify you haven't blocked Storehouse number
-- Check WhatsApp is installed and working
-
-**Report time wrong?**
-- Check timezone in Settings
-- Update delivery time preference
-
-**Want different format?**
-- Customize in Settings → Notifications
-- Choose what to include/exclude`,
-    relatedDocs: ['view-business-reports', 'business-settings'],
-    keywords: ['daily report', 'whatsapp report', 'automated report', 'daily summary'],
     lastUpdated: '2025-11-30',
   },
 
