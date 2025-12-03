@@ -9,7 +9,6 @@ import PaymentMethodsManager from './PaymentMethodsManager';
 import { hasPinSet, setPin, clearPin } from '../lib/pinService';
 import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/storeSlug';
 import PaymentsSection from './settings/sections/PaymentsSection';
-import WhatsAppReportsSection from './settings/sections/WhatsAppReportsSection';
 import { StatusPill } from './common/StatusPill';
 import { useDirty } from '../hooks/useDirty';
 // MIGRATION: Using Supabase auth
@@ -828,25 +827,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 4: WhatsApp Daily Reports */}
-            <div className="bs-section" id="section-whatsapp-reports">
-              <button
-                type="button"
-                className="bs-section-header"
-                onClick={() => handleToggleSection('whatsapp-reports')}
-              >
-                <div className="bs-section-title-row">
-                  <h3 className="bs-section-title">📱 WhatsApp Reports</h3>
-                </div>
-                <span className={`bs-chevron ${isSectionExpanded('whatsapp-reports') ? 'open' : ''}`}>›</span>
-              </button>
-
-              {isSectionExpanded('whatsapp-reports') && (
-                <WhatsAppReportsSection onToast={onToast} />
-              )}
-            </div>
-
-            {/* Section 5: Online Store */}
+            {/* Section 4: Online Store */}
             <div className="bs-section" id="section-store">
               <button
                 type="button"
