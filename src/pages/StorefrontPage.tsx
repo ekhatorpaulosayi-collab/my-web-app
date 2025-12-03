@@ -6,9 +6,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
-import type { StoreProfile } from '../types';
+import type { StoreProfile, PaymentMethod } from '../types';
 import type { ProductVariant } from '../types/variants';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { CartProvider, useCart } from '../contexts/CartContext';
@@ -35,6 +35,16 @@ interface Product {
   image_thumbnail?: string;
   attributes?: Record<string, any>;
 }
+
+// Payment method provider configurations
+const PAYMENT_PROVIDERS: Record<string, { name: string; icon: string; color: string }> = {
+  opay: { name: 'OPay', icon: '🟢', color: '#00C087' },
+  moniepoint: { name: 'Moniepoint', icon: '🔵', color: '#0066FF' },
+  palmpay: { name: 'PalmPay', icon: '🟣', color: '#8B5CF6' },
+  kuda: { name: 'Kuda Bank', icon: '🟣', color: '#8B5CF6' },
+  bank: { name: 'Bank Account', icon: '🏦', color: '#3B82F6' },
+  other: { name: 'Other', icon: '💳', color: '#6B7280' }
+};
 
 function StorefrontContent() {
   const { slug } = useParams<{ slug: string }>();
@@ -64,6 +74,7 @@ function StorefrontContent() {
   const [socialExpanded, setSocialExpanded] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [returnPolicyExpanded, setReturnPolicyExpanded] = useState(false);
+  const [copiedAccountId, setCopiedAccountId] = useState<string | null>(null);
 
   // Load review stats for products
   const loadReviewStats = async (products: Product[]) => {
@@ -721,8 +732,8 @@ function StorefrontContent() {
         )}
       </main>
 
-      {/* Payment Details Section */}
-      {(store.bankName || store.accountNumber || store.acceptedPaymentMethods?.length) && (
+      {/* Payment Methods Section - NEW Multi-Payment Support */}
+      {(store.payment_methods?.filter(m => m.enabled).length || store.bankName || store.accountNumber) && (
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
@@ -755,7 +766,7 @@ function StorefrontContent() {
               gap: '10px'
             }}>
               <span style={{ fontSize: '1.75rem' }}>💳</span>
-              Payment Information
+              Payment Methods
             </h2>
             <button
               style={{
@@ -775,116 +786,271 @@ function StorefrontContent() {
           {/* Collapsible Content */}
           {paymentExpanded && (
             <div style={{ paddingTop: '1rem' }}>
+              {/* Multi-Payment Methods Display */}
+              {store.payment_methods && store.payment_methods.filter(m => m.enabled).length > 0 && (
+                <div style={{ display: 'grid', gap: '1rem', marginBottom: '1.5rem' }}>
+                  {store.payment_methods
+                    .filter(method => method.enabled)
+                    .map(method => {
+                      const provider = PAYMENT_PROVIDERS[method.type];
+                      const displayName = method.label || provider?.name || method.type;
 
-          {/* Bank Account Details */}
-          {(store.bankName || store.accountNumber || store.accountName) && (
-            <div style={{
-              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-              padding: '1.5rem',
-              borderRadius: '12px',
-              marginBottom: '1.5rem',
-              border: '2px solid #bae6fd'
-            }}>
-              <h3 style={{
-                fontSize: '1.125rem',
-                fontWeight: 600,
-                color: '#0369a1',
-                marginBottom: '1rem'
-              }}>
-                Bank Account Details
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {store.bankName && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Bank Name:</span>
-                    <strong style={{ color: '#0c4a6e', fontSize: '1rem' }}>{store.bankName}</strong>
-                  </div>
-                )}
-                {store.accountNumber && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Account Number:</span>
-                    <strong
-                      style={{
-                        color: '#0c4a6e',
-                        fontSize: '1.25rem',
-                        fontFamily: 'monospace',
-                        letterSpacing: '2px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        navigator.clipboard.writeText(store.accountNumber || '');
-                        alert('Account number copied!');
-                      }}
-                      title="Click to copy"
-                    >
-                      {store.accountNumber}
-                    </strong>
-                  </div>
-                )}
-                {store.accountName && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Account Name:</span>
-                    <strong style={{ color: '#0c4a6e', fontSize: '1rem' }}>{store.accountName}</strong>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                      return (
+                        <div
+                          key={method.id}
+                          style={{
+                            padding: '1.5rem',
+                            background: `linear-gradient(135deg, ${provider?.color}15 0%, ${provider?.color}08 100%)`,
+                            border: `2px solid ${provider?.color}40`,
+                            borderRadius: '12px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {/* Header */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            marginBottom: '1rem'
+                          }}>
+                            <span style={{ fontSize: '1.75rem' }}>{provider?.icon}</span>
+                            <h3 style={{
+                              fontSize: '1.125rem',
+                              fontWeight: 700,
+                              color: '#1e293b',
+                              margin: 0
+                            }}>
+                              {displayName}
+                            </h3>
+                          </div>
 
-          {/* Accepted Payment Methods */}
-          {store.acceptedPaymentMethods && store.acceptedPaymentMethods.length > 0 && (
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h3 style={{
-                fontSize: '1.125rem',
-                fontWeight: 600,
-                color: '#1e293b',
-                marginBottom: '1rem'
-              }}>
-                Accepted Payment Methods
-              </h3>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '10px'
-              }}>
-                {store.acceptedPaymentMethods.map(method => (
-                  <span
-                    key={method}
-                    style={{
-                      padding: '8px 16px',
-                      background: '#dcfce7',
-                      color: '#166534',
-                      borderRadius: '20px',
-                      fontSize: '0.875rem',
-                      fontWeight: 600,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <span style={{ fontSize: '1rem' }}>✓</span>
-                    {method}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+                          {/* Account Details */}
+                          <div style={{
+                            display: 'grid',
+                            gap: '0.75rem',
+                            padding: '1rem',
+                            background: 'rgba(255, 255, 255, 0.8)',
+                            borderRadius: '8px'
+                          }}>
+                            {method.bank_name && (
+                              <div>
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  color: '#6b7280',
+                                  marginBottom: '0.25rem',
+                                  textTransform: 'uppercase',
+                                  fontWeight: 600,
+                                  letterSpacing: '0.05em'
+                                }}>
+                                  Bank Name
+                                </div>
+                                <div style={{
+                                  fontSize: '0.9375rem',
+                                  fontWeight: 600,
+                                  color: '#1f2937'
+                                }}>
+                                  {method.bank_name}
+                                </div>
+                              </div>
+                            )}
 
-          {/* Payment Instructions */}
-          {store.paymentInstructions && (
-            <div style={{
-              padding: '1rem',
-              background: '#fef3c7',
-              borderLeft: '4px solid #f59e0b',
-              borderRadius: '8px',
-              color: '#92400e',
-              fontSize: '0.875rem',
-              lineHeight: 1.6
-            }}>
-              <strong style={{ display: 'block', marginBottom: '0.5rem' }}>📝 Payment Instructions:</strong>
-              {store.paymentInstructions}
-            </div>
-          )}
+                            <div>
+                              <div style={{
+                                fontSize: '0.75rem',
+                                color: '#6b7280',
+                                marginBottom: '0.25rem',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                                letterSpacing: '0.05em'
+                              }}>
+                                Account Number
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem'
+                              }}>
+                                <span style={{
+                                  fontSize: '1.25rem',
+                                  fontWeight: 700,
+                                  fontFamily: 'monospace',
+                                  letterSpacing: '2px',
+                                  color: '#1f2937'
+                                }}>
+                                  {method.account_number}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(method.account_number);
+                                    setCopiedAccountId(method.id);
+                                    setTimeout(() => setCopiedAccountId(null), 2000);
+                                  }}
+                                  style={{
+                                    padding: '8px',
+                                    background: 'white',
+                                    border: `2px solid ${provider?.color}`,
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  title="Copy account number"
+                                >
+                                  {copiedAccountId === method.id ? (
+                                    <Check size={16} color={provider?.color} />
+                                  ) : (
+                                    <Copy size={16} color={provider?.color} />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div style={{
+                                fontSize: '0.75rem',
+                                color: '#6b7280',
+                                marginBottom: '0.25rem',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                                letterSpacing: '0.05em'
+                              }}>
+                                Account Name
+                              </div>
+                              <div style={{
+                                fontSize: '0.9375rem',
+                                fontWeight: 600,
+                                color: '#1f2937'
+                              }}>
+                                {method.account_name}
+                              </div>
+                            </div>
+
+                            {method.instructions && (
+                              <div style={{
+                                marginTop: '0.5rem',
+                                padding: '0.75rem',
+                                background: '#fef3c7',
+                                borderRadius: '6px',
+                                borderLeft: `4px solid ${provider?.color}`
+                              }}>
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  color: '#92400e',
+                                  fontWeight: 700,
+                                  marginBottom: '0.25rem',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em'
+                                }}>
+                                  📝 Instructions
+                                </div>
+                                <div style={{
+                                  fontSize: '0.875rem',
+                                  color: '#78350f',
+                                  lineHeight: 1.6,
+                                  whiteSpace: 'pre-wrap'
+                                }}>
+                                  {method.instructions}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+
+              {/* Legacy Bank Account (Backward Compatibility) */}
+              {(store.bankName || store.accountNumber) && !store.payment_methods?.length && (
+                <div style={{
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  marginBottom: '1.5rem',
+                  border: '2px solid #bae6fd'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <span style={{ fontSize: '1.75rem' }}>🏦</span>
+                    <h3 style={{
+                      fontSize: '1.125rem',
+                      fontWeight: 700,
+                      color: '#0369a1',
+                      margin: 0
+                    }}>
+                      Bank Account
+                    </h3>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {store.bankName && (
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Bank Name</span>
+                        <div style={{ color: '#0c4a6e', fontSize: '1rem', fontWeight: 600, marginTop: '0.25rem' }}>{store.bankName}</div>
+                      </div>
+                    )}
+                    {store.accountNumber && (
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Account Number</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                          <strong style={{
+                            color: '#0c4a6e',
+                            fontSize: '1.25rem',
+                            fontFamily: 'monospace',
+                            letterSpacing: '2px'
+                          }}>
+                            {store.accountNumber}
+                          </strong>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(store.accountNumber || '');
+                              alert('Account number copied!');
+                            }}
+                            style={{
+                              padding: '8px',
+                              background: 'white',
+                              border: '2px solid #3b82f6',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title="Copy account number"
+                          >
+                            <Copy size={16} color="#3b82f6" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {store.accountName && (
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Account Name</span>
+                        <div style={{ color: '#0c4a6e', fontSize: '1rem', fontWeight: 600, marginTop: '0.25rem' }}>{store.accountName}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* General Payment Instructions */}
+              {store.paymentInstructions && (
+                <div style={{
+                  padding: '1rem',
+                  background: '#fef3c7',
+                  borderLeft: '4px solid #f59e0b',
+                  borderRadius: '8px',
+                  color: '#92400e',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.6
+                }}>
+                  <strong style={{ display: 'block', marginBottom: '0.5rem' }}>📝 General Payment Instructions:</strong>
+                  {store.paymentInstructions}
+                </div>
+              )}
             </div>
           )}
         </section>

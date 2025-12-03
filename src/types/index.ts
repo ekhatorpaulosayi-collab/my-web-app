@@ -6,6 +6,19 @@ import type { Timestamp } from 'firebase/firestore';
 
 export type CollapsedState = Record<string, boolean>;
 
+// Payment Method Interface (for multi-payment support)
+export interface PaymentMethod {
+  id: string;
+  type: 'opay' | 'moniepoint' | 'palmpay' | 'kuda' | 'bank' | 'other';
+  enabled: boolean;
+  account_number: string;
+  account_name: string;
+  bank_name?: string;
+  qr_code_url?: string;
+  instructions?: string;
+  label?: string; // For "other" type
+}
+
 export interface DashboardPreferences {
   calmMode: boolean;
   collapsed: CollapsedState;
@@ -39,6 +52,8 @@ export interface StoreProfile {
   accountName?: string;
   acceptedPaymentMethods?: string[];
   paymentInstructions?: string;
+  // Multi-Payment Methods (OPay, Moniepoint, PalmPay, etc.)
+  payment_methods?: PaymentMethod[];
   // Paystack Integration
   paystackEnabled?: boolean;
   paystackPublicKey?: string;

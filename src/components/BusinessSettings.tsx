@@ -5,6 +5,7 @@ import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/BusinessSettings.css';
 import PaymentSettings from './PaymentSettings';
+import PaymentMethodsManager from './PaymentMethodsManager';
 import { hasPinSet, setPin, clearPin } from '../lib/pinService';
 import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/storeSlug';
 import PaymentsSection from './settings/sections/PaymentsSection';
@@ -590,7 +591,7 @@ export default function BusinessSettings({
         <div className="bs-sheet" onClick={e => e.stopPropagation()}>
           {/* Header */}
           <div className="bs-header">
-            <h2 className="bs-title">Business Settings</h2>
+            <h2 className="bs-title">Settings</h2>
             <button
               ref={closeButtonRef}
               type="button"
@@ -778,7 +779,38 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 2: Payments */}
+            {/* Section 2: Payment Methods (OPay, Moniepoint, PalmPay, etc.) */}
+            <div className="bs-section" id="section-payment-methods">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('payment-methods')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">💳 Payment Methods</h3>
+                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600', background: '#ecfdf5', padding: '2px 8px', borderRadius: '4px' }}>
+                    NEW
+                  </span>
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('payment-methods') ? 'open' : ''}`}>›</span>
+              </button>
+
+              {isSectionExpanded('payment-methods') && (
+                <div className="bs-section-content">
+                  <p style={{
+                    fontSize: '14px',
+                    color: '#64748b',
+                    marginBottom: '1.5rem',
+                    lineHeight: 1.6
+                  }}>
+                    Add multiple payment methods (OPay, Moniepoint, PalmPay, Banks) for your customers. They'll see these options on your storefront and during checkout.
+                  </p>
+                  <PaymentMethodsManager onToast={onToast} />
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Paystack (Card Payments) */}
             <div className="bs-section" id="section-payments">
               <button
                 type="button"
@@ -786,7 +818,7 @@ export default function BusinessSettings({
                 onClick={() => handleToggleSection('payments')}
               >
                 <div className="bs-section-title-row">
-                  <h3 className="bs-section-title">💳 Payments</h3>
+                  <h3 className="bs-section-title">💳 Paystack (Card Payments)</h3>
                 </div>
                 <span className={`bs-chevron ${isSectionExpanded('payments') ? 'open' : ''}`}>›</span>
               </button>
@@ -799,7 +831,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 3: WhatsApp Daily Reports */}
+            {/* Section 4: WhatsApp Daily Reports */}
             <div className="bs-section" id="section-whatsapp-reports">
               <button
                 type="button"
@@ -820,7 +852,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 4: Online Store */}
+            {/* Section 5: Online Store */}
             <div className="bs-section" id="section-store">
               <button
                 type="button"
@@ -836,7 +868,7 @@ export default function BusinessSettings({
               </button>
             </div>
 
-            {/* Section 5: Security & Privacy */}
+            {/* Section 6: Security & Privacy */}
             <div className="bs-section" id="section-security">
               <button
                 type="button"
@@ -930,7 +962,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 6: Advanced (Tax Estimator) */}
+            {/* Section 7: Advanced (Tax Estimator) */}
             <div className="bs-section" id="section-advanced">
               <button
                 type="button"
@@ -1068,7 +1100,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 7: Account */}
+            {/* Section 8: Account */}
             <div className="bs-section" id="section-account">
               <button
                 type="button"
@@ -1104,7 +1136,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 7: Help & Support */}
+            {/* Section 9: Help & Support */}
             <div className="bs-section" id="section-help">
               <button
                 type="button"
@@ -1146,6 +1178,55 @@ export default function BusinessSettings({
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Sign Out Button - Always Visible */}
+            <div style={{
+              padding: '1.5rem 1.5rem 0.5rem',
+              borderTop: '2px solid #f3f4f6',
+              marginTop: '2rem'
+            }}>
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  border: '2px solid #ef4444',
+                  borderRadius: '10px',
+                  background: 'white',
+                  color: '#ef4444',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#fef2f2';
+                  e.currentTarget.style.borderColor = '#dc2626';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.borderColor = '#ef4444';
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>🚪</span>
+                <span>Sign Out</span>
+              </button>
+              <p style={{
+                fontSize: '12px',
+                color: '#9ca3af',
+                textAlign: 'center',
+                marginTop: '8px',
+                marginBottom: '0'
+              }}>
+                You'll be signed out of your account
+              </p>
             </div>
               </>
             )}

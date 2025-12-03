@@ -4,14 +4,24 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, ShoppingCart, Plus, Minus, Trash2, Phone, CreditCard, Tag } from 'lucide-react';
+import { X, ShoppingCart, Plus, Minus, Trash2, Phone, CreditCard, Tag, Copy, Check } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { currencyNGN } from '../utils/format';
-import type { StoreProfile } from '../types';
+import type { StoreProfile, PaymentMethod } from '../types';
 import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
 import { supabase } from '../lib/supabase';
 import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import '../styles/cart.css';
+
+// Payment method provider configurations
+const PAYMENT_PROVIDERS: Record<string, { name: string; icon: string; color: string }> = {
+  opay: { name: 'OPay', icon: '🟢', color: '#00C087' },
+  moniepoint: { name: 'Moniepoint', icon: '🔵', color: '#0066FF' },
+  palmpay: { name: 'PalmPay', icon: '🟣', color: '#8B5CF6' },
+  kuda: { name: 'Kuda Bank', icon: '🟣', color: '#8B5CF6' },
+  bank: { name: 'Bank Account', icon: '🏦', color: '#3B82F6' },
+  other: { name: 'Other', icon: '💳', color: '#6B7280' }
+};
 
 interface CartProps {
   store: StoreProfile;
@@ -23,7 +33,9 @@ export function Cart({ store }: CartProps) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'whatsapp'>('whatsapp');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'whatsapp' | string>('whatsapp');
+  const [selectedPaymentDetails, setSelectedPaymentDetails] = useState<PaymentMethod | null>(null);
+  const [copiedAccountId, setCopiedAccountId] = useState<string | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
   // Promo code state
@@ -34,6 +46,9 @@ export function Cart({ store }: CartProps) {
 
   // Check if Paystack is enabled
   const paystackEnabled = store.paystackEnabled && store.paystackPublicKey;
+
+  // Get available payment methods (multi-payment + legacy)
+  const availablePaymentMethods = store.payment_methods?.filter(m => m.enabled) || [];
 
   // Calculate discount and final total
   const discount = appliedPromo
@@ -347,6 +362,18 @@ export function Cart({ store }: CartProps) {
       return `\n• ${item.name}${variantInfo} (x${item.quantity}) - ${currencyNGN(item.price * item.quantity)}`;
     }).join('');
 
+    // Payment method info for message
+    let paymentInfo = '';
+    if (selectedPaymentDetails) {
+      const provider = PAYMENT_PROVIDERS[selectedPaymentDetails.type];
+      const displayName = selectedPaymentDetails.label || provider?.name || selectedPaymentDetails.type;
+      paymentInfo = `\n\n💳 *Payment Method: ${displayName}*\n` +
+        (selectedPaymentDetails.bank_name ? `Bank: ${selectedPaymentDetails.bank_name}\n` : '') +
+        `Account: ${selectedPaymentDetails.account_number}\n` +
+        `Name: ${selectedPaymentDetails.account_name}` +
+        (selectedPaymentDetails.instructions ? `\n\n📝 ${selectedPaymentDetails.instructions}` : '');
+    }
+
     const message = `🛒 *New Order from ${store.businessName}*\n\n` +
       `👤 Customer: ${customerName}\n` +
       `📱 Phone: ${customerPhone}` +
@@ -354,7 +381,8 @@ export function Cart({ store }: CartProps) {
       `\n\n📦 *Order Details:*${orderItems}\n\n` +
       `💰 *Subtotal: ${currencyNGN(totalPrice)}*\n` +
       (appliedPromo ? `🎁 *Discount (${appliedPromo.code}): -${currencyNGN(discount)}*\n` : '') +
-      `💵 *Total: ${currencyNGN(finalTotal)}*`;
+      `💵 *Total: ${currencyNGN(finalTotal)}*` +
+      paymentInfo;
 
     // Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -653,77 +681,230 @@ export function Cart({ store }: CartProps) {
                 <div className="cart-checkout-form">
                   <h3>Checkout Details</h3>
 
-                  {/* Payment Method Selection */}
-                  {paystackEnabled && (
-                    <div style={{ marginBottom: '1rem' }}>
-                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>
-                        Payment Method
-                      </label>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* Payment Method Selection - Multi-Payment Support */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, fontSize: '14px', color: '#1f2937' }}>
+                      Select Payment Method
+                    </label>
+                    <div style={{ display: 'grid', gap: '8px' }}>
+                      {/* Paystack Option */}
+                      {paystackEnabled && (
                         <button
                           type="button"
-                          onClick={() => setPaymentMethod('paystack')}
+                          onClick={() => {
+                            setPaymentMethod('paystack');
+                            setSelectedPaymentDetails(null);
+                          }}
                           style={{
-                            flex: 1,
-                            padding: '12px',
+                            padding: '14px 16px',
                             background: paymentMethod === 'paystack' ? '#3b82f6' : 'white',
                             color: paymentMethod === 'paystack' ? 'white' : '#1e293b',
-                            border: `2px solid ${paymentMethod === 'paystack' ? '#3b82f6' : '#e2e8f0'}`,
-                            borderRadius: '8px',
+                            border: `2px solid ${paymentMethod === 'paystack' ? '#3b82f6' : '#e5e7eb'}`,
+                            borderRadius: '10px',
                             cursor: 'pointer',
-                            fontWeight: 500,
+                            fontWeight: 600,
                             fontSize: '14px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s'
+                            gap: '10px',
+                            transition: 'all 0.2s',
+                            textAlign: 'left'
                           }}
                         >
-                          <CreditCard size={16} />
-                          Pay Now
+                          <CreditCard size={20} />
+                          <div style={{ flex: 1 }}>
+                            <div>Pay with Card (Paystack)</div>
+                            <div style={{
+                              fontSize: '11px',
+                              opacity: 0.8,
+                              marginTop: '2px',
+                              fontWeight: 400
+                            }}>
+                              Instant payment - Card, Transfer, USSD
+                            </div>
+                          </div>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('whatsapp')}
-                          style={{
-                            flex: 1,
-                            padding: '12px',
-                            background: paymentMethod === 'whatsapp' ? '#25d366' : 'white',
-                            color: paymentMethod === 'whatsapp' ? 'white' : '#1e293b',
-                            border: `2px solid ${paymentMethod === 'whatsapp' ? '#25d366' : '#e2e8f0'}`,
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                            fontSize: '14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          <Phone size={16} />
-                          WhatsApp
-                        </button>
-                      </div>
-                      {paymentMethod === 'paystack' && (
-                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', textAlign: 'center' }}>
-                          💳 Pay instantly with card, bank transfer, or USSD
-                        </p>
                       )}
-                      {paymentMethod === 'whatsapp' && (
-                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', textAlign: 'center' }}>
-                          📱 Send order and arrange payment with store owner
-                        </p>
-                      )}
-                      {store.paystackTestMode && paymentMethod === 'paystack' && (
-                        <p style={{ fontSize: '12px', color: '#d97706', marginTop: '4px', textAlign: 'center' }}>
-                          ⚠️ Test mode - No real payment will be charged
-                        </p>
-                      )}
+
+                      {/* Multi-Payment Methods (OPay, Moniepoint, etc.) */}
+                      {availablePaymentMethods.map(method => {
+                        const provider = PAYMENT_PROVIDERS[method.type];
+                        const displayName = method.label || provider?.name || method.type;
+                        const isSelected = paymentMethod === method.id;
+
+                        return (
+                          <button
+                            key={method.id}
+                            type="button"
+                            onClick={() => {
+                              setPaymentMethod(method.id);
+                              setSelectedPaymentDetails(method);
+                            }}
+                            style={{
+                              padding: '14px 16px',
+                              background: isSelected ? `${provider?.color}15` : 'white',
+                              color: '#1e293b',
+                              border: `2px solid ${isSelected ? provider?.color : '#e5e7eb'}`,
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontSize: '14px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              transition: 'all 0.2s',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <span style={{ fontSize: '20px' }}>{provider?.icon}</span>
+                            <div style={{ flex: 1 }}>
+                              <div>{displayName}</div>
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6b7280',
+                                marginTop: '2px',
+                                fontWeight: 400,
+                                fontFamily: 'monospace'
+                              }}>
+                                {method.account_number}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+
+                      {/* WhatsApp Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentMethod('whatsapp');
+                          setSelectedPaymentDetails(null);
+                        }}
+                        style={{
+                          padding: '14px 16px',
+                          background: paymentMethod === 'whatsapp' ? '#25d36615' : 'white',
+                          color: '#1e293b',
+                          border: `2px solid ${paymentMethod === 'whatsapp' ? '#25d366' : '#e5e7eb'}`,
+                          borderRadius: '10px',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          transition: 'all 0.2s',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <Phone size={20} />
+                        <div style={{ flex: 1 }}>
+                          <div>Order via WhatsApp</div>
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#6b7280',
+                            marginTop: '2px',
+                            fontWeight: 400
+                          }}>
+                            Chat with store owner to arrange payment
+                          </div>
+                        </div>
+                      </button>
                     </div>
-                  )}
+
+                    {/* Show Selected Payment Method Details */}
+                    {selectedPaymentDetails && (
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '14px',
+                        background: '#f9fafb',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <div style={{
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#1f2937',
+                          marginBottom: '10px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>
+                          💰 Payment Details
+                        </div>
+                        {selectedPaymentDetails.bank_name && (
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>Bank Name</div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#1f2937' }}>
+                              {selectedPaymentDetails.bank_name}
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>Account Number</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              letterSpacing: '1px',
+                              color: '#1f2937'
+                            }}>
+                              {selectedPaymentDetails.account_number}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedPaymentDetails.account_number);
+                                setCopiedAccountId(selectedPaymentDetails.id);
+                                setTimeout(() => setCopiedAccountId(null), 2000);
+                              }}
+                              style={{
+                                padding: '6px',
+                                background: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              {copiedAccountId === selectedPaymentDetails.id ? (
+                                <Check size={14} color="#10b981" />
+                              ) : (
+                                <Copy size={14} color="#6b7280" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '2px' }}>Account Name</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1f2937' }}>
+                            {selectedPaymentDetails.account_name}
+                          </div>
+                        </div>
+                        {selectedPaymentDetails.instructions && (
+                          <div style={{
+                            marginTop: '10px',
+                            padding: '10px',
+                            background: '#fef3c7',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            color: '#78350f',
+                            lineHeight: 1.5
+                          }}>
+                            <div style={{ fontWeight: 700, marginBottom: '4px' }}>📝 Instructions:</div>
+                            {selectedPaymentDetails.instructions}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Payment Method Info */}
+                    {paymentMethod === 'paystack' && store.paystackTestMode && (
+                      <p style={{ fontSize: '12px', color: '#d97706', marginTop: '10px', textAlign: 'center' }}>
+                        ⚠️ Test mode - No real payment will be charged
+                      </p>
+                    )}
+                  </div>
 
                   <input
                     type="text"
@@ -769,10 +950,14 @@ export function Cart({ store }: CartProps) {
                           <CreditCard size={18} />
                           Pay {currencyNGN(finalTotal)}
                         </>
-                      ) : (
+                      ) : paymentMethod === 'whatsapp' ? (
                         <>
                           <Phone size={18} />
                           Send Order
+                        </>
+                      ) : (
+                        <>
+                          Complete Order
                         </>
                       )}
                     </button>
