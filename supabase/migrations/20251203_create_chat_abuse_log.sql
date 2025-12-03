@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS public.chat_abuse_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
   ip_address TEXT NOT NULL,
   message_type TEXT NOT NULL CHECK (message_type IN ('off_topic', 'jailbreak', 'spam', 'suspicious_response')),
   message TEXT NOT NULL,
