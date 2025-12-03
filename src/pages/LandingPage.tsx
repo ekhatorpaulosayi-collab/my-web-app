@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package, ShoppingCart, Users, TrendingUp,
   Smartphone, Wifi, WifiOff, MessageCircle,
   CheckCircle, ArrowRight, Menu, X,
-  Store, Zap, Shield, Clock, ChevronDown
+  Store, Zap, Shield, Clock, ChevronDown, Sparkles
 } from 'lucide-react';
 import './LandingPage.css';
 
@@ -12,6 +12,46 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  // Scroll tracking for parallax
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Mouse tracking for interactive effects
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Intersection Observer for scroll animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('animate-in');
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    document.querySelectorAll('.fade-up, .fade-in, .slide-in-left, .slide-in-right').forEach((el) => {
+      observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -21,8 +61,13 @@ export default function LandingPage() {
 
   return (
     <div className="landing-page">
-      {/* Navigation */}
-      <nav className="landing-nav">
+      {/* Animated background blobs */}
+      <div className="blob blob-1" style={{ transform: `translate(${scrollY * 0.1}px, ${scrollY * 0.15}px)` }}></div>
+      <div className="blob blob-2" style={{ transform: `translate(${-scrollY * 0.1}px, ${scrollY * 0.1}px)` }}></div>
+      <div className="blob blob-3" style={{ transform: `translate(${scrollY * 0.05}px, ${-scrollY * 0.08}px)` }}></div>
+
+      {/* Glassmorphism Navigation */}
+      <nav className="landing-nav glassmorphism">
         <div className="nav-container">
           <div className="nav-logo">
             <Store size={28} />
@@ -52,15 +97,19 @@ export default function LandingPage() {
       <section className="hero-section">
         <div className="hero-container">
           <div className="hero-content">
-            <h1 className="hero-headline">
+            <div className="sparkle-wrapper fade-up">
+              <Sparkles className="sparkle-icon" size={20} />
+              <span className="sparkle-text">Join 1,000+ Nigerian Businesses</span>
+            </div>
+            <h1 className="hero-headline fade-up">
               Manage Your Inventory & Sales Like a Pro
             </h1>
-            <p className="hero-subheadline">
+            <p className="hero-subheadline fade-up">
               Track stock, record sales, and manage customers from your phone.
               Built for Nigerian businesses, works offline.
             </p>
 
-            <div className="hero-cta-group">
+            <div className="hero-cta-group fade-up">
               <button
                 className="btn-gradient-primary btn-lg"
                 onClick={() => navigate('/signup')}
@@ -82,10 +131,10 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="hero-image">
-            <div className="hero-dashboard-preview">
+          <div className="hero-image fade-up">
+            <div className="hero-dashboard-preview floating">
               {/* Placeholder for dashboard screenshot */}
-              <div className="preview-placeholder">
+              <div className="preview-placeholder glow-effect">
                 <div className="preview-header">
                   <div className="preview-dot"></div>
                   <div className="preview-dot"></div>
@@ -122,25 +171,25 @@ export default function LandingPage() {
       {/* Problem Section */}
       <section className="problem-section">
         <div className="section-container">
-          <h2 className="section-title">Tired of Managing Your Store with Pen & Paper?</h2>
+          <h2 className="section-title fade-up">Tired of Managing Your Store with Pen & Paper?</h2>
 
           <div className="problem-grid">
-            <div className="problem-card">
+            <div className="problem-card frosted-card fade-up">
               <div className="problem-icon">❌</div>
               <h3>Lost Sales Records</h3>
               <p>Missing inventory and unclear profit margins</p>
             </div>
-            <div className="problem-card">
+            <div className="problem-card frosted-card fade-up">
               <div className="problem-icon">📊</div>
               <h3>No Business Insights</h3>
               <p>Can't tell which products are actually selling</p>
             </div>
-            <div className="problem-card">
+            <div className="problem-card frosted-card fade-up">
               <div className="problem-icon">💸</div>
               <h3>Unpaid Debts</h3>
               <p>Customers forget to pay, you forget to follow up</p>
             </div>
-            <div className="problem-card">
+            <div className="problem-card frosted-card fade-up">
               <div className="problem-icon">⏰</div>
               <h3>Time Wasted</h3>
               <p>Hours spent counting stock manually</p>
@@ -158,8 +207,8 @@ export default function LandingPage() {
           </div>
 
           <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">
+            <div className="feature-card card-3d fade-up">
+              <div className="feature-icon pulse-glow">
                 <Package size={32} />
               </div>
               <h3>Track Inventory</h3>
@@ -172,8 +221,8 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            <div className="feature-card">
-              <div className="feature-icon">
+            <div className="feature-card card-3d fade-up">
+              <div className="feature-icon pulse-glow">
                 <ShoppingCart size={32} />
               </div>
               <h3>Record Sales</h3>
@@ -186,8 +235,8 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            <div className="feature-card">
-              <div className="feature-icon">
+            <div className="feature-card card-3d fade-up">
+              <div className="feature-icon pulse-glow">
                 <Users size={32} />
               </div>
               <h3>Manage Customers</h3>
@@ -200,8 +249,8 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            <div className="feature-card">
-              <div className="feature-icon">
+            <div className="feature-card card-3d fade-up">
+              <div className="feature-icon pulse-glow">
                 <TrendingUp size={32} />
               </div>
               <h3>Smart Reports</h3>
