@@ -788,9 +788,6 @@ export default function BusinessSettings({
               >
                 <div className="bs-section-title-row">
                   <h3 className="bs-section-title">💳 Payment Methods</h3>
-                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600', background: '#ecfdf5', padding: '2px 8px', borderRadius: '4px' }}>
-                    NEW
-                  </span>
                 </div>
                 <span className={`bs-chevron ${isSectionExpanded('payment-methods') ? 'open' : ''}`}>›</span>
               </button>
@@ -840,9 +837,6 @@ export default function BusinessSettings({
               >
                 <div className="bs-section-title-row">
                   <h3 className="bs-section-title">📱 WhatsApp Reports</h3>
-                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600', background: '#ecfdf5', padding: '2px 8px', borderRadius: '4px' }}>
-                    NEW
-                  </span>
                 </div>
                 <span className={`bs-chevron ${isSectionExpanded('whatsapp-reports') ? 'open' : ''}`}>›</span>
               </button>
