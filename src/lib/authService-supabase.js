@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { logError } from '../utils/errorMonitoring';
 
 /**
  * Sign up a new user with email and password
@@ -139,12 +140,27 @@ export async function signIn(email, password) {
 
     if (error) {
       console.error('[Auth] Sign in error:', error);
+
+      // Log authentication error for monitoring
+      logError(error, 'auth', 'high', {
+        action: 'signIn',
+        email,
+        errorCode: error.code,
+        errorMessage: error.message,
+      });
+
       throw formatAuthError(error);
     }
 
     const user = data.user;
     if (!user) {
-      throw new Error('Sign in failed');
+      const authError = new Error('Sign in failed - no user returned');
+      logError(authError, 'auth', 'critical', {
+        action: 'signIn',
+        email,
+        reason: 'no_user_returned',
+      });
+      throw authError;
     }
 
     console.debug('[Auth] User signed in:', user.id);
@@ -158,6 +174,14 @@ export async function signIn(email, password) {
 
     if (storeError) {
       console.warn('[Auth] Store profile not found:', storeError);
+
+      // Log missing store profile (medium severity - user can continue)
+      logError(storeError, 'api', 'medium', {
+        action: 'getUserProfile',
+        userId: user.id,
+        errorCode: storeError.code,
+        errorMessage: storeError.message,
+      });
     }
 
     const profile = storeData ? {
@@ -237,13 +261,17 @@ export function subscribeToAuthChanges(callback) {
   // Get initial session
   supabase.auth.getSession().then(({ data: { session } }) => {
     const user = session?.user ? mapSupabaseUserToFirebase(session.user) : null;
-    callback(user);
+    console.debug('[Auth] Initial session:', session ? 'Active' : 'None');
+    callback(user, 'INITIAL_SESSION');
   });
 
-  // Listen for changes
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+  // Listen for changes (including TOKEN_REFRESHED events)
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    console.debug('[Auth] Auth event:', event, session ? 'Session active' : 'No session');
     const user = session?.user ? mapSupabaseUserToFirebase(session.user) : null;
-    callback(user);
+
+    // Always notify about state changes, including token refreshes
+    callback(user, event);
   });
 
   // Return unsubscribe function (Firebase-compatible)

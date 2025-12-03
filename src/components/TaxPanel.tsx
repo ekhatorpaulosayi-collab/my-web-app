@@ -68,24 +68,80 @@ export default function TaxPanel() {
 
   return (
     <>
-      <div className="card" style={{ marginTop: '1.5rem', padding: '1.5rem', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+      <div className="card" style={{
+        marginTop: '1.5rem',
+        padding: '1.5rem',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.15)',
+        color: 'white'
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Profit This Month</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: '600', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.9)', fontWeight: '500' }}>
+              💰 Monthly Profit & Tax
+            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '700', marginTop: '0.5rem', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
               {formatNaira(profitKobo)}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
+            <div style={{
+              fontSize: '0.813rem',
+              color: 'rgba(255,255,255,0.95)',
+              marginTop: '0.75rem',
+              padding: '8px 12px',
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: '6px',
+              backdropFilter: 'blur(10px)'
+            }}>
               Est. Tax @ {settings.taxRatePct ?? 2}%: <strong>{formatNaira(estimatedTaxKobo)}</strong>
             </div>
           </div>
           <button
-            className="btn-outline"
             onClick={() => setOpen(true)}
-            style={{ padding: '0.5rem 1rem', whiteSpace: 'nowrap', minHeight: '44px', cursor: 'pointer' }}
+            style={{
+              padding: '12px 24px',
+              whiteSpace: 'nowrap',
+              minHeight: '44px',
+              cursor: 'pointer',
+              background: 'white',
+              color: '#667eea',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              fontSize: '14px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+            }}
           >
-            View breakdown
+            View Breakdown
           </button>
+        </div>
+
+        {/* Disclaimer Banner */}
+        <div style={{
+          marginTop: '16px',
+          padding: '12px 14px',
+          background: 'rgba(255,255,255,0.1)',
+          borderRadius: '8px',
+          borderLeft: '3px solid rgba(255,255,255,0.4)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <p style={{
+            fontSize: '12px',
+            color: 'rgba(255,255,255,0.95)',
+            margin: 0,
+            lineHeight: '1.5'
+          }}>
+            ⚠️ <strong>Estimate only</strong> – Not for tax filing. Consult a tax professional for accurate advice.
+          </p>
         </div>
       </div>
 
@@ -107,9 +163,14 @@ export default function TaxPanel() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>
-              Profit & Tax — {displayDate(startISO)}–{displayDate(endISO)}
-            </h3>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.5rem', color: '#111827' }}>
+                💰 Profit & Tax Breakdown
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: 0 }}>
+                {displayDate(startISO)} – {displayDate(endISO)}
+              </p>
+            </div>
             <div style={{ display: 'grid', gap: '0.75rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0' }}>
                 <span style={{ color: '#6b7280' }}>Total Sales Revenue</span>
@@ -132,9 +193,41 @@ export default function TaxPanel() {
                 <strong style={{ color: '#3b82f6' }}>{formatNaira(estimatedTaxKobo)}</strong>
               </div>
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '1rem', lineHeight: '1.5' }}>
-              💡 This is an estimate only. Actual tax may vary based on your business structure and deductions. Consult a tax professional for filing.
-            </p>
+
+            {/* Enhanced Disclaimer */}
+            <div style={{
+              marginTop: '1.5rem',
+              padding: '16px',
+              background: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              borderRadius: '8px',
+              borderLeft: '4px solid #F59E0B'
+            }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <div>
+                  <p style={{
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    color: '#92400E',
+                    margin: '0 0 8px 0'
+                  }}>
+                    Important: Estimate Only
+                  </p>
+                  <p style={{
+                    fontSize: '0.813rem',
+                    color: '#78350F',
+                    lineHeight: '1.6',
+                    margin: 0
+                  }}>
+                    This calculation is a simplified estimate and should <strong>NOT</strong> be used for actual tax filing.
+                    Actual tax liability may vary based on your business structure, allowable deductions, and Nigerian tax laws.
+                    <br /><br />
+                    <strong>Always consult a qualified tax professional or accountant</strong> for accurate tax advice and compliance with FIRS regulations.
+                  </p>
+                </div>
+              </div>
+            </div>
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 className="btn"

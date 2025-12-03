@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - Storehouse</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .offline-container {
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 48px 32px;
+      text-align: center;
+      max-width: 480px;
+      width: 100%;
+      animation: slideUp 0.5s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .offline-icon {
+      font-size: 72px;
+      margin-bottom: 24px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 16px;
+    }
+
+    p {
+      font-size: 16px;
+      color: #6b7280;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .features {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+      text-align: left;
+    }
+
+    .features h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .feature-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .feature-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .retry-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 16px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      width: 100%;
+    }
+
+    .retry-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+    }
+
+    .retry-button:active {
+      transform: translateY(0);
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 8px 16px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #f59e0b;
+      border-radius: 50%;
+      animation: blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .brand {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .brand-name {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    @media (max-width: 480px) {
+      .offline-container {
+        padding: 32px 24px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .offline-icon {
+        font-size: 60px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-container">
+    <div class="offline-icon">📡</div>
+
+    <div class="status-indicator">
+      <span class="status-dot"></span>
+      <span>You're offline</span>
+    </div>
+
+    <h1>No Internet Connection</h1>
+
+    <p>
+      Don't worry! Your Storehouse data is safe. We'll automatically sync any changes you make once you're back online.
+    </p>
+
+    <div class="features">
+      <h2>While you're offline, you can:</h2>
+      <div class="feature-item">
+        <span class="feature-icon">✅</span>
+        <span>View cached inventory and sales data</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">📦</span>
+        <span>Record new sales (will sync later)</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">👥</span>
+        <span>Browse customer information</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">🔄</span>
+        <span>Make changes (auto-synced when online)</span>
+      </div>
+    </div>
+
+    <button class="retry-button" onclick="location.reload()">
+      🔄 Try Again
+    </button>
+
+    <div class="brand">
+      <div class="brand-name">STOREHOUSE</div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-reload when connection is restored
+    window.addEventListener('online', () => {
+      setTimeout(() => {
+        location.reload();
+      }, 1000);
+    });
+
+    // Update UI if already online
+    if (navigator.onLine) {
+      document.querySelector('.status-indicator').innerHTML =
+        '<span class="status-dot" style="background: #10b981;"></span><span>Connected</span>';
+      document.querySelector('.status-indicator').style.background = '#d1fae5';
+      document.querySelector('.status-indicator').style.color = '#065f46';
+      document.querySelector('h1').textContent = 'Connection Restored';
+      document.querySelector('p').textContent = 'Great! You\'re back online. Click below to continue.';
+    }
+  </script>
+</body>
+</html>

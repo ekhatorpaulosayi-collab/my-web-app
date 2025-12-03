@@ -394,7 +394,7 @@ export function Cart({ store }: CartProps) {
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
           </div>
           <button onClick={closeCart} className="cart-close-btn">
-            <X size={24} />
+            <X size={28} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -495,7 +495,7 @@ export function Cart({ store }: CartProps) {
                         className="cart-qty-btn"
                         aria-label="Decrease quantity"
                       >
-                        <Minus size={16} />
+                        <Minus size={32} strokeWidth={2.5} />
                       </button>
                       <span className="cart-qty-display">{item.quantity}</span>
                       <button
@@ -504,7 +504,7 @@ export function Cart({ store }: CartProps) {
                         disabled={item.quantity >= item.maxQty}
                         aria-label="Increase quantity"
                       >
-                        <Plus size={16} />
+                        <Plus size={32} strokeWidth={2.5} />
                       </button>
                     </div>
 
@@ -512,8 +512,15 @@ export function Cart({ store }: CartProps) {
                       onClick={() => removeItem(item.id, item.variantId)}
                       className="cart-remove-btn"
                       aria-label="Remove item"
+                      style={{
+                        minWidth: '40px',
+                        minHeight: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={22} />
                     </button>
                   </div>
                 </div>
@@ -601,14 +608,17 @@ export function Cart({ store }: CartProps) {
                             handleApplyPromo();
                           }
                         }}
-                        placeholder="Enter code"
+                        placeholder="ENTER CODE"
                         style={{
                           flex: 1,
-                          padding: '10px 12px',
-                          border: `1px solid ${promoError ? '#ef4444' : '#e5e7eb'}`,
-                          borderRadius: '6px',
+                          padding: '12px 14px',
+                          border: `2px solid ${promoError ? '#ef4444' : '#e5e7eb'}`,
+                          borderRadius: '8px',
                           fontSize: '14px',
-                          textTransform: 'uppercase'
+                          textTransform: 'uppercase',
+                          backgroundColor: '#ffffff',
+                          color: '#1f2937',
+                          fontWeight: 500
                         }}
                       />
                       <button

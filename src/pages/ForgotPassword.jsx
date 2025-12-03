@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { Link } from 'react-router-dom';
 import '../styles/Auth.css';
 
@@ -20,7 +19,14 @@ export default function ForgotPassword() {
 
       console.debug('[ForgotPassword] Sending reset email to:', email);
 
-      await sendPasswordResetEmail(auth, email);
+      // Use Supabase password reset
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
 
       console.debug('[ForgotPassword] Reset email sent successfully');
 
@@ -29,11 +35,11 @@ export default function ForgotPassword() {
     } catch (error) {
       console.error('[ForgotPassword] Password reset error:', error);
 
-      if (error.code === 'auth/user-not-found') {
+      if (error.message?.includes('User not found')) {
         setError('No account found with this email. Want to sign up instead?');
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.message?.includes('Invalid email')) {
         setError('Please enter a valid email address');
-      } else if (error.code === 'auth/too-many-requests') {
+      } else if (error.message?.includes('too many')) {
         setError('Too many attempts. Please try again later.');
       } else {
         setError('Failed to send reset email. Please try again.');

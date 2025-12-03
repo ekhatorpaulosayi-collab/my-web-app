@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2 } from 'lucide-react';
+import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
 import { MoreMenu } from './MoreMenu';
+import { ChannelAnalytics } from './ChannelAnalytics';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { StaffPinLogin } from './StaffPinLogin';
 import { StaffPerformanceWidget } from './StaffPerformanceWidget';
@@ -64,11 +65,12 @@ export function Dashboard({
 }: DashboardProps) {
   const navigate = useNavigate();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showChannelAnalytics, setShowChannelAnalytics] = useState(false);
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Staff permissions
-  const { canEditProducts, canDeleteProducts, canAddProducts } = useStaff();
+  const { canEditProducts, canDeleteProducts, canAddProducts, isStaffMode, exitStaffMode, currentRole } = useStaff();
 
   // Load store from Supabase
   const { store, loading: storeLoading } = useStore(userId);
@@ -87,6 +89,18 @@ export function Dashboard({
     return saved === null ? true : saved === 'true';
   });
 
+  // Load salesTrendExpanded from localStorage (default to collapsed for action-first UX)
+  const [salesTrendExpanded, setSalesTrendExpanded] = useState(() => {
+    const saved = localStorage.getItem('storehouse-sales-trend-expanded');
+    return saved === null ? false : saved === 'true';
+  });
+
+  // Load itemsTableExpanded from localStorage (default to expanded for easy access)
+  const [itemsTableExpanded, setItemsTableExpanded] = useState(() => {
+    const saved = localStorage.getItem('storehouse-items-table-expanded');
+    return saved === null ? true : saved === 'true';
+  });
+
   // Infinite scroll state
   const [displayedItemsCount, setDisplayedItemsCount] = useState(20);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -100,6 +114,16 @@ export function Dashboard({
   useEffect(() => {
     localStorage.setItem('storehouse-quick-sell-expanded', String(quickSellExpanded));
   }, [quickSellExpanded]);
+
+  // Save salesTrendExpanded to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('storehouse-sales-trend-expanded', String(salesTrendExpanded));
+  }, [salesTrendExpanded]);
+
+  // Save itemsTableExpanded to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('storehouse-items-table-expanded', String(itemsTableExpanded));
+  }, [itemsTableExpanded]);
 
   // Check if hero is dismissed
   const heroKey = userId
@@ -335,6 +359,73 @@ export function Dashboard({
         />
       )}
 
+      {/* Staff Mode Banner */}
+      {isStaffMode && (
+        <div style={{
+          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+          color: 'white',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+          animation: 'fadeIn 0.3s ease-in-out'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px'
+            }}>
+              👤
+            </div>
+            <div>
+              <div style={{ fontWeight: '700', fontSize: '15px' }}>
+                Staff Mode Active
+              </div>
+              <div style={{ fontSize: '13px', opacity: '0.9' }}>
+                Logged in as {currentRole.charAt(0).toUpperCase() + currentRole.slice(1)}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              exitStaffMode();
+              window.location.reload();
+            }}
+            style={{
+              padding: '10px 20px',
+              background: 'rgba(255, 255, 255, 0.95)',
+              color: '#d97706',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'white';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.95)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            Exit Staff Mode
+          </button>
+        </div>
+      )}
+
       {/* 2. Core Action Buttons */}
       <div className="action-buttons">
         <button className="btn-primary" onClick={onRecordSale}>
@@ -352,17 +443,23 @@ export function Dashboard({
       </div>
 
       {/* 3. Today's Sales */}
-      <div className="sales-card">
+      <div className="sales-card clickable-card" onClick={onViewHistory} style={{ cursor: 'pointer' }}>
         <div className="sales-header">
           <h3>Today's Sales</h3>
-          <button
-            className="toggle-visibility-btn"
-            onClick={() => setShowSalesData(!showSalesData)}
-            aria-label={showSalesData ? "Hide sales data" : "Show sales data"}
-            title={showSalesData ? "Hide amounts" : "Show amounts"}
-          >
-            {showSalesData ? <Eye size={18} /> : <EyeOff size={18} />}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              className="toggle-visibility-btn"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent card click when toggling visibility
+                setShowSalesData(!showSalesData);
+              }}
+              aria-label={showSalesData ? "Hide sales data" : "Show sales data"}
+              title={showSalesData ? "Hide amounts" : "Show amounts"}
+            >
+              {showSalesData ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+            <ChevronRight size={20} style={{ color: '#666' }} />
+          </div>
         </div>
         <div className="sales-total">{showSalesData ? currencyNGN(todaySales.total) : '******'}</div>
         <div className="sales-count">{todaySales.count} sale{todaySales.count !== 1 ? 's' : ''}</div>
@@ -392,6 +489,31 @@ export function Dashboard({
         )}
       </div>
 
+      {/* Sales Trend Chart - Last 7 days */}
+      {sales.length > 0 && (
+        <div className="quick-sell-card" style={{ marginBottom: '16px' }}>
+          <div
+            className="quick-sell-header"
+            onClick={() => setSalesTrendExpanded(!salesTrendExpanded)}
+          >
+            <h3>Sales Trend (Last 7 Days)</h3>
+            <button
+              className="collapse-toggle-btn"
+              aria-label={salesTrendExpanded ? "Collapse Sales Trend" : "Expand Sales Trend"}
+              title={salesTrendExpanded ? "Collapse" : "Expand"}
+            >
+              {salesTrendExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+
+          {salesTrendExpanded && (
+            <div style={{ padding: '16px 0 0 0' }}>
+              <SalesChart sales={sales} days={7} />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Staff Performance Widget - Only shows if staff recorded sales today */}
       <StaffPerformanceWidget
         sales={todaySales.recent.length > 0 ? sales.filter(s => {
@@ -406,13 +528,6 @@ export function Dashboard({
         userId={userId}
         onOpenFullDashboard={() => navigate('/referrals')}
       />
-
-      {/* Sales Trend Chart - Last 7 days */}
-      {sales.length > 0 && (
-        <div style={{ margin: '16px 0' }}>
-          <SalesChart sales={sales} days={7} />
-        </div>
-      )}
 
       {/* 4. Quick Sell Grid */}
       <div className="quick-sell-card">
@@ -495,36 +610,55 @@ export function Dashboard({
 
       {/* 5. Search Items Table */}
       <div className="search-card">
-        <div className="search-header">
-          <Search size={20} className="search-icon" />
-          <input
-            type="search"
-            placeholder="Search items..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-          {onShowCSVImport && (
-            <button
-              onClick={onShowCSVImport}
-              style={{
-                padding: '8px 12px',
-                background: '#f3f4f6',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                marginLeft: '8px'
-              }}
-            >
-              📥 Import
-            </button>
-          )}
+        {/* Collapsible Header */}
+        <div
+          className="quick-sell-header"
+          onClick={() => setItemsTableExpanded(!itemsTableExpanded)}
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+        >
+          <h3>All Items ({items.length})</h3>
+          <button
+            className="collapse-toggle-btn"
+            aria-label={itemsTableExpanded ? "Collapse Items Table" : "Expand Items Table"}
+            title={itemsTableExpanded ? "Collapse" : "Expand"}
+          >
+            {itemsTableExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
         </div>
 
-        {filteredItems.length > 0 ? (
+        {/* Collapsible Content */}
+        {itemsTableExpanded && (
+          <>
+            <div className="search-header">
+              <Search size={20} className="search-icon" />
+              <input
+                type="search"
+                placeholder="Search items..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+              />
+              {onShowCSVImport && (
+                <button
+                  onClick={onShowCSVImport}
+                  style={{
+                    padding: '8px 12px',
+                    background: '#f3f4f6',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    marginLeft: '8px'
+                  }}
+                >
+                  📥 Import
+                </button>
+              )}
+            </div>
+
+            {filteredItems.length > 0 ? (
           <>
             <div className="items-table-wrapper" onScroll={handleTableScroll}>
               <table className="items-table">
@@ -569,40 +703,86 @@ export function Dashboard({
                         <td className="text-right">{item.qty || 0}</td>
                         <td className="text-right">{currencyNGN(getItemPrice(item))}</td>
                         <td className="text-center">
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                            {canEditProducts() && (
-                              <button
-                                className="edit-item-btn"
-                                onClick={(e) => handleEditItem(item, e)}
-                                aria-label={`Edit ${item.name}`}
-                                title="Edit item"
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  padding: '4px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  color: '#3b82f6',
-                                  transition: 'color 0.2s'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.color = '#2563eb'}
-                                onMouseLeave={(e) => e.currentTarget.style.color = '#3b82f6'}
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                            )}
-                            {canDeleteProducts() && (
-                              <button
-                                className="delete-item-btn"
-                                onClick={(e) => handleDeleteItem(item, e)}
-                                aria-label={`Delete ${item.name}`}
-                                title="Delete item"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
+                          <div style={{
+                            display: 'flex',
+                            gap: '8px',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            minWidth: '100px',
+                            padding: '4px'
+                          }}>
+                            {/* EDIT BUTTON - Always visible */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                console.log('[Dashboard] Edit clicked for:', item.name);
+                                if (onEditItem) {
+                                  onEditItem(item);
+                                }
+                              }}
+                              aria-label={`Edit ${item.name}`}
+                              title="Edit item"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#3b82f6',
+                                transition: 'all 0.2s',
+                                borderRadius: '4px',
+                                minWidth: '36px',
+                                minHeight: '36px'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = '#2563eb';
+                                e.currentTarget.style.background = '#eff6ff';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = '#3b82f6';
+                                e.currentTarget.style.background = 'none';
+                              }}
+                            >
+                              <Edit2 size={20} strokeWidth={2} />
+                            </button>
+
+                            {/* DELETE BUTTON - Always visible */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                handleDeleteItem(item, e);
+                              }}
+                              aria-label={`Delete ${item.name}`}
+                              title="Delete item"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ef4444',
+                                transition: 'all 0.2s',
+                                borderRadius: '4px',
+                                minWidth: '36px',
+                                minHeight: '36px'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = '#dc2626';
+                                e.currentTarget.style.background = '#fef2f2';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = '#ef4444';
+                                e.currentTarget.style.background = 'none';
+                              }}
+                            >
+                              <Trash2 size={20} strokeWidth={2} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -625,6 +805,8 @@ export function Dashboard({
           </>
         ) : (
           <div className="empty-state">No items found</div>
+        )}
+          </>
         )}
       </div>
 
@@ -649,7 +831,16 @@ export function Dashboard({
             setShowMoreMenu(false);
             setShowStaffLogin(true);
           }}
+          onViewChannelAnalytics={() => {
+            setShowMoreMenu(false);
+            setShowChannelAnalytics(true);
+          }}
         />
+      )}
+
+      {/* Channel Analytics */}
+      {showChannelAnalytics && (
+        <ChannelAnalytics onClose={() => setShowChannelAnalytics(false)} />
       )}
 
       {/* Staff PIN Login Modal */}

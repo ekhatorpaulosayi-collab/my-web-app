@@ -1,0 +1,376 @@
+/**
+ * Quick Polish - 30-Minute UI Improvements
+ * Safe, non-breaking enhancements that work immediately
+ * Import this file AFTER your existing styles
+ */
+
+/* ============================================
+   FOUNDATION - Better defaults
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Inherit font everywhere for consistency */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Better cursor states */
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+a {
+  cursor: pointer;
+}
+
+/* ============================================
+   SUBTLE TRANSITIONS - Instant polish
+   ============================================ */
+
+button,
+a,
+input,
+select,
+textarea,
+.card,
+.dashboard-card,
+.product-card {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* ============================================
+   BETTER SPACING - More breathing room
+   ============================================ */
+
+/* Add space between sections */
+section + section,
+.section + .section {
+  margin-top: 2rem;
+}
+
+/* Card spacing improvements */
+.card,
+.dashboard-card,
+.stat-card,
+.product-card {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Button spacing */
+button,
+.btn {
+  padding: 0.75rem 1.5rem;
+  gap: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button svg,
+.btn svg {
+  flex-shrink: 0;
+}
+
+/* Form spacing */
+input,
+select,
+textarea {
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+/* Better form group spacing */
+.form-group,
+.field {
+  margin-bottom: 1.5rem;
+}
+
+label {
+  margin-bottom: 0.5rem;
+  display: block;
+  font-weight: 500;
+}
+
+/* ============================================
+   MODERN BORDERS & SHADOWS
+   ============================================ */
+
+/* Softer border colors */
+.card,
+.dashboard-card,
+.product-card,
+input,
+select,
+textarea {
+  border-color: #e5e7eb;
+}
+
+/* Modern shadows */
+.card,
+.dashboard-card,
+.stat-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+.card:hover,
+.dashboard-card:hover,
+.product-card:hover {
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08);
+}
+
+/* Elevated elements */
+.modal,
+.dropdown,
+.popover {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+              0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================
+   FOCUS STATES - Better accessibility
+   ============================================ */
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Remove default outline, use our custom one */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* ============================================
+   INTERACTIVE STATES - Micro-interactions
+   ============================================ */
+
+/* Hover lift effect on cards */
+.product-card:hover,
+.clickable-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Button hover states */
+button:not(:disabled):hover,
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.15);
+}
+
+button:not(:disabled):active,
+.btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Link hover */
+a:hover {
+  opacity: 0.8;
+}
+
+/* ============================================
+   BETTER BORDER RADIUS
+   ============================================ */
+
+button,
+.btn,
+input,
+select,
+textarea {
+  border-radius: 8px;
+}
+
+.card,
+.dashboard-card,
+.product-card,
+.modal {
+  border-radius: 12px;
+}
+
+.badge,
+.tag,
+.chip {
+  border-radius: 6px;
+}
+
+img {
+  border-radius: 8px;
+}
+
+/* ============================================
+   LOADING STATES
+   ============================================ */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading,
+.spinner {
+  animation: spin 0.6s linear infinite;
+}
+
+/* Button loading state */
+button.loading,
+.btn.loading {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+button.loading::after,
+.btn.loading::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  opacity: 0.8;
+}
+
+/* ============================================
+   TEXT IMPROVEMENTS
+   ============================================ */
+
+/* Better line heights */
+p {
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.2;
+}
+
+/* Text balance for headings */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Better text color hierarchy */
+.text-primary {
+  color: #1e293b;
+}
+
+.text-secondary {
+  color: #64748b;
+}
+
+.text-muted {
+  color: #94a3b8;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Truncate text with ellipsis */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================
+   RESPONSIVE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Better mobile spacing */
+  .card,
+  .dashboard-card,
+  .product-card {
+    padding: 1rem;
+  }
+
+  /* Smaller buttons on mobile */
+  button,
+  .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  /* Stack elements on mobile */
+  .desktop-flex {
+    flex-direction: column;
+  }
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+/* Prevent layout shift */
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* GPU acceleration for animations */
+.card:hover,
+.product-card:hover,
+button:hover {
+  will-change: transform;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

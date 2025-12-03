@@ -50,8 +50,18 @@ service firebase.storage {
 
 
     // ============================================================================
-    // PRODUCT IMAGES (Future feature)
+    // PRODUCT IMAGES
     // ============================================================================
+    // Format 1: /products/{userId}/{fileName} (used during upload)
+    match /products/{userId}/{fileName} {
+      allow read: if true; // Public read for product images
+      allow write: if isOwner(userId)
+        && isImage()
+        && isValidSize();
+      allow delete: if isOwner(userId);
+    }
+
+    // Format 2: /products/{userId}/{productId}/{fileName} (optional structured format)
     match /products/{userId}/{productId}/{fileName} {
       allow read: if true; // Public read for product images
       allow write: if isOwner(userId)

@@ -26,6 +26,13 @@ export interface StoreProfile {
   updatedAt: Timestamp;
   ownerId: string;
   isPublic: boolean;
+  // Domain & Subdomain (for custom domains)
+  subdomain?: string;
+  customDomain?: string;
+  customDomainVerified?: boolean;
+  domainVerificationToken?: string;
+  customDomainAddedAt?: string;
+  customDomainVerifiedAt?: string;
   // Payment Details
   bankName?: string;
   accountNumber?: string;

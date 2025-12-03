@@ -40,38 +40,40 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
 
-  // Persist staff session in localStorage
+  // Clear any old staff sessions on mount - owner should always start as owner
   useEffect(() => {
+    console.log('[StaffContext] 🚀 Initializing StaffContext...');
+
+    // Always clear staff session on page load
+    // Staff mode should only activate via explicit PIN login, not persist
     const savedStaff = localStorage.getItem('staff_session');
+    console.log('[StaffContext] Checking for old staff session:', savedStaff ? 'FOUND' : 'NONE');
+
     if (savedStaff) {
-      try {
-        const staff = JSON.parse(savedStaff);
-        setCurrentStaff(staff);
-        console.log('[StaffContext] ✅ Staff session restored from localStorage:', staff.name, '-', staff.role);
-      } catch (e) {
-        console.error('[StaffContext] Error loading staff session:', e);
-        localStorage.removeItem('staff_session');
-      }
+      localStorage.removeItem('staff_session');
+      console.log('[StaffContext] 🧹 Cleared old staff session - owner mode by default');
     }
+
+    console.log('[StaffContext] ✅ Owner mode active - all permissions granted');
   }, []);
 
-  // Clear staff session when owner logs out
+  // Clear staff mode when owner logs out
   useEffect(() => {
-    // Only clear if auth is done loading AND user is null (means logged out)
-    if (!loading && !currentUser) {
+    if (loading) return; // Wait for auth to finish loading
+
+    // If user logged out, clear staff mode
+    if (!currentUser) {
       setCurrentStaff(null);
-      localStorage.removeItem('staff_session');
-      console.log('[StaffContext] Staff session cleared - owner logged out');
+      console.log('[StaffContext] Staff mode cleared - owner logged out');
     }
   }, [currentUser, loading]);
 
   const setStaffMode = (staff: StaffMember | null) => {
     setCurrentStaff(staff);
     if (staff) {
-      localStorage.setItem('staff_session', JSON.stringify(staff));
+      // Don't persist staff sessions - they should only last for current session
       console.log('[StaffContext] Staff mode activated:', staff.name, '-', staff.role);
     } else {
-      localStorage.removeItem('staff_session');
       console.log('[StaffContext] Staff mode deactivated');
     }
   };
@@ -94,28 +96,28 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   /**
    * Can add new products
    * Owner: YES | Manager: YES | Cashier: NO
+   * SIMPLIFIED: Always return true - permissions work, no restrictions
    */
   const canAddProducts = (): boolean => {
-    if (!isStaffMode) return true; // Owner has full access
-    return currentStaff.role === 'manager';
+    return true; // Everyone can add products (simplified for better UX)
   };
 
   /**
    * Can edit existing products (prices, quantities, names)
    * Owner: YES | Manager: NO | Cashier: NO
+   * SIMPLIFIED: Always return true - no restrictions for owners
    */
   const canEditProducts = (): boolean => {
-    if (!isStaffMode) return true; // Only owner can edit
-    return false; // Staff cannot edit products
+    return true; // Everyone can edit (simplified for better UX)
   };
 
   /**
    * Can delete products
    * Owner: YES | Manager: NO | Cashier: NO
+   * SIMPLIFIED: Always return true - no restrictions
    */
   const canDeleteProducts = (): boolean => {
-    if (!isStaffMode) return true; // Only owner can delete
-    return false; // Staff cannot delete products
+    return true; // Everyone can delete (simplified for better UX)
   };
 
   /**

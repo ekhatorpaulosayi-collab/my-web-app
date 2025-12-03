@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Debug - Storehouse</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        .details {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button.secondary {
+            background: #6b7280;
+        }
+        button.secondary:hover {
+            background: #4b5563;
+        }
+        .section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Authentication Debug Tool</h1>
+        <p class="subtitle">Check Supabase authentication state and session</p>
+
+        <div id="status"></div>
+        <div id="details"></div>
+
+        <div class="section">
+            <h3>Actions:</h3>
+            <button onclick="checkAuth()">🔄 Refresh Status</button>
+            <button onclick="clearSession()" class="secondary">🗑️ Clear Session</button>
+            <button onclick="goToLogin()">🔐 Go to Login</button>
+            <button onclick="goToApp()">🏠 Go to App</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        window.supabase = supabase;
+
+        async function checkAuth() {
+            const statusDiv = document.getElementById('status');
+            const detailsDiv = document.getElementById('details');
+
+            statusDiv.innerHTML = '<div class="status info">⏳ Checking authentication...</div>';
+
+            try {
+                // Get current session
+                const { data: { session }, error } = await supabase.auth.getSession();
+
+                if (error) {
+                    statusDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+                    detailsDiv.innerHTML = `<div class="details">${JSON.stringify(error, null, 2)}</div>`;
+                    return;
+                }
+
+                if (session) {
+                    const user = session.user;
+                    const expiresAt = new Date(session.expires_at * 1000);
+                    const now = new Date();
+                    const timeLeft = Math.floor((expiresAt - now) / 1000 / 60);
+
+                    statusDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Authenticated as: <strong>${user.email}</strong>
+                            <br>Session expires in: <strong>${timeLeft} minutes</strong>
+                        </div>
+                    `;
+
+                    detailsDiv.innerHTML = `
+                        <div class="details">
+                            <strong>User ID:</strong> ${user.id}<br>
+                            <strong>Email:</strong> ${user.email}<br>
+                            <strong>Email Confirmed:</strong> ${user.email_confirmed_at ? '✅ Yes' : '❌ No'}<br>
+                            <strong>Created:</strong> ${new Date(user.created_at).toLocaleString()}<br>
+                            <strong>Last Sign In:</strong> ${new Date(user.last_sign_in_at).toLocaleString()}<br>
+                            <strong>Session Expires:</strong> ${expiresAt.toLocaleString()}<br>
+                            <br>
+                            <strong>localStorage key:</strong> sb-yzlniqwzqlsftxrtapdl-auth-token<br>
+                            <strong>Session exists:</strong> ✅ Yes
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = '<div class="status error">❌ Not authenticated - No active session</div>';
+                    detailsDiv.innerHTML = `
+                        <div class="details">
+                            No Supabase session found in localStorage.<br><br>
+                            <strong>Possible reasons:</strong><br>
+                            1. Not logged in<br>
+                            2. Session expired<br>
+                            3. localStorage was cleared<br>
+                            4. Using incognito/private mode<br><br>
+                            <strong>Solution:</strong> Click "Go to Login" below to sign in again.
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `<div class="status error">❌ Error: ${err.message}</div>`;
+                detailsDiv.innerHTML = `<div class="details">${err.stack}</div>`;
+            }
+        }
+
+        async function clearSession() {
+            if (!confirm('Are you sure you want to clear your session? You will be logged out.')) {
+                return;
+            }
+
+            try {
+                await supabase.auth.signOut();
+                alert('✅ Session cleared! You have been logged out.');
+                checkAuth();
+            } catch (err) {
+                alert('❌ Error clearing session: ' + err.message);
+            }
+        }
+
+        function goToLogin() {
+            window.location.href = '/login';
+        }
+
+        function goToApp() {
+            window.location.href = '/';
+        }
+
+        // Make functions global
+        window.checkAuth = checkAuth;
+        window.clearSession = clearSession;
+        window.goToLogin = goToLogin;
+        window.goToApp = goToApp;
+
+        // Auto-check on load
+        checkAuth();
+    </script>
+</body>
+</html>

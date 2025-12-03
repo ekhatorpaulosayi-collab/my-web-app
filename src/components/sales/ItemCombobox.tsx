@@ -136,7 +136,7 @@ export const ItemCombobox: React.FC<ItemComboboxProps> = ({
           }}
           onBlur={() => {
             // Delay closing to allow click events to fire
-            setTimeout(() => setIsOpen(false), 300);
+            setTimeout(() => setIsOpen(false), 200);
           }}
           onKeyDown={handleKeyDown}
           placeholder="Click to browse or type to search..."

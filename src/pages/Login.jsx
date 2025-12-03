@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 // MIGRATION: Using Supabase auth
 import { signIn } from '../lib/authService-supabase';
+import { logLoginAttempt, logError, trackPageView } from '../utils/errorMonitoring';
 import '../styles/Auth.css';
 
 export default function Login() {
@@ -12,6 +13,11 @@ export default function Login() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Track page view for error monitoring
+  useEffect(() => {
+    trackPageView('Login');
+  }, []);
 
   const handleChange = (e) => {
     setFormData(prev => ({
@@ -44,9 +50,23 @@ export default function Login() {
       await signIn(formData.email, formData.password);
 
       console.debug('[Login] Sign in successful, redirecting to dashboard');
+
+      // Log successful login
+      logLoginAttempt(formData.email, true);
+
       navigate('/');
     } catch (err) {
       console.error('[Login] Sign in failed:', err);
+
+      // Log failed login attempt
+      logLoginAttempt(formData.email, false, err);
+
+      // Log error for monitoring
+      logError(err, 'auth', 'high', {
+        email: formData.email,
+        page: 'Login',
+        action: 'signIn',
+      });
 
       // User-friendly error messages
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Supabase Email</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Supabase Email System</h1>
+        <p>This will test if Supabase can send emails through Resend</p>
+
+        <label for="email">Your Email:</label>
+        <input type="email" id="email" placeholder="your@email.com" value="ekhatorpaulosayi@gmail.com">
+
+        <button onclick="testPasswordReset()">Test Password Reset Email</button>
+        <button onclick="checkSMTP()">Check SMTP Configuration</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        window.testPasswordReset = async function() {
+            const resultDiv = document.getElementById('result');
+            const email = document.getElementById('email').value;
+
+            resultDiv.innerHTML = '<div class="result">⏳ Sending password reset email...</div>';
+
+            try {
+                console.log('Testing password reset for:', email);
+
+                const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: 'http://localhost:4000/update-password',
+                });
+
+                if (error) {
+                    console.error('Reset error:', error);
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <strong>❌ Error:</strong><br>
+                            ${error.message}<br><br>
+                            <strong>Status:</strong> ${error.status || 'Unknown'}<br>
+                            <strong>Code:</strong> ${error.code || 'Unknown'}<br><br>
+                            <strong>Possible causes:</strong><br>
+                            1. SMTP configuration incorrect<br>
+                            2. Resend API key invalid<br>
+                            3. Email template has errors<br>
+                            4. Rate limit reached<br><br>
+                            <strong>Check:</strong><br>
+                            • Supabase Dashboard → Auth → Email<br>
+                            • Verify SMTP settings are saved<br>
+                            • Check Resend dashboard for errors
+                        </div>
+                    `;
+                } else {
+                    console.log('Reset email sent:', data);
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            ✅ <strong>Success!</strong><br><br>
+                            Password reset email sent to: <strong>${email}</strong><br><br>
+                            Check your inbox (and spam folder).<br>
+                            Email should arrive from: <strong>Storehouse &lt;noreply@storehouse.app&gt;</strong><br><br>
+                            If email doesn't arrive in 2 minutes, check:<br>
+                            • Spam/Junk folder<br>
+                            • Resend dashboard: https://resend.com/emails
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error('Unexpected error:', err);
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Unexpected Error:</strong><br>
+                        ${err.message}<br><br>
+                        ${err.stack}
+                    </div>
+                `;
+            }
+        };
+
+        window.checkSMTP = function() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div class="result">
+                    <strong>📋 How to Check SMTP Configuration:</strong><br><br>
+                    1. Go to: <a href="https://supabase.com/dashboard" target="_blank">Supabase Dashboard</a><br>
+                    2. Select project: <strong>smartstock</strong><br>
+                    3. Click: <strong>Authentication → Email</strong><br>
+                    4. Scroll to: <strong>SMTP Settings</strong><br><br>
+
+                    <strong>✅ It should show:</strong><br>
+                    • Enable Custom SMTP: <strong>ON</strong><br>
+                    • Host: <strong>smtp.resend.com</strong><br>
+                    • Port: <strong>587</strong><br>
+                    • Username: <strong>resend</strong><br>
+                    • Password: <strong>re_XPVQ...</strong><br>
+                    • Sender: <strong>noreply@storehouse.app</strong><br><br>
+
+                    <strong>Also check:</strong><br>
+                    • Resend Dashboard: <a href="https://resend.com/emails" target="_blank">View Sent Emails</a><br>
+                    • Look for failed sends or errors
+                </div>
+            `;
+        };
+    </script>
+</body>
+</html>

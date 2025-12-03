@@ -1,0 +1,341 @@
+/**
+ * Forced UI Improvements - Overrides inline styles for immediate visual polish
+ * These use !important to override inline styles throughout the app
+ */
+
+/* ============================================
+   BUTTONS - Make them pop with gradients
+   ============================================ */
+
+/* Primary action buttons - Save, Add, Submit, etc */
+button[style*="background: #00894F"],
+button[style*="background:#00894F"],
+button[style*="background-color: #00894F"],
+button[style*="background-color:#00894F"] {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2) !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+}
+
+button[style*="background: #00894F"]:hover,
+button[style*="background:#00894F"]:hover,
+button[style*="background-color: #00894F"]:hover,
+button[style*="background-color:#00894F"]:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 12px -2px rgba(16, 185, 129, 0.3) !important;
+}
+
+button[style*="background: #00894F"]:active,
+button[style*="background:#00894F"]:active {
+  transform: translateY(0) !important;
+}
+
+/* Blue primary buttons */
+button[style*="background: #3b82f6"],
+button[style*="background:#3b82f6"],
+button[style*="background-color: #3b82f6"],
+button[style*="background-color:#3b82f6"] {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2) !important;
+  transition: all 0.2s ease !important;
+}
+
+button[style*="background: #3b82f6"]:hover,
+button[style*="background:#3b82f6"]:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 12px -2px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Red/danger buttons */
+button[style*="background: #ef4444"],
+button[style*="background:#ef4444"],
+button[style*="background-color: red"],
+button[style*="background-color:#ef4444"] {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2) !important;
+  transition: all 0.2s ease !important;
+}
+
+button[style*="background: #ef4444"]:hover,
+button[style*="background:#ef4444"]:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 12px -2px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* All buttons get smooth transitions */
+button {
+  transition: all 0.2s ease !important;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ============================================
+   CARDS - Better shadows and hover effects
+   ============================================ */
+
+/* Product cards, dashboard cards */
+div[style*="background: white"],
+div[style*="background:white"],
+div[style*="background-color: white"],
+div[style*="background-color:white"] {
+  transition: all 0.2s ease !important;
+}
+
+/* Cards with borders get better shadows */
+div[style*="border"][style*="border-radius"] {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+div[style*="border"][style*="border-radius"]:hover {
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-2px);
+}
+
+/* ============================================
+   INPUTS - Better focus states
+   ============================================ */
+
+input[type="text"],
+input[type="number"],
+input[type="tel"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  transition: all 0.2s ease !important;
+  border-radius: 8px !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* ============================================
+   MODALS - Better entrance animations
+   ============================================ */
+
+div[style*="position: fixed"][style*="z-index"] {
+  animation: fadeIn 0.2s ease-out !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+div[style*="position: fixed"][style*="background: white"],
+div[style*="position: fixed"][style*="background:white"] {
+  animation: slideUp 0.3s ease-out !important;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================
+   BETTER SCROLLBARS - macOS style
+   ============================================ */
+
+/* For WebKit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* ============================================
+   LOADING STATES - Shimmer effect
+   ============================================ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.loading,
+[class*="loading"],
+[class*="skeleton"] {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0px,
+    #f8f8f8 40px,
+    #f0f0f0 80px
+  ) !important;
+  background-size: 1000px 100% !important;
+  animation: shimmer 2s infinite linear !important;
+}
+
+/* ============================================
+   STATUS BADGES - Modern pill design
+   ============================================ */
+
+span[style*="background"][style*="padding"][style*="border-radius"] {
+  padding: 4px 12px !important;
+  border-radius: 12px !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* ============================================
+   NUMBERS & STATS - Pop with color
+   ============================================ */
+
+/* Large numbers in dashboard cards */
+div[style*="font-size: 2"] {
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Money amounts */
+span:contains("₦"),
+div:contains("₦") {
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: "tnum" !important;
+}
+
+/* ============================================
+   IMAGES - Smooth loading and better quality
+   ============================================ */
+
+img {
+  transition: opacity 0.3s ease, transform 0.2s ease !important;
+}
+
+img:hover {
+  transform: scale(1.02);
+}
+
+/* Image loading state */
+img:not([src]) {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0px,
+    #f8f8f8 40px,
+    #f0f0f0 80px
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* ============================================
+   LINKS - Better hover states
+   ============================================ */
+
+a {
+  transition: all 0.2s ease !important;
+}
+
+a:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* ============================================
+   PAGE TRANSITIONS - Fade in effect
+   ============================================ */
+
+.main-content,
+.page-content,
+[class*="container"] {
+  animation: contentFadeIn 0.3s ease-out;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY - Respect user preferences
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   MOBILE OPTIMIZATIONS
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Better tap targets on mobile */
+  button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* Smoother scrolling on mobile */
+  * {
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+/* ============================================
+   PERFORMANCE - GPU acceleration
+   ============================================ */
+
+button:hover,
+div[style*="border"][style*="border-radius"]:hover {
+  will-change: transform, box-shadow;
+}
+
+/* Remove will-change after animation completes */
+button:not(:hover),
+div[style*="border"][style*="border-radius"]:not(:hover) {
+  will-change: auto;
+}

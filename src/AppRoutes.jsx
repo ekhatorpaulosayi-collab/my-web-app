@@ -32,6 +32,7 @@ const OnlineStoreSetup = lazy(() => import('./components/OnlineStoreSetup.tsx'))
 const ErrorMonitoringDashboard = lazy(() => import('./pages/ErrorMonitoringDashboard.tsx'));
 const WhatsAppAI = lazy(() => import('./pages/WhatsAppAI.tsx'));
 const HelpCenter = lazy(() => import('./pages/HelpCenter.tsx'));
+const LandingPage = lazy(() => import('./pages/LandingPage.tsx'));
 
 /**
  * App Routes
@@ -319,6 +320,9 @@ export default function AppRoutes() {
         <Route path="/business-settings" element={<Navigate to="/settings" replace />} />
         <Route path="/account" element={<Navigate to="/settings" replace />} />
         <Route path="/profile" element={<Navigate to="/settings" replace />} />
+
+        {/* Landing Page - Public marketing page */}
+        <Route path="/landing" element={<LandingPage />} />
 
         {/* Main dashboard */}
         <Route

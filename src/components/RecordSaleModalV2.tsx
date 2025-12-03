@@ -24,6 +24,26 @@ import {
 import { getProductVariants } from '../lib/supabase-variants';
 import type { ProductVariant } from '../types/variants';
 
+/**
+ * Generate UUID with fallback for non-secure contexts
+ * crypto.randomUUID() requires HTTPS or localhost on newer browsers
+ */
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      // Fall through to fallback
+    }
+  }
+  // Fallback for non-secure contexts or older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 interface RecordSaleModalV2Props {
   isOpen: boolean;
   onClose: () => void;
@@ -64,6 +84,14 @@ export default function RecordSaleModalV2({
       return (saved as PaymentMethod) || 'Cash';
     } catch {
       return 'Cash';
+    }
+  });
+  const [salesChannel, setSalesChannel] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('storehouse:lastSalesChannel:v1');
+      return saved || 'in-store';
+    } catch {
+      return 'in-store';
     }
   });
   const [customerName, setCustomerName] = useState('');
@@ -121,6 +149,15 @@ export default function RecordSaleModalV2({
       console.warn('[Payment Method] Failed to persist:', err);
     }
   }, [paymentMethod]);
+
+  // Persist sales channel
+  useEffect(() => {
+    try {
+      localStorage.setItem('storehouse:lastSalesChannel:v1', salesChannel);
+    } catch (err) {
+      console.warn('[Sales Channel] Failed to persist:', err);
+    }
+  }, [salesChannel]);
 
   // Monitor online/offline
   useEffect(() => {
@@ -200,7 +237,7 @@ export default function RecordSaleModalV2({
       setCart([]);
       setCartDrawerOpen(false);
       setIsCredit(false);
-      setPaymentMethod('Cash');
+      // Don't reset paymentMethod and salesChannel - persist last selection
       setCustomerName('');
       setPhone('');
       setPhoneDisplay('');
@@ -228,7 +265,7 @@ export default function RecordSaleModalV2({
       const cartItems: CartItem[] = calculatorItems.lines.map(line => {
         const item = items.find(i => i.id.toString() === line.itemId || i.name === line.name);
         return {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           itemId: line.itemId,
           name: line.name,
           quantity: line.qty,
@@ -270,7 +307,7 @@ export default function RecordSaleModalV2({
       const sellNaira = Math.round(sellKobo / 100);
 
       const cartItem: CartItem = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         itemId: preselectedItem.id.toString(),
         name: preselectedItem.name,
         quantity: 1,
@@ -339,7 +376,7 @@ export default function RecordSaleModalV2({
       onShowToast?.(`🛒 Updated ${item.name} (qty: ${newQty})`, 2000);
     } else {
       const cartItem: CartItem = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         itemId: item.id,
         name: item.name,
         quantity: 1,
@@ -404,7 +441,7 @@ export default function RecordSaleModalV2({
       onShowToast?.(`🛒 Updated ${selectedProductForVariant.name} - ${variant.variant_name} (qty: ${newQty})`, 2000);
     } else {
       const cartItem: CartItem = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         itemId: selectedProductForVariant.id,
         variantId: variant.id,
         name: `${selectedProductForVariant.name} - ${variant.variant_name}`,
@@ -622,7 +659,8 @@ export default function RecordSaleModalV2({
             hasConsent: isCredit ? hasConsent : false,
             paymentMethod: paymentMethod,
             paymentReference: paymentData?.reference || undefined,
-            paymentEmail: paymentData?.email || undefined
+            paymentEmail: paymentData?.email || undefined,
+            salesChannel: salesChannel
           };
 
           enqueueSale(saleData);
@@ -659,7 +697,8 @@ export default function RecordSaleModalV2({
           hasConsent: isCredit ? hasConsent : false,
           paymentMethod: paymentMethod,
           paymentReference: paymentData?.reference || undefined,
-          paymentEmail: paymentData?.email || undefined
+          paymentEmail: paymentData?.email || undefined,
+          salesChannel: salesChannel
         };
 
         console.log('[V2] Processing item:', cartItem.name, 'isCreditSale:', saleData.isCreditSale);
@@ -800,7 +839,8 @@ Powered by Storehouse
             note: isCredit ? message : '',
             sendWhatsApp: false,
             hasConsent: isCredit ? hasConsent : false,
-            paymentMethod: paymentMethod
+            paymentMethod: paymentMethod,
+            salesChannel: salesChannel
           };
           enqueueSale(saleData);
         }
@@ -951,6 +991,34 @@ Powered by Storehouse
                   )}
                 </div>
               )}
+
+              {/* Sales Channel Selector */}
+              <div className="rs-field">
+                <label htmlFor="sales-channel" className="sales-label">
+                  Sales Channel
+                </label>
+                <select
+                  id="sales-channel"
+                  className="combobox-input"
+                  value={salesChannel}
+                  onChange={e => setSalesChannel(e.target.value)}
+                  style={{
+                    padding: '12px 16px',
+                    fontSize: '15px',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="in-store">🏪 In-Store / Walk-in</option>
+                  <option value="whatsapp">💬 WhatsApp</option>
+                  <option value="instagram">📷 Instagram</option>
+                  <option value="facebook">📘 Facebook</option>
+                  <option value="website">🌐 Online Store</option>
+                  <option value="tiktok">🎵 TikTok</option>
+                  <option value="referral">👥 Referral</option>
+                  <option value="other">📦 Other</option>
+                </select>
+              </div>
 
               {/* Customer Email - Card payment */}
               {!isCredit && paymentMethod === 'Card' && (

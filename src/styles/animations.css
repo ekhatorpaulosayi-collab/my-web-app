@@ -1,0 +1,488 @@
+/**
+ * Subtle Animations - Professional micro-interactions
+ * Add life to your UI without being distracting
+ */
+
+/* ============================================
+   PAGE TRANSITIONS
+   ============================================ */
+
+/* Fade in on page load */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-content,
+.main-content {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Fade in with delay for staggered effect */
+@keyframes fadeInDelay {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   CARD ANIMATIONS
+   ============================================ */
+
+/* Card entrance animation */
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.card-animated,
+.product-card {
+  animation: cardEnter 0.2s ease-out;
+}
+
+/* Stagger cards */
+.product-card:nth-child(1) { animation-delay: 0s; }
+.product-card:nth-child(2) { animation-delay: 0.05s; }
+.product-card:nth-child(3) { animation-delay: 0.1s; }
+.product-card:nth-child(4) { animation-delay: 0.15s; }
+.product-card:nth-child(5) { animation-delay: 0.2s; }
+.product-card:nth-child(6) { animation-delay: 0.25s; }
+
+/* Card hover lift */
+.product-card,
+.dashboard-card,
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-card:hover,
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* ============================================
+   MODAL ANIMATIONS
+   ============================================ */
+
+/* Modal backdrop fade */
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-backdrop,
+.overlay {
+  animation: backdropFadeIn 0.2s ease-out;
+}
+
+/* Modal slide up */
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-content,
+.dialog-content {
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+/* ============================================
+   NOTIFICATION / TOAST ANIMATIONS
+   ============================================ */
+
+/* Slide in from right */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast,
+.notification {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* Slide out to right */
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.toast.closing,
+.notification.closing {
+  animation: slideOutRight 0.2s ease-in;
+}
+
+/* ============================================
+   LOADING ANIMATIONS
+   ============================================ */
+
+/* Spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner,
+.loading-spinner {
+  animation: spin 0.6s linear infinite;
+}
+
+/* Pulse effect for loading states */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse,
+.loading-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Skeleton loading shimmer */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0px,
+    #f8f8f8 40px,
+    #f0f0f0 80px
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* Dots loading */
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.loading-dots span {
+  animation: dotPulse 1.4s infinite ease-in-out;
+}
+
+.loading-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+/* ============================================
+   BUTTON ANIMATIONS
+   ============================================ */
+
+/* Button press effect */
+button:active {
+  transform: scale(0.98);
+}
+
+/* Success checkmark animation */
+@keyframes checkmark {
+  0% {
+    stroke-dashoffset: 50;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.checkmark-icon {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: checkmark 0.3s ease-out forwards;
+}
+
+/* ============================================
+   FORM ANIMATIONS
+   ============================================ */
+
+/* Input focus glow */
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Error shake */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.error-shake,
+.input-error {
+  animation: shake 0.4s;
+}
+
+/* Success bounce */
+@keyframes bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.success-bounce {
+  animation: bounce 0.3s ease-out;
+}
+
+/* ============================================
+   DROPDOWN / POPOVER ANIMATIONS
+   ============================================ */
+
+/* Scale in */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dropdown-menu,
+.popover-content {
+  animation: scaleIn 0.15s ease-out;
+  transform-origin: top;
+}
+
+/* Slide down */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-down {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* ============================================
+   BADGE / CHIP ANIMATIONS
+   ============================================ */
+
+/* Pop in */
+@keyframes popIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.badge-animated,
+.chip-animated {
+  animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* ============================================
+   PROGRESS ANIMATIONS
+   ============================================ */
+
+/* Progress bar fill */
+@keyframes progressFill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.progress-bar {
+  transform-origin: left;
+  animation: progressFill 1s ease-out;
+}
+
+/* Indeterminate progress */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.progress-indeterminate::after {
+  animation: indeterminate 2s infinite linear;
+}
+
+/* ============================================
+   ACCORDION ANIMATIONS
+   ============================================ */
+
+@keyframes accordionDown {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordionUp {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.accordion-content[data-state="open"] {
+  animation: accordionDown 0.2s ease-out;
+}
+
+.accordion-content[data-state="closed"] {
+  animation: accordionUp 0.2s ease-out;
+}
+
+/* ============================================
+   NUMBER COUNTER ANIMATION
+   ============================================ */
+
+@keyframes countUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.counter-animated {
+  animation: countUp 0.5s ease-out;
+}
+
+/* ============================================
+   ACCESSIBILITY - Respect user preferences
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton,
+  .shimmer {
+    animation: none;
+    background: #f0f0f0;
+  }
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+/* GPU acceleration for smooth animations */
+.card-animated,
+.product-card,
+.modal-content,
+.toast {
+  will-change: transform, opacity;
+}
+
+/* Remove will-change after animation */
+.card-animated:not(:hover),
+.product-card:not(:hover) {
+  will-change: auto;
+}

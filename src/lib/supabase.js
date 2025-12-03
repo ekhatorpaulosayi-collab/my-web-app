@@ -66,3 +66,6 @@ export async function testSupabaseConnection() {
 
 // Export for use in other files
 export default supabase;
+
+// Export URL and key for edge function calls
+export { supabaseUrl, supabaseAnonKey };

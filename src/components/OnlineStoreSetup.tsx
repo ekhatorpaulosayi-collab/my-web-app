@@ -9,6 +9,7 @@ import { ABOUT_TEMPLATES } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
 import { PromoCodesManager } from './PromoCodesManager';
+import { TabNav, STORE_TABS, type TabId } from './OnlineStore/TabNav';
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -81,6 +82,9 @@ export default function OnlineStoreSetup() {
 
   // Accordion state
   const [openSection, setOpenSection] = useState<string | null>(null);
+
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState<TabId>('branding');
 
   // Load existing profile from Supabase store data
   useEffect(() => {
@@ -419,8 +423,9 @@ export default function OnlineStoreSetup() {
     <div style={{
       maxWidth: '800px',
       margin: '0 auto',
-      padding: '20px',
+      padding: '16px',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      boxSizing: 'border-box',
     }}>
       {/* Header */}
       <div style={{ marginBottom: '30px', textAlign: 'center' }}>
@@ -504,9 +509,11 @@ export default function OnlineStoreSetup() {
       <div style={{
         background: 'white',
         borderRadius: '16px',
-        padding: '24px',
+        padding: '20px 16px',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
         marginBottom: '20px',
+        boxSizing: 'border-box',
+        width: '100%',
       }}>
         <h2 style={{
           fontSize: '20px',
@@ -781,7 +788,12 @@ export default function OnlineStoreSetup() {
         ) : (
           <>
             {!isEditingMain ? (
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                marginTop: '16px',
+                flexWrap: 'wrap',
+              }}>
                 <button
                   onClick={() => {
                     const storeUrl = `${window.location.origin}/store/${storeSlug}`;
@@ -789,8 +801,9 @@ export default function OnlineStoreSetup() {
                     alert('✅ Store link copied to clipboard!');
                   }}
                   style={{
-                    flex: 1,
-                    padding: '12px 20px',
+                    flex: '1 1 auto',
+                    minWidth: '140px',
+                    padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
                     color: '#667eea',
@@ -799,6 +812,7 @@ export default function OnlineStoreSetup() {
                     borderRadius: '8px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
+                    whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = '#F3F4F6';
@@ -812,8 +826,9 @@ export default function OnlineStoreSetup() {
                 <button
                   onClick={() => window.open(`/store/${storeSlug}`, '_blank')}
                   style={{
-                    flex: 1,
-                    padding: '12px 20px',
+                    flex: '1 1 auto',
+                    minWidth: '140px',
+                    padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
                     color: 'white',
@@ -822,6 +837,7 @@ export default function OnlineStoreSetup() {
                     borderRadius: '8px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   🌐 Visit Store
@@ -839,7 +855,9 @@ export default function OnlineStoreSetup() {
                     shareStoreToWhatsApp(businessName, storeUrl, count || 0);
                   }}
                   style={{
-                    padding: '12px 20px',
+                    flex: '1 1 auto',
+                    minWidth: '140px',
+                    padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
                     color: 'white',
@@ -848,6 +866,7 @@ export default function OnlineStoreSetup() {
                     borderRadius: '8px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
+                    whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = '#20BA5A';
@@ -863,7 +882,9 @@ export default function OnlineStoreSetup() {
                 <button
                   onClick={() => setIsEditingMain(true)}
                   style={{
-                    padding: '12px 20px',
+                    flex: '1 1 auto',
+                    minWidth: '100px',
+                    padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
                     color: '#6B7280',
@@ -872,6 +893,7 @@ export default function OnlineStoreSetup() {
                     borderRadius: '8px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
+                    whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#667eea';
@@ -953,60 +975,33 @@ export default function OnlineStoreSetup() {
         <div style={{
           background: 'white',
           borderRadius: '16px',
-          padding: '24px',
+          padding: '20px 16px',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          boxSizing: 'border-box',
+          width: '100%',
         }}>
           {/* Progress Header */}
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '12px',
-            }}>
-              <h2 style={{
-                fontSize: '20px',
-                fontWeight: '600',
-                color: '#1F2937',
-                margin: 0,
-              }}>
-                Additional Settings
-              </h2>
-              <span style={{
-                fontSize: '14px',
-                fontWeight: '600',
-                color: '#667eea',
-              }}>
-                {completedCount} of {sections.length} completed
-              </span>
-            </div>
-            {/* Progress Bar */}
-            <div style={{
-              width: '100%',
-              height: '8px',
-              background: '#E5E7EB',
-              borderRadius: '4px',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                width: `${completionPercentage}%`,
-                height: '100%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                transition: 'width 0.3s ease',
-              }} />
-            </div>
-          </div>
+          {/* Modern Tab Navigation */}
+          <TabNav
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            tabs={STORE_TABS}
+          />
 
-          {/* Accordion Sections */}
-          {/* Logo Section */}
-          <AccordionSection
-            id="logo"
-            icon="📸"
-            title="Store Logo"
-            description="Add a professional logo to build trust"
-            completed={!!logoUrl}
-            isOpen={openSection === 'logo'}
-            onToggle={() => toggleSection('logo')}
+          {/* Tab Content - Grouped Sections */}
+
+          {/* BRANDING TAB */}
+          {activeTab === 'branding' && (
+            <>
+              {/* Logo Section */}
+              <AccordionSection
+                id="logo"
+                icon="📸"
+                title="Store Logo"
+                description="Add a professional logo to build trust"
+                completed={!!logoUrl}
+                isOpen={openSection === 'logo'}
+                onToggle={() => toggleSection('logo')}
           >
             <div style={{ padding: '20px' }}>
               <label style={{
@@ -1067,11 +1062,212 @@ export default function OnlineStoreSetup() {
             </div>
           </AccordionSection>
 
-          {/* Payment Section */}
-          <AccordionSection
-            id="payment"
-            icon="💳"
-            title="Payment Details"
+              {/* Business Hours Section */}
+              <AccordionSection
+                id="hours"
+                icon="⏰"
+                title="Business Hours"
+                description="Show when you're available"
+                completed={daysOfOperation.length > 0}
+                isOpen={openSection === 'hours'}
+                onToggle={() => toggleSection('hours')}
+              >
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px',
+                    }}>
+                      Operating Hours
+                    </label>
+                    <input
+                      type="text"
+                      value={businessHours}
+                      onChange={(e) => setBusinessHours(e.target.value)}
+                      placeholder="e.g., 9:00 AM - 6:00 PM"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '8px',
+                        backgroundColor: 'white',
+                        color: '#1F2937',
+                        WebkitTextFillColor: '#1F2937',
+                        WebkitAppearance: 'none',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '12px',
+                    }}>
+                      Days of Operation
+                    </label>
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                      <label key={day} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 0',
+                        borderBottom: '1px solid #E5E7EB',
+                      }}>
+                        <span style={{ fontSize: '14px', color: '#374151' }}>{day}</span>
+                        <div
+                          onClick={() => toggleDay(day)}
+                          style={{
+                            width: '48px',
+                            height: '24px',
+                            background: daysOfOperation.includes(day) ? '#667eea' : '#D1D5DB',
+                            borderRadius: '12px',
+                            position: 'relative',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          <div style={{
+                            width: '20px',
+                            height: '20px',
+                            background: 'white',
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            top: '2px',
+                            left: daysOfOperation.includes(day) ? '26px' : '2px',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          }} />
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => handleSaveSection('hours')}
+                    style={{
+                      padding: '10px 20px',
+                      background: '#667eea',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Save Business Hours
+                  </button>
+                </div>
+              </AccordionSection>
+
+              {/* About Section */}
+              <AccordionSection
+                id="about"
+                icon="📝"
+                title="About Your Business"
+                description="Tell customers your story"
+                completed={!!aboutUs}
+                isOpen={openSection === 'about'}
+                onToggle={() => toggleSection('about')}
+              >
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px',
+                    }}>
+                      Quick Templates
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {ABOUT_TEMPLATES.map(template => (
+                        <button
+                          key={template.id}
+                          onClick={() => applyTemplate(template.content)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#F3F4F6',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          {template.icon} {template.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px',
+                    }}>
+                      About Your Business
+                    </label>
+                    <textarea
+                      value={aboutUs}
+                      onChange={(e) => setAboutUs(e.target.value.slice(0, 500))}
+                      placeholder="Tell customers about your business..."
+                      rows={6}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '8px',
+                        resize: 'vertical',
+                        backgroundColor: 'white',
+                        color: '#1F2937',
+                        WebkitTextFillColor: '#1F2937',
+                        WebkitAppearance: 'none',
+                      }}
+                    />
+                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
+                      {aboutUs.length}/500 characters
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSaveSection('about')}
+                    style={{
+                      padding: '10px 20px',
+                      background: '#667eea',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Save About Info
+                  </button>
+                </div>
+              </AccordionSection>
+            </>
+          )}
+
+          {/* PAYMENTS & DELIVERY TAB */}
+          {activeTab === 'payments' && (
+            <>
+              {/* Payment Section */}
+              <AccordionSection
+                id="payment"
+                icon="💳"
+                title="Payment Details"
             description="Make it easy for customers to pay you"
             completed={!!bankName && !!accountNumber}
             isOpen={openSection === 'payment'}
@@ -1452,215 +1648,24 @@ export default function OnlineStoreSetup() {
               </button>
             </div>
           </AccordionSection>
+            </>
+          )}
 
-          {/* Business Hours Section */}
-          <AccordionSection
-            id="hours"
-            icon="⏰"
-            title="Business Hours"
-            description="Show when you're available"
-            completed={daysOfOperation.length > 0}
-            isOpen={openSection === 'hours'}
-            onToggle={() => toggleSection('hours')}
-          >
-            <div style={{ padding: '20px' }}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px',
-                }}>
-                  Operating Hours
-                </label>
-                <input
-                  type="text"
-                  value={businessHours}
-                  onChange={(e) => setBusinessHours(e.target.value)}
-                  placeholder="e.g., 9:00 AM - 6:00 PM"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    fontSize: '16px',
-                    border: '2px solid #E5E7EB',
-                    borderRadius: '8px',
-                    backgroundColor: 'white',
-                    color: '#1F2937',
-                    WebkitTextFillColor: '#1F2937',
-                    WebkitAppearance: 'none',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '12px',
-                }}>
-                  Days of Operation
-                </label>
-                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
-                  <label key={day} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 0',
-                    borderBottom: '1px solid #E5E7EB',
-                  }}>
-                    <span style={{ fontSize: '14px', color: '#374151' }}>{day}</span>
-                    <div
-                      onClick={() => toggleDay(day)}
-                      style={{
-                        width: '48px',
-                        height: '24px',
-                        background: daysOfOperation.includes(day) ? '#667eea' : '#D1D5DB',
-                        borderRadius: '12px',
-                        position: 'relative',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      <div style={{
-                        width: '20px',
-                        height: '20px',
-                        background: 'white',
-                        borderRadius: '50%',
-                        position: 'absolute',
-                        top: '2px',
-                        left: daysOfOperation.includes(day) ? '26px' : '2px',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                      }} />
-                    </div>
-                  </label>
-                ))}
-              </div>
-              <button
-                onClick={() => handleSaveSection('hours')}
-                style={{
-                  padding: '10px 20px',
-                  background: '#667eea',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                }}
+          {/* SOCIAL & MARKETING TAB */}
+          {activeTab === 'social' && (
+            <>
+              {/* Social Media Section */}
+              <AccordionSection
+                id="social"
+                icon="📱"
+                title="Social Media"
+                description="Connect your social profiles"
+                completed={!!instagramUrl || !!facebookUrl}
+                isOpen={openSection === 'social'}
+                onToggle={() => toggleSection('social')}
               >
-                Save Business Hours
-              </button>
-            </div>
-          </AccordionSection>
-
-          {/* About Section */}
-          <AccordionSection
-            id="about"
-            icon="📝"
-            title="About Your Business"
-            description="Tell customers your story"
-            completed={!!aboutUs}
-            isOpen={openSection === 'about'}
-            onToggle={() => toggleSection('about')}
-          >
-            <div style={{ padding: '20px' }}>
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px',
-                }}>
-                  Quick Templates
-                </label>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {ABOUT_TEMPLATES.map(template => (
-                    <button
-                      key={template.id}
-                      onClick={() => applyTemplate(template.content)}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#F3F4F6',
-                        border: '1px solid #E5E7EB',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      {template.icon} {template.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px',
-                }}>
-                  About Your Business
-                </label>
-                <textarea
-                  value={aboutUs}
-                  onChange={(e) => setAboutUs(e.target.value.slice(0, 500))}
-                  placeholder="Tell customers about your business..."
-                  rows={6}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    fontSize: '16px',
-                    border: '2px solid #E5E7EB',
-                    borderRadius: '8px',
-                    resize: 'vertical',
-                    backgroundColor: 'white',
-                    color: '#1F2937',
-                    WebkitTextFillColor: '#1F2937',
-                    WebkitAppearance: 'none',
-                  }}
-                />
-                <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
-                  {aboutUs.length}/500 characters
-                </div>
-              </div>
-              <button
-                onClick={() => handleSaveSection('about')}
-                style={{
-                  padding: '10px 20px',
-                  background: '#667eea',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                }}
-              >
-                Save About Info
-              </button>
-            </div>
-          </AccordionSection>
-
-          {/* Social Media Section */}
-          <AccordionSection
-            id="social"
-            icon="📱"
-            title="Social Media"
-            description="Connect your social profiles"
-            completed={!!instagramUrl || !!facebookUrl}
-            isOpen={openSection === 'social'}
-            onToggle={() => toggleSection('social')}
-          >
-            <div style={{ padding: '20px' }}>
-              <div style={{ marginBottom: '16px' }}>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
                 <label style={{
                   display: 'block',
                   fontSize: '14px',
@@ -1734,19 +1739,21 @@ export default function OnlineStoreSetup() {
             </div>
           </AccordionSection>
 
-          {/* Promo Codes Section */}
-          {currentUser && supabaseUser && (
-            <AccordionSection
-              id="promo"
-              icon="🎁"
-              title="Promo Codes"
-              description="Create discount codes for your customers"
-              isOpen={openSection === 'promo'}
-              onToggle={() => toggleSection('promo')}
-              completed={false}
-            >
-              <PromoCodesManager userId={supabaseUser.id} />
-            </AccordionSection>
+              {/* Promo Codes Section */}
+              {currentUser && supabaseUser && (
+                <AccordionSection
+                  id="promo"
+                  icon="🎁"
+                  title="Promo Codes"
+                  description="Create discount codes for your customers"
+                  isOpen={openSection === 'promo'}
+                  onToggle={() => toggleSection('promo')}
+                  completed={false}
+                >
+                  <PromoCodesManager userId={supabaseUser.id} />
+                </AccordionSection>
+              )}
+            </>
           )}
 
           {/* QR Code Section */}

@@ -10,6 +10,7 @@ import { useStaff } from './contexts/StaffContext.tsx';
 import { BusinessTypeSelector } from './components/BusinessTypeSelector.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { DashboardCustomize } from './components/DashboardCustomize.tsx';
+import AIChatWidget from './components/AIChatWidget.tsx';
 import {
   initDB,
   seedDemoItems,
@@ -44,6 +45,7 @@ import RecordSaleModal from './components/RecordSaleModal.tsx';
 import RecordSaleModalV2 from './components/RecordSaleModalV2.tsx';
 import BusinessSettings from './components/BusinessSettings.tsx';
 import CalculatorModal from './components/CalculatorModal.tsx';
+import { OfflineBanner } from './components/OfflineBanner.tsx';
 import {
   getDebts,
   addDebtNotify,
@@ -91,6 +93,7 @@ import { useContextualPrompts } from './hooks/useContextualPrompts.ts';
 import { getCategoryAttributes, formatAttributeValue, getAttributeIcon } from './config/categoryAttributes.ts';
 import { VariantManager } from './components/VariantManager.tsx';
 import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
+import MultiImageUpload from './components/MultiImageUpload.tsx';
 
 function App() {
   const navigate = useNavigate();
@@ -120,14 +123,38 @@ function App() {
 
   // Utility function to format number with commas
   const formatNumberWithCommas = (value) => {
-    // Remove all non-digit characters
-    const cleanValue = value.replace(/\D/g, '');
-    // Add commas for thousands
-    return cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Handle empty or invalid input
+    if (!value && value !== 0) return '';
+
+    // Convert to string and remove all characters except digits and decimal point
+    let stringValue = String(value).replace(/[^\d.]/g, '');
+
+    // Handle multiple decimal points - keep only the first one
+    const decimalCount = (stringValue.match(/\./g) || []).length;
+    if (decimalCount > 1) {
+      const firstDecimalIndex = stringValue.indexOf('.');
+      stringValue = stringValue.slice(0, firstDecimalIndex + 1) + stringValue.slice(firstDecimalIndex + 1).replace(/\./g, '');
+    }
+
+    // Split into integer and decimal parts
+    const parts = stringValue.split('.');
+
+    // Format integer part with commas (only if there are digits)
+    if (parts[0]) {
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    // Rejoin with decimal point if it exists (limit to 2 decimal places)
+    if (parts.length > 1) {
+      return `${parts[0] || '0'}.${parts[1].slice(0, 2)}`;
+    }
+
+    return parts[0] || '';
   };
 
   // Utility function to parse number from formatted string
   const parseFormattedNumber = (value) => {
+    // Remove commas but keep decimal point
     return value.replace(/,/g, '');
   };
 
@@ -229,6 +256,7 @@ function App() {
     name: '',
     category: 'Fashion', // Default category
     description: '', // Product description (optional)
+    barcode: '', // Barcode/SKU (optional)
     qty: '',
     purchasePrice: '',
     sellingPrice: '',
@@ -253,6 +281,8 @@ function App() {
   // Product image upload state
   const [productImageFile, setProductImageFile] = useState(null);
   const [productImagePreview, setProductImagePreview] = useState('');
+  const [productImages, setProductImages] = useState([]);
+  const [editingProductId, setEditingProductId] = useState(null);
 
   // Product variants state
   const [productVariants, setProductVariants] = useState([]);
@@ -1939,6 +1969,8 @@ Thank you for your business! 🙏
       setCalculatedProfit({ profit: 0, margin: 0 });
       setExistingItem(null);
       setStockMode('add');
+      setProductImages([]);
+      setEditingProductId(null);
       setProductVariants([]);
       console.log('[handleSave] ✅ SUCCESS! Item should now be visible in inventory table');
     } catch (error) {
@@ -1999,6 +2031,10 @@ Thank you for your business! 🙏
     try {
       console.log('[App] Deleting item:', itemId);
       await deleteProduct(currentUser.uid, itemId);
+
+      // Update local state immediately
+      setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+
       displayToast('✓ Item deleted successfully');
     } catch (error) {
       console.error('[App] Error deleting item:', error);
@@ -2013,23 +2049,24 @@ Thank you for your business! 🙏
 
       // Set existing item first
       setExistingItem(item);
+      setEditingProductId(item.id);
+
+      // Format prices first
+      const costPrice = item.cost_price || item.purchaseKobo / 100 || 0;
+      const sellPrice = item.selling_price || item.sellKobo / 100 || 0;
 
       // Pre-populate form with item data
       setFormData({
         name: item.name || '',
         category: item.category || 'General Merchandise',
         qty: (item.qty || item.quantity || 0).toString(),
-        purchasePrice: '', // Will be set by formatNumberWithCommas
-        sellingPrice: '', // Will be set by formatNumberWithCommas
+        purchasePrice: costPrice.toString(), // Set raw numeric value
+        sellingPrice: sellPrice.toString(), // Set raw numeric value
         reorderLevel: (item.low_stock_threshold || item.reorderLevel || 10).toString(),
         description: item.description || '',
         isPublic: item.is_public !== false,
         attributes: item.attributes || {}
       });
-
-      // Format prices
-      const costPrice = item.cost_price || item.purchaseKobo / 100 || 0;
-      const sellPrice = item.selling_price || item.sellKobo / 100 || 0;
 
       setFormattedPrices({
         purchasePrice: formatNumberWithCommas(costPrice.toString()),
@@ -2530,7 +2567,9 @@ Thank you for your business! 🙏
           // Staff tracking - who recorded this sale
           recorded_by_staff_id: currentStaff?.id || null,
           recorded_by_staff_name: currentStaff?.name || null,
-          recorded_by_staff_role: currentStaff?.role || null
+          recorded_by_staff_role: currentStaff?.role || null,
+          // Sales channel tracking
+          salesChannel: formData.salesChannel || 'in-store'
         };
 
         salesStore.add(saleData);
@@ -3474,6 +3513,9 @@ Low Stock: ${lowStockItems.length}
 
   return (
     <div className="app container">
+      {/* Offline Status Banner */}
+      <OfflineBanner />
+
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-left">
@@ -3492,8 +3534,15 @@ Low Stock: ${lowStockItems.length}
             <Calculator size={22} strokeWidth={2} />
           </button>
           <button
+            type="button"
             className="settings-btn settings-btn-desktop"
             onClick={() => navigate('/settings')}
+            onTouchStart={(e) => {
+              e.currentTarget.style.transform = 'scale(0.95)';
+            }}
+            onTouchEnd={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
             aria-label="Business Settings"
             title="Business Settings"
           >
@@ -3842,6 +3891,7 @@ Low Stock: ${lowStockItems.length}
             name: '',
             category: 'Fashion',
             description: '',
+            barcode: '',
             qty: '',
             purchasePrice: '',
             sellingPrice: '',
@@ -3852,19 +3902,20 @@ Low Stock: ${lowStockItems.length}
           setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
           setExistingItem(null);
           setStockMode('add');
-          setProductImageFile(null);
-          setProductImagePreview('');
+          setProductImages([]);
+          setEditingProductId(null);
           setProductVariants([]);
         }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Item</h2>
+              <h2>{existingItem ? 'Edit Item' : 'Add New Item'}</h2>
               <button className="modal-close" onClick={() => {
                 setShowModal(false);
                 setFormData({
                   name: '',
                   category: 'Fashion',
                   description: '',
+                  barcode: '',
                   qty: '',
                   purchasePrice: '',
                   sellingPrice: '',
@@ -3875,12 +3926,13 @@ Low Stock: ${lowStockItems.length}
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
                 setExistingItem(null);
                 setStockMode('add');
-                setProductImageFile(null);
-                setProductImagePreview('');
+                setProductImages([]);
+                setEditingProductId(null);
                 setProductVariants([]);
               }}>×</button>
             </div>
 
+            {/* 1️⃣ ITEM NAME */}
             <div className="form-group">
               <label>Item Name</label>
               <input
@@ -3893,32 +3945,215 @@ Low Stock: ${lowStockItems.length}
               />
             </div>
 
-            <div className="form-group">
-              <label>Product Description (Optional)</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Tell customers about this product..."
-                className="form-input"
-                rows={3}
-                style={{
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                  minHeight: '80px'
-                }}
-              />
+            {/* 2️⃣ SELLING PRICE - PROMINENT (World-Class UX) */}
+            <div className="form-group" style={{ marginBottom: '20px' }}>
+              <label style={{
+                fontSize: '15px',
+                fontWeight: '600',
+                color: '#00894F',
+                marginBottom: '8px',
+                display: 'block'
+              }}>
+                💰 Selling Price (Customer Pays)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute',
+                  left: '16px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  color: '#00894F',
+                  pointerEvents: 'none'
+                }}>₦</span>
+                <input
+                  type="tel"
+                  name="sellingPrice"
+                  value={formattedPrices.sellingPrice}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  className="form-input"
+                  autoComplete="off"
+                  style={{
+                    fontSize: '24px',
+                    fontWeight: '700',
+                    padding: '16px 16px 16px 48px',
+                    border: '2px solid #00894F',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(0, 137, 79, 0.1)',
+                    background: '#f0fdf4'
+                  }}
+                />
+              </div>
               <p style={{
-                fontSize: '12px',
+                fontSize: '13px',
                 color: '#64748b',
                 marginTop: '6px',
                 marginBottom: 0
               }}>
-                Add details like features, benefits, or usage instructions
+                The price your customer will pay for this item
               </p>
             </div>
 
-            <div className="form-group">
+            {/* 3️⃣ QUANTITY - Hidden if product has variants */}
+            {productVariants.length === 0 && (
+              <div className="form-group">
+                <label>Quantity</label>
+                <input
+                  type="number"
+                  name="qty"
+                  value={formData.qty}
+                  onChange={handleInputChange}
+                  placeholder="0"
+                  min="0"
+                  className="form-input"
+                />
+
+                {/* Stock mode UI - shown only when updating existing item */}
+                {existingItem && (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{
+                    fontSize: '13px',
+                    color: '#64748B',
+                    marginBottom: '8px',
+                    fontWeight: '500'
+                  }}>
+                    Current stock: {existingItem.qty}
+                  </div>
+
+                  {/* Mode toggle */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '8px',
+                    marginBottom: '8px',
+                    padding: '4px',
+                    background: '#F8FAFC',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0'
+                  }}>
+                    <label style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      background: stockMode === 'add' ? '#2063F0' : 'transparent',
+                      color: stockMode === 'add' ? '#fff' : '#475569',
+                      transition: 'all 0.2s'
+                    }}>
+                      <input
+                        type="radio"
+                        name="stockMode"
+                        value="add"
+                        checked={stockMode === 'add'}
+                        onChange={(e) => setStockMode(e.target.value)}
+                        style={{ marginRight: '6px' }}
+                      />
+                      Add units
+                    </label>
+                    <label style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      background: stockMode === 'replace' ? '#2063F0' : 'transparent',
+                      color: stockMode === 'replace' ? '#fff' : '#475569',
+                      transition: 'all 0.2s'
+                    }}>
+                      <input
+                        type="radio"
+                        name="stockMode"
+                        value="replace"
+                        checked={stockMode === 'replace'}
+                        onChange={(e) => setStockMode(e.target.value)}
+                        style={{ marginRight: '6px' }}
+                      />
+                      Replace total
+                    </label>
+                  </div>
+
+                  {/* Preview text */}
+                  {formData.qty && parseInt(formData.qty) > 0 && (
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#475569',
+                      fontStyle: 'italic',
+                      paddingLeft: '4px'
+                    }}>
+                      {stockMode === 'add'
+                        ? `Will become: ${existingItem.qty} + ${parseInt(formData.qty)} = ${existingItem.qty + parseInt(formData.qty)}`
+                        : `Will set total to: ${parseInt(formData.qty)}`
+                      }
+                    </div>
+                  )}
+                </div>
+                )}
+              </div>
+            )}
+
+            {/* 4️⃣ PURCHASE PRICE */}
+            <div className="form-row">
+              <div className="form-group">
+                <label>Purchase Price (₦)</label>
+                <input
+                  type="tel"
+                  name="purchasePrice"
+                  value={formattedPrices.purchasePrice}
+                  onChange={handleInputChange}
+                  placeholder="What you paid"
+                  className="form-input"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+
+            {/* 5️⃣ PROFIT CALCULATOR - Auto-shown */}
+            {calculatedProfit.profit > 0 && (
+              <div className="profit-calculator-display">
+                <div className="profit-info">
+                  <span className="profit-label">Profit per unit:</span>
+                  <span className="profit-value">
+                    ₦{calculatedProfit.profit.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="profit-percentage">
+                      ({calculatedProfit.margin.toFixed(1)}% markup)
+                    </span>
+                  </span>
+                </div>
+                {formData.qty && (
+                  <div className="total-profit-info">
+                    <span className="profit-label">Total potential profit:</span>
+                    <span className="profit-value-total">
+                      ₦{(calculatedProfit.profit * parseInt(formData.qty || 0)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {calculatedProfit.profit < 0 && (
+              <div className="profit-calculator-display loss">
+                <div className="profit-info">
+                  <span className="profit-label">⚠ Loss per unit:</span>
+                  <span className="profit-value loss">
+                    -₦{Math.abs(calculatedProfit.profit).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────────── */}
+            {/* SECONDARY FIELDS (Category, Details, Media) */}
+            {/* ─────────────────────────────────────────────── */}
+
+            {/* 6️⃣ CATEGORY */}
+            <div className="form-group" style={{ marginTop: '24px' }}>
               <label>Category</label>
               <select
                 name="category"
@@ -3943,6 +4178,27 @@ Low Stock: ${lowStockItems.length}
                 <option value="Shoes">Shoes</option>
                 <option value="Other">Other</option>
               </select>
+            </div>
+
+            {/* 7️⃣ BARCODE/SKU */}
+            <div className="form-group">
+              <label>Barcode / SKU (Optional)</label>
+              <input
+                type="text"
+                name="barcode"
+                value={formData.barcode}
+                onChange={handleInputChange}
+                placeholder="Scan or enter barcode/SKU"
+                className="form-input"
+              />
+              <p style={{
+                fontSize: '12px',
+                color: '#64748b',
+                marginTop: '6px',
+                marginBottom: 0
+              }}>
+                Product barcode, SKU, or unique identifier for inventory tracking
+              </p>
             </div>
 
             {/* Dynamic Category-Specific Attributes */}
@@ -4113,107 +4369,13 @@ Low Stock: ${lowStockItems.length}
               );
             })()}
 
-            {/* Product Image Upload */}
+            {/* Multi-Image Upload */}
             <div className="form-group">
-              <label>Product Image (Optional)</label>
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                alignItems: 'center'
-              }}>
-                {productImagePreview ? (
-                  <div style={{ position: 'relative' }}>
-                    <img
-                      src={productImagePreview}
-                      alt="Product preview"
-                      style={{
-                        width: '100px',
-                        height: '100px',
-                        objectFit: 'cover',
-                        borderRadius: '8px',
-                        border: '2px solid #e5e7eb'
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        setProductImageFile(null);
-                        setProductImagePreview('');
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '-8px',
-                        right: '-8px',
-                        background: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '24px',
-                        height: '24px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 0
-                      }}
-                      title="Remove image"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{
-                    width: '100px',
-                    height: '100px',
-                    border: '2px dashed #cbd5e1',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#f8fafc'
-                  }}>
-                    <Camera size={32} color="#94a3b8" />
-                  </div>
-                )}
-                <div style={{ flex: 1 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          alert('Image must be less than 5MB');
-                          return;
-                        }
-                        setProductImageFile(file);
-                        setProductImagePreview(URL.createObjectURL(file));
-                      }
-                    }}
-                    id="product-image-input"
-                    hidden
-                  />
-                  <label
-                    htmlFor="product-image-input"
-                    className="btn-secondary"
-                    style={{
-                      display: 'inline-block',
-                      padding: '8px 16px',
-                      cursor: 'pointer',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <Camera size={16} style={{ marginRight: '8px', display: 'inline' }} />
-                    {productImagePreview ? 'Change Image' : 'Choose Image'}
-                  </label>
-                  <p style={{
-                    fontSize: '12px',
-                    color: '#64748b',
-                    margin: 0
-                  }}>
-                    JPG, PNG up to 5MB. Square format works best.
-                  </p>
-                </div>
-              </div>
+              <label>Product Images</label>
+              <MultiImageUpload
+                productId={editingProductId}
+                onImagesChange={(images) => setProductImages(images)}
+              />
             </div>
 
             {/* Public Visibility Toggle */}
@@ -4251,172 +4413,50 @@ Low Stock: ${lowStockItems.length}
               </label>
             </div>
 
-            {/* Product Variants */}
+            {/* 8️⃣ PRODUCT VARIANTS */}
             <VariantManager
               onVariantsChange={setProductVariants}
             />
 
-            {/* Quantity field - hidden if product has variants */}
-            {productVariants.length === 0 && (
-              <div className="form-group">
-                <label>Quantity</label>
-                <input
-                  type="number"
-                  name="qty"
-                  value={formData.qty}
-                  onChange={handleInputChange}
-                  placeholder="0"
-                  min="0"
-                  className="form-input"
-                />
+            {/* Visual Separator */}
+            <div style={{
+              borderTop: '1px solid #e2e8f0',
+              margin: '24px 0 20px 0'
+            }}></div>
 
-              {/* Stock mode UI - shown only when updating existing item */}
-              {existingItem && (
-                <div style={{ marginTop: '8px' }}>
-                  <div style={{
-                    fontSize: '13px',
-                    color: '#64748B',
-                    marginBottom: '8px',
-                    fontWeight: '500'
-                  }}>
-                    Current stock: {existingItem.qty}
-                  </div>
-
-                  {/* Mode toggle */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px',
-                    marginBottom: '8px',
-                    padding: '4px',
-                    background: '#F8FAFC',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0'
-                  }}>
-                    <label style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      background: stockMode === 'add' ? '#2063F0' : 'transparent',
-                      color: stockMode === 'add' ? '#fff' : '#475569',
-                      transition: 'all 0.2s'
-                    }}>
-                      <input
-                        type="radio"
-                        name="stockMode"
-                        value="add"
-                        checked={stockMode === 'add'}
-                        onChange={(e) => setStockMode(e.target.value)}
-                        style={{ marginRight: '6px' }}
-                      />
-                      Add units
-                    </label>
-                    <label style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      background: stockMode === 'replace' ? '#2063F0' : 'transparent',
-                      color: stockMode === 'replace' ? '#fff' : '#475569',
-                      transition: 'all 0.2s'
-                    }}>
-                      <input
-                        type="radio"
-                        name="stockMode"
-                        value="replace"
-                        checked={stockMode === 'replace'}
-                        onChange={(e) => setStockMode(e.target.value)}
-                        style={{ marginRight: '6px' }}
-                      />
-                      Replace total
-                    </label>
-                  </div>
-
-                  {/* Preview text */}
-                  {formData.qty && parseInt(formData.qty) > 0 && (
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#475569',
-                      fontStyle: 'italic',
-                      paddingLeft: '4px'
-                    }}>
-                      {stockMode === 'add'
-                        ? `Will become: ${existingItem.qty} + ${parseInt(formData.qty)} = ${existingItem.qty + parseInt(formData.qty)}`
-                        : `Will set total to: ${parseInt(formData.qty)}`
-                      }
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* 📝 DESCRIPTION - Optional (Bottom Position) */}
+            <div className="form-group">
+              <label style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#64748b',
+                marginBottom: '8px',
+                display: 'block'
+              }}>
+                📝 Description <span style={{ fontSize: '12px', color: '#94a3b8' }}>(Optional)</span>
+              </label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Additional details about this product (e.g., brand, size, color, material, condition...)"
+                className="form-input"
+                rows={3}
+                style={{
+                  fontSize: '14px',
+                  resize: 'vertical',
+                  minHeight: '80px'
+                }}
+              />
+              <p style={{
+                fontSize: '12px',
+                color: '#94a3b8',
+                marginTop: '6px',
+                marginBottom: 0
+              }}>
+                Add any extra details that help identify or describe this product
+              </p>
             </div>
-            )}
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Purchase Price (₦)</label>
-                <input
-                  type="text"
-                  name="purchasePrice"
-                  value={formattedPrices.purchasePrice}
-                  onChange={handleInputChange}
-                  placeholder="What you paid"
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Selling Price (₦)</label>
-                <input
-                  type="text"
-                  name="sellingPrice"
-                  value={formattedPrices.sellingPrice}
-                  onChange={handleInputChange}
-                  placeholder="Customer pays"
-                  className="form-input"
-                />
-              </div>
-            </div>
-
-            {/* Profit Calculation Display */}
-            {calculatedProfit.profit > 0 && (
-              <div className="profit-calculator-display">
-                <div className="profit-info">
-                  <span className="profit-label">Profit per unit:</span>
-                  <span className="profit-value">
-                    ₦{calculatedProfit.profit.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    <span className="profit-percentage">
-                      ({calculatedProfit.margin.toFixed(1)}% markup)
-                    </span>
-                  </span>
-                </div>
-                {formData.qty && (
-                  <div className="total-profit-info">
-                    <span className="profit-label">Total potential profit:</span>
-                    <span className="profit-value-total">
-                      ₦{(calculatedProfit.profit * parseInt(formData.qty || 0)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            {calculatedProfit.profit < 0 && (
-              <div className="profit-calculator-display loss">
-                <div className="profit-info">
-                  <span className="profit-label">⚠ Loss per unit:</span>
-                  <span className="profit-value loss">
-                    -₦{Math.abs(calculatedProfit.profit).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-            )}
 
             <div className="modal-footer">
               <button className="btn-save" onClick={handleSave}>
@@ -4427,8 +4467,8 @@ Low Stock: ${lowStockItems.length}
                 setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
                 setExistingItem(null);
                 setStockMode('add');
-                setProductImageFile(null);
-                setProductImagePreview('');
+                setProductImages([]);
+                setEditingProductId(null);
                 setProductVariants([]);
               }}>
                 Cancel
@@ -4507,7 +4547,11 @@ Low Stock: ${lowStockItems.length}
       {/* Business Settings Sheet */}
       <BusinessSettings
         isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
+        onClose={() => {
+          console.log('[App] Closing settings and navigating to /');
+          setShowSettings(false);
+          navigate('/');
+        }}
         onExportCSV={exportToCSV}
         onSendEOD={() => {
           setShowSettings(false);
@@ -5756,6 +5800,9 @@ Low Stock: ${lowStockItems.length}
       {showDashboardCustomize && (
         <DashboardCustomize onClose={() => setShowDashboardCustomize(false)} />
       )}
+
+      {/* AI Chat Widget - Intelligent Onboarding & Help */}
+      <AIChatWidget contextType="onboarding" autoOpen={items.length < 5} />
 
       {/* Footer Spacer - prevents content from being cut off at bottom */}
       <div className="footer-spacer"></div>

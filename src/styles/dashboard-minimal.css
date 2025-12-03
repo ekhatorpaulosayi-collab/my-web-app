@@ -176,6 +176,23 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Clickable Card Enhancement */
+.clickable-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.clickable-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--border-hover);
+}
+
+.clickable-card:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-md);
+}
+
 .sales-card h3,
 .quick-sell-card h3,
 .search-card h3 {

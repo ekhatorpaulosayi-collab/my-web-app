@@ -8,11 +8,13 @@ import PaymentSettings from './PaymentSettings';
 import { hasPinSet, setPin, clearPin } from '../lib/pinService';
 import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/storeSlug';
 import PaymentsSection from './settings/sections/PaymentsSection';
+import WhatsAppReportsSection from './settings/sections/WhatsAppReportsSection';
 import { StatusPill } from './common/StatusPill';
 import { useDirty } from '../hooks/useDirty';
 // MIGRATION: Using Supabase auth
 import { logOut } from '../lib/authService-supabase';
 import { StoreSettings } from './StoreSettings';
+import TaxRateSelector from './TaxRateSelector';
 
 type BusinessSettingsProps = {
   isOpen: boolean;
@@ -103,6 +105,10 @@ export default function BusinessSettings({
   const { profile, setProfile } = useBusinessProfile();
   const { dirty, markDirty, markClean } = useDirty(false);
 
+  // Prevent rapid multiple closes
+  const isClosingRef = React.useRef(false);
+  const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+
 
   // Accordion state - Phase 2A: Array-based for persistence & deep linking
   const [expandedSections, setExpandedSections] = useState<string[]>(['profile']);
@@ -129,8 +135,17 @@ export default function BusinessSettings({
   const [formData, setFormData] = useState({
     businessName: profile.businessName || '',
     ownerName: profile.ownerName || '',
-    phone: profile.phone || ''
+    phone: profile.phone || '',
+    whatsappNumber: profile.whatsappNumber || '',
+    instagramHandle: profile.instagramHandle || '',
+    facebookPage: profile.facebookPage || '',
+    tiktokHandle: profile.tiktokHandle || '',
+    storeUrl: profile.storeUrl || ''
   });
+
+  // Tax settings state
+  const [enableTaxEstimator, setEnableTaxEstimator] = useState(false);
+  const [taxRatePct, setTaxRatePct] = useState(2);
 
   // Phase 2A: Responsive mobile detection
   useEffect(() => {
@@ -210,6 +225,14 @@ export default function BusinessSettings({
       return;
     }
 
+    // Reset closing flag and button state when opening
+    isClosingRef.current = false;
+    if (closeButtonRef.current) {
+      closeButtonRef.current.disabled = false;
+      closeButtonRef.current.style.opacity = '1';
+      closeButtonRef.current.style.pointerEvents = 'auto';
+    }
+
     async function loadSettings() {
       try {
         console.debug('[Settings] Load start');
@@ -227,8 +250,19 @@ export default function BusinessSettings({
         setFormData({
           businessName: profile.businessName || '',
           ownerName: profile.ownerName || '',
-          phone: profile.phone || ''
+          phone: profile.phone || '',
+          whatsappNumber: profile.whatsappNumber || '',
+          instagramHandle: profile.instagramHandle || '',
+          facebookPage: profile.facebookPage || '',
+          tiktokHandle: profile.tiktokHandle || '',
+          storeUrl: profile.storeUrl || ''
         });
+
+        // Load tax settings
+        const settings = getSettings();
+        setEnableTaxEstimator(settings.enableTaxEstimator ?? false);
+        setTaxRatePct(settings.taxRatePct ?? 2);
+
         setNewPin('');
         setConfirmPin('');
         setPinError('');
@@ -333,11 +367,16 @@ export default function BusinessSettings({
       const storeSlug = generateStoreSlug(formData.businessName);
       saveStoreSlug(storeSlug);
 
-      // Save profile
+      // Save profile (all fields)
       setProfile({
         businessName: formData.businessName,
         ownerName: formData.ownerName,
-        phone: formData.phone
+        phone: formData.phone,
+        whatsappNumber: formData.whatsappNumber,
+        instagramHandle: formData.instagramHandle,
+        facebookPage: formData.facebookPage,
+        tiktokHandle: formData.tiktokHandle,
+        storeUrl: formData.storeUrl
       });
 
       // Handle PIN changes
@@ -354,6 +393,12 @@ export default function BusinessSettings({
         setPinAction('none');
         window.dispatchEvent(new CustomEvent('pin:unlocked'));
       }
+
+      // Save tax settings
+      saveSettings({
+        enableTaxEstimator,
+        taxRatePct
+      });
 
       // Dispatch refresh event
       window.dispatchEvent(new Event('storehouse:refresh-dashboard'));
@@ -389,6 +434,44 @@ export default function BusinessSettings({
       setShowDiscardDialog(true);
       return;
     }
+    onClose();
+  };
+
+  // Direct close without dirty check (for X button)
+  const handleDirectClose = (e?: React.MouseEvent | React.PointerEvent) => {
+    // Immediate guard - if already closing, ignore completely
+    if (isClosingRef.current) return;
+
+    // Set flag IMMEDIATELY to block any subsequent calls
+    isClosingRef.current = true;
+
+    // Disable the button immediately to prevent any further clicks
+    if (closeButtonRef.current) {
+      closeButtonRef.current.disabled = true;
+      closeButtonRef.current.style.opacity = '0.5';
+      closeButtonRef.current.style.pointerEvents = 'none';
+    }
+
+    // Prevent any event bubbling
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (isSaving) {
+      showToast('Please wait, saving in progress...', 'info');
+      // Reset flag if blocked
+      isClosingRef.current = false;
+      if (closeButtonRef.current) {
+        closeButtonRef.current.disabled = false;
+        closeButtonRef.current.style.opacity = '1';
+        closeButtonRef.current.style.pointerEvents = 'auto';
+      }
+      return;
+    }
+
+    // Close immediately, no confirmation
+    markClean();
     onClose();
   };
 
@@ -508,7 +591,20 @@ export default function BusinessSettings({
           {/* Header */}
           <div className="bs-header">
             <h2 className="bs-title">Business Settings</h2>
-            <button className="bs-close" onClick={handleClose}>×</button>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              className="bs-close"
+              onClick={handleDirectClose}
+              style={{
+                padding: '12px',
+                minWidth: '48px',
+                minHeight: '48px',
+                cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent'
+              }}
+              aria-label="Close settings"
+            >×</button>
           </div>
 
           {/* Body */}
@@ -584,6 +680,100 @@ export default function BusinessSettings({
                       maxLength={15}
                     />
                   </div>
+
+                  {/* Social Media Handles */}
+                  <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e5e7eb' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937', marginBottom: '16px' }}>
+                      📱 Social Media & Contact
+                    </h4>
+
+                    <div className="bs-field">
+                      <label htmlFor="whatsapp" className="bs-label">WhatsApp Number</label>
+                      <input
+                        id="whatsapp"
+                        type="tel"
+                        inputMode="tel"
+                        className="bs-input"
+                        value={formData.whatsappNumber}
+                        onChange={e => handleInputChange('whatsappNumber', e.target.value)}
+                        placeholder="08012345678"
+                        maxLength={15}
+                      />
+                      <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                        For sharing products via WhatsApp
+                      </small>
+                    </div>
+
+                    <div className="bs-field">
+                      <label htmlFor="instagram" className="bs-label">Instagram Handle</label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#6b7280',
+                          fontSize: '15px'
+                        }}>@</span>
+                        <input
+                          id="instagram"
+                          type="text"
+                          className="bs-input"
+                          value={formData.instagramHandle}
+                          onChange={e => handleInputChange('instagramHandle', e.target.value)}
+                          placeholder="yourbusiness"
+                          maxLength={30}
+                          style={{ paddingLeft: '32px' }}
+                        />
+                      </div>
+                      <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                        Your Instagram username (without @)
+                      </small>
+                    </div>
+
+                    <div className="bs-field">
+                      <label htmlFor="facebook" className="bs-label">Facebook Page</label>
+                      <input
+                        id="facebook"
+                        type="text"
+                        className="bs-input"
+                        value={formData.facebookPage}
+                        onChange={e => handleInputChange('facebookPage', e.target.value)}
+                        placeholder="Your Business Page"
+                        maxLength={50}
+                      />
+                      <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                        Facebook page or profile name
+                      </small>
+                    </div>
+
+                    <div className="bs-field">
+                      <label htmlFor="tiktok" className="bs-label">TikTok Handle</label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#6b7280',
+                          fontSize: '15px'
+                        }}>@</span>
+                        <input
+                          id="tiktok"
+                          type="text"
+                          className="bs-input"
+                          value={formData.tiktokHandle}
+                          onChange={e => handleInputChange('tiktokHandle', e.target.value)}
+                          placeholder="yourbusiness"
+                          maxLength={30}
+                          style={{ paddingLeft: '32px' }}
+                        />
+                      </div>
+                      <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                        Your TikTok username (without @)
+                      </small>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -609,7 +799,28 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 3: Online Store */}
+            {/* Section 3: WhatsApp Daily Reports */}
+            <div className="bs-section" id="section-whatsapp-reports">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('whatsapp-reports')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">📱 WhatsApp Reports</h3>
+                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600', background: '#ecfdf5', padding: '2px 8px', borderRadius: '4px' }}>
+                    NEW
+                  </span>
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('whatsapp-reports') ? 'open' : ''}`}>›</span>
+              </button>
+
+              {isSectionExpanded('whatsapp-reports') && (
+                <WhatsAppReportsSection onToast={onToast} />
+              )}
+            </div>
+
+            {/* Section 4: Online Store */}
             <div className="bs-section" id="section-store">
               <button
                 type="button"
@@ -625,7 +836,7 @@ export default function BusinessSettings({
               </button>
             </div>
 
-            {/* Section 4: Security & Privacy */}
+            {/* Section 5: Security & Privacy */}
             <div className="bs-section" id="section-security">
               <button
                 type="button"
@@ -719,7 +930,145 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 5: Account */}
+            {/* Section 6: Advanced (Tax Estimator) */}
+            <div className="bs-section" id="section-advanced">
+              <button
+                type="button"
+                className="bs-section-header"
+                onClick={() => handleToggleSection('advanced')}
+              >
+                <div className="bs-section-title-row">
+                  <h3 className="bs-section-title">⚙️ Advanced</h3>
+                  <StatusPill
+                    state={enableTaxEstimator ? 'connected' : 'not_connected'}
+                    label={enableTaxEstimator ? 'Tax Enabled' : 'Disabled'}
+                  />
+                </div>
+                <span className={`bs-chevron ${isSectionExpanded('advanced') ? 'open' : ''}`}>›</span>
+              </button>
+
+              {isSectionExpanded('advanced') && (
+                <div className="bs-section-content">
+                  {/* Tax Estimator Toggle */}
+                  <div className="bs-field">
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      padding: '16px',
+                      background: '#F9FAFB',
+                      borderRadius: '8px',
+                      border: '1px solid #E5E7EB'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          color: '#111827',
+                          display: 'block',
+                          marginBottom: '4px'
+                        }}>
+                          💰 Profit & Tax Estimator
+                        </label>
+                        <p className="bs-help" style={{ marginTop: '4px', marginBottom: 0 }}>
+                          Shows monthly profit breakdown and estimated tax on your Money & Profits page
+                        </p>
+                      </div>
+                      <label className="toggle-switch" style={{ flexShrink: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={enableTaxEstimator}
+                          onChange={(e) => {
+                            setEnableTaxEstimator(e.target.checked);
+                            markDirty();
+                          }}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                    </div>
+
+                    {/* Tax Rate Selector - Only show when enabled */}
+                    {enableTaxEstimator && (
+                      <div style={{
+                        marginTop: '16px',
+                        padding: '16px',
+                        background: 'white',
+                        borderRadius: '8px',
+                        border: '1px solid #E5E7EB'
+                      }}>
+                        <label className="bs-label" style={{ marginBottom: '8px', display: 'block' }}>
+                          Tax Rate
+                        </label>
+                        <TaxRateSelector
+                          value={taxRatePct}
+                          onChange={(value) => {
+                            setTaxRatePct(value);
+                            markDirty();
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Important Disclaimer */}
+                    {enableTaxEstimator && (
+                      <div style={{
+                        marginTop: '16px',
+                        padding: '16px',
+                        background: '#FEF3C7',
+                        border: '1px solid #FCD34D',
+                        borderRadius: '8px'
+                      }}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '20px' }}>⚠️</span>
+                          <div>
+                            <p style={{
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#92400E',
+                              margin: '0 0 8px 0'
+                            }}>
+                              Important: This is an estimate only
+                            </p>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#78350F',
+                              lineHeight: '1.5',
+                              margin: 0
+                            }}>
+                              The tax calculation is a simplified estimate and should NOT be used for actual tax filing.
+                              Always consult a qualified tax professional or accountant for accurate tax advice and compliance with Nigerian tax laws.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Access Instructions */}
+                  {enableTaxEstimator && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px 16px',
+                      background: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      borderRadius: '8px'
+                    }}>
+                      <p style={{
+                        fontSize: '13px',
+                        color: '#1E40AF',
+                        margin: 0,
+                        lineHeight: '1.5'
+                      }}>
+                        💡 <strong>How to access:</strong> Go to Dashboard → More → "💰 Money & Profits" to view your profit breakdown and tax estimate
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Section 7: Account */}
             <div className="bs-section" id="section-account">
               <button
                 type="button"
@@ -755,7 +1104,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 6: Help & Support */}
+            {/* Section 7: Help & Support */}
             <div className="bs-section" id="section-help">
               <button
                 type="button"
@@ -810,7 +1159,19 @@ export default function BusinessSettings({
             <button
               type="button"
               className={`bs-btn-primary ${saveStatus || ''}`}
-              onClick={handleSave}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSave();
+              }}
+              onTouchStart={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.transform = 'scale(0.98)';
+                }
+              }}
+              onTouchEnd={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
               disabled={!dirty || !formData.businessName.trim() || isSaving}
               aria-busy={isSaving}
               aria-disabled={!dirty || !formData.businessName.trim() || isSaving}
@@ -831,7 +1192,16 @@ export default function BusinessSettings({
           <div className="bs-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="bs-header">
               <h2 className="bs-title">Paystack Setup</h2>
-              <button className="bs-close" onClick={() => setShowPaystackSetup(false)}>×</button>
+              <button
+                type="button"
+                className="bs-close"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowPaystackSetup(false);
+                }}
+                aria-label="Close Paystack setup"
+              >×</button>
             </div>
             <div className="bs-body">
               <PaymentSettings onToast={onToast} />

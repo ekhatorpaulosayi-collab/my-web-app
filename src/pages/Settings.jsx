@@ -1,4 +1,5 @@
 import React, { Suspense, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import BusinessSettings from '../components/BusinessSettings';
 import { getItems, getSales, getSettings } from '../db/idb';
@@ -17,6 +18,7 @@ const LoadingFallback = () => (
 );
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [showEODModal, setShowEODModal] = useState(false);
   const [eodFormat, setEodFormat] = useState('readable');
   const [items, setItems] = useState([]);
@@ -140,7 +142,7 @@ Low Stock: ${lowStockItems.length}
       <Suspense fallback={<LoadingFallback />}>
         <BusinessSettings
           isOpen={true}
-          onClose={() => window.history.back()}
+          onClose={() => navigate('/', { replace: true })}
           onSendEOD={handleOpenEODModal}
           onExportCSV={handleExportCSV}
           onToast={(message) => console.log('[Settings Toast]', message)}

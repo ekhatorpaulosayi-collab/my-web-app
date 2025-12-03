@@ -1,0 +1,1650 @@
+/**
+ * Storehouse Documentation Database
+ * Comprehensive documentation for all features and common issues
+ */
+
+import { Documentation } from '../types/documentation';
+
+export const DOCUMENTATION: Documentation[] = [
+  // ==========================================
+  // GETTING STARTED (Priority: High)
+  // ==========================================
+  {
+    id: 'welcome-to-storehouse',
+    category: 'getting-started',
+    title: 'Welcome to Storehouse',
+    subtitle: 'Your complete inventory management solution',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 100,
+    description: 'Storehouse helps Nigerian shop owners track inventory, record sales, manage staff, and grow their business. This guide will get you started.',
+    content: `Welcome to Storehouse! 🎉
+
+Storehouse is designed specifically for Nigerian shop owners to:
+- Track all your products and stock levels
+- Record cash and credit sales instantly
+- Manage staff with role-based permissions
+- View daily profits and generate reports
+- Accept online orders through your custom storefront
+
+**Quick Start Checklist:**
+1. ✅ Add your first product
+2. ✅ Record your first sale
+3. ✅ Set up your business information
+4. ✅ Customize your dashboard
+
+No wahala - we'll guide you through everything step-by-step!`,
+    relatedDocs: ['add-first-product', 'record-first-sale', 'business-setup', 'dashboard-tour'],
+    keywords: ['welcome', 'getting started', 'introduction', 'new user', 'first time', 'quick start'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'add-first-product',
+    category: 'getting-started',
+    title: 'Add Your First Product',
+    subtitle: 'Start tracking inventory in 3 easy steps',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 95,
+    description: 'Learn how to add your first product to Storehouse and start tracking inventory.',
+    steps: [
+      {
+        step: 1,
+        instruction: 'Tap the "+ Add Item" button on your dashboard',
+        tip: 'Look for the purple button in the top-right corner of your products list',
+      },
+      {
+        step: 2,
+        instruction: 'Fill in the product details',
+        tip: 'Required fields: Product Name, Purchase Price (what you paid), Selling Price (what customers pay), and Quantity in stock',
+      },
+      {
+        step: 3,
+        instruction: 'Tap "Save" and your product is added!',
+        tip: 'Your profit margin is automatically calculated: Selling Price - Purchase Price',
+      },
+    ],
+    commonIssues: [
+      {
+        issue: "I can't see the Add Item button",
+        solution: "You might be in Staff mode with restricted permissions. If you're the owner, check Settings → Staff Management to exit staff mode. If you're staff, ask the owner to grant you product permissions.",
+      },
+      {
+        issue: 'Validation error: Please enter valid quantity',
+        solution: 'Quantity must be a positive whole number (e.g., 10, not -5 or 0)',
+      },
+      {
+        issue: 'Product not showing after saving',
+        solution: 'Check your internet connection. The product is saved locally and will sync when online. Try refreshing the page.',
+      },
+    ],
+    relatedDocs: ['edit-product', 'delete-product', 'product-variants', 'record-first-sale'],
+    keywords: ['add product', 'new item', 'first product', 'add inventory', 'create product', 'stock', 'add item', 'how to add'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'record-first-sale',
+    category: 'getting-started',
+    title: 'Record Your First Sale',
+    subtitle: 'Track sales and update inventory automatically',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 90,
+    description: 'Learn how to record sales in Storehouse. Stock is automatically updated!',
+    steps: [
+      {
+        step: 1,
+        instruction: 'Tap "Record Sale" button on the dashboard',
+        tip: 'You can also click any product directly to record a sale',
+      },
+      {
+        step: 2,
+        instruction: 'Select the product and enter quantity sold',
+        tip: 'The selling price is auto-filled, but you can change it for discounts',
+      },
+      {
+        step: 3,
+        instruction: 'Choose payment method: Cash or Credit',
+        tip: 'Cash = Paid immediately. Credit = Customer will pay later (creates a debt record)',
+      },
+      {
+        step: 4,
+        instruction: 'Tap "Record Sale" to complete',
+        tip: 'Stock is automatically reduced and profit is calculated!',
+      },
+    ],
+    commonIssues: [
+      {
+        issue: 'Error: Insufficient stock',
+        solution: 'You cannot sell more than available stock. Update stock quantity first by editing the product.',
+      },
+      {
+        issue: 'Sale recorded but stock not reduced',
+        solution: 'Refresh the page. Sales and stock updates sync in real-time with the server.',
+      },
+    ],
+    relatedDocs: ['manage-credits', 'view-sales-history', 'edit-product', 'daily-reports'],
+    keywords: ['record sale', 'sell', 'first sale', 'make sale', 'customer purchase', 'transaction', 'cash', 'credit'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'dashboard-tour',
+    category: 'getting-started',
+    title: 'Understanding Your Dashboard',
+    subtitle: 'Navigate Storehouse like a pro',
+    difficulty: 'beginner',
+    estimatedTime: '3 minutes',
+    priority: 85,
+    description: 'Your dashboard shows everything at a glance: today\'s sales, profit, low stock alerts, and quick actions.',
+    content: `**Dashboard Overview:**
+
+**Top Stats (Today's Performance):**
+- 💰 Total Sales - Revenue earned today
+- ✨ Profit - Your actual earnings (Sales - Cost)
+- 📦 Transactions - Number of sales recorded
+- 💵 Cash vs 📝 Credit - Payment breakdown
+
+**Product List:**
+- View all products with current stock levels
+- ⚠️ Red warning for low stock items (below 10 units)
+- Quick actions: Edit (pencil icon), Delete (trash icon)
+
+**Quick Actions:**
+- "+ Add Item" - Add new products
+- "Record Sale" - Quick sale recording
+- "Low Stock" - View items needing restock
+- "💰 Money" - Financial overview
+- "Settings" - Business configuration
+
+**Pro Tips:**
+- Tap any product to quickly record a sale
+- Use search bar to find products fast
+- Low stock alerts help you reorder in time`,
+    relatedDocs: ['add-first-product', 'record-first-sale', 'low-stock-management', 'daily-reports'],
+    keywords: ['dashboard', 'tour', 'navigation', 'overview', 'stats', 'home screen', 'main page'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // PRODUCT MANAGEMENT
+  // ==========================================
+  {
+    id: 'edit-product',
+    category: 'products',
+    title: 'Edit Product Details',
+    subtitle: 'Update prices, quantities, and product information',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 80,
+    description: 'Learn how to update product information, adjust prices, and manage stock levels.',
+    steps: [
+      {
+        step: 1,
+        instruction: 'Find the product in your products list',
+        tip: 'Use the search bar if you have many products',
+      },
+      {
+        step: 2,
+        instruction: 'Click the pencil (edit) icon next to the product',
+        tip: 'The edit icon is blue and appears on the right side of each product row',
+      },
+      {
+        step: 3,
+        instruction: 'Update any field: name, prices, quantity, category, etc.',
+        tip: 'The modal title will say "Edit Item" (not "Add New Item")',
+      },
+      {
+        step: 4,
+        instruction: 'Choose stock mode: Add or Replace',
+        tip: 'Add = Increase stock by this amount. Replace = Set stock to this exact number',
+      },
+      {
+        step: 5,
+        instruction: 'Tap "Save" to update',
+        tip: 'Changes are saved immediately and synced across all devices',
+      },
+    ],
+    commonIssues: [
+      {
+        issue: "Edit button (pencil icon) is missing or not visible",
+        solution: "This happens when you're in Staff mode with restricted permissions. Owner accounts always have full edit access. To fix: Go to Settings → Staff Management and ensure you're logged in as Owner, not Staff.",
+      },
+      {
+        issue: 'Changes not saving',
+        solution: 'Make sure purchase price and selling price fields are filled with valid numbers. Check your internet connection.',
+      },
+      {
+        issue: 'Edit button goes to "Add Item" page instead of editing',
+        solution: 'This was a display issue (now fixed). The modal should show "Edit Item" at the top. If you still see "Add New Item", clear your browser cache (Ctrl+Shift+R or Cmd+Shift+R).',
+      },
+    ],
+    relatedDocs: ['add-first-product', 'delete-product', 'stock-management', 'staff-permissions'],
+    keywords: ['edit product', 'update product', 'change price', 'modify', 'update stock', 'pencil icon', 'edit button missing'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'delete-product',
+    category: 'products',
+    title: 'Delete Products',
+    subtitle: 'Remove discontinued or unwanted products',
+    difficulty: 'beginner',
+    estimatedTime: '1 minute',
+    priority: 60,
+    description: 'Learn how to safely delete products from your inventory.',
+    steps: [
+      {
+        step: 1,
+        instruction: 'Find the product you want to delete',
+        tip: 'Use search to quickly locate it',
+      },
+      {
+        step: 2,
+        instruction: 'Click the trash bin (delete) icon',
+        tip: 'The delete icon is red and appears next to the edit icon',
+      },
+      {
+        step: 3,
+        instruction: 'Confirm deletion in the popup',
+        tip: '⚠️ This action cannot be undone! All sales history for this product will remain.',
+      },
+    ],
+    commonIssues: [
+      {
+        issue: "Delete button not showing",
+        solution: "Check if you're in Staff mode. Only owners can delete products by default. If you're the owner, exit staff mode in Settings.",
+      },
+      {
+        issue: 'Want to restore deleted product',
+        solution: 'Deleted products cannot be restored. You will need to re-add them manually. Tip: Instead of deleting, set quantity to 0 and mark as discontinued.',
+      },
+    ],
+    relatedDocs: ['edit-product', 'add-first-product', 'staff-permissions'],
+    keywords: ['delete product', 'remove product', 'trash', 'discontinue', 'delete item'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'product-variants',
+    category: 'products',
+    title: 'Product Variants & SKUs',
+    subtitle: 'Manage products with different sizes, colors, or options',
+    difficulty: 'intermediate',
+    estimatedTime: '5 minutes',
+    priority: 50,
+    description: 'Use product variants to track items that come in different sizes, colors, or configurations (e.g., T-shirt: Small, Medium, Large).',
+    content: `**What are Product Variants?**
+
+Variants let you track one product with multiple options:
+- Sizes: S, M, L, XL
+- Colors: Red, Blue, Green
+- Packages: 500ml, 1L, 2L
+
+**When to Use Variants:**
+- Fashion items (sizes/colors)
+- Beverages (different volumes)
+- Bulk items (different pack sizes)
+
+**How to Add Variants:**
+1. When adding/editing a product, scroll to "Product Variants" section
+2. Click "+ Add Variant"
+3. Enter variant name (e.g., "Small - Red")
+4. Set quantity and price for each variant
+5. Save product
+
+**Key Points:**
+- Each variant tracks its own stock quantity
+- Total stock = sum of all variant quantities
+- You can set different prices per variant
+- Variants show as sub-items in product list
+
+**Example:**
+Product: "Men's T-Shirt"
+- Variant 1: Small (20 units, ₦2,000)
+- Variant 2: Medium (30 units, ₦2,000)
+- Variant 3: Large (15 units, ₦2,500)
+Total Stock: 65 units`,
+    relatedDocs: ['add-first-product', 'edit-product', 'stock-management'],
+    keywords: ['variants', 'sku', 'sizes', 'colors', 'options', 'multiple', 'variations'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'stock-management',
+    category: 'products',
+    title: 'Stock Management: Add vs Replace',
+    subtitle: 'Understand how to update inventory correctly',
+    difficulty: 'intermediate',
+    estimatedTime: '3 minutes',
+    priority: 70,
+    description: 'Learn the difference between Add and Replace stock modes to manage inventory accurately.',
+    content: `**Stock Update Modes Explained:**
+
+When editing a product, you'll see two stock modes:
+
+**1. ADD MODE (Increase Stock)**
+- Use when: Receiving new stock/restocking
+- Example: You have 10 units, receive 20 more
+- Action: Enter "20" in quantity field
+- Result: Total stock becomes 30 (10 + 20)
+- Best for: Regular restocking, purchase orders
+
+**2. REPLACE MODE (Set Exact Stock)**
+- Use when: Stock taking/physical count
+- Example: After counting, you have exactly 25 units
+- Action: Enter "25" in quantity field
+- Result: Total stock becomes 25 (replaces old value)
+- Best for: Inventory audits, fixing errors
+
+**Which Mode to Choose?**
+- Restocking from supplier? → ADD
+- Physical stock count? → REPLACE
+- Fixing wrong quantity? → REPLACE
+- Regular business operation? → ADD
+
+**Pro Tip:**
+Storehouse automatically uses weighted average cost when you add stock at different purchase prices. This gives you accurate profit calculations!`,
+    relatedDocs: ['edit-product', 'add-first-product', 'low-stock-management'],
+    keywords: ['stock', 'inventory', 'add stock', 'replace stock', 'restock', 'quantity', 'stock mode'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'low-stock-management',
+    category: 'products',
+    title: 'Low Stock Alerts & Reordering',
+    subtitle: 'Never run out of popular items',
+    difficulty: 'beginner',
+    estimatedTime: '3 minutes',
+    priority: 65,
+    description: 'Set up low stock alerts and quickly reorder items before they run out.',
+    content: `**Low Stock Alerts:**
+
+Storehouse automatically flags products when stock is low (default: below 10 units).
+
+**How to View Low Stock:**
+1. Click "Low Stock" button on dashboard
+2. See all products needing reorder
+3. Red ⚠️ icon shows on product list
+
+**Setting Custom Thresholds:**
+1. Edit product → Scroll to "Reorder Level"
+2. Set your preferred minimum stock (e.g., 5 units)
+3. Product will alert when stock drops below this number
+
+**Quick Restocking:**
+From Low Stock page:
+1. Enter quantity to add for each item
+2. Updates multiple products at once
+3. Fast and efficient!
+
+**Best Practices:**
+- Set higher thresholds for fast-moving items
+- Check low stock daily before placing supplier orders
+- Use low stock report to forecast purchases
+- Popular items should have reorder level = 2 weeks of sales
+
+**Pro Tip:**
+Your daily EOD report shows low stock count to help you plan orders!`,
+    relatedDocs: ['stock-management', 'edit-product', 'daily-reports'],
+    keywords: ['low stock', 'reorder', 'alert', 'warning', 'out of stock', 'threshold', 'minimum stock'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'bulk-import-csv',
+    category: 'products',
+    title: 'Bulk Import Products (CSV)',
+    subtitle: 'Add hundreds of products at once',
+    difficulty: 'intermediate',
+    estimatedTime: '10 minutes',
+    priority: 40,
+    description: 'Import your entire product catalog from a CSV or Excel file.',
+    content: `**Bulk Import via CSV:**
+
+**Step 1: Prepare Your CSV File**
+Required columns:
+- name (Product Name)
+- cost_price (Purchase Price in Naira)
+- selling_price (Selling Price in Naira)
+- quantity (Stock quantity)
+- category (e.g., Fashion, Electronics)
+
+Optional columns:
+- description
+- barcode
+- low_stock_threshold
+
+**Step 2: Import File**
+1. Dashboard → Click "⋮" menu → "Import CSV"
+2. Select your CSV file
+3. Map columns (if different names)
+4. Review preview
+5. Click "Import"
+
+**Important Notes:**
+- ✅ Up to 500 products at once (FREE plan: 10 total products max)
+- ✅ Prices should be in Naira (not kobo)
+- ✅ Duplicates are skipped (matched by product name)
+- ✅ Invalid rows are reported for correction
+
+**Sample CSV Format:**
+\`\`\`csv
+name,cost_price,selling_price,quantity,category
+Rice 50kg,18000,22000,50,Food
+Peak Milk,120,150,200,Beverages
+Men's Shirt,800,1500,30,Fashion
+\`\`\`
+
+**Troubleshooting:**
+- Invalid price errors → Ensure no currency symbols (₦)
+- Quantity errors → Must be whole numbers only
+- Category not recognized → Use existing categories or "General Merchandise"`,
+    relatedDocs: ['add-first-product', 'export-data', 'plan-limits'],
+    keywords: ['bulk import', 'csv', 'excel', 'import products', 'upload', 'multiple products', 'mass import'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // SALES & REVENUE
+  // ==========================================
+  {
+    id: 'cash-vs-credit-sales',
+    category: 'sales',
+    title: 'Cash vs Credit Sales',
+    subtitle: 'Understanding payment methods',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 75,
+    description: 'Learn when to use Cash vs Credit payment methods and how they affect your business tracking.',
+    content: `**Payment Methods Explained:**
+
+**CASH SALES 💵**
+- Customer pays immediately
+- Money is in your hand/account now
+- Immediate revenue recognition
+- No debt to track
+
+When to use:
+- Walk-in customers paying on the spot
+- Mobile money transfers received
+- Bank transfers confirmed
+- Cash-on-delivery paid
+
+**CREDIT SALES 📝**
+- Customer buys now, pays later
+- Creates a debt record automatically
+- Customer owes you money
+- Track who owes what
+
+When to use:
+- Trusted customers (regulars)
+- Business accounts with payment terms
+- "I'll pay you tomorrow" situations
+- Post-dated cheques
+
+**Key Differences:**
+
+| Aspect | Cash | Credit |
+|--------|------|--------|
+| Payment | Now | Later |
+| Revenue | Immediate | Pending |
+| Risk | None | Customer may not pay |
+| Tracking | Simple | Requires follow-up |
+
+**Best Practices:**
+- Only give credit to trusted customers
+- Set credit limits per customer
+- Follow up on outstanding debts weekly
+- Use credit for customer relationship building
+
+**Pro Tip:**
+Your daily EOD report shows Cash vs Credit breakdown to help you track actual money received vs pending!`,
+    relatedDocs: ['record-first-sale', 'manage-credits', 'daily-reports'],
+    keywords: ['cash', 'credit', 'payment method', 'customer debt', 'pay later', 'payment'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'manage-credits',
+    category: 'sales',
+    title: 'Manage Customer Credits & Debts',
+    subtitle: 'Track who owes you money',
+    difficulty: 'beginner',
+    estimatedTime: '4 minutes',
+    priority: 70,
+    description: 'Learn how to track customer debts, record payments, and manage credit sales effectively.',
+    steps: [
+      {
+        step: 1,
+        instruction: 'View all customer debts by clicking "Manage Credits" on dashboard',
+        tip: 'You can also access from Money page → Credits tab',
+      },
+      {
+        step: 2,
+        instruction: 'See customer list with total amount owed',
+        tip: 'Customers are sorted by highest debt first',
+      },
+      {
+        step: 3,
+        instruction: 'Click a customer to see detailed transaction history',
+        tip: 'View all credit sales and payments made',
+      },
+      {
+        step: 4,
+        instruction: 'Record payment: Click "Collect Payment" button',
+        tip: 'Enter amount received. Partial payments are allowed!',
+      },
+    ],
+    content: `**Additional Tips:**
+
+**Preventing Bad Debt:**
+- Set credit limits per customer
+- Review outstanding debts weekly
+- Send reminders via WhatsApp (use EOD report feature)
+- Pause credit for customers with overdue payments
+
+**Payment Tracking:**
+- Record every payment immediately
+- Partial payments are fine (e.g., customer owes ₦10,000, pays ₦5,000)
+- Payment history shows all transactions
+- Balance auto-updates after each payment
+
+**Reports:**
+- Total credit given (outstanding)
+- Total payments received
+- Aging report (how long debt is outstanding)
+- Customer credit history`,
+    commonIssues: [
+      {
+        issue: 'Customer says they paid but still shows debt',
+        solution: 'Make sure you clicked "Collect Payment" and entered the amount. Simply recording a cash sale does not reduce existing credit debt.',
+      },
+      {
+        issue: 'Want to forgive/write off a debt',
+        solution: 'Click the customer → "Write Off Debt" → Confirm. This clears the debt without recording payment.',
+      },
+    ],
+    relatedDocs: ['cash-vs-credit-sales', 'record-first-sale', 'daily-reports'],
+    keywords: ['credit', 'debt', 'customer owes', 'payment', 'collect money', 'accounts receivable', 'manage credits'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'sales-history',
+    category: 'sales',
+    title: 'View Sales History',
+    subtitle: 'Track all transactions and revenue',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 65,
+    description: 'Access your complete sales history and filter by date, product, or payment method.',
+    content: `**Viewing Sales History:**
+
+**From Dashboard:**
+1. Click "View History" button
+2. See all sales transactions
+3. Newest sales appear first
+
+**Filtering Sales:**
+- By Date: Select date range (today, this week, this month, custom)
+- By Product: See all sales of a specific item
+- By Payment Method: Filter by Cash or Credit
+- By Customer: For credit sales with customer names
+
+**Transaction Details:**
+Each sale shows:
+- Date & Time
+- Product sold
+- Quantity
+- Selling price
+- Total amount
+- Payment method
+- Customer name (for credit)
+- Profit margin
+
+**Actions:**
+- Export to CSV/Excel
+- Print sales report
+- Delete sale (if mistake) - Owner only
+- View customer debt (for credit sales)
+
+**Analytics:**
+- Total revenue
+- Total profit
+- Average transaction value
+- Best-selling products
+- Sales trends over time
+
+**Pro Tip:**
+Use date filters to compare this week vs last week performance!`,
+    relatedDocs: ['record-first-sale', 'daily-reports', 'export-data'],
+    keywords: ['sales history', 'view sales', 'transactions', 'revenue history', 'past sales'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // STAFF MANAGEMENT
+  // ==========================================
+  {
+    id: 'add-staff',
+    category: 'staff',
+    title: 'Add Staff Members',
+    subtitle: 'Give your team access to Storehouse',
+    difficulty: 'intermediate',
+    estimatedTime: '3 minutes',
+    priority: 60,
+    description: 'Learn how to add staff members with different roles and permissions.',
+    steps: [
+      {
+        step: 1,
+        instruction: 'Go to Settings → Staff Management (Owner access only)',
+        tip: 'Only the business owner can add staff',
+      },
+      {
+        step: 2,
+        instruction: 'Click "+ Add Staff Member"',
+        tip: 'You can add unlimited staff (FREE plan: up to 2 staff)',
+      },
+      {
+        step: 3,
+        instruction: 'Enter staff details: Name, Role, and create a 4-digit PIN',
+        tip: 'The PIN is what staff will use to log in',
+      },
+      {
+        step: 4,
+        instruction: 'Choose role: Manager or Cashier',
+        tip: 'Managers have more permissions than Cashiers (see permissions guide)',
+      },
+      {
+        step: 5,
+        instruction: 'Save and share the PIN with your staff member',
+        tip: 'Keep PINs secure. Each staff should have their own unique PIN.',
+      },
+    ],
+    commonIssues: [
+      {
+        issue: 'Staff Management option not showing in Settings',
+        solution: 'Only the Owner account can manage staff. Make sure you are not in Staff mode. Check Settings → Exit Staff Mode if needed.',
+      },
+      {
+        issue: 'Forgot staff PIN',
+        solution: 'Owner can reset PIN from Staff Management → Edit Staff → Change PIN.',
+      },
+    ],
+    relatedDocs: ['staff-permissions', 'staff-roles', 'staff-mode-explained'],
+    keywords: ['add staff', 'employee', 'worker', 'team', 'manager', 'cashier', 'staff pin'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'staff-permissions',
+    category: 'staff',
+    title: 'Staff Permissions & Roles',
+    subtitle: 'What each role can and cannot do',
+    difficulty: 'intermediate',
+    estimatedTime: '4 minutes',
+    priority: 65,
+    description: 'Understand the permissions for Owner, Manager, and Cashier roles.',
+    content: `**Role Permissions Matrix:**
+
+**OWNER (You) - Full Access**
+- ✅ Add, edit, delete products
+- ✅ Record all sales (cash & credit)
+- ✅ View all reports & financials
+- ✅ Manage staff (add, edit, remove)
+- ✅ Access settings & configuration
+- ✅ Manage customer credits
+- ✅ Export data
+- ✅ All features unlocked
+
+**MANAGER - High Access**
+- ✅ Add products
+- ✅ Record all sales
+- ✅ View reports & profit
+- ✅ Manage customer credits
+- ❌ Cannot edit/delete products
+- ❌ Cannot manage staff
+- ❌ Cannot access business settings
+- Use case: Trusted supervisor or assistant manager
+
+**CASHIER - Limited Access**
+- ✅ Record sales only (cash & credit)
+- ❌ Cannot add products
+- ❌ Cannot edit/delete products
+- ❌ Cannot view profit reports
+- ❌ Cannot manage credits
+- ❌ Cannot manage staff
+- ❌ Cannot access settings
+- Use case: Sales person or frontline staff
+
+**Best Practices:**
+- Give minimum necessary permissions
+- Use Manager role for trusted staff
+- Use Cashier for sales-only staff
+- Regularly review staff activity
+- Change PINs if staff leaves
+
+**Security Tips:**
+- Never share Owner password with anyone
+- Each staff has unique PIN (not your password)
+- Owner can see all staff activity
+- Disable staff accounts when they leave`,
+    relatedDocs: ['add-staff', 'staff-mode-explained', 'edit-product'],
+    keywords: ['permissions', 'roles', 'access', 'what can staff do', 'manager', 'cashier', 'owner'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'staff-mode-explained',
+    category: 'staff',
+    title: 'Understanding Staff Mode',
+    subtitle: 'Why you see limited features sometimes',
+    difficulty: 'intermediate',
+    estimatedTime: '3 minutes',
+    priority: 70,
+    description: 'Learn how Staff Mode works and how to switch between Owner and Staff modes.',
+    content: `**What is Staff Mode?**
+
+Staff Mode is activated when:
+1. You (the Owner) log in as a staff member using their PIN
+2. A staff member uses their PIN to access Storehouse
+3. You want to test staff permissions
+
+**How to Enter Staff Mode:**
+1. Dashboard → Click staff icon or "Staff Login"
+2. Enter staff member's 4-digit PIN
+3. You're now using Storehouse as that staff member
+4. Features are limited based on their role
+
+**How to Exit Staff Mode (Return to Owner):**
+Method 1: Settings → Exit Staff Mode
+Method 2: Refresh page (staff sessions don't persist)
+Method 3: Log out and log back in with owner password
+
+**Common Confusion:**
+
+**"Why can't I edit products?"**
+→ You're in Staff mode. Exit to Owner mode.
+
+**"Edit button is missing!"**
+→ Staff mode restrictions. Switch to Owner mode.
+
+**"Settings option disappeared!"**
+→ Staff don't have Settings access. Exit Staff mode.
+
+**Visual Indicators:**
+- Owner mode: All buttons visible
+- Staff mode: Limited buttons, role shown in header
+
+**Best Practice:**
+- Use Owner mode for management tasks
+- Use Staff mode only to test permissions or when staff is working
+- Staff sessions auto-clear on page reload (for security)`,
+    relatedDocs: ['staff-permissions', 'add-staff', 'edit-product'],
+    keywords: ['staff mode', 'owner mode', 'cant edit', 'missing buttons', 'restricted access', 'exit staff mode'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // REPORTS & ANALYTICS
+  // ==========================================
+  {
+    id: 'daily-reports',
+    category: 'reports',
+    title: 'Daily Reports & EOD Summary',
+    subtitle: 'Track your daily business performance',
+    difficulty: 'beginner',
+    estimatedTime: '3 minutes',
+    priority: 75,
+    description: 'Generate and share End-of-Day (EOD) reports to track daily sales, profit, and performance.',
+    content: `**Daily EOD Report Includes:**
+
+📊 **Today's Performance:**
+- Total Sales Revenue
+- Total Profit (with margin %)
+- Cash vs Credit breakdown
+- Number of transactions
+
+📦 **Product Insights:**
+- Top-selling product
+- Units sold
+- Profit from best seller
+
+⚠️ **Alerts:**
+- Low stock items count
+- Out of stock warnings
+
+**How to Generate EOD Report:**
+
+**Method 1: WhatsApp Share**
+1. Settings → Send EOD Report
+2. Choose format: Readable (with emojis) or Monospace (plain text)
+3. Preview report
+4. Click "Send via WhatsApp"
+5. Share with yourself or business partner
+
+**Method 2: View on Dashboard**
+- Dashboard shows live stats (updates in real-time)
+- Money page → Full financial breakdown
+
+**Report Formats:**
+
+**Readable Format (with emojis):**
+📊 Storehouse Daily Report
+📅 30/11/2025 | 🏪 My Store
+💰 Sales: ₦45,000 | ✨ Profit: ₦12,000 (27%)
+💵 Cash: ₦30,000 | 📝 Credit: ₦15,000
+📦 Transactions: 23
+🏆 Top: Rice 50kg - 15 units (₦4,500 profit)
+⚠️ Low Stock: 5 items
+
+**Monospace Format (plain text):**
+=== Storehouse EOD ===
+Sales: ₦45,000 | Profit: ₦12,000
+Cash: ₦30,000 | Credit: ₦15,000
+Transactions: 23 | Top: Rice 50kg
+======================
+
+**Best Practices:**
+- Send EOD report daily (end of business)
+- Share with business partners/investors
+- Use to track performance trends
+- Review weekly/monthly patterns
+- Use insights to make inventory decisions`,
+    relatedDocs: ['export-data', 'sales-history', 'low-stock-management'],
+    keywords: ['daily report', 'eod', 'end of day', 'summary', 'whatsapp report', 'performance'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'export-data',
+    category: 'reports',
+    title: 'Export Your Data',
+    subtitle: 'Download products, sales, and reports',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 55,
+    description: 'Export your data to CSV/Excel for backup, accounting, or analysis.',
+    content: `**What You Can Export:**
+
+**1. Products List**
+- All product details
+- Current stock levels
+- Prices and profit margins
+- Categories and variants
+
+**2. Sales History**
+- All transactions
+- Date, product, quantity, price
+- Payment method, customer
+- Profit calculations
+
+**3. Customer Credits**
+- Outstanding debts
+- Payment history
+- Customer contact info
+
+**How to Export:**
+
+**From Dashboard:**
+1. Click "⋮" menu (three dots)
+2. Select "Export CSV"
+3. Choose what to export: Products, Sales, or Credits
+4. File downloads automatically
+
+**From Settings:**
+1. Settings → Data Export
+2. Select date range (for sales)
+3. Choose format: CSV or Excel
+4. Download
+
+**CSV File Format:**
+- Opens in Excel, Google Sheets, or any spreadsheet app
+- All data in rows and columns
+- Easy to analyze, filter, or share with accountant
+
+**Use Cases:**
+- Backup your data
+- Share with accountant for tax filing
+- Analyze trends in Excel
+- Import to other software
+- Keep historical records
+
+**Pro Tip:**
+Export data monthly for backup. Store in Google Drive or cloud storage!`,
+    relatedDocs: ['bulk-import-csv', 'daily-reports', 'sales-history'],
+    keywords: ['export', 'download', 'csv', 'excel', 'backup', 'data export'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // SETTINGS & CONFIGURATION
+  // ==========================================
+  {
+    id: 'business-setup',
+    category: 'settings',
+    title: 'Business Information Setup',
+    subtitle: 'Configure your business details',
+    difficulty: 'beginner',
+    estimatedTime: '5 minutes',
+    priority: 60,
+    description: 'Set up your business name, contact info, and branding.',
+    content: `**Business Settings:**
+
+**Basic Information:**
+- Business Name (appears on reports, invoices, online store)
+- Phone Number (for customer contact)
+- Email (business email for notifications)
+- Address (physical location)
+
+**Branding:**
+- Business Logo (upload image)
+- Brand Colors (for online store)
+- Tagline/Description
+
+**Configuration:**
+- Default Currency: Nigerian Naira (₦)
+- Tax Rate (if applicable)
+- Receipt Format
+
+**How to Update:**
+1. Settings → Business Settings
+2. Fill in all required fields
+3. Upload logo (optional but recommended)
+4. Save changes
+
+**Why This Matters:**
+- Professional receipts and invoices
+- Customer trust (complete business info)
+- Online store branding
+- EOD reports show business name
+- Legal compliance
+
+**Pro Tips:**
+- Use high-quality logo (square, 500x500px minimum)
+- Complete all fields for professional appearance
+- Update contact info if you move/change number
+- Business name appears in customer communications`,
+    relatedDocs: ['online-store-setup', 'daily-reports'],
+    keywords: ['business settings', 'business name', 'logo', 'branding', 'setup', 'configuration'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'online-store-setup',
+    category: 'settings',
+    title: 'Online Store Setup',
+    subtitle: 'Sell online with your custom storefront',
+    difficulty: 'intermediate',
+    estimatedTime: '10 minutes',
+    priority: 50,
+    description: 'Create your own online store and start accepting orders from customers.',
+    content: `**What is Online Store?**
+
+Your free e-commerce website to sell products online:
+- Custom URL: yourbusiness.storehouse.ng
+- Professional storefront
+- Online catalog
+- Order management
+- Payment integration
+
+**Setup Steps:**
+
+**1. Choose Your Store URL**
+- Must be unique (e.g., "marysfashion")
+- 3-20 characters, letters/numbers only
+- Your store URL: yourbusiness.storehouse.ng
+
+**2. Customize Appearance**
+- Upload store banner/cover image
+- Set brand colors
+- Add business description
+- Contact information
+
+**3. Select Products to Display**
+- Choose which products appear online
+- Toggle "Public" on products you want to sell online
+- Private products stay offline (for in-store only)
+
+**4. Payment Methods**
+- Add bank account for transfers
+- Enable mobile money (optional)
+- Cash on delivery option
+
+**5. Publish Store**
+- Click "Publish Store"
+- Share your store link with customers
+- Start receiving orders!
+
+**Managing Orders:**
+- View orders in "Orders" section
+- Mark as: Pending → Processing → Delivered
+- Customer gets notifications
+- Stock auto-updates when order confirmed
+
+**Pro Tips:**
+- Use high-quality product images
+- Write clear product descriptions
+- Update stock regularly
+- Respond to orders quickly
+- Share store link on social media
+
+**Example Store:**
+marysfashion.storehouse.ng`,
+    relatedDocs: ['business-setup', 'add-first-product', 'plan-limits'],
+    keywords: ['online store', 'storefront', 'e-commerce', 'sell online', 'website', 'orders'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'plan-limits',
+    category: 'settings',
+    title: 'Plan Limits & Upgrades',
+    subtitle: 'Understand FREE, STARTER, and BUSINESS plans',
+    difficulty: 'beginner',
+    estimatedTime: '3 minutes',
+    priority: 45,
+    description: 'Learn about plan features and when to upgrade your account.',
+    content: `**Plan Comparison:**
+
+**FREE PLAN**
+- ✅ Up to 10 products
+- ✅ Unlimited sales recording
+- ✅ 2 staff members
+- ✅ Basic reports
+- ✅ Online store
+- ✅ 10 AI chat questions/month
+- Best for: New businesses, testing Storehouse
+
+**STARTER PLAN - ₦2,500/month**
+- ✅ Up to 500 products
+- ✅ Unlimited sales
+- ✅ 5 staff members
+- ✅ Advanced reports
+- ✅ Online store
+- ✅ WhatsApp AI integration
+- ✅ 50 AI chat questions/month
+- ✅ Priority support
+- Best for: Growing businesses
+
+**BUSINESS PLAN - ₦5,000/month**
+- ✅ Unlimited products
+- ✅ Unlimited sales
+- ✅ Unlimited staff
+- ✅ Advanced analytics
+- ✅ Custom domain for store
+- ✅ WhatsApp AI (unlimited)
+- ✅ Unlimited AI chat
+- ✅ API access
+- ✅ Dedicated support
+- Best for: Established businesses
+
+**When to Upgrade:**
+
+FREE → STARTER:
+- You reach 10 products limit
+- Need more staff (more than 2)
+- Want WhatsApp AI assistant
+
+STARTER → BUSINESS:
+- You reach 500 products limit
+- Need custom domain (www.yourbusiness.com)
+- Want unlimited AI assistance
+- Need API integration
+
+**How to Upgrade:**
+1. Settings → Billing → Change Plan
+2. Select new plan
+3. Payment via bank transfer or card
+4. Instant upgrade (no downtime)
+
+**Money-Back Guarantee:**
+Not satisfied? Cancel within 7 days for full refund.`,
+    relatedDocs: ['business-setup', 'bulk-import-csv', 'online-store-setup'],
+    keywords: ['plans', 'pricing', 'upgrade', 'limits', 'free plan', 'starter', 'business plan'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // TROUBLESHOOTING & COMMON ISSUES
+  // ==========================================
+  {
+    id: 'fix-edit-button-missing',
+    category: 'troubleshooting',
+    title: 'Fix: Edit Button Missing',
+    subtitle: 'Why you cannot see edit/delete buttons',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 90,
+    description: 'Solve the common issue of missing edit and delete buttons on products.',
+    content: `**Problem:**
+Edit (pencil) and Delete (trash) buttons are not showing next to products.
+
+**Most Common Cause: Staff Mode**
+
+You are logged in as a Staff member with restricted permissions, not as the Owner.
+
+**Solution:**
+
+**If you are the Owner:**
+1. Go to Settings (if you can see it)
+2. Look for "Exit Staff Mode" or "Staff Management"
+3. Click "Exit Staff Mode"
+4. Refresh the page
+5. Buttons should now appear
+
+**If Settings is hidden:**
+1. Log out completely
+2. Log back in with your OWNER email and password (not staff PIN)
+3. Buttons will appear
+
+**Other Possible Causes:**
+
+**1. Browser Cache Issue**
+- Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+- This hard refreshes and clears cached old code
+- Buttons should appear after refresh
+
+**2. Slow Internet/Loading**
+- Wait a few seconds for page to fully load
+- Check if internet connection is stable
+
+**3. Account Type**
+- Free plan users have all editing rights
+- This is not a plan limitation
+
+**How to Confirm You're in Owner Mode:**
+- Settings menu is visible
+- "Staff Management" option exists
+- All dashboard features accessible
+- No role badge showing (Manager/Cashier)
+
+**Prevention:**
+- Don't save staff sessions in browser
+- Always log in as Owner for management tasks
+- Use staff mode only when testing or when staff is working
+
+**Still Not Working?**
+Contact support with:
+- Screenshot of your dashboard
+- Your account email
+- Browser name and version`,
+    relatedDocs: ['staff-mode-explained', 'staff-permissions', 'edit-product'],
+    keywords: ['edit button missing', 'cant edit', 'no edit button', 'buttons not showing', 'pencil icon missing', 'staff mode'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'fix-sync-issues',
+    category: 'troubleshooting',
+    title: 'Fix: Data Not Syncing',
+    subtitle: 'Troubleshoot offline/online sync problems',
+    difficulty: 'intermediate',
+    estimatedTime: '3 minutes',
+    priority: 70,
+    description: 'Resolve issues with data not syncing across devices or after going offline.',
+    content: `**Problem:**
+Changes not appearing, products missing, or sales not syncing.
+
+**Understanding Sync:**
+Storehouse works offline and syncs when online:
+- Changes saved locally first (immediate)
+- Syncs to cloud when internet available
+- Updates across all devices
+
+**Troubleshooting Steps:**
+
+**1. Check Internet Connection**
+- Open another website to confirm internet works
+- Check if you're on WiFi or mobile data
+- Slow connection can delay sync
+
+**2. Force Refresh**
+- Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+- Clears cache and reloads fresh data
+
+**3. Check Sync Status**
+- Look for sync indicator on dashboard
+- "Syncing..." or "Synced" status
+- Red warning if sync failed
+
+**4. Re-login**
+- Log out completely
+- Log back in
+- Forces fresh data download
+
+**5. Clear Browser Data**
+- Settings → Privacy → Clear browsing data
+- Select "Cached images and files"
+- Do NOT clear cookies (you'll be logged out)
+
+**Common Scenarios:**
+
+**"Added product offline, not showing when online"**
+→ Wait 30 seconds, refresh page. Product should appear.
+
+**"Two devices showing different data"**
+→ Refresh both devices. Last change wins.
+
+**"Deleted product still showing"**
+→ Hard refresh (Ctrl+Shift+R). If persists, re-login.
+
+**Prevention:**
+- Ensure stable internet for critical operations
+- Refresh page daily
+- Don't use multiple devices simultaneously
+- Wait for sync completion before closing browser
+
+**Advanced: Check Browser Console**
+1. Press F12 (Developer Tools)
+2. Click "Console" tab
+3. Look for sync errors
+4. Screenshot and send to support`,
+    relatedDocs: ['fix-edit-button-missing', 'export-data'],
+    keywords: ['sync', 'not syncing', 'data not updating', 'changes not showing', 'offline', 'cloud sync'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'fix-login-issues',
+    category: 'troubleshooting',
+    title: 'Fix: Login Problems',
+    subtitle: 'Cannot log in or forgot password',
+    difficulty: 'beginner',
+    estimatedTime: '2 minutes',
+    priority: 75,
+    description: 'Troubleshoot login issues and reset your password.',
+    content: `**Common Login Issues:**
+
+**1. Forgot Password**
+Solution:
+- Click "Forgot Password" on login page
+- Enter your registered email
+- Check email for reset link (check spam folder!)
+- Click link and create new password
+- New password must be 8+ characters
+
+**2. "Invalid email or password"**
+Solutions:
+- Double-check email spelling
+- Check Caps Lock is OFF
+- Try "Forgot Password" to reset
+- Make sure you're using email, not phone number
+
+**3. "Email not verified"**
+Solution:
+- Check email for verification link
+- Click "Resend verification email"
+- Check spam/junk folder
+- Verify using link, then login
+
+**4. Staff vs Owner Confusion**
+- Owner login: Email + Password
+- Staff login: 4-digit PIN (from dashboard after owner logs in)
+- Staff cannot login from main login page
+
+**5. Account Locked/Suspended**
+- Too many failed login attempts
+- Wait 15 minutes and try again
+- Or contact support to unlock
+
+**6. Browser AutoFill Wrong Email**
+- Clear form and type manually
+- Use Incognito/Private window
+- Check saved passwords in browser
+
+**7. Account Not Found**
+- Verify you signed up with this email
+- Try other emails you might have used
+- Create new account if first time
+
+**Security Tips:**
+- Never share your owner password
+- Use strong, unique password
+- Enable two-factor authentication (if available)
+- Change password if compromised
+
+**Still Cannot Login?**
+Contact support:
+- Email: support@storehouse.ng
+- WhatsApp: [Support number]
+- Provide: Account email, screenshot of error`,
+    relatedDocs: ['welcome-to-storehouse', 'staff-mode-explained'],
+    keywords: ['login', 'cant login', 'forgot password', 'password reset', 'email verification', 'locked account'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'fix-performance-slow',
+    category: 'troubleshooting',
+    title: 'Fix: App Running Slow',
+    subtitle: 'Improve Storehouse performance',
+    difficulty: 'intermediate',
+    estimatedTime: '4 minutes',
+    priority: 60,
+    description: 'Troubleshoot and fix slow loading times and performance issues.',
+    content: `**Why Storehouse Might Be Slow:**
+
+**1. Too Many Products Loaded**
+- Rendering 500+ products at once
+Solution:
+- Use search/filter to view subset
+- Archive old/discontinued products
+- Use categories to organize
+
+**2. Browser Cache Full**
+Solution:
+- Clear browser cache (Ctrl+Shift+R)
+- Delete old cached data
+- Close other browser tabs
+
+**3. Slow Internet Connection**
+- Check internet speed
+- Switch to WiFi from mobile data
+- Move closer to router
+
+**4. Old Browser Version**
+Solution:
+- Update browser to latest version
+- Chrome, Firefox, Safari recommended
+- Avoid Internet Explorer
+
+**5. Low Device Memory/RAM**
+- Close other apps/tabs
+- Restart your device
+- Use on device with 4GB+ RAM
+
+**6. Service Worker Issues**
+Solution:
+- Open browser DevTools (F12)
+- Application → Service Workers
+- Click "Unregister"
+- Refresh page
+
+**Performance Optimization Tips:**
+
+**Daily:**
+- Clear browser cache
+- Close unused tabs
+- Refresh page before starting work
+
+**Weekly:**
+- Archive old products (set qty to 0)
+- Export and clear old sales data
+- Update browser
+
+**Monthly:**
+- Clear all browser data
+- Restart device
+- Check for Storehouse updates
+
+**Best Browsers:**
+1. Google Chrome (recommended)
+2. Mozilla Firefox
+3. Microsoft Edge
+4. Safari (Mac/iOS)
+
+**Device Recommendations:**
+- Minimum: 2GB RAM, modern browser
+- Recommended: 4GB+ RAM, fast internet
+- Works on: Windows, Mac, Android, iOS
+
+**Still Slow?**
+- Check internet speed (use speedtest.net)
+- Try on different device
+- Contact support with device details`,
+    relatedDocs: ['fix-sync-issues', 'fix-edit-button-missing'],
+    keywords: ['slow', 'performance', 'loading', 'lag', 'freezing', 'not responsive'],
+    lastUpdated: '2025-11-30',
+  },
+
+  // ==========================================
+  // ADVANCED FEATURES
+  // ==========================================
+  {
+    id: 'whatsapp-ai-integration',
+    category: 'advanced',
+    title: 'WhatsApp AI Assistant',
+    subtitle: 'Automate customer service via WhatsApp',
+    difficulty: 'advanced',
+    estimatedTime: '15 minutes',
+    priority: 40,
+    description: 'Set up AI-powered WhatsApp assistant to handle customer inquiries automatically.',
+    content: `**WhatsApp AI Features:**
+
+Auto-responds to customer messages:
+- Product availability questions
+- Pricing inquiries
+- Order status updates
+- Business hours
+- Location/contact info
+
+**Setup Requirements:**
+- STARTER or BUSINESS plan
+- Business WhatsApp account
+- Connected phone number
+
+**Setup Steps:**
+1. Settings → WhatsApp AI
+2. Connect your WhatsApp Business account
+3. Scan QR code to link
+4. Configure auto-responses
+5. Set business hours
+6. Activate AI assistant
+
+**What AI Can Do:**
+- Answer "Do you have [product]?" → Checks stock, replies with price
+- "How much is [product]?" → Sends pricing
+- "What are your hours?" → Sends business hours
+- "Where are you located?" → Sends address/map
+- Take orders (if enabled)
+
+**Customization:**
+- Welcome message
+- Out-of-hours message
+- Stock availability responses
+- Pricing format
+- Order confirmation messages
+
+**Escalation:**
+- Complex questions → Forward to you
+- "Talk to human" → Notify owner
+- Unrecognized queries → Fallback message
+
+**Best Practices:**
+- Test AI thoroughly before going live
+- Review conversation logs weekly
+- Update responses based on common questions
+- Keep product data synced
+- Respond to escalated messages quickly
+
+**Limitations:**
+- Only works when phone is online
+- Requires internet connection
+- Cannot handle complex negotiations
+- Basic queries only
+
+**Analytics:**
+- Messages handled
+- Response accuracy
+- Escalation rate
+- Common questions
+- Customer satisfaction`,
+    relatedDocs: ['online-store-setup', 'plan-limits'],
+    keywords: ['whatsapp', 'ai assistant', 'automation', 'chatbot', 'customer service', 'auto reply'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'api-access',
+    category: 'advanced',
+    title: 'API Access & Integration',
+    subtitle: 'Connect Storehouse to other apps',
+    difficulty: 'advanced',
+    estimatedTime: '20 minutes',
+    priority: 30,
+    description: 'Use Storehouse API to build custom integrations and automations.',
+    content: `**What is API Access?**
+
+API (Application Programming Interface) allows you to:
+- Connect Storehouse to other software
+- Build custom tools
+- Automate workflows
+- Extract data programmatically
+- Build mobile apps
+
+**Available on:** BUSINESS plan only
+
+**API Capabilities:**
+
+**Products API:**
+- List all products (GET /api/products)
+- Add product (POST /api/products)
+- Update product (PUT /api/products/:id)
+- Delete product (DELETE /api/products/:id)
+- Check stock levels
+
+**Sales API:**
+- Record sale (POST /api/sales)
+- Get sales history (GET /api/sales)
+- Filter by date/product
+- Export transactions
+
+**Customers API:**
+- Customer list (GET /api/customers)
+- Credit balances
+- Payment history
+
+**Reports API:**
+- Daily summary
+- Product performance
+- Financial reports
+
+**Getting Started:**
+1. Upgrade to BUSINESS plan
+2. Settings → API Access
+3. Generate API key
+4. Copy key (keep secret!)
+5. Read API documentation
+6. Make your first API call
+
+**Example API Call:**
+\`\`\`javascript
+fetch('https://api.storehouse.ng/products', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+})
+.then(res => res.json())
+.then(data => console.log(data));
+\`\`\`
+
+**Use Cases:**
+- Sync with accounting software (QuickBooks, Xero)
+- Build custom mobile app
+- Automate inventory updates from supplier
+- Send data to analytics tools
+- Create custom reports
+
+**Security:**
+- Keep API key confidential
+- Rotate keys regularly
+- Use HTTPS only
+- Rate limits apply (10,000 requests/day)
+
+**Documentation:**
+- Full API docs: docs.storehouse.ng/api
+- Postman collection available
+- Code examples in JavaScript, Python, PHP`,
+    relatedDocs: ['plan-limits', 'export-data'],
+    keywords: ['api', 'integration', 'developer', 'webhook', 'automation', 'custom'],
+    lastUpdated: '2025-11-30',
+  },
+
+  {
+    id: 'referral-program',
+    category: 'advanced',
+    title: 'Referral & Rewards Program',
+    subtitle: 'Earn rewards by inviting other businesses',
+    difficulty: 'beginner',
+    estimatedTime: '3 minutes',
+    priority: 35,
+    description: 'Learn how to earn free months and rewards by referring Storehouse to others.',
+    content: `**How Referral Program Works:**
+
+Invite other shop owners to Storehouse and earn rewards!
+
+**Rewards:**
+- 1 successful referral = 1 month free (STARTER plan)
+- 3 referrals = 3 months free + bonus features
+- 5 referrals = 6 months free + upgrade to BUSINESS
+- Top referrer monthly = Cash prize!
+
+**What Counts as Successful Referral:**
+- Friend signs up using your referral link
+- They upgrade to STARTER or BUSINESS plan
+- They stay active for 30+ days
+- You get credited after 30 days
+
+**How to Refer:**
+1. Dashboard → Referral Program
+2. Copy your unique referral link
+3. Share with business owners
+4. They sign up using your link
+5. Earn rewards when they upgrade
+
+**Sharing Your Link:**
+- WhatsApp status
+- Facebook/Instagram posts
+- Direct message to friends
+- Business networking groups
+- Email signature
+
+**Tracking Referrals:**
+- View all referrals in dashboard
+- See: Pending, Active, Credited
+- Track earnings
+- Monitor progress to next reward
+
+**Bonus Opportunities:**
+- Monthly referral contests
+- Special promotions (2x rewards)
+- Exclusive referrer benefits
+
+**Terms:**
+- Rewards apply to paid plans only
+- Cannot refer yourself or fake accounts
+- Abuse results in disqualification
+- Rewards expire after 12 months if unused
+
+**Example:**
+You refer 3 businesses:
+- Friend 1 upgrades → 1 month free
+- Friend 2 upgrades → 1 month free
+- Friend 3 upgrades → 1 month free
+Total: 3 months FREE!`,
+    relatedDocs: ['plan-limits', 'business-setup'],
+    keywords: ['referral', 'rewards', 'refer friend', 'earn', 'free months', 'invite'],
+    lastUpdated: '2025-11-30',
+  },
+];
+
+// Helper function to get documentation by ID
+export function getDocById(id: string): Documentation | undefined {
+  return DOCUMENTATION.find(doc => doc.id === id);
+}
+
+// Helper function to get documentation by category
+export function getDocsByCategory(category: Documentation['category']): Documentation[] {
+  return DOCUMENTATION.filter(doc => doc.category === category).sort((a, b) => (b.priority || 0) - (a.priority || 0));
+}
+
+// Helper function to get high-priority docs for new users
+export function getOnboardingDocs(): Documentation[] {
+  return DOCUMENTATION.filter(doc => (doc.priority || 0) >= 75).sort((a, b) => (b.priority || 0) - (a.priority || 0));
+}

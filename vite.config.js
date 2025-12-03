@@ -20,7 +20,10 @@ export default defineConfig({
   server: {
     port: 4000,
     strictPort: true,
-    host: true
+    host: '0.0.0.0', // Bind to all network interfaces for WSL2
+    hmr: {
+      host: 'localhost'
+    }
   },
   build: {
     // Code splitting for faster loading

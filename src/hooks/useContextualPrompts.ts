@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { getItems, getSales } from '../db/idb';
 import {
   getNextPrompt,
@@ -109,13 +108,18 @@ function calculateDaysActive(): number {
 }
 
 /**
- * Load prompt settings from Firebase
+ * Load prompt settings from Supabase
  */
 async function loadPromptSettings(userId: string): Promise<PromptSettings> {
   try {
-    const storeDoc = await getDoc(doc(db, 'stores', userId));
+    const { data: storeData, error } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
-    if (!storeDoc.exists()) {
+    if (error || !storeData) {
+      console.debug('[Prompts] No store found, using defaults');
       return {
         deliveryInfo: false,
         bankDetails: false,
@@ -124,7 +128,7 @@ async function loadPromptSettings(userId: string): Promise<PromptSettings> {
       };
     }
 
-    const profile = storeDoc.data() as StoreProfile;
+    const profile = storeData as StoreProfile;
 
     return {
       deliveryInfo: !!(profile.deliveryAreas && profile.deliveryAreas.length > 0),
@@ -133,7 +137,7 @@ async function loadPromptSettings(userId: string): Promise<PromptSettings> {
       logo: !!profile.logoUrl,
     };
   } catch (error) {
-    console.error('Error loading prompt settings:', error);
+    console.error('[Prompts] Error loading prompt settings:', error);
     return {
       deliveryInfo: false,
       bankDetails: false,

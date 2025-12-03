@@ -14,14 +14,18 @@ export function AuthProvider({ children }) {
     console.debug('[AuthContext] Initializing Supabase auth listener');
 
     // Subscribe to auth state changes
-    const unsubscribe = subscribeToAuthChanges(async (user) => {
-      console.debug('[AuthContext] Auth state changed:', user?.uid || 'signed out');
+    const unsubscribe = subscribeToAuthChanges(async (user, event) => {
+      console.debug('[AuthContext] Auth state changed:', {
+        event,
+        user: user?.uid || 'signed out',
+        timestamp: new Date().toISOString()
+      });
 
       if (user) {
-        // User is signed in
+        // User is signed in or session refreshed
         setCurrentUser(user);
 
-        // Fetch user profile
+        // Fetch user profile (only if not already loaded or if user changed)
         try {
           const profile = await getUserProfile(user.uid);
           setUserProfile(profile);
@@ -32,6 +36,7 @@ export function AuthProvider({ children }) {
         }
       } else {
         // User is signed out
+        console.debug('[AuthContext] User signed out, clearing state');
         setCurrentUser(null);
         setUserProfile(null);
       }

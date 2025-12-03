@@ -4,7 +4,16 @@ const KEY = "sh:profile:v1";
 const Ctx = createContext(null);
 
 export function BusinessProvider({ children }) {
-  const [profile, setProfileState] = useState({ businessName: "", ownerName: "", phone: "" });
+  const [profile, setProfileState] = useState({
+    businessName: "",
+    ownerName: "",
+    phone: "",
+    whatsappNumber: "",
+    instagramHandle: "",
+    facebookPage: "",
+    tiktokHandle: "",
+    storeUrl: ""
+  });
 
   useEffect(() => {
     try {
@@ -15,6 +24,11 @@ export function BusinessProvider({ children }) {
           businessName: p.businessName || "",
           ownerName: p.ownerName || "",
           phone: p.phone || "",
+          whatsappNumber: p.whatsappNumber || "",
+          instagramHandle: p.instagramHandle || "",
+          facebookPage: p.facebookPage || "",
+          tiktokHandle: p.tiktokHandle || "",
+          storeUrl: p.storeUrl || ""
         });
         document.title = p.businessName?.trim() ? `${p.businessName} — Storehouse` : "Storehouse";
       } else {
@@ -36,7 +50,16 @@ export function BusinessProvider({ children }) {
 
   const resetProfile = () => {
     try { localStorage.removeItem(KEY); } catch {}
-    setProfileState({ businessName: "", ownerName: "", phone: "" });
+    setProfileState({
+      businessName: "",
+      ownerName: "",
+      phone: "",
+      whatsappNumber: "",
+      instagramHandle: "",
+      facebookPage: "",
+      tiktokHandle: "",
+      storeUrl: ""
+    });
     document.title = "Storehouse";
   };
 

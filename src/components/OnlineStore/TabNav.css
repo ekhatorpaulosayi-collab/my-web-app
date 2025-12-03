@@ -1,0 +1,114 @@
+/* Modern Tab Navigation Styles */
+
+.tab-nav {
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 32px;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+}
+
+.tab-nav-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.tab-nav-list::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.tab-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-nav-item:hover {
+  color: #1f2937;
+  background: #f9fafb;
+}
+
+.tab-nav-item.active {
+  color: #00894F;
+  border-bottom-color: #00894F;
+}
+
+.tab-nav-item.active .tab-icon {
+  transform: scale(1.1);
+}
+
+.tab-icon {
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.tab-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Mobile responsive - Stack tabs vertically */
+@media (max-width: 640px) {
+  .tab-nav {
+    margin-bottom: 20px;
+    border-bottom: none;
+  }
+
+  .tab-nav-list {
+    flex-direction: column;
+    gap: 8px;
+    overflow-x: visible;
+  }
+
+  .tab-nav-item {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 14px;
+    border-bottom: none;
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    justify-content: flex-start;
+  }
+
+  .tab-nav-item:hover {
+    background: #f3f4f6;
+  }
+
+  .tab-nav-item.active {
+    background: #f0fdf4;
+    border-left-color: #00894F;
+    border-bottom-color: transparent;
+  }
+
+  .tab-icon {
+    font-size: 20px;
+  }
+
+  .tab-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+/* Tablet */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .tab-nav-item {
+    padding: 12px 18px;
+  }
+}

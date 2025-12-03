@@ -1,5 +1,16 @@
 /* Business Settings Sheet - Premium Design */
 
+/* Prevent horizontal scrolling globally */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+/* Prevent any element from causing horizontal overflow */
+* {
+  max-width: 100%;
+}
+
 /* Overlay */
 .bs-overlay {
   position: fixed;
@@ -27,6 +38,8 @@
   display: flex;
   flex-direction: column;
   animation: bs-slide-up 200ms ease-out;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 @media (min-width: 640px) {
@@ -83,19 +96,28 @@
 }
 
 .bs-close {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   background: transparent;
   color: #6B778C;
   font-size: 28px;
   line-height: 1;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 160ms;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  z-index: 10005;
 }
 
 .bs-close:hover {
@@ -450,6 +472,11 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 160ms;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .bs-btn-primary:hover:not(:disabled) {
@@ -1128,7 +1155,7 @@
     display: flex !important;
     align-items: center !important;
     gap: 12px !important;
-    width: 100vw !important;
+    width: 100% !important;
     max-width: 100% !important;
     background: #FFFFFF !important;
     border-top: 2px solid #E5E7EB !important;
@@ -1361,4 +1388,62 @@
   .toast {
     bottom: 80px; /* Above mobile nav */
   }
+}
+
+/* ============================================
+   TOGGLE SWITCH (for Advanced Settings)
+   ============================================ */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #CBD5E1;
+  transition: all 0.3s ease;
+  border-radius: 28px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: all 0.3s ease;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #10B981;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

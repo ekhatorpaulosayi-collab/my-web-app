@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2 } from 'lucide-react';
+import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
 import type { StoreProfile } from '../types';
 import type { ProductVariant } from '../types/variants';
@@ -17,6 +17,10 @@ import { VariantSelector } from '../components/VariantSelector';
 import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
 import { shareProductToWhatsApp } from '../utils/shareToWhatsApp';
 import { getProductVariants } from '../lib/supabase-variants';
+import ProductImageGallery from '../components/ProductImageGallery';
+import ReviewForm from '../components/ReviewForm';
+import ReviewList from '../components/ReviewList';
+import { getProductReviewStats, type ReviewStats } from '../services/reviewService';
 import '../styles/storefront.css';
 
 interface Product {
@@ -48,6 +52,35 @@ function StorefrontContent() {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
+
+  // Review states
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [productReviewStats, setProductReviewStats] = useState<Map<string, ReviewStats>>(new Map());
+
+  // Collapsible section states (default to collapsed for simpler UX)
+  const [paymentExpanded, setPaymentExpanded] = useState(false);
+  const [deliveryExpanded, setDeliveryExpanded] = useState(false);
+  const [hoursExpanded, setHoursExpanded] = useState(false);
+  const [socialExpanded, setSocialExpanded] = useState(false);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [returnPolicyExpanded, setReturnPolicyExpanded] = useState(false);
+
+  // Load review stats for products
+  const loadReviewStats = async (products: Product[]) => {
+    const statsMap = new Map<string, ReviewStats>();
+
+    // Load stats for each product (in parallel for performance)
+    await Promise.all(
+      products.map(async (product) => {
+        const result = await getProductReviewStats(product.id);
+        if (result.success && result.stats) {
+          statsMap.set(product.id, result.stats);
+        }
+      })
+    );
+
+    setProductReviewStats(statsMap);
+  };
 
   // Load store data and products
   useEffect(() => {
@@ -157,6 +190,10 @@ function StorefrontContent() {
         })) as Product[];
 
         setProducts(publicProducts);
+
+        // Load review stats for all products
+        loadReviewStats(publicProducts);
+
         setLoading(false);
       } catch (err) {
         console.error('[Storefront] Error loading store:', err);
@@ -167,6 +204,19 @@ function StorefrontContent() {
 
     loadStorefront();
   }, [slug]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (selectedProduct) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedProduct]);
 
   // Load variants when product is selected for detail view
   useEffect(() => {
@@ -428,6 +478,45 @@ function StorefrontContent() {
                       {currencyNGN(product.selling_price)}
                     </div>
 
+                    {/* Review Stars */}
+                    {(() => {
+                      const stats = productReviewStats.get(product.id);
+                      if (stats && stats.total_reviews > 0) {
+                        return (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            marginBottom: '0.75rem'
+                          }}>
+                            <div style={{ display: 'flex', gap: '2px' }}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <svg
+                                  key={star}
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill={star <= Math.round(stats.average_rating) ? '#fbbf24' : 'none'}
+                                  stroke={star <= Math.round(stats.average_rating) ? '#fbbf24' : '#d1d5db'}
+                                  strokeWidth="2"
+                                >
+                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                              ))}
+                            </div>
+                            <span style={{
+                              fontSize: '0.8125rem',
+                              color: '#64748b',
+                              fontWeight: 500
+                            }}>
+                              {stats.average_rating.toFixed(1)} ({stats.total_reviews})
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {/* Category-Specific Attributes */}
                     {product.attributes && Object.keys(product.attributes).length > 0 && (() => {
                       const displayFieldKeys = getDisplayFields(product.category);
@@ -485,7 +574,12 @@ function StorefrontContent() {
 
                 {/* Action buttons - not part of clickable area */}
                 {product.quantity > 0 && (
-                  <div style={{ display: 'flex', gap: '0.75rem', padding: '0 1.5rem 1.5rem' }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    padding: '0 1.5rem 1.5rem'
+                  }}>
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -536,9 +630,39 @@ function StorefrontContent() {
                           const message = `Hi, I'm interested in ordering *${product.name}* (${currencyNGN(product.selling_price)})`;
                           window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
                         }}
-                        className="btn-quick-order"
+                        className="btn-whatsapp"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: '#25D366',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          transition: 'all 0.2s',
+                          boxShadow: '0 2px 4px rgba(37, 211, 102, 0.2)',
+                          width: '100%'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#20ba5a';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 211, 102, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#25D366';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 211, 102, 0.2)';
+                        }}
                       >
-                        <Phone size={18} />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                        </svg>
+                        Order Now
                       </button>
                     )}
 
@@ -559,10 +683,10 @@ function StorefrontContent() {
                       className="btn-share"
                       title="Share to WhatsApp Status"
                       style={{
-                        padding: '0.75rem',
-                        backgroundColor: '#25d366',
-                        color: 'white',
-                        border: 'none',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: 'white',
+                        color: '#25d366',
+                        border: '2px solid #25d366',
                         borderRadius: '8px',
                         cursor: 'pointer',
                         display: 'flex',
@@ -572,20 +696,22 @@ function StorefrontContent() {
                         fontWeight: 600,
                         fontSize: '14px',
                         transition: 'all 0.2s',
-                        boxShadow: '0 2px 4px rgba(37, 211, 102, 0.2)'
+                        boxShadow: '0 2px 4px rgba(37, 211, 102, 0.1)',
+                        width: '100%'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#20ba5a';
+                        e.currentTarget.style.backgroundColor = '#f0fdf4';
                         e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 211, 102, 0.3)';
+                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 211, 102, 0.2)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#25d366';
+                        e.currentTarget.style.backgroundColor = 'white';
                         e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 211, 102, 0.2)';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 211, 102, 0.1)';
                       }}
                     >
                       <Share2 size={18} />
+                      Share
                     </button>
                   </div>
                 )}
@@ -600,25 +726,55 @@ function StorefrontContent() {
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
+          padding: '1rem 1.5rem',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
           marginTop: '2rem',
           marginBottom: '2rem'
         }}>
-          <h2 style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <span style={{ fontSize: '1.75rem' }}>💳</span>
-            Payment Information
-          </h2>
+          {/* Collapsible Header */}
+          <div
+            onClick={() => setPaymentExpanded(!paymentExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '1rem 0',
+              userSelect: 'none'
+            }}
+          >
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.75rem' }}>💳</span>
+              Payment Information
+            </h2>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#64748b'
+              }}
+            >
+              {paymentExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+          </div>
+
+          {/* Collapsible Content */}
+          {paymentExpanded && (
+            <div style={{ paddingTop: '1rem' }}>
 
           {/* Bank Account Details */}
           {(store.bankName || store.accountNumber || store.accountName) && (
@@ -729,6 +885,8 @@ function StorefrontContent() {
               {store.paymentInstructions}
             </div>
           )}
+            </div>
+          )}
         </section>
       )}
 
@@ -737,25 +895,55 @@ function StorefrontContent() {
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
+          padding: '1rem 1.5rem',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
           marginTop: '2rem',
           marginBottom: '2rem'
         }}>
-          <h2 style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <span style={{ fontSize: '1.75rem' }}>🚚</span>
-            Delivery Information
-          </h2>
+          {/* Collapsible Header */}
+          <div
+            onClick={() => setDeliveryExpanded(!deliveryExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '1rem 0',
+              userSelect: 'none'
+            }}
+          >
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.75rem' }}>🚚</span>
+              Delivery Information
+            </h2>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#64748b'
+              }}
+            >
+              {deliveryExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+          </div>
+
+          {/* Collapsible Content */}
+          {deliveryExpanded && (
+            <div style={{ paddingTop: '1rem' }}>
 
           {store.deliveryAreas && store.deliveryAreas.length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
@@ -802,6 +990,8 @@ function StorefrontContent() {
               <span style={{ color: '#1e40af' }}>{store.minimumOrder}</span>
             </div>
           )}
+            </div>
+          )}
         </section>
       )}
 
@@ -810,25 +1000,55 @@ function StorefrontContent() {
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
+          padding: '1rem 1.5rem',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
           marginTop: '2rem',
           marginBottom: '2rem'
         }}>
-          <h2 style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <span style={{ fontSize: '1.75rem' }}>⏰</span>
-            Business Hours
-          </h2>
+          {/* Collapsible Header */}
+          <div
+            onClick={() => setHoursExpanded(!hoursExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '1rem 0',
+              userSelect: 'none'
+            }}
+          >
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.75rem' }}>⏰</span>
+              Business Hours
+            </h2>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#64748b'
+              }}
+            >
+              {hoursExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+          </div>
+
+          {/* Collapsible Content */}
+          {hoursExpanded && (
+            <div style={{ paddingTop: '1rem' }}>
 
           {store.businessHours && (
             <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
@@ -870,6 +1090,8 @@ function StorefrontContent() {
               </div>
             </div>
           )}
+            </div>
+          )}
         </section>
       )}
 
@@ -878,128 +1100,209 @@ function StorefrontContent() {
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
+          padding: '1rem 1.5rem',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
           marginTop: '2rem',
           marginBottom: '2rem'
         }}>
-          <h2 style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            justifyContent: 'center'
-          }}>
-            <span style={{ fontSize: '1.75rem' }}>📱</span>
-            Follow Us On Social Media
-          </h2>
+          {/* Collapsible Header */}
+          <div
+            onClick={() => setSocialExpanded(!socialExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '1rem 0',
+              userSelect: 'none'
+            }}
+          >
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#667eea' }}>
+                <path d="M17 2h-3a5 5 0 0 0-5 5v3H6v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+              </svg>
+              Connect With Us
+            </h2>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#64748b'
+              }}
+            >
+              {socialExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center' }}>
+          {/* Collapsible Content */}
+          {socialExpanded && (
+            <div style={{ paddingTop: '1rem' }}>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
             {store.instagramUrl && (
               <a
-                href={store.instagramUrl}
+                href={store.instagramUrl.startsWith('http') ? store.instagramUrl : `https://instagram.com/${store.instagramUrl.replace('@', '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '12px 24px',
-                  background: 'linear-gradient(135deg, #f56040 0%, #e1306c 100%)',
+                  gap: '8px',
+                  padding: '12px 20px',
+                  background: 'linear-gradient(135deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)',
                   color: 'white',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   textDecoration: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  transition: 'transform 0.2s'
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(225, 48, 108, 0.3)'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(225, 48, 108, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(225, 48, 108, 0.3)';
+                }}
               >
-                📷 Instagram
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                </svg>
+                Instagram
               </a>
             )}
 
             {store.facebookUrl && (
               <a
-                href={store.facebookUrl}
+                href={store.facebookUrl.startsWith('http') ? store.facebookUrl : `https://facebook.com/${store.facebookUrl}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '12px 24px',
+                  gap: '8px',
+                  padding: '12px 20px',
                   background: '#1877f2',
                   color: 'white',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   textDecoration: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  transition: 'transform 0.2s'
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(24, 119, 242, 0.3)'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(24, 119, 242, 0.4)';
+                  e.currentTarget.style.background = '#1664d8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(24, 119, 242, 0.3)';
+                  e.currentTarget.style.background = '#1877f2';
+                }}
               >
-                👍 Facebook
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Facebook
               </a>
             )}
 
             {store.tiktokUrl && (
               <a
-                href={store.tiktokUrl}
+                href={store.tiktokUrl.startsWith('http') ? store.tiktokUrl : `https://tiktok.com/@${store.tiktokUrl.replace('@', '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '12px 24px',
+                  gap: '8px',
+                  padding: '12px 20px',
                   background: '#000000',
                   color: 'white',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   textDecoration: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  transition: 'transform 0.2s'
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+                  e.currentTarget.style.background = '#1a1a1a';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+                  e.currentTarget.style.background = '#000000';
+                }}
               >
-                🎵 TikTok
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                </svg>
+                TikTok
               </a>
             )}
 
             {store.twitterUrl && (
               <a
-                href={store.twitterUrl}
+                href={store.twitterUrl.startsWith('http') ? store.twitterUrl : `https://twitter.com/${store.twitterUrl.replace('@', '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '12px 24px',
-                  background: '#1da1f2',
+                  gap: '8px',
+                  padding: '12px 20px',
+                  background: '#000000',
                   color: 'white',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   textDecoration: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  transition: 'transform 0.2s'
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+                  e.currentTarget.style.background = '#1a1a1a';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+                  e.currentTarget.style.background = '#000000';
+                }}
               >
-                🐦 Twitter
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                X (Twitter)
               </a>
             )}
           </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1008,25 +1311,55 @@ function StorefrontContent() {
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
+          padding: '1rem 1.5rem',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
           marginTop: '2rem',
           marginBottom: '2rem'
         }}>
-          <h2 style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <span style={{ fontSize: '1.75rem' }}>📖</span>
-            About Us
-          </h2>
+          {/* Collapsible Header */}
+          <div
+            onClick={() => setAboutExpanded(!aboutExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '1rem 0',
+              userSelect: 'none'
+            }}
+          >
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.75rem' }}>📖</span>
+              About Us
+            </h2>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#64748b'
+              }}
+            >
+              {aboutExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+          </div>
+
+          {/* Collapsible Content */}
+          {aboutExpanded && (
+            <div style={{ paddingTop: '1rem' }}>
 
           <div style={{
             padding: '1.5rem',
@@ -1039,6 +1372,8 @@ function StorefrontContent() {
           }}>
             {store.aboutUs}
           </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1047,25 +1382,55 @@ function StorefrontContent() {
         <section style={{
           maxWidth: '800px',
           margin: '0 auto',
-          padding: '2rem 1.5rem',
+          padding: '1rem 1.5rem',
           background: 'white',
           borderRadius: '16px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
           marginTop: '2rem',
           marginBottom: '2rem'
         }}>
-          <h2 style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <span style={{ fontSize: '1.75rem' }}>🔄</span>
-            Return & Refund Policy
-          </h2>
+          {/* Collapsible Header */}
+          <div
+            onClick={() => setReturnPolicyExpanded(!returnPolicyExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '1rem 0',
+              userSelect: 'none'
+            }}
+          >
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '1.75rem' }}>🔄</span>
+              Return & Refund Policy
+            </h2>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#64748b'
+              }}
+            >
+              {returnPolicyExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+            </button>
+          </div>
+
+          {/* Collapsible Content */}
+          {returnPolicyExpanded && (
+            <div style={{ paddingTop: '1rem' }}>
 
           <div style={{
             padding: '1.5rem',
@@ -1079,6 +1444,8 @@ function StorefrontContent() {
           }}>
             {store.returnPolicy}
           </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1101,7 +1468,9 @@ function StorefrontContent() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1109,7 +1478,8 @@ function StorefrontContent() {
             zIndex: 9999,
             animation: 'fadeIn 0.2s ease-in-out',
             border: 'none',
-            outline: 'none'
+            outline: 'none',
+            overflowY: 'auto'
           }}
         >
           <div
@@ -1132,111 +1502,50 @@ function StorefrontContent() {
               boxSizing: 'border-box'
             }}
           >
-            {/* Close Button - Mobile optimized with larger touch target */}
+            {/* Close Button - Clean mobile-friendly design */}
             <button
               onClick={() => setSelectedProduct(null)}
               style={{
                 position: 'absolute',
-                top: '8px',
-                right: '8px',
-                width: '44px',
-                height: '44px',
-                minWidth: '44px',
-                minHeight: '44px',
-                border: '2px solid #e5e7eb',
-                backgroundColor: '#f9fafb',
-                color: '#000000',
+                top: '16px',
+                right: '16px',
+                width: '56px',
+                height: '56px',
+                border: 'none',
+                backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                color: '#1f2937',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 zIndex: 10000,
-                transition: 'all 0.2s',
+                transition: 'all 0.2s ease',
                 outline: 'none',
-                borderRadius: '8px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                borderRadius: '50%',
+                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)',
                 WebkitTapHighlightColor: 'transparent'
               }}
-              onTouchStart={(e) => {
-                e.currentTarget.style.backgroundColor = '#dc2626';
-                e.currentTarget.style.color = '#ffffff';
-                e.currentTarget.style.borderColor = '#dc2626';
+              onTouchStart={(e: React.TouchEvent) => {
+                (e.currentTarget as HTMLElement).style.transform = 'scale(0.95)';
               }}
-              onTouchEnd={(e) => {
-                setTimeout(() => {
-                  e.currentTarget.style.backgroundColor = '#f9fafb';
-                  e.currentTarget.style.color = '#000000';
-                  e.currentTarget.style.borderColor = '#e5e7eb';
-                }, 150);
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.backgroundColor = '#dc2626';
-                e.currentTarget.style.color = '#ffffff';
-                e.currentTarget.style.borderColor = '#dc2626';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.backgroundColor = '#f9fafb';
-                e.currentTarget.style.color = '#000000';
-                e.currentTarget.style.borderColor = '#e5e7eb';
+              onTouchEnd={(e: React.TouchEvent) => {
+                (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
               }}
             >
               <X size={28} strokeWidth={2.5} />
             </button>
 
-            {/* Large Product Image - Click to view full screen */}
-            {selectedProduct.image_thumbnail || selectedProduct.image_url ? (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  console.log('[Storefront] Image clicked, opening viewer');
-                  setViewerImageUrl(selectedProduct.image_url || selectedProduct.image_thumbnail || null);
-                  setImageViewerOpen(true);
-                }}
-                style={{
-                  backgroundColor: '#ffffff',
-                  padding: '20px',
-                  width: '100%',
-                  cursor: 'zoom-in',
-                  position: 'relative',
-                  userSelect: 'none',
-                  border: 'none',
-                  outline: 'none',
-                  boxShadow: 'none'
-                }}
-              >
-                <img
-                  src={selectedProduct.image_url || selectedProduct.image_thumbnail}
-                  alt={selectedProduct.name}
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    display: 'block',
-                    objectFit: 'contain'
-                  }}
-                />
-              </div>
-            ) : (
-              <div style={{
-                width: '100%',
-                height: '300px',
-                background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-                borderRadius: '16px 16px 0 0',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px'
-              }}>
-                <Camera size={80} color="#9ca3af" strokeWidth={1.5} />
-                <span style={{
-                  fontSize: '16px',
-                  color: '#94a3b8',
-                  fontWeight: 500
-                }}>No image available</span>
-              </div>
-            )}
+            {/* Product Image Gallery */}
+            <div style={{
+              backgroundColor: '#ffffff',
+              padding: '20px',
+              width: '100%'
+            }}>
+              <ProductImageGallery
+                productId={selectedProduct.id}
+                fallbackImage={selectedProduct.image_url || selectedProduct.image_thumbnail}
+              />
+            </div>
 
             {/* Product Details */}
             <div style={{ padding: '24px' }}>
@@ -1633,9 +1942,31 @@ function StorefrontContent() {
                 <Share2 size={20} />
                 Share to WhatsApp Status
               </button>
+
+              {/* Customer Reviews Section */}
+              <div style={{ marginTop: '2rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
+                <ReviewList
+                  productId={selectedProduct.id}
+                  onWriteReview={() => setShowReviewForm(true)}
+                />
+              </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Review Form Modal */}
+      {showReviewForm && selectedProduct && store && (
+        <ReviewForm
+          productId={selectedProduct.id}
+          productName={selectedProduct.name}
+          storeUserId={store.id}
+          onClose={() => setShowReviewForm(false)}
+          onSubmitSuccess={() => {
+            // Reload review stats after successful submission
+            loadReviewStats(products);
+          }}
+        />
       )}
 
       {/* Full-Screen Image Viewer */}
