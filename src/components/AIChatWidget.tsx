@@ -221,8 +221,8 @@ export default function AIChatWidget({
     setLoading(true);
 
     try {
-      // STEP 1: Search documentation for relevant guides
-      const docResults = searchDocumentation(userMessage, appContext, 3);
+      // STEP 1: Search documentation for relevant guides (hybrid: keyword + vector)
+      const docResults = await searchDocumentation(userMessage, appContext, 3);
       console.log('[AIChatWidget] Found', docResults.length, 'relevant docs');
 
       // STEP 2: Format docs for AI context
@@ -249,6 +249,7 @@ export default function AIChatWidget({
           message: userMessage,
           contextType,
           storeSlug,
+          userType, // NEW: Send visitor/shopper/user type
           appContext, // Send app state
           relevantDocs, // Send documentation context (RAG)
         }),

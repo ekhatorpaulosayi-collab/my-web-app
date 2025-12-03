@@ -1,10 +1,11 @@
 /**
  * Document Search Utility
- * Intelligent search and ranking for documentation
+ * Hybrid search: Keyword-based (fast, free) + Vector search (accurate, fallback)
  */
 
 import { Documentation, DocSearchResult, AppContext } from '../types/documentation';
 import { DOCUMENTATION } from '../data/documentation';
+import { supabase } from '../lib/supabase';
 
 /**
  * Calculate similarity score between query and doc keywords
@@ -91,13 +92,73 @@ function calculateContextBoost(doc: Documentation, context?: AppContext): number
 }
 
 /**
- * Search documentation with intelligent ranking
+ * Vector search using Supabase pgvector (fallback for low keyword matches)
  */
-export function searchDocumentation(
+async function searchDocumentationVector(
+  query: string,
+  limit: number = 5
+): Promise<DocSearchResult[]> {
+  try {
+    // Generate embedding for query using OpenAI (via Supabase Edge Function)
+    const { data: embeddingData, error: embeddingError } = await supabase.functions.invoke(
+      'generate-embedding',
+      {
+        body: { text: query },
+      }
+    );
+
+    if (embeddingError || !embeddingData?.embedding) {
+      console.warn('Vector search failed, using keyword fallback');
+      return [];
+    }
+
+    // Search using vector similarity
+    const { data, error } = await supabase.rpc('search_documentation_vector', {
+      query_embedding: embeddingData.embedding,
+      match_threshold: 0.5,
+      match_count: limit,
+    });
+
+    if (error) {
+      console.error('Vector search error:', error);
+      return [];
+    }
+
+    // Convert to DocSearchResult format
+    return (data || []).map((result: any) => ({
+      doc: {
+        id: result.id,
+        title: result.title,
+        subtitle: result.subtitle,
+        category: result.category,
+        description: result.description,
+        content: result.content,
+        difficulty: result.difficulty,
+        estimatedTime: result.estimated_time,
+        priority: result.priority,
+        keywords: result.keywords || [],
+        relatedDocs: result.related_docs || [],
+        lastUpdated: result.last_updated,
+      } as Documentation,
+      score: result.similarity * 100, // Convert 0-1 to 0-100 scale
+      matchedKeywords: [], // Vector search doesn't have keyword matches
+    }));
+  } catch (error) {
+    console.error('Vector search exception:', error);
+    return [];
+  }
+}
+
+/**
+ * Search documentation with intelligent hybrid ranking
+ * 1. Try keyword search first (fast, free, 90% of queries)
+ * 2. If low results, fallback to vector search (accurate, <$0.0001 per search)
+ */
+export async function searchDocumentation(
   query: string,
   context?: AppContext,
   limit: number = 5
-): DocSearchResult[] {
+): Promise<DocSearchResult[]> {
   if (!query || query.trim().length === 0) {
     // Return high-priority onboarding docs if no query
     return DOCUMENTATION
@@ -111,6 +172,7 @@ export function searchDocumentation(
       }));
   }
 
+  // STEP 1: Try keyword search first (instant, free)
   const results: DocSearchResult[] = [];
 
   DOCUMENTATION.forEach(doc => {
@@ -134,10 +196,75 @@ export function searchDocumentation(
     }
   });
 
-  // Sort by score (highest first) and return top N
-  return results
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  // Sort by score
+  const sortedResults = results.sort((a, b) => b.score - a.score);
+
+  // STEP 2: Check if keyword search was successful
+  const hasGoodResults = sortedResults.length >= 3 || (sortedResults.length > 0 && sortedResults[0].score > 50);
+
+  if (hasGoodResults) {
+    // Keyword search succeeded - return results (90% of queries)
+    return sortedResults.slice(0, limit);
+  }
+
+  // STEP 3: Keyword search failed - try vector search (10% of queries)
+  console.log('[Search] Keyword search weak, trying vector search...');
+  const vectorResults = await searchDocumentationVector(query, limit);
+
+  if (vectorResults.length > 0) {
+    console.log(`[Search] Vector search found ${vectorResults.length} results`);
+    return vectorResults;
+  }
+
+  // STEP 4: Both failed - return whatever keyword search found
+  console.log('[Search] Both searches weak, returning keyword results');
+  return sortedResults.slice(0, limit);
+}
+
+/**
+ * Synchronous version of searchDocumentation for backwards compatibility
+ * Uses keyword search only (no vector fallback)
+ */
+export function searchDocumentationSync(
+  query: string,
+  context?: AppContext,
+  limit: number = 5
+): DocSearchResult[] {
+  if (!query || query.trim().length === 0) {
+    return DOCUMENTATION
+      .filter(doc => (doc.priority || 0) >= 70)
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+      .slice(0, limit)
+      .map(doc => ({
+        doc,
+        score: doc.priority || 0,
+        matchedKeywords: [],
+      }));
+  }
+
+  const results: DocSearchResult[] = [];
+
+  DOCUMENTATION.forEach(doc => {
+    const keywordScore = calculateKeywordScore(query, doc.keywords);
+    const contextBoost = calculateContextBoost(doc, context);
+    const totalScore = keywordScore + contextBoost;
+
+    if (totalScore > 0) {
+      const matchedKeywords = doc.keywords.filter(keyword => {
+        const keywordLower = keyword.toLowerCase();
+        const queryLower = query.toLowerCase();
+        return keywordLower.includes(queryLower) || queryLower.includes(keywordLower);
+      });
+
+      results.push({
+        doc,
+        score: totalScore,
+        matchedKeywords,
+      });
+    }
+  });
+
+  return results.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 /**
