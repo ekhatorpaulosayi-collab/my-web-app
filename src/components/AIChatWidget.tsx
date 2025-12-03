@@ -4,9 +4,8 @@ import { useLocation } from 'react-router-dom';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 import { searchDocumentation, getSuggestedQuestions, getDocById } from '../utils/docSearch';
 import { useAppContext } from '../hooks/useAppContext';
-import DocViewer from './DocViewer';
 import SupportEscalation from './SupportEscalation';
-import { BookOpen, Zap, X } from 'lucide-react';
+import { BookOpen, Zap } from 'lucide-react';
 import { Documentation } from '../types/documentation';
 
 interface Message {
@@ -43,8 +42,6 @@ export default function AIChatWidget({
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [quotaInfo, setQuotaInfo] = useState<any>(null);
-  const [showDocViewer, setShowDocViewer] = useState(false);
-  const [currentDoc, setCurrentDoc] = useState<Documentation | null>(null);
   const [showSupport, setShowSupport] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
@@ -101,17 +98,6 @@ export default function AIChatWidget({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // ESC key to close chat
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        setIsOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || loading) return;
@@ -171,17 +157,6 @@ export default function AIChatWidget({
 
       // STEP 4: Add AI response with doc references and quick actions
       const quickActions: QuickAction[] = [];
-
-      // Add "View Full Guide" button if docs were referenced
-      if (docResults.length > 0) {
-        quickActions.push({
-          label: `📖 View Full Guide: ${docResults[0].doc.title}`,
-          action: () => {
-            setCurrentDoc(docResults[0].doc);
-            setShowDocViewer(true);
-          },
-        });
-      }
 
       // Add "Contact Support" if confidence is low
       if (data.confidence && data.confidence < 0.6) {
@@ -248,14 +223,6 @@ export default function AIChatWidget({
     }, 100);
   };
 
-  const handleOpenDoc = (docId: string) => {
-    const doc = getDocById(docId);
-    if (doc) {
-      setCurrentDoc(doc);
-      setShowDocViewer(true);
-    }
-  };
-
   return (
     <div className="ai-chat-container" style={{
       position: 'fixed',
@@ -315,30 +282,20 @@ export default function AIChatWidget({
             <button
               onClick={() => setIsOpen(false)}
               style={{
-                background: 'rgba(255,255,255,0.25)',
-                border: '1.5px solid rgba(255,255,255,0.4)',
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
                 color: 'white',
-                width: '44px',
-                height: '44px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '50%',
                 cursor: 'pointer',
+                fontSize: '1.25rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transition: 'all 0.2s',
-                WebkitTapHighlightColor: 'transparent',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.35)';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.25)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-              aria-label="Close chat"
             >
-              <X size={20} strokeWidth={2.5} />
+              ×
             </button>
           </div>
 
@@ -573,27 +530,6 @@ export default function AIChatWidget({
         >
           💬
         </button>
-      )}
-
-      {/* Doc Viewer Modal */}
-      {showDocViewer && currentDoc && (
-        <DocViewer
-          doc={currentDoc}
-          onClose={() => {
-            setShowDocViewer(false);
-            setCurrentDoc(null);
-          }}
-          onSwitchDoc={(newDocId) => {
-            const newDoc = getDocById(newDocId);
-            if (newDoc) {
-              setCurrentDoc(newDoc);
-            }
-          }}
-          onContactSupport={() => {
-            setShowDocViewer(false);
-            setShowSupport(true);
-          }}
-        />
       )}
 
       {/* Support Escalation Modal */}
