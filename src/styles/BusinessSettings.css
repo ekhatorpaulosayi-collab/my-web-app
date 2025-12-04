@@ -1181,14 +1181,15 @@ html, body {
 
   /* Bottom Sign Out Section - Extra padding on mobile to prevent overlap with fixed footer */
   .bs-signout-section {
-    padding-bottom: 80px !important;
-    margin-bottom: 40px !important;
+    padding-bottom: 120px !important;
+    margin-bottom: 50px !important;
   }
 
   /* Ensure Sign Out button inside the section is fully visible */
   .bs-signout-section button {
     position: relative !important;
     z-index: 1 !important;
+    margin-bottom: 20px !important;
   }
 }
 
