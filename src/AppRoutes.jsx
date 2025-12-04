@@ -33,6 +33,7 @@ const ErrorMonitoringDashboard = lazy(() => import('./pages/ErrorMonitoringDashb
 const WhatsAppAI = lazy(() => import('./pages/WhatsAppAI.tsx'));
 const HelpCenter = lazy(() => import('./pages/HelpCenter.tsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.tsx'));
+const SubmitTestimonial = lazy(() => import('./pages/SubmitTestimonial.tsx'));
 
 /**
  * App Routes
@@ -323,6 +324,9 @@ export default function AppRoutes() {
 
         {/* Landing Page - Public marketing page */}
         <Route path="/landing" element={<LandingPage />} />
+
+        {/* Testimonial Submission - Public form for customers */}
+        <Route path="/submit-testimonial" element={<SubmitTestimonial />} />
 
         {/* Main dashboard */}
         <Route

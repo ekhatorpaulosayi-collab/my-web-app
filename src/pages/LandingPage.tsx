@@ -764,13 +764,25 @@ export default function LandingPage() {
           <h2>Ready to Transform Your Business?</h2>
           <p>Join thousands of Nigerian businesses using Storehouse</p>
 
-          <button
-            className="btn-gradient-primary btn-xl"
-            onClick={() => navigate('/signup')}
-          >
-            Start Your Free Trial
-            <ArrowRight size={24} />
-          </button>
+          <div className="cta-buttons-group">
+            <button
+              className="btn-gradient-primary btn-xl"
+              onClick={() => navigate('/signup')}
+            >
+              Start Your Free Trial
+              <ArrowRight size={24} />
+            </button>
+
+            <a
+              href="https://wa.me/2348000000000?text=Hi!%20I%27m%20interested%20in%20Storehouse"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-whatsapp btn-xl"
+            >
+              <MessageCircle size={24} />
+              Chat on WhatsApp
+            </a>
+          </div>
 
           <div className="cta-trust">
             <Shield size={16} />
@@ -805,6 +817,7 @@ export default function LandingPage() {
               <a href="#">About Us</a>
               <a href="#">Blog</a>
               <a onClick={() => scrollToSection('testimonials')}>Reviews</a>
+              <a onClick={() => navigate('/submit-testimonial')}>Share Your Story</a>
             </div>
 
             <div className="footer-col">
