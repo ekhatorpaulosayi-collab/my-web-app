@@ -74,7 +74,7 @@ export default function LandingPage() {
             <img
               src="/storehouse-logo-blue.png"
               alt="Storehouse - Inventory Management"
-              style={{ height: '80px', width: 'auto', cursor: 'pointer' }}
+              style={{ height: '56px', width: 'auto', cursor: 'pointer' }}
               onError={(e) => {
                 console.error('Logo failed to load');
                 e.currentTarget.style.display = 'none';
