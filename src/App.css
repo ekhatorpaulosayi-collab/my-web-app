@@ -33,10 +33,26 @@ body {
   line-height: 1.6;
 }
 
+/* Desktop: Professional background for centered layout */
+@media (min-width: 1024px) {
+  body {
+    background: #E8EEF5;
+  }
+}
+
 .app {
   min-height: 100vh;
   padding-bottom: 80px; /* Space for bottom bar */
   background: linear-gradient(180deg, #F0F7FF 0%, #FFFFFF 100%);
+}
+
+/* Desktop: Center content professionally */
+@media (min-width: 1024px) {
+  .app {
+    max-width: 1400px;
+    margin: 0 auto;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+  }
 }
 
 /* Dashboard Header - Stage E Design */
