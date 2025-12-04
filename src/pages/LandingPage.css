@@ -209,6 +209,19 @@
   position: relative;
 }
 
+.hero-real-image {
+  width: 100%;
+  height: auto;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+}
+
+.hero-real-image:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
+}
+
 .hero-dashboard-preview {
   border-radius: 16px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
@@ -338,6 +351,210 @@
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ============================================
+   EASE OF USE - GRANDMA APPROVED SECTION
+   ============================================ */
+
+.ease-of-use-section {
+  padding: 6rem 0;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.ease-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+.ease-image {
+  position: relative;
+}
+
+.grandma-image {
+  width: 100%;
+  height: auto;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s ease;
+}
+
+.grandma-image:hover {
+  transform: scale(1.02);
+}
+
+.ease-text {
+  padding-left: 2rem;
+}
+
+.ease-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0.5rem 1rem;
+  border-radius: 50px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.badge-icon {
+  color: #2063F0;
+}
+
+.ease-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #1e293b;
+  margin: 0 0 1rem 0;
+}
+
+.ease-description {
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: #64748b;
+  margin: 0 0 2rem 0;
+}
+
+.ease-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.ease-feature {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.feature-check {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .ease-of-use-section {
+    padding: 3rem 0;
+  }
+
+  .ease-content {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .ease-text {
+    padding-left: 0;
+  }
+
+  .ease-title {
+    font-size: 2rem;
+  }
+
+  .ease-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================
+   REAL BUSINESSES SHOWCASE
+   ============================================ */
+
+.businesses-showcase {
+  padding: 6rem 0;
+  background: #ffffff;
+}
+
+.businesses-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  margin-top: 3rem;
+}
+
+.business-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.business-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.business-image {
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.business-card:hover .business-image {
+  transform: scale(1.05);
+}
+
+.business-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0));
+  padding: 2rem;
+  color: white;
+}
+
+.business-overlay h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: white;
+}
+
+.business-overlay p {
+  margin: 0;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+@media (max-width: 768px) {
+  .businesses-showcase {
+    padding: 3rem 0;
+  }
+
+  .businesses-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .business-image {
+    height: 300px;
+  }
+
+  .business-overlay {
+    padding: 1.5rem;
+  }
+
+  .business-overlay h3 {
+    font-size: 1.25rem;
+  }
+
+  .business-overlay p {
+    font-size: 0.875rem;
+  }
 }
 
 /* ============================================

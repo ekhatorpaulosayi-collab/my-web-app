@@ -73,7 +73,7 @@ export default function LandingPage() {
             <img
               src="/storehouse-logo-blue.png"
               alt="Storehouse - Inventory Management"
-              style={{ height: '40px', width: 'auto', cursor: 'pointer' }}
+              style={{ height: '80px', width: 'auto', cursor: 'pointer' }}
               onError={(e) => {
                 console.error('Logo failed to load');
                 e.currentTarget.style.display = 'none';
@@ -139,31 +139,11 @@ export default function LandingPage() {
           </div>
 
           <div className="hero-image fade-up">
-            <div className="hero-dashboard-preview floating">
-              {/* Placeholder for dashboard screenshot */}
-              <div className="preview-placeholder glow-effect">
-                <div className="preview-header">
-                  <div className="preview-dot"></div>
-                  <div className="preview-dot"></div>
-                  <div className="preview-dot"></div>
-                </div>
-                <div className="preview-content">
-                  <div className="preview-stats">
-                    <div className="preview-stat-card">
-                      <div className="stat-icon green">₦</div>
-                      <div className="stat-label">Today's Sales</div>
-                      <div className="stat-value">₦45,000</div>
-                    </div>
-                    <div className="preview-stat-card">
-                      <div className="stat-icon blue">📦</div>
-                      <div className="stat-label">Products</div>
-                      <div className="stat-value">127</div>
-                    </div>
-                  </div>
-                  <div className="preview-chart"></div>
-                </div>
-              </div>
-            </div>
+            <img
+              src="/landing-young-professional.png"
+              alt="Nigerian businesswoman using Storehouse inventory app"
+              className="hero-real-image"
+            />
           </div>
         </div>
       </section>
@@ -172,6 +152,60 @@ export default function LandingPage() {
       <section className="social-proof-bar">
         <div className="proof-container">
           <span className="proof-text">Trusted by stores across Lagos, Abuja, Port Harcourt & Beyond</span>
+        </div>
+      </section>
+
+      {/* Ease of Use - Grandma Approved Section */}
+      <section className="ease-of-use-section">
+        <div className="section-container">
+          <div className="ease-content">
+            <div className="ease-image fade-in">
+              <img
+                src="/landing-elderly-woman.png"
+                alt="Elderly Nigerian businesswoman using Storehouse app"
+                className="grandma-image"
+              />
+            </div>
+            <div className="ease-text fade-up">
+              <div className="ease-badge">
+                <CheckCircle size={20} className="badge-icon" />
+                <span>Easy to Use</span>
+              </div>
+              <h2 className="ease-title">
+                So Simple, Even Mama Can Use It
+              </h2>
+              <p className="ease-description">
+                If she can manage her business at 65, imagine what you can do.
+                No tech degree needed. No complicated setup. Just simple tools
+                that work.
+              </p>
+              <div className="ease-features">
+                <div className="ease-feature">
+                  <CheckCircle size={18} className="feature-check" />
+                  <span>No tech skills required</span>
+                </div>
+                <div className="ease-feature">
+                  <CheckCircle size={18} className="feature-check" />
+                  <span>Works on any phone</span>
+                </div>
+                <div className="ease-feature">
+                  <CheckCircle size={18} className="feature-check" />
+                  <span>Learn in 5 minutes</span>
+                </div>
+                <div className="ease-feature">
+                  <CheckCircle size={18} className="feature-check" />
+                  <span>Free forever plan</span>
+                </div>
+              </div>
+              <button
+                className="btn-gradient-primary"
+                onClick={() => navigate('/signup')}
+              >
+                Start Your Free Trial
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -268,6 +302,42 @@ export default function LandingPage() {
                 <li>Best sellers</li>
                 <li>Export to Excel</li>
               </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Real Businesses Showcase */}
+      <section className="businesses-showcase">
+        <div className="section-container">
+          <div className="section-header">
+            <h2 className="section-title">Real Nigerian Businesses Thriving with Storehouse</h2>
+            <p className="section-subtitle">From local shops to growing enterprises</p>
+          </div>
+
+          <div className="businesses-grid">
+            <div className="business-card fade-up">
+              <img
+                src="/landing-spice-shop.png"
+                alt="Nigerian spice shop owners managing inventory with Storehouse"
+                className="business-image"
+              />
+              <div className="business-overlay">
+                <h3>Works Anywhere</h3>
+                <p>On your phone, tablet, or laptop - manage your business from anywhere</p>
+              </div>
+            </div>
+
+            <div className="business-card fade-up">
+              <img
+                src="/landing-business-ecosystem.png"
+                alt="Complete business ecosystem with delivery tracking"
+                className="business-image"
+              />
+              <div className="business-overlay">
+                <h3>Complete Solution</h3>
+                <p>From inventory to delivery - everything you need in one place</p>
+              </div>
             </div>
           </div>
         </div>
