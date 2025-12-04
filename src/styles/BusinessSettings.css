@@ -1141,8 +1141,8 @@ html, body {
     overflow-y: auto !important;
     overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch !important;
-    /* Critical: Add padding for fixed footer (72px footer + 16px buffer) */
-    padding-bottom: 100px !important;
+    /* Critical: Add padding for fixed footer (72px footer + extra space for Sign Out button) */
+    padding-bottom: 160px !important;
     z-index: 2 !important;
   }
 
@@ -1181,8 +1181,14 @@ html, body {
 
   /* Bottom Sign Out Section - Extra padding on mobile to prevent overlap with fixed footer */
   .bs-signout-section {
-    padding-bottom: 40px !important;
-    margin-bottom: 30px !important;
+    padding-bottom: 80px !important;
+    margin-bottom: 40px !important;
+  }
+
+  /* Ensure Sign Out button inside the section is fully visible */
+  .bs-signout-section button {
+    position: relative !important;
+    z-index: 1 !important;
   }
 }
 
