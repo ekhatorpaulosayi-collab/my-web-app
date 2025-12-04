@@ -111,7 +111,7 @@ export default function AIChatWidget({
             timestamp: new Date(),
           }]);
           localStorage.setItem('storehouse_chat_seen', 'true');
-        }, 2000);
+        }, 8000); // 8 seconds delay to let users view dashboard first
       }
     }
   }, [autoOpen, contextType, location.pathname, user]);
