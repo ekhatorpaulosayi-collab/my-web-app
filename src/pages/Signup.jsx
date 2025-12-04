@@ -225,6 +225,13 @@ export default function Signup() {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <div style={{ textAlign: 'center', marginBottom: '2rem', padding: '0 10px' }}>
+          <img
+            src="/storehouse-logo-blue.png"
+            alt="Storehouse"
+            style={{ height: '128px', width: 'auto', marginBottom: '1rem', maxWidth: '100%', objectFit: 'contain' }}
+          />
+        </div>
         <div className="auth-header">
           <h1 className="auth-title">Create Your Store</h1>
           <p className="auth-subtitle">Start managing your inventory today</p>

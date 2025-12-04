@@ -51,7 +51,7 @@
 }
 
 .nav-logo svg {
-  color: #10b981;
+  color: #2063F0;
 }
 
 .nav-links {
@@ -72,7 +72,7 @@
 }
 
 .nav-cta {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   color: white;
   border: none;
   padding: 0.625rem 1.5rem;
@@ -84,7 +84,7 @@
 
 .nav-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px -2px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 6px 12px -2px rgba(32, 99, 240, 0.3);
 }
 
 .mobile-menu-btn {
@@ -202,7 +202,7 @@
 }
 
 .trust-icon {
-  color: #10b981;
+  color: #2063F0;
 }
 
 .hero-image {
@@ -268,7 +268,7 @@
 }
 
 .stat-icon.green {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   color: white;
 }
 
@@ -434,13 +434,13 @@
 .feature-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.1);
-  border-color: #10b981;
+  border-color: #2063F0;
 }
 
 .feature-icon {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   color: white;
   border-radius: 12px;
   display: flex;
@@ -479,7 +479,7 @@
   content: '✓';
   position: absolute;
   left: 0;
-  color: #10b981;
+  color: #2063F0;
   font-weight: 700;
 }
 
@@ -516,7 +516,7 @@
   align-items: center;
   gap: 0.5rem;
   background: #ecfdf5;
-  color: #059669;
+  color: #1850C9;
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.875rem;
@@ -555,7 +555,7 @@
 }
 
 .showcase-benefits svg {
-  color: #10b981;
+  color: #2063F0;
   flex-shrink: 0;
 }
 
@@ -584,7 +584,7 @@
 }
 
 .visual-placeholder.whatsapp {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
 }
 
 .visual-placeholder.mobile {
@@ -678,7 +678,7 @@
 }
 
 .pricing-card.featured {
-  border-color: #10b981;
+  border-color: #2063F0;
   box-shadow: 0 8px 16px -4px rgba(16, 185, 129, 0.2);
 }
 
@@ -687,7 +687,7 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   color: white;
   padding: 0.5rem 1.5rem;
   border-radius: 20px;
@@ -755,7 +755,7 @@
 }
 
 .pricing-features svg {
-  color: #10b981;
+  color: #2063F0;
   flex-shrink: 0;
 }
 
@@ -818,7 +818,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   color: white;
   display: flex;
   align-items: center;
@@ -860,7 +860,7 @@
 }
 
 .faq-item:hover {
-  border-color: #10b981;
+  border-color: #2063F0;
 }
 
 .faq-question {
@@ -909,7 +909,7 @@
    ============================================ */
 
 .final-cta-section {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   padding: 6rem 0;
 }
 
@@ -935,7 +935,7 @@
 
 .cta-container .btn-xl {
   background: white;
-  color: #059669;
+  color: #1850C9;
   box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.2);
 }
 
@@ -992,7 +992,7 @@
 }
 
 .footer-logo svg {
-  color: #10b981;
+  color: #2063F0;
 }
 
 .footer-col p {

@@ -1156,7 +1156,7 @@ export default function BusinessSettings({
             </div>
 
             {/* Sign Out Button - Always Visible */}
-            <div style={{
+            <div className="bs-signout-section" style={{
               padding: '1.5rem 1.5rem 0.5rem',
               borderTop: '2px solid #f3f4f6',
               marginTop: '2rem'

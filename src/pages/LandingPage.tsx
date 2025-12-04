@@ -70,8 +70,7 @@ export default function LandingPage() {
       <nav className="landing-nav glassmorphism">
         <div className="nav-container">
           <div className="nav-logo">
-            <Store size={28} />
-            <span>Storehouse</span>
+            <img src="/storehouse-logo-blue.png" alt="Storehouse" style={{ height: '32px', width: 'auto' }} />
           </div>
 
           <div className={`nav-links ${mobileMenuOpen ? 'mobile-open' : ''}`}>
