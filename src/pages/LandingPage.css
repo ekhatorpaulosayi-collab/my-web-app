@@ -136,8 +136,8 @@
    ============================================ */
 
 .hero-section {
-  padding: 6rem 0 6rem;
-  padding-top: 8rem;
+  padding: 2rem 0 6rem;
+  margin-top: 80px;
   background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
 }
 

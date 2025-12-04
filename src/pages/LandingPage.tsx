@@ -62,10 +62,10 @@ export default function LandingPage() {
 
   return (
     <div className="landing-page">
-      {/* Animated background blobs */}
-      <div className="blob blob-1" style={{ transform: `translate(${scrollY * 0.1}px, ${scrollY * 0.15}px)` }}></div>
+      {/* Animated background blobs - Temporarily disabled for debugging */}
+      {/* <div className="blob blob-1" style={{ transform: `translate(${scrollY * 0.1}px, ${scrollY * 0.15}px)` }}></div>
       <div className="blob blob-2" style={{ transform: `translate(${-scrollY * 0.1}px, ${scrollY * 0.1}px)` }}></div>
-      <div className="blob blob-3" style={{ transform: `translate(${scrollY * 0.05}px, ${-scrollY * 0.08}px)` }}></div>
+      <div className="blob blob-3" style={{ transform: `translate(${scrollY * 0.05}px, ${-scrollY * 0.08}px)` }}></div> */}
 
       {/* Glassmorphism Navigation */}
       <nav className="landing-nav glassmorphism">
@@ -842,8 +842,8 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Documentation-Only Chat Widget for Visitors */}
-      <AIChatWidget contextType="help" />
+      {/* Documentation-Only Chat Widget for Visitors - Temporarily disabled for debugging */}
+      {/* <AIChatWidget contextType="help" /> */}
     </div>
   );
 }
