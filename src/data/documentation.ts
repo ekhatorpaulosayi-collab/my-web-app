@@ -4102,6 +4102,205 @@ When customers order from your store:
   },
 
   {
+    id: 'whatsapp-storefront-ordering',
+    category: 'online-store',
+    title: 'WhatsApp Ordering from Your Store',
+    subtitle: 'How customers order directly via WhatsApp',
+    difficulty: 'beginner',
+    estimatedTime: '4 minutes',
+    priority: 85,
+    description: 'Learn how the WhatsApp ordering button works on your online storefront and how to handle WhatsApp orders.',
+    content: `**What is WhatsApp Ordering?**
+
+Your online store has a **green "Order Now" button** on every product that opens WhatsApp with a pre-filled message - making ordering super easy for Nigerian customers who prefer WhatsApp!
+
+**How It Works (Customer Side):**
+
+**Step 1: Customer browses your store**
+- They visit: storehouse.ng/store/yourslug
+- See all your public products
+
+**Step 2: Customer finds a product they want**
+\`\`\`
+┌────────────────────┐
+│  [Product Image]   │
+│  iPhone 15 Pro     │
+│  ₦850,000         │
+│                    │
+│  [+] Add to Cart  │ ← Cart option
+│  [💚] Order Now    │ ← WhatsApp button (GREEN)
+└────────────────────┘
+\`\`\`
+
+**Step 3: Customer clicks "Order Now"**
+- WhatsApp opens automatically
+- Message is pre-filled:
+  "Hi, I'm interested in ordering *iPhone 15 Pro* (₦850,000)"
+- Your WhatsApp number is auto-selected
+- Customer just needs to hit send!
+
+**Benefits for Customers:**
+
+✅ No need to create account
+✅ Order in under 10 seconds
+✅ Direct communication with seller
+✅ Can ask questions before buying
+✅ Can negotiate delivery details
+✅ Familiar (everyone knows WhatsApp)
+
+**How to Set Up (Your Side):**
+
+**Step 1: Add WhatsApp Number**
+- Go to **More** → **Settings** → **Business Settings**
+- Scroll to **WhatsApp Number**
+- Enter your business WhatsApp (format: 2348012345678 or 08012345678)
+- Click **Save**
+
+**Step 2: Make Products Public**
+- Go to **Inventory**
+- Edit product
+- Check **"Show in Online Store"**
+- Save
+
+**Step 3: Test It!**
+- Visit your store: storehouse.ng/store/yourslug
+- Click **"Order Now"** on any product
+- Verify WhatsApp opens with correct message
+
+**What Happens When Customer Orders:**
+
+**You Receive:**
+- WhatsApp message from customer
+- Pre-filled with product details
+- Customer's phone number (can save to contacts)
+
+**Example Messages You'll Get:**
+
+\`\`\`
+Customer: Hi, I'm interested in ordering *Golden Penny Flour 50kg* (₦35,000)
+
+Customer: Hello! Can I order *Dangote Sugar 1kg* (₦1,200)? Do you deliver to Ikeja?
+
+Customer: Hi! I want to buy *iPhone 15 Pro* (₦850,000). Is it still available?
+\`\`\`
+
+**How to Respond:**
+
+**Good Response:**
+\`\`\`
+You: Hello! Yes, iPhone 15 Pro is available ✅
+
+Price: ₦850,000
+Delivery: ₦2,000 (within Lagos)
+Estimated delivery: 1-2 days
+
+To confirm your order:
+1. Send delivery address
+2. Payment: Bank transfer or Pay on Delivery
+
+Shall we proceed? 😊
+\`\`\`
+
+**After Customer Confirms:**
+
+**Step 1: Confirm Details**
+- Verify delivery address
+- Confirm payment method
+- Set delivery date
+
+**Step 2: Record the Sale**
+- Go to **Storehouse** → **Record Sale**
+- Select the product
+- Enter customer details
+- Select channel: **WhatsApp**
+- Save
+
+**Step 3: Process Order**
+- Pack the item
+- Arrange delivery
+- Update customer via WhatsApp
+
+**Step 4: Collect Payment**
+- If Pay on Delivery: Collect when delivering
+- If Bank Transfer: Share account details
+- Mark as paid in Storehouse when received
+
+**Multiple Items Order:**
+
+If customer wants multiple products:
+
+\`\`\`
+Customer: Hi! I want:
+- Golden Penny Flour x 2 = ₦70,000
+- Dangote Sugar x 5 = ₦6,000
+
+Total: ₦76,000
+
+Do you deliver to Lekki?
+\`\`\`
+
+**Your Response:**
+- Confirm all items available
+- Calculate delivery fee
+- Send total amount
+- Confirm order when customer agrees
+
+**WhatsApp vs Cart Checkout:**
+
+**WhatsApp Ordering:**
+✅ Faster for customers (no forms)
+✅ Personal communication
+✅ Can negotiate/ask questions
+✅ Works for all ages (even non-tech)
+❌ You manually record sale
+
+**Cart Checkout (Paystack):**
+✅ Automatic payment
+✅ Auto-records in Storehouse
+✅ Professional checkout flow
+❌ Requires payment setup
+❌ Some customers distrust online payment
+
+**💡 Pro Tip:** Enable BOTH methods!
+- Tech-savvy customers use cart
+- Traditional customers use WhatsApp
+- More payment options = More sales!
+
+**Common Questions:**
+
+**Q: Can I disable the WhatsApp button?**
+A: Yes! Remove your WhatsApp number in Settings → Business Settings
+
+**Q: Can I change the button text?**
+A: Not currently - it says "Order Now" for all stores
+
+**Q: Do I get notified of orders?**
+A: Yes, via WhatsApp! Customer messages you directly
+
+**Q: How do I track WhatsApp orders?**
+A: Record them manually in Storehouse → Sales
+
+**Q: Can customers order multiple products at once?**
+A: Currently, button sends one product at a time. Customer can message you about multiple items.
+
+**🚀 Next Steps:**
+
+1. ✅ Set your WhatsApp number in Settings
+2. ✅ Make products public
+3. ✅ Share your store link
+4. ✅ Start getting WhatsApp orders!
+
+**Share Your Store:**
+- WhatsApp Status: "Shop online! storehouse.ng/store/yourslug"
+- Instagram Bio: Add link
+- Facebook posts: Share store URL
+- Print on flyers/business cards`,
+    relatedDocs: ['create-online-store', 'manage-online-orders', 'record-first-sale', 'business-settings'],
+    keywords: ['whatsapp', 'order via whatsapp', 'whatsapp button', 'whatsapp ordering', 'order now button', 'how customers order whatsapp', 'whatsapp sales', 'green button', 'storefront whatsapp', 'customer ordering', 'whatsapp store'],
+    lastUpdated: '2025-12-04',
+  },
+
+  {
     id: 'manage-online-orders',
     category: 'online-store',
     title: 'Handle Online Store Customers',
