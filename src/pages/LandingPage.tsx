@@ -69,8 +69,16 @@ export default function LandingPage() {
       {/* Glassmorphism Navigation */}
       <nav className="landing-nav glassmorphism">
         <div className="nav-container">
-          <div className="nav-logo">
-            <img src="/storehouse-logo-blue.png" alt="Storehouse" style={{ height: '32px', width: 'auto' }} />
+          <div className="nav-logo" onClick={() => navigate('/')}>
+            <img
+              src="/storehouse-logo-blue.png"
+              alt="Storehouse - Inventory Management"
+              style={{ height: '40px', width: 'auto', cursor: 'pointer' }}
+              onError={(e) => {
+                console.error('Logo failed to load');
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           </div>
 
           <div className={`nav-links ${mobileMenuOpen ? 'mobile-open' : ''}`}>
