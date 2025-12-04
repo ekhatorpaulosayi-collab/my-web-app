@@ -6,6 +6,7 @@ import {
   CheckCircle, ArrowRight, Menu, X,
   Store, Zap, Shield, Clock, ChevronDown, Sparkles
 } from 'lucide-react';
+import AIChatWidget from '../components/AIChatWidget';
 import './LandingPage.css';
 
 export default function LandingPage() {
@@ -840,6 +841,9 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Documentation-Only Chat Widget for Visitors */}
+      <AIChatWidget contextType="help" />
     </div>
   );
 }
