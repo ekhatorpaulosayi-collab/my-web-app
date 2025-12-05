@@ -121,6 +121,56 @@ export default function LandingPage() {
     setMobileMenuOpen(false);
   };
 
+  // Add Schema.org structured data for SEO
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Storehouse",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Inventory Management",
+      "operatingSystem": "Web, iOS, Android",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "NGN",
+        "availability": "https://schema.org/InStock"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "1000",
+        "bestRating": "5",
+        "worstRating": "1"
+      },
+      "creator": {
+        "@type": "Organization",
+        "name": "Storehouse",
+        "url": "https://storehouse.app"
+      },
+      "description": "Manage inventory, track sales, and record credits from your phone. Built for Nigerian retailers. Works offline with WhatsApp integration.",
+      "featureList": [
+        "Offline inventory management",
+        "WhatsApp receipt sharing",
+        "Sales tracking and analytics",
+        "Credit/debt management",
+        "Low stock alerts",
+        "Multi-device sync",
+        "Online store creation"
+      ],
+      "screenshot": "https://storehouse.app/landing-young-professional.png",
+      "softwareVersion": "2.0",
+      "inLanguage": "en-NG",
+      "releaseNotes": "Complete inventory management solution for Nigerian businesses"
+    });
+    document.head.appendChild(script);
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, []);
+
   return (
     <div className="landing-page">
       {/* Animated background blobs */}
@@ -145,7 +195,7 @@ export default function LandingPage() {
             <a onClick={() => scrollToSection('testimonials')}>Reviews</a>
             <a onClick={() => scrollToSection('faq')}>FAQ</a>
             <button className="nav-cta" onClick={() => navigate('/signup')}>
-              Start Free Forever
+              Get Started Free
             </button>
           </div>
 
@@ -179,7 +229,7 @@ export default function LandingPage() {
                 className="btn-gradient-primary btn-lg"
                 onClick={() => navigate('/signup')}
               >
-                Start Free Forever
+                Get Started Free
                 <ArrowRight size={20} />
               </button>
               <button
@@ -199,7 +249,7 @@ export default function LandingPage() {
           <div className="hero-image fade-up">
             <img
               src="/landing-young-professional.png"
-              alt="Nigerian businesswoman using Storehouse inventory app"
+              alt="Nigerian businesswoman in traditional ankara dress using Storehouse inventory management app on smartphone to track stock and sales"
               className="hero-real-image"
             />
           </div>
@@ -220,7 +270,7 @@ export default function LandingPage() {
             <div className="ease-image fade-in">
               <img
                 src="/landing-elderly-woman.png"
-                alt="Elderly Nigerian businesswoman using Storehouse app"
+                alt="Elderly Nigerian woman in traditional gele headwrap smiling while using simple inventory app - easy for all ages"
                 className="grandma-image"
               />
             </div>
@@ -252,7 +302,7 @@ export default function LandingPage() {
                 </div>
                 <div className="ease-feature">
                   <CheckCircle size={18} className="feature-check" />
-                  <span>Free forever plan</span>
+                  <span>Free plan</span>
                 </div>
               </div>
               <button
@@ -377,7 +427,7 @@ export default function LandingPage() {
             <div className="business-card fade-up">
               <img
                 src="/landing-spice-shop.png"
-                alt="Nigerian spice shop owners managing inventory with Storehouse"
+                alt="Nigerian couple managing spice shop inventory using Storehouse software on phone and laptop for retail business"
                 className="business-image"
               />
               <div className="business-overlay">
@@ -389,7 +439,7 @@ export default function LandingPage() {
             <div className="business-card fade-up">
               <img
                 src="/landing-business-ecosystem.png"
-                alt="Complete business ecosystem with delivery tracking"
+                alt="Complete business ecosystem showing Storehouse inventory management with multi-device sync and delivery tracking"
                 className="business-image"
               />
               <div className="business-overlay">
@@ -560,7 +610,7 @@ export default function LandingPage() {
               <div className="pricing-amount">
                 <span className="price-currency">₦</span>
                 <span className="price-value">0</span>
-                <span className="price-period">/forever</span>
+                <span className="price-period">/month</span>
               </div>
 
               <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
@@ -737,7 +787,7 @@ export default function LandingPage() {
           </div>
 
           <div className="pricing-footer-new">
-            <p><strong>Start free forever</strong> • No credit card required • Upgrade anytime</p>
+            <p><strong>Start free</strong> • No credit card required • Upgrade anytime</p>
           </div>
         </div>
       </section>
@@ -866,7 +916,7 @@ export default function LandingPage() {
               },
               {
                 question: 'How much does it cost?',
-                answer: 'Start free forever with 50 products and 50 AI chats per month. When you need more, upgrade to Starter (₦5,000/month for 200 products), Pro (₦10,000/month for unlimited products + WhatsApp AI), or Business (₦15,000/month for maximum scale). No credit card required to start.'
+                answer: 'Start free with 50 products and 50 AI chats per month. When you need more, upgrade to Starter (₦5,000/month for 200 products), Pro (₦10,000/month for unlimited products + WhatsApp AI), or Business (₦15,000/month for maximum scale). No credit card required to start.'
               },
               {
                 question: 'Can I try it before paying?',
@@ -922,7 +972,7 @@ export default function LandingPage() {
               className="btn-gradient-primary btn-xl"
               onClick={() => navigate('/signup')}
             >
-              Start Free Forever
+              Get Started Free
               <ArrowRight size={24} />
             </button>
 
