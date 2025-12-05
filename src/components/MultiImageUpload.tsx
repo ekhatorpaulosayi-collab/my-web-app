@@ -11,6 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import UpgradeModal from './UpgradeModal';
 
 interface ProductImage {
   id?: string;
@@ -40,6 +41,7 @@ export default function MultiImageUpload({
   const [tierInfo, setTierInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Fetch tier information and limits
   useEffect(() => {
@@ -120,7 +122,8 @@ export default function MultiImageUpload({
     console.log('[MultiImageUpload] Files to upload:', filesToUpload.length);
 
     if (files.length > remainingSlots) {
-      alert(`You can only add ${remainingSlots} more image(s). ${tierInfo?.tier === 'free' ? 'Upgrade to Starter for 3 images per product!' : ''}`);
+      setShowUpgradeModal(true);
+      if (remainingSlots === 0) return; // Don't upload if at limit
     }
 
     // Add files to state immediately (with uploading status)
@@ -605,6 +608,18 @@ export default function MultiImageUpload({
       }}>
         💡 Drag images to reorder • First image is shown in listings • Click ★ to set as primary
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        limitType="images"
+        currentTier={tierInfo?.tier_name || 'Free'}
+        suggestedTier={tierInfo?.limit === 1 ? 'Starter' : tierInfo?.limit === 3 ? 'Pro' : 'Business'}
+        currentCount={images.length}
+        limit={tierInfo?.limit || 1}
+        reason={`Your ${tierInfo?.tier_name || 'Free'} tier allows ${tierInfo?.limit || 1} images per product`}
+      />
     </div>
   );
 }
