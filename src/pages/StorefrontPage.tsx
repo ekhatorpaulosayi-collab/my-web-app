@@ -21,6 +21,7 @@ import ProductImageGallery from '../components/ProductImageGallery';
 import ReviewForm from '../components/ReviewForm';
 import ReviewList from '../components/ReviewList';
 import { getProductReviewStats, type ReviewStats } from '../services/reviewService';
+import AIChatWidget from '../components/AIChatWidget';
 import '../styles/storefront.css';
 
 interface Product {
@@ -2190,6 +2191,12 @@ function StorefrontContent() {
 
       {/* Cart Sidebar */}
       {store && <Cart store={store} />}
+
+      {/* AI Shopping Assistant */}
+      <AIChatWidget
+        contextType="storefront"
+        storeSlug={slug}
+      />
     </div>
   );
 }

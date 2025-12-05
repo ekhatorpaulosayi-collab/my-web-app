@@ -1311,12 +1311,12 @@ You: "Ah, I can help! Quick fix: You can export your inventory and share it. Eve
   return basePrompt;
 }
 
-// Handle storefront chat (customer inquiries)
+// Handle storefront chat (customer inquiries) - FAQ first, AI fallback
 async function handleStorefrontChat(supabase: any, message: string, storeSlug: string) {
   // Get store owner
   const { data: store } = await supabase
     .from('store_settings')
-    .select('user_id, business_name')
+    .select('user_id, business_name, phone, address, delivery_info, payment_methods')
     .eq('slug', storeSlug)
     .single();
 
@@ -1324,29 +1324,147 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
     return jsonResponse({ error: 'Store not found' }, 404);
   }
 
-  // Search products
+  const lowerMessage = message.toLowerCase();
+
+  // FAQ-based responses (FREE, no AI cost!)
+
+  // Greeting
+  if (lowerMessage.match(/^(hi|hello|hey|good morning|good afternoon|good evening)/i)) {
+    return jsonResponse({
+      response: `👋 Welcome to ${store.business_name}! I'm here to help you find products.\n\n💬 Ask me:\n• "How much is [product]?"\n• "Do you have [product]?"\n• "What phones do you have?"\n\nWhat are you looking for today?`,
+      confidence: 0.95
+    });
+  }
+
+  // Payment methods
+  if (lowerMessage.match(/payment|pay|how (do|can) i pay|bank|transfer/i)) {
+    const paymentInfo = store.payment_methods && store.payment_methods.length > 0
+      ? `We accept:\n${store.payment_methods.map((pm: any) => `💳 ${pm.provider} - ${pm.account_name} (${pm.account_number})`).join('\n')}`
+      : 'Please contact us for payment information.';
+
+    return jsonResponse({
+      response: `**Payment Methods:**\n\n${paymentInfo}\n\n${store.phone ? `📱 WhatsApp: ${store.phone}` : ''}`,
+      confidence: 0.95
+    });
+  }
+
+  // Delivery
+  if (lowerMessage.match(/deliver|delivery|shipping|ship/i)) {
+    const deliveryInfo = store.delivery_info || 'Please contact us for delivery information.';
+    return jsonResponse({
+      response: `📦 **Delivery Information:**\n\n${deliveryInfo}\n\n${store.phone ? `📱 WhatsApp: ${store.phone} for details` : ''}`,
+      confidence: 0.95
+    });
+  }
+
+  // Location
+  if (lowerMessage.match(/location|address|where (are you|is your shop)/i)) {
+    const address = store.address || 'Please contact us for our location.';
+    return jsonResponse({
+      response: `📍 **Our Location:**\n\n${address}\n\n${store.phone ? `📱 Call/WhatsApp: ${store.phone}` : ''}`,
+      confidence: 0.95
+    });
+  }
+
+  // Contact
+  if (lowerMessage.match(/contact|phone|whatsapp|call/i)) {
+    const contact = store.phone
+      ? `📱 **Contact Us:**\n\nWhatsApp/Call: ${store.phone}`
+      : 'Please check our store for contact information.';
+    return jsonResponse({
+      response: contact,
+      confidence: 0.95
+    });
+  }
+
+  // Product search (fuzzy matching, better than simple ILIKE)
   const { data: products } = await supabase
     .from('products')
-    .select('name, price, quantity')
+    .select('name, selling_price, quantity, description')
     .eq('user_id', store.user_id)
-    .ilike('name', `%${message}%`)
-    .limit(5);
+    .eq('is_public', true)
+    .or(`name.ilike.%${message}%,description.ilike.%${message}%`)
+    .limit(10);
 
-  // Generate response
-  const systemPrompt = `You are a shop assistant for ${store.business_name}.
+  // FAQ: Simple price/availability questions
+  if (lowerMessage.match(/how much|price|cost|sell/i) && products && products.length > 0) {
+    const productList = products.map((p: any) => {
+      const price = Math.floor(p.selling_price / 100); // FIX: Convert kobo to naira
+      const stock = p.quantity > 0 ? `✅ ${p.quantity} in stock` : '❌ Out of stock';
+      return `• ${p.name} - ₦${price.toLocaleString()} (${stock})`;
+    }).join('\n');
 
-ONLY answer questions about:
-1. Product prices
-2. Product availability
-3. Store information
+    return jsonResponse({
+      response: `Here's what we have:\n\n${productList}\n\n${store.phone ? `📱 Order via WhatsApp: ${store.phone}` : 'Add to cart to order!'}`,
+      confidence: 0.95
+    });
+  }
 
-Products available:
-${products?.map((p: any) => `- ${p.name}: ₦${p.price.toLocaleString()} (${p.quantity > 0 ? 'In stock' : 'Out of stock'})`).join('\n') || 'No products found'}
+  // FAQ: Availability check
+  if (lowerMessage.match(/do you have|available|in stock/i) && products && products.length > 0) {
+    const available = products.filter((p: any) => p.quantity > 0);
+    const outOfStock = products.filter((p: any) => p.quantity === 0);
 
-If asked about unrelated topics:
-"I can only help with product information. What product are you interested in?"`;
+    let response = '';
+    if (available.length > 0) {
+      response += `✅ **Available:**\n${available.map((p: any) => {
+        const price = Math.floor(p.selling_price / 100);
+        return `• ${p.name} - ₦${price.toLocaleString()} (${p.quantity} in stock)`;
+      }).join('\n')}`;
+    }
+    if (outOfStock.length > 0) {
+      response += `\n\n❌ **Out of Stock:**\n${outOfStock.map((p: any) => `• ${p.name}`).join('\n')}`;
+    }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    return jsonResponse({
+      response: response || 'Sorry, we don\'t have that product right now.',
+      confidence: 0.9
+    });
+  }
+
+  // If products found but not a specific question, list them
+  if (products && products.length > 0) {
+    const productList = products.slice(0, 5).map((p: any) => {
+      const price = Math.floor(p.selling_price / 100);
+      return `• ${p.name} - ₦${price.toLocaleString()}`;
+    }).join('\n');
+
+    return jsonResponse({
+      response: `I found these products:\n\n${productList}\n\n💬 Ask me "How much is [product]?" or "Do you have [product]?" for more details!`,
+      confidence: 0.8
+    });
+  }
+
+  // No products found - try AI (uses credits)
+  if (!OPENAI_API_KEY) {
+    return jsonResponse({
+      response: `Sorry, I couldn't find "${message}" in our store. Try searching for something else, or contact us at ${store.phone || 'our phone number'}.`,
+      confidence: 0.3
+    });
+  }
+
+  // AI fallback for complex questions (uses credits)
+  const { data: allProducts } = await supabase
+    .from('products')
+    .select('name, selling_price, quantity')
+    .eq('user_id', store.user_id)
+    .eq('is_public', true)
+    .limit(20);
+
+  const productContext = allProducts?.map((p: any) => {
+    const price = Math.floor(p.selling_price / 100);
+    return `${p.name}: ₦${price.toLocaleString()} (${p.quantity > 0 ? 'In stock' : 'Out of stock'})`;
+  }).join(', ') || 'No products available';
+
+  const systemPrompt = `You are a friendly shop assistant for ${store.business_name}.
+
+Available products: ${productContext}
+
+Answer customer questions about products, prices, and availability. Be helpful and concise (max 100 words).
+
+If you don't know something, suggest they contact ${store.phone || 'the store'}.`;
+
+  const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1358,15 +1476,19 @@ If asked about unrelated topics:
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
-      max_tokens: 150,
+      max_tokens: 120,
       temperature: 0.7,
     }),
   });
 
-  const data = await response.json();
-  const aiResponse = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.';
+  const data = await aiResponse.json();
+  const response = data.choices?.[0]?.message?.content || `Sorry, I couldn't understand that. Contact us at ${store.phone || 'our store'} for help!`;
 
-  return jsonResponse({ response: aiResponse });
+  return jsonResponse({
+    response,
+    confidence: 0.6,
+    usedAI: true  // Flag that AI was used
+  });
 }
 
 // Update user preferences based on conversation
