@@ -1377,6 +1377,14 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
     });
   }
 
+  // Block unrelated questions (FREE - no AI cost!)
+  if (lowerMessage.match(/subscription|how much (do|does) (you|they|he|she) pay|owner|profit|revenue|salary|employee|staff|business cost|your price|what (do|does) you (pay|charge)|storehouse|smartstock/i)) {
+    return jsonResponse({
+      response: `I'm here to help you shop for products! 😊\n\n💬 I can answer questions about:\n• Product prices and availability\n• Payment methods\n• Delivery information\n• Our location\n\n${store.phone ? `📱 For business inquiries, please WhatsApp us: ${store.phone}` : 'For other questions, please contact the store directly.'}\n\nWhat product are you looking for today?`,
+      confidence: 0.95
+    });
+  }
+
   // Product search (fuzzy matching, better than simple ILIKE)
   const { data: products } = await supabase
     .from('products')
@@ -1394,8 +1402,32 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
       return `• ${p.name} - ₦${price.toLocaleString()} (${stock})`;
     }).join('\n');
 
+    let response = `Here's what we have:\n\n${productList}\n\n`;
+
+    // Add WhatsApp order instructions
+    if (store.phone) {
+      response += `📱 **Ready to order?**\nWhatsApp us: ${store.phone}\n\n`;
+    }
+
+    // Get related products for upselling (only in-stock items)
+    const { data: relatedProducts } = await supabase
+      .from('products')
+      .select('name, selling_price, quantity')
+      .eq('user_id', store.user_id)
+      .eq('is_public', true)
+      .gt('quantity', 0)
+      .not('name', 'in', `(${products.map((p: any) => p.name).join(',')})`)
+      .limit(3);
+
+    if (relatedProducts && relatedProducts.length > 0) {
+      response += `💡 **You might also like:**\n${relatedProducts.map((p: any) => {
+        const relPrice = Math.floor(p.selling_price / 100);
+        return `• ${p.name} - ₦${relPrice.toLocaleString()}`;
+      }).join('\n')}`;
+    }
+
     return jsonResponse({
-      response: `Here's what we have:\n\n${productList}\n\n${store.phone ? `📱 Order via WhatsApp: ${store.phone}` : 'Add to cart to order!'}`,
+      response,
       confidence: 0.95
     });
   }
@@ -1419,6 +1451,52 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
     return jsonResponse({
       response: response || 'Sorry, we don\'t have that product right now.',
       confidence: 0.9
+    });
+  }
+
+  // FAQ: Interested buyers - Direct to WhatsApp!
+  if (lowerMessage.match(/i want|i would like|i need|interested|buy|purchase|order|place (an )?order|get (the|this|that)|can i (buy|order|get)/i) && products && products.length > 0) {
+    const available = products.filter((p: any) => p.quantity > 0);
+
+    if (available.length === 0) {
+      return jsonResponse({
+        response: `Sorry, the product you're interested in is currently out of stock. 😔\n\n${store.phone ? `📱 WhatsApp us at ${store.phone} to know when it's back in stock or explore alternatives!` : 'Please check back later!'}`,
+        confidence: 0.9
+      });
+    }
+
+    // Get related products for recommendations
+    const { data: relatedProducts } = await supabase
+      .from('products')
+      .select('name, selling_price, quantity')
+      .eq('user_id', store.user_id)
+      .eq('is_public', true)
+      .gt('quantity', 0)
+      .neq('name', available[0].name)
+      .limit(3);
+
+    const mainProduct = available[0];
+    const price = Math.floor(mainProduct.selling_price / 100);
+
+    let response = `Great choice! 🎉\n\n**${mainProduct.name}** - ₦${price.toLocaleString()} (${mainProduct.quantity} in stock)\n\n`;
+
+    if (store.phone) {
+      response += `📱 **To place your order:**\n1. WhatsApp us: ${store.phone}\n2. Message: "I want to order ${mainProduct.name}"\n3. We'll confirm payment & delivery!\n\n`;
+    } else {
+      response += `Add to cart to complete your order!\n\n`;
+    }
+
+    // Add recommendations if available
+    if (relatedProducts && relatedProducts.length > 0) {
+      response += `💡 **You might also like:**\n${relatedProducts.map((p: any) => {
+        const relPrice = Math.floor(p.selling_price / 100);
+        return `• ${p.name} - ₦${relPrice.toLocaleString()}`;
+      }).join('\n')}`;
+    }
+
+    return jsonResponse({
+      response,
+      confidence: 0.95
     });
   }
 
@@ -1456,13 +1534,20 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
     return `${p.name}: ₦${price.toLocaleString()} (${p.quantity > 0 ? 'In stock' : 'Out of stock'})`;
   }).join(', ') || 'No products available';
 
-  const systemPrompt = `You are a friendly shop assistant for ${store.business_name}.
+  const systemPrompt = `You are a professional shop assistant for ${store.business_name}.
 
 Available products: ${productContext}
 
-Answer customer questions about products, prices, and availability. Be helpful and concise (max 100 words).
+STRICT RULES:
+1. ONLY answer questions about OUR products, prices, availability, payment methods, or delivery
+2. DECLINE unrelated questions politely: "I can only help with product inquiries. ${store.phone ? `WhatsApp us at ${store.phone} for other questions.` : 'Contact the store for other questions.'}"
+3. NEVER discuss: owner's costs, subscriptions, business expenses, profits, or internal operations
+4. When customers show interest in buying, ALWAYS say: "${store.phone ? `Great! WhatsApp us at ${store.phone} to complete your order!` : 'Add to cart to complete your order!'}"
+5. Suggest 1-2 related products when appropriate to increase sales
+6. Be friendly, helpful, and concise (max 100 words)
+7. If unsure about something, say: "${store.phone ? `Contact us on WhatsApp: ${store.phone} for details!` : 'Contact the store for more details!'}"
 
-If you don't know something, suggest they contact ${store.phone || 'the store'}.`;
+Your goal: Help customers find products and guide them to make a purchase via WhatsApp.`;
 
   const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
