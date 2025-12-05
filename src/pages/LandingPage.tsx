@@ -10,11 +10,15 @@ import AIChatWidget from '../components/AIChatWidget';
 import './LandingPage.css';
 
 // Pricing Toggle Component
-function PricingToggle() {
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
-
+function PricingToggle({ billingCycle, setBillingCycle }: {
+  billingCycle: 'monthly' | 'annual';
+  setBillingCycle: (cycle: 'monthly' | 'annual') => void;
+}) {
   return (
     <div className="pricing-toggle-container">
+      <p className="pricing-toggle-label">
+        💰 Choose your billing cycle (click to switch)
+      </p>
       <div className="pricing-toggle">
         <button
           className={`toggle-option ${billingCycle === 'monthly' ? 'active' : ''}`}
@@ -35,8 +39,11 @@ function PricingToggle() {
 }
 
 // Pricing Amount Component
-function PricingAmount({ monthly, annual }: { monthly: number; annual: number }) {
-  const [billingCycle] = useState<'monthly' | 'annual'>('annual');
+function PricingAmount({ monthly, annual, billingCycle }: {
+  monthly: number;
+  annual: number;
+  billingCycle: 'monthly' | 'annual';
+}) {
 
   const monthlyEquivalent = Math.floor(annual / 12);
   const savings = (monthly * 12) - annual;
@@ -68,6 +75,7 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrollY, setScrollY] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
 
   // Scroll tracking for parallax
   useEffect(() => {
@@ -543,7 +551,7 @@ export default function LandingPage() {
           </div>
 
           {/* Billing Toggle */}
-          <PricingToggle />
+          <PricingToggle billingCycle={billingCycle} setBillingCycle={setBillingCycle} />
 
           <div className="pricing-grid-new">
             {/* FREE TIER */}
@@ -599,6 +607,7 @@ export default function LandingPage() {
               <PricingAmount
                 monthly={5000}
                 annual={48000}
+                billingCycle={billingCycle}
               />
 
               <button className="pricing-cta pricing-cta-primary" onClick={() => navigate('/signup')}>
@@ -659,6 +668,7 @@ export default function LandingPage() {
               <PricingAmount
                 monthly={10000}
                 annual={96000}
+                billingCycle={billingCycle}
               />
 
               <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
@@ -702,6 +712,7 @@ export default function LandingPage() {
               <PricingAmount
                 monthly={15000}
                 annual={144000}
+                billingCycle={billingCycle}
               />
 
               <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
