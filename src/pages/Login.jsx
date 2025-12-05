@@ -32,22 +32,33 @@ export default function Login() {
     e.preventDefault();
     setError('');
 
+    // Trim email to remove accidental spaces
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
     // Validation
-    if (!formData.email.trim()) {
+    if (!email) {
       setError('Please enter your email');
       return;
     }
 
-    if (!formData.password) {
+    // Basic email validation (more lenient than HTML5)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address (e.g., you@example.com)');
+      return;
+    }
+
+    if (!password) {
       setError('Please enter your password');
       return;
     }
 
     try {
       setLoading(true);
-      console.debug('[Login] Attempting sign in:', formData.email);
+      console.debug('[Login] Attempting sign in:', email);
 
-      await signIn(formData.email, formData.password);
+      await signIn(email, password);
 
       console.debug('[Login] Sign in successful, redirecting to dashboard');
 
@@ -90,9 +101,9 @@ export default function Login() {
       <div className="auth-card">
         <div style={{ textAlign: 'center', marginBottom: '2rem', padding: '0 10px' }}>
           <img
-            src="/storehouse-logo-blue.png"
+            src="/storehouse-logo-new.png"
             alt="Storehouse"
-            style={{ height: '128px', width: 'auto', marginBottom: '1rem', maxWidth: '100%', objectFit: 'contain' }}
+            style={{ height: '128px', width: 'auto', marginBottom: '1rem', maxWidth: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
           />
         </div>
         <div className="auth-header">
@@ -115,12 +126,12 @@ export default function Login() {
             <input
               id="email"
               name="email"
-              type="email"
+              type="text"
+              autoComplete="email"
               value={formData.email}
               onChange={handleChange}
               className="form-input"
               placeholder="you@example.com"
-              required
               disabled={loading}
               autoFocus
             />

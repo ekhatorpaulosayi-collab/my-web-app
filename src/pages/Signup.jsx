@@ -77,27 +77,39 @@ export default function Signup() {
     e.preventDefault();
     setError('');
 
+    // Trim and normalize inputs
+    const storeName = formData.storeName.trim();
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
     // Validation
-    if (!formData.storeName.trim()) {
+    if (!storeName) {
       setError('Please enter your store name');
       return;
     }
 
-    if (!formData.email.trim()) {
+    if (!email) {
       setError('Please enter your email');
       return;
     }
 
-    if (formData.password.length < 6) {
+    // Basic email validation (more lenient than HTML5)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address (e.g., you@example.com)');
+      return;
+    }
+
+    if (password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
 
     try {
       setLoading(true);
-      console.debug('[Signup] Attempting signup:', formData.email);
+      console.debug('[Signup] Attempting signup:', email);
 
-      const result = await signUp(formData.email, formData.password, formData.storeName);
+      const result = await signUp(email, password, storeName);
 
       console.debug('[Signup] Signup successful');
 
@@ -107,8 +119,8 @@ export default function Signup() {
           await claimReferralCode(
             formData.referralCode,
             result.user.uid,
-            formData.email,
-            formData.storeName
+            email,
+            storeName
           );
           console.debug('[Signup] Referral code claimed successfully');
         } catch (refError) {
@@ -227,9 +239,9 @@ export default function Signup() {
       <div className="auth-card">
         <div style={{ textAlign: 'center', marginBottom: '2rem', padding: '0 10px' }}>
           <img
-            src="/storehouse-logo-blue.png"
+            src="/storehouse-logo-new.png"
             alt="Storehouse"
-            style={{ height: '128px', width: 'auto', marginBottom: '1rem', maxWidth: '100%', objectFit: 'contain' }}
+            style={{ height: '128px', width: 'auto', marginBottom: '1rem', maxWidth: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
           />
         </div>
         <div className="auth-header">
@@ -271,12 +283,12 @@ export default function Signup() {
             <input
               id="email"
               name="email"
-              type="email"
+              type="text"
+              autoComplete="email"
               value={formData.email}
               onChange={handleChange}
               className="form-input"
               placeholder="you@example.com"
-              required
               disabled={loading}
             />
           </div>
