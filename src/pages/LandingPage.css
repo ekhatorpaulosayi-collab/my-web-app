@@ -948,6 +948,45 @@ body {
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
 }
 
+/* Feature Icon Images */
+.feature-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 16px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover Effects for Feature Icons */
+.visual-placeholder:hover .feature-icon-image {
+  transform: scale(1.05);
+  filter: drop-shadow(0 20px 40px rgba(32, 99, 240, 0.3));
+}
+
+/* Remove background gradients when using images */
+.visual-placeholder.offline:has(.feature-icon-image),
+.visual-placeholder.whatsapp:has(.feature-icon-image),
+.visual-placeholder.mobile:has(.feature-icon-image) {
+  background: transparent;
+  padding: 0;
+}
+
+/* Smooth fade-in animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.visual-placeholder {
+  animation: fadeInUp 0.8s ease-out;
+}
+
 @media (max-width: 968px) {
   .showcase-item {
     grid-template-columns: 1fr;

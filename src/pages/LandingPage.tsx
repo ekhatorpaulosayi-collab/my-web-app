@@ -433,9 +433,7 @@ export default function LandingPage() {
             </div>
             <div className="showcase-visual">
               <div className="visual-placeholder offline">
-                <Wifi size={48} className="wifi-icon" />
-                <WifiOff size={48} className="wifi-off-icon" />
-                <p>Works 24/7</p>
+                <img src="/works-24-7.png" alt="Works 24/7" className="feature-icon-image" />
               </div>
             </div>
           </div>
@@ -469,8 +467,7 @@ export default function LandingPage() {
             </div>
             <div className="showcase-visual">
               <div className="visual-placeholder whatsapp">
-                <MessageCircle size={48} />
-                <p>WhatsApp Ready</p>
+                <img src="/whatsapp-ready.png" alt="WhatsApp Ready" className="feature-icon-image" />
               </div>
             </div>
           </div>
@@ -504,8 +501,7 @@ export default function LandingPage() {
             </div>
             <div className="showcase-visual">
               <div className="visual-placeholder mobile">
-                <Smartphone size={48} />
-                <p>Any Device</p>
+                <img src="/any-device.png" alt="Any Device" className="feature-icon-image" />
               </div>
             </div>
           </div>
