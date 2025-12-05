@@ -8,11 +8,41 @@
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
 }
 
 .landing-page > * {
   position: relative;
   z-index: 1;
+  max-width: 100%;
+}
+
+/* Prevent horizontal scroll and blue line artifacts */
+.landing-page *,
+.landing-page *::before,
+.landing-page *::after {
+  box-sizing: border-box;
+}
+
+/* Ensure NO element extends beyond viewport */
+.landing-page section,
+.landing-page div,
+.landing-page header,
+.landing-page footer {
+  max-width: 100%;
+}
+
+/* Remove any default outline colors that might show as blue lines */
+.landing-page *:focus-visible {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Force hide any overflow from fixed elements */
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ============================================
@@ -1444,7 +1474,7 @@
   height: 500px;
   background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
   top: -100px;
-  right: -100px;
+  right: 0;  /* Changed from -100px to prevent overflow */
 }
 
 .blob-2 {
@@ -1452,7 +1482,7 @@
   height: 400px;
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   bottom: 100px;
-  left: -100px;
+  left: 0;  /* Changed from -100px to prevent overflow */
 }
 
 .blob-3 {
@@ -1560,9 +1590,10 @@
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 2rem;
   margin-top: 3rem;
-  max-width: 1400px;
+  max-width: 1200px;  /* Changed from 1400px to match other sections */
   margin-left: auto;
   margin-right: auto;
+  padding: 0 1.5rem;  /* Added padding to prevent edge overflow */
 }
 
 /* Pricing Cards */

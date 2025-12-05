@@ -63,7 +63,7 @@ export default function AIChatWidget({
   // Auto-open with context-aware welcome messages
   useEffect(() => {
     const isOnlineStoreSetup = location.pathname.includes('/online-store-setup');
-    const isLandingPage = location.pathname === '/' || location.pathname === '/home';
+    const isLandingPage = location.pathname === '/' || location.pathname === '/home' || location.pathname === '/landing';
 
     // Auto-open for Online Store Setup (first visit only)
     if (isOnlineStoreSetup && user) {
