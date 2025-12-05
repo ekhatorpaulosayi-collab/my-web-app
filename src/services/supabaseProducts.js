@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { canAddProduct } from './subscriptionService';
 
 /**
  * Supabase Products Service
@@ -123,6 +124,15 @@ export function subscribeToProducts(userId, callback) {
 export async function addProduct(userId, productData) {
   try {
     console.debug('[SupabaseProducts] Adding product:', productData.name);
+
+    // Check tier limits before adding product
+    const limitCheck = await canAddProduct(userId);
+    if (!limitCheck.allowed) {
+      const error = new Error(limitCheck.reason || 'Product limit reached');
+      error.limitExceeded = true;
+      error.limitInfo = limitCheck;
+      throw error;
+    }
 
     // Ensure prices are in kobo (integer cents)
     const priceInKobo = typeof productData.selling_price === 'number'

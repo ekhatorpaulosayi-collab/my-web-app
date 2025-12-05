@@ -94,6 +94,7 @@ import { getCategoryAttributes, formatAttributeValue, getAttributeIcon } from '.
 import { VariantManager } from './components/VariantManager.tsx';
 import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
 import MultiImageUpload from './components/MultiImageUpload.tsx';
+import UpgradeModal from './components/UpgradeModal.tsx';
 
 function App() {
   const navigate = useNavigate();
@@ -232,6 +233,17 @@ function App() {
   });
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+
+  // Upgrade Modal state for tier limits
+  const [upgradeModalState, setUpgradeModalState] = useState({
+    isOpen: false,
+    limitType: 'products',
+    currentTier: 'Free',
+    suggestedTier: 'Starter',
+    currentCount: 0,
+    limit: 0,
+    reason: ''
+  });
   const [showFirstSaleModal, setShowFirstSaleModal] = useState(false);
   const [showEODModal, setShowEODModal] = useState(false);
   const [eodFormat, setEodFormat] = useState('readable');
@@ -1684,22 +1696,6 @@ Thank you for your business! 🙏
   const handleSave = async () => {
     console.log('[handleSave] Called', { formData, formattedPrices, existingItem, stockMode });
 
-    // Check plan limits (bypass for beta testers)
-    if (!isBetaTester) {
-      if (currentPlan === 'FREE' && items.length >= 10 && !existingItem) {
-        console.log('[handleSave] FREE plan limit reached (10 products)');
-        setShowModal(false);
-        setShowUpgradePrompt(true);
-        return;
-      }
-
-      if (currentPlan === 'STARTER' && items.length >= 500 && !existingItem) {
-        console.log('[handleSave] STARTER plan limit reached (500 products)');
-        displayToast('You\'ve reached the limit of 500 products. Upgrade to BUSINESS for unlimited products.');
-        return;
-      }
-    }
-
     // Validation with detailed logging
     if (!formData.name || !formData.name.trim()) {
       console.log('[handleSave] Validation failed: name missing');
@@ -1975,6 +1971,23 @@ Thank you for your business! 🙏
       console.log('[handleSave] ✅ SUCCESS! Item should now be visible in inventory table');
     } catch (error) {
       console.error('[handleSave] Error:', error);
+
+      // Handle tier limit exceeded
+      if (error.limitExceeded && error.limitInfo) {
+        const { tierName, suggestedTier, currentCount, limit, reason } = error.limitInfo;
+        setUpgradeModalState({
+          isOpen: true,
+          limitType: 'products',
+          currentTier: tierName || 'Free',
+          suggestedTier: suggestedTier || 'Starter',
+          currentCount: currentCount || 0,
+          limit: limit || 0,
+          reason: reason || 'Product limit reached'
+        });
+        setShowModal(false); // Close the add product modal
+        return;
+      }
+
       if (error.message === 'DUPLICATE_NAME') {
         displayToast('An item with this name already exists');
       } else {
@@ -5800,6 +5813,18 @@ Low Stock: ${lowStockItems.length}
       {showDashboardCustomize && (
         <DashboardCustomize onClose={() => setShowDashboardCustomize(false)} />
       )}
+
+      {/* Upgrade Modal - Tier Limits */}
+      <UpgradeModal
+        isOpen={upgradeModalState.isOpen}
+        onClose={() => setUpgradeModalState({ ...upgradeModalState, isOpen: false })}
+        limitType={upgradeModalState.limitType}
+        currentTier={upgradeModalState.currentTier}
+        suggestedTier={upgradeModalState.suggestedTier}
+        currentCount={upgradeModalState.currentCount}
+        limit={upgradeModalState.limit}
+        reason={upgradeModalState.reason}
+      />
 
       {/* AI Chat Widget - Intelligent Onboarding & Help */}
       <AIChatWidget contextType="onboarding" autoOpen={items.length < 5} />
