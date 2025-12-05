@@ -137,7 +137,7 @@ export default function LandingPage() {
             <a onClick={() => scrollToSection('testimonials')}>Reviews</a>
             <a onClick={() => scrollToSection('faq')}>FAQ</a>
             <button className="nav-cta" onClick={() => navigate('/signup')}>
-              Start Free Trial
+              Start Free Forever
             </button>
           </div>
 
@@ -171,7 +171,7 @@ export default function LandingPage() {
                 className="btn-gradient-primary btn-lg"
                 onClick={() => navigate('/signup')}
               >
-                Start Free Trial
+                Start Free Forever
                 <ArrowRight size={20} />
               </button>
               <button
@@ -251,7 +251,7 @@ export default function LandingPage() {
                 className="btn-gradient-primary"
                 onClick={() => navigate('/signup')}
               >
-                Start Your Free Trial
+                Get Started Free
                 <ArrowRight size={18} />
               </button>
             </div>
@@ -602,7 +602,7 @@ export default function LandingPage() {
               />
 
               <button className="pricing-cta pricing-cta-primary" onClick={() => navigate('/signup')}>
-                Start Free Trial
+                Get Started Free
               </button>
 
               <div className="pricing-features-section">
@@ -662,7 +662,7 @@ export default function LandingPage() {
               />
 
               <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
-                Start Free Trial
+                Get Started
               </button>
 
               <div className="pricing-features-section">
@@ -705,7 +705,7 @@ export default function LandingPage() {
               />
 
               <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
-                Start Free Trial
+                Get Started
               </button>
 
               <div className="pricing-features-section">
@@ -730,7 +730,7 @@ export default function LandingPage() {
           </div>
 
           <div className="pricing-footer-new">
-            <p>All paid plans include <strong>14-day free trial</strong> • No credit card required • Cancel anytime</p>
+            <p><strong>Start free forever</strong> • No credit card required • Upgrade anytime</p>
           </div>
         </div>
       </section>
@@ -859,11 +859,11 @@ export default function LandingPage() {
               },
               {
                 question: 'How much does it cost?',
-                answer: 'We have a free Starter plan for small stores with up to 50 products. Our Professional plan costs ₦5,000/month with unlimited products and advanced features. All paid plans include a 14-day free trial with no credit card required.'
+                answer: 'Start free forever with 50 products and 50 AI chats per month. When you need more, upgrade to Starter (₦5,000/month for 200 products), Pro (₦10,000/month for unlimited products + WhatsApp AI), or Business (₦15,000/month for maximum scale). No credit card required to start.'
               },
               {
                 question: 'Can I try it before paying?',
-                answer: 'Absolutely! You can start with our free Starter plan immediately, no credit card needed. All paid plans also include a 14-day free trial so you can test all premium features risk-free.'
+                answer: 'Yes! Start with our generous free plan (50 products, 50 AI chats/month, online store, invoicing) to test everything. Upgrade only when you hit your limits. No credit card needed, no time restrictions on the free plan.'
               },
               {
                 question: 'Is my data secure?',
@@ -915,7 +915,7 @@ export default function LandingPage() {
               className="btn-gradient-primary btn-xl"
               onClick={() => navigate('/signup')}
             >
-              Start Your Free Trial
+              Start Free Forever
               <ArrowRight size={24} />
             </button>
 

@@ -200,11 +200,11 @@ export default function UpgradeModal({
             </div>
             <div className="upgrade-trust-item">
               <CheckCircle size={16} />
-              <span>14-day free trial</span>
+              <span>Upgrade instantly</span>
             </div>
             <div className="upgrade-trust-item">
               <CheckCircle size={16} />
-              <span>No credit card required</span>
+              <span>No credit card to start</span>
             </div>
           </div>
         </div>
