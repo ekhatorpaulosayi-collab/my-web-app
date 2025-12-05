@@ -9,6 +9,59 @@ import {
 import AIChatWidget from '../components/AIChatWidget';
 import './LandingPage.css';
 
+// Pricing Toggle Component
+function PricingToggle() {
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
+
+  return (
+    <div className="pricing-toggle-container">
+      <div className="pricing-toggle">
+        <button
+          className={`toggle-option ${billingCycle === 'monthly' ? 'active' : ''}`}
+          onClick={() => setBillingCycle('monthly')}
+        >
+          Monthly
+        </button>
+        <button
+          className={`toggle-option ${billingCycle === 'annual' ? 'active' : ''}`}
+          onClick={() => setBillingCycle('annual')}
+        >
+          Annual
+          <span className="toggle-badge">Save 20%</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Pricing Amount Component
+function PricingAmount({ monthly, annual }: { monthly: number; annual: number }) {
+  const [billingCycle] = useState<'monthly' | 'annual'>('annual');
+
+  const monthlyEquivalent = Math.floor(annual / 12);
+  const savings = (monthly * 12) - annual;
+
+  if (billingCycle === 'annual') {
+    return (
+      <div className="pricing-amount">
+        <div className="savings-badge">Save ₦{savings.toLocaleString()}/year</div>
+        <span className="price-currency">₦</span>
+        <span className="price-value">{monthlyEquivalent.toLocaleString()}</span>
+        <span className="price-period">/month</span>
+        <div className="billed-annually">Billed ₦{annual.toLocaleString()} annually</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pricing-amount">
+      <span className="price-currency">₦</span>
+      <span className="price-value">{monthly.toLocaleString()}</span>
+      <span className="price-period">/month</span>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -62,23 +115,19 @@ export default function LandingPage() {
 
   return (
     <div className="landing-page">
-      {/* Animated background blobs - Temporarily disabled for debugging */}
-      {/* <div className="blob blob-1" style={{ transform: `translate(${scrollY * 0.1}px, ${scrollY * 0.15}px)` }}></div>
+      {/* Animated background blobs */}
+      <div className="blob blob-1" style={{ transform: `translate(${scrollY * 0.1}px, ${scrollY * 0.15}px)` }}></div>
       <div className="blob blob-2" style={{ transform: `translate(${-scrollY * 0.1}px, ${scrollY * 0.1}px)` }}></div>
-      <div className="blob blob-3" style={{ transform: `translate(${scrollY * 0.05}px, ${-scrollY * 0.08}px)` }}></div> */}
+      <div className="blob blob-3" style={{ transform: `translate(${scrollY * 0.05}px, ${-scrollY * 0.08}px)` }}></div>
 
       {/* Glassmorphism Navigation */}
       <nav className="landing-nav glassmorphism">
         <div className="nav-container">
           <div className="nav-logo" onClick={() => navigate('/')}>
             <img
-              src="/storehouse-logo-blue.png"
+              src="/storehouse-logo-new.png"
               alt="Storehouse - Inventory Management"
-              style={{ height: '56px', width: 'auto', cursor: 'pointer' }}
-              onError={(e) => {
-                console.error('Logo failed to load');
-                e.currentTarget.style.display = 'none';
-              }}
+              className="logo-image"
             />
           </div>
 
@@ -493,99 +542,195 @@ export default function LandingPage() {
             <p className="section-subtitle">Start free, upgrade as you grow</p>
           </div>
 
-          <div className="pricing-grid">
-            {/* Free Plan */}
-            <div className="pricing-card">
-              <div className="pricing-header">
-                <h3>Starter</h3>
-                <div className="price">
-                  <span className="currency">₦</span>
-                  <span className="amount">0</span>
-                  <span className="period">/month</span>
-                </div>
-                <p className="pricing-desc">Perfect for getting started</p>
+          {/* Billing Toggle */}
+          <PricingToggle />
+
+          <div className="pricing-grid-new">
+            {/* FREE TIER */}
+            <div className="pricing-card-new">
+              <div className="pricing-tier-header">
+                <h3 className="tier-name">Free</h3>
+                <p className="tier-desc">Perfect for solo entrepreneurs</p>
               </div>
 
-              <ul className="pricing-features">
-                <li><CheckCircle size={18} /> Up to 50 products</li>
-                <li><CheckCircle size={18} /> Unlimited sales</li>
-                <li><CheckCircle size={18} /> Basic reports</li>
-                <li><CheckCircle size={18} /> Mobile access</li>
-                <li><CheckCircle size={18} /> WhatsApp receipts</li>
-              </ul>
+              <div className="pricing-amount">
+                <span className="price-currency">₦</span>
+                <span className="price-value">0</span>
+                <span className="price-period">/forever</span>
+              </div>
 
-              <button
-                className="btn-outline-gradient btn-lg"
-                onClick={() => navigate('/signup')}
-              >
-                Start Free
+              <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
+                Get Started Free
               </button>
+
+              <div className="pricing-features-section">
+                <h4 className="features-category">Core Features</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> 50 products, 1 image each</li>
+                  <li><CheckCircle size={16} /> 1 user account</li>
+                  <li><CheckCircle size={16} /> 50 AI chats/month</li>
+                </ul>
+
+                <h4 className="features-category">🛍️ Online Store</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Public storefront</li>
+                  <li><CheckCircle size={16} /> Custom URL</li>
+                  <li><CheckCircle size={16} /> Paystack payments</li>
+                </ul>
+
+                <h4 className="features-category">Basic Operations</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Record sales</li>
+                  <li><CheckCircle size={16} /> Customer database</li>
+                  <li><CheckCircle size={16} /> WhatsApp receipts</li>
+                  <li><CheckCircle size={16} /> Works offline</li>
+                </ul>
+              </div>
             </div>
 
-            {/* Pro Plan */}
-            <div className="pricing-card featured">
-              <div className="popular-badge">Most Popular</div>
-              <div className="pricing-header">
-                <h3>Professional</h3>
-                <div className="price">
-                  <span className="currency">₦</span>
-                  <span className="amount">5,000</span>
-                  <span className="period">/month</span>
-                </div>
-                <p className="pricing-desc">For growing businesses</p>
+            {/* STARTER TIER */}
+            <div className="pricing-card-new pricing-card-popular">
+              <div className="popular-badge-new">Most Popular</div>
+              <div className="pricing-tier-header">
+                <h3 className="tier-name">Starter</h3>
+                <p className="tier-desc">For small shops with 1-3 staff</p>
               </div>
 
-              <ul className="pricing-features">
-                <li><CheckCircle size={18} /> Unlimited products</li>
-                <li><CheckCircle size={18} /> Unlimited sales</li>
-                <li><CheckCircle size={18} /> Advanced analytics</li>
-                <li><CheckCircle size={18} /> Customer management</li>
-                <li><CheckCircle size={18} /> Debt tracking</li>
-                <li><CheckCircle size={18} /> Multiple staff accounts</li>
-                <li><CheckCircle size={18} /> Priority support</li>
-                <li><CheckCircle size={18} /> Export data</li>
-              </ul>
+              <PricingAmount
+                monthly={5000}
+                annual={48000}
+              />
 
-              <button
-                className="btn-gradient-primary btn-lg"
-                onClick={() => navigate('/signup')}
-              >
+              <button className="pricing-cta pricing-cta-primary" onClick={() => navigate('/signup')}>
                 Start Free Trial
               </button>
+
+              <div className="pricing-features-section">
+                <h4 className="features-category">Everything in Free, plus:</h4>
+
+                <h4 className="features-category">Inventory & Products</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> 200 products, 3 images each</li>
+                  <li><CheckCircle size={16} /> Product variants (sizes, colors)</li>
+                  <li><CheckCircle size={16} /> Bulk CSV import/export</li>
+                </ul>
+
+                <h4 className="features-category">🛍️ Online Store Advanced</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Custom branding & logo</li>
+                  <li><CheckCircle size={16} /> Delivery settings</li>
+                </ul>
+
+                <h4 className="features-category">💰 Debt & Credit Sales</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Credit sales tracking</li>
+                  <li><CheckCircle size={16} /> Installment plans</li>
+                  <li><CheckCircle size={16} /> WhatsApp reminders</li>
+                </ul>
+
+                <h4 className="features-category">📄 Professional Invoicing</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Create & send invoices</li>
+                  <li><CheckCircle size={16} /> Payment links</li>
+                </ul>
+
+                <h4 className="features-category">📊 Analytics & Reports</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Profit tracking</li>
+                  <li><CheckCircle size={16} /> Sales trends</li>
+                  <li><CheckCircle size={16} /> Export to Excel</li>
+                </ul>
+
+                <h4 className="features-category">Team & AI</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> 3 users with roles</li>
+                  <li><CheckCircle size={16} /> 500 AI chats/month</li>
+                </ul>
+              </div>
             </div>
 
-            {/* Enterprise Plan */}
-            <div className="pricing-card">
-              <div className="pricing-header">
-                <h3>Enterprise</h3>
-                <div className="price">
-                  <span className="currency">₦</span>
-                  <span className="amount">15,000</span>
-                  <span className="period">/month</span>
-                </div>
-                <p className="pricing-desc">For multiple locations</p>
+            {/* PRO TIER */}
+            <div className="pricing-card-new">
+              <div className="pricing-tier-header">
+                <h3 className="tier-name">Pro</h3>
+                <p className="tier-desc">For established businesses</p>
               </div>
 
-              <ul className="pricing-features">
-                <li><CheckCircle size={18} /> Everything in Pro</li>
-                <li><CheckCircle size={18} /> Multiple store locations</li>
-                <li><CheckCircle size={18} /> Advanced permissions</li>
-                <li><CheckCircle size={18} /> Custom integrations</li>
-                <li><CheckCircle size={18} /> Dedicated support</li>
-                <li><CheckCircle size={18} /> Custom training</li>
-              </ul>
+              <PricingAmount
+                monthly={10000}
+                annual={96000}
+              />
 
-              <button
-                className="btn-outline-gradient btn-lg"
-                onClick={() => navigate('/signup')}
-              >
+              <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
                 Start Free Trial
               </button>
+
+              <div className="pricing-features-section">
+                <h4 className="features-category">Everything in Starter, plus:</h4>
+
+                <h4 className="features-category">Unlimited Power</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> <strong>UNLIMITED products</strong></li>
+                  <li><CheckCircle size={16} /> 5 images per product</li>
+                  <li><CheckCircle size={16} /> 5 users</li>
+                </ul>
+
+                <h4 className="features-category">💬 WhatsApp AI Assistant</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> 24/7 AI chatbot</li>
+                  <li><CheckCircle size={16} /> Auto customer support</li>
+                  <li><CheckCircle size={16} /> Product inquiries</li>
+                </ul>
+
+                <h4 className="features-category">Advanced Features</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Recurring invoices</li>
+                  <li><CheckCircle size={16} /> 2,000 AI chats/month</li>
+                  <li><CheckCircle size={16} /> Daily AI business tips</li>
+                  <li><CheckCircle size={16} /> Priority support</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* BUSINESS TIER */}
+            <div className="pricing-card-new">
+              <div className="pricing-tier-header">
+                <h3 className="tier-name">Business</h3>
+                <p className="tier-desc">Enterprise power</p>
+              </div>
+
+              <PricingAmount
+                monthly={15000}
+                annual={144000}
+              />
+
+              <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
+                Start Free Trial
+              </button>
+
+              <div className="pricing-features-section">
+                <h4 className="features-category">Everything in Pro, plus:</h4>
+
+                <h4 className="features-category">Maximum Scale</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> 10 images per product</li>
+                  <li><CheckCircle size={16} /> 10 users</li>
+                  <li><CheckCircle size={16} /> 5,000 AI chats/month</li>
+                </ul>
+
+                <h4 className="features-category">Dedicated Support</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Account manager</li>
+                  <li><CheckCircle size={16} /> 1-on-1 training session</li>
+                  <li><CheckCircle size={16} /> 24/7 priority support</li>
+                  <li><CheckCircle size={16} /> Quarterly business review</li>
+                </ul>
+              </div>
             </div>
           </div>
 
-          <div className="pricing-footer">
-            <p>All plans include 14-day free trial • No credit card required • Cancel anytime</p>
+          <div className="pricing-footer-new">
+            <p>All paid plans include <strong>14-day free trial</strong> • No credit card required • Cancel anytime</p>
           </div>
         </div>
       </section>
@@ -842,8 +987,8 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Documentation-Only Chat Widget for Visitors - Temporarily disabled for debugging */}
-      {/* <AIChatWidget contextType="help" /> */}
+      {/* Documentation-Only Chat Widget for Visitors */}
+      <AIChatWidget contextType="help" />
     </div>
   );
 }
