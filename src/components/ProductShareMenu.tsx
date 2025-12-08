@@ -70,7 +70,8 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
       storeUrl: profile.storeUrl,
       whatsappNumber: profile.whatsappNumber,
       instagramHandle: profile.instagramHandle,
-      facebookPage: profile.facebookPage
+      facebookPage: profile.facebookPage,
+      storeName: profile.businessName // For Instagram card generation
     };
 
     try {

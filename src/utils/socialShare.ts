@@ -6,6 +6,7 @@
 
 import { formatNGN } from './currency';
 import { isMobileDevice } from './whatsapp';
+import { generateAndDownloadInstagramCard } from './instagramCardGenerator';
 
 export interface ProductShareData {
   name: string;
@@ -16,6 +17,7 @@ export interface ProductShareData {
   whatsappNumber?: string;
   instagramHandle?: string;
   facebookPage?: string;
+  storeName?: string; // Store name for Instagram card generation
 }
 
 export interface SocialHandles {
@@ -106,13 +108,37 @@ export function formatForInstagram(product: ProductShareData): string {
 
 /**
  * Share product to Instagram
- * On mobile: Opens Instagram app
- * On desktop: Copies caption to clipboard
+ * Generates a beautiful branded card and downloads it
+ * Falls back to caption copy if card generation fails
  */
 export async function shareToInstagram(product: ProductShareData): Promise<{
   success: boolean;
   message: string;
 }> {
+  // Try to generate and download Instagram card (NEW METHOD)
+  try {
+    if (product.imageUrl && product.storeName) {
+      const cardGenerated = await generateAndDownloadInstagramCard({
+        productName: product.name,
+        productPrice: product.price,
+        productImageUrl: product.imageUrl,
+        storeName: product.storeName,
+        storeUrl: product.storeUrl || '',
+        instagramHandle: product.instagramHandle
+      });
+
+      if (cardGenerated) {
+        return {
+          success: true,
+          message: '✨ Instagram card downloaded! Open Instagram and post the image from your gallery.'
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('[Instagram Card] Generation failed, falling back to caption copy:', error);
+  }
+
+  // FALLBACK: Old method (caption copy)
   const caption = formatForInstagram(product);
 
   try {
