@@ -1,0 +1,196 @@
+/**
+ * ImageKit Utility - Image Optimization & CDN Delivery
+ *
+ * Provides automatic image optimization:
+ * - WebP format with fallback
+ * - Responsive images (srcset)
+ * - Quality optimization
+ * - CDN delivery
+ * - Lazy loading support
+ *
+ * Usage:
+ * import { getImageKitUrl, ImageKitImg } from '@/utils/imagekit';
+ *
+ * // Simple usage
+ * <img src={getImageKitUrl('landing-hero.png')} alt="Hero" />
+ *
+ * // With transformations
+ * <img src={getImageKitUrl('landing-hero.png', { width: 800, quality: 90 })} />
+ *
+ * // Responsive image component
+ * <ImageKitImg src="landing-hero.png" alt="Hero" width={1200} height={800} />
+ */
+
+const IMAGEKIT_URL_ENDPOINT = import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/onelove431212341234';
+
+export interface ImageKitTransformation {
+  width?: number;
+  height?: number;
+  quality?: number; // 1-100
+  format?: 'auto' | 'webp' | 'jpg' | 'png';
+  aspectRatio?: string; // e.g., "16-9", "4-3"
+  crop?: 'maintain_ratio' | 'force' | 'at_least' | 'at_max';
+  focus?: 'auto' | 'face' | 'center';
+  blur?: number; // 1-100
+  progressive?: boolean;
+}
+
+/**
+ * Generate optimized ImageKit URL with transformations
+ *
+ * @param imagePath - Path to image (e.g., 'landing-hero.png' or 'folder/image.jpg')
+ * @param transformations - Optional transformations
+ * @returns Optimized ImageKit URL
+ */
+export function getImageKitUrl(
+  imagePath: string,
+  transformations?: ImageKitTransformation
+): string {
+  // Remove leading slash if present
+  const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+
+  // Default transformations for optimal performance
+  const defaultTransforms: ImageKitTransformation = {
+    format: 'auto', // Automatically serves WebP to supporting browsers
+    quality: 85, // Good balance between quality and size
+    progressive: true, // Progressive loading
+  };
+
+  const transforms = { ...defaultTransforms, ...transformations };
+
+  // Build transformation string
+  const transformParts: string[] = [];
+
+  if (transforms.width) transformParts.push(`w-${transforms.width}`);
+  if (transforms.height) transformParts.push(`h-${transforms.height}`);
+  if (transforms.quality) transformParts.push(`q-${transforms.quality}`);
+  if (transforms.format) transformParts.push(`f-${transforms.format}`);
+  if (transforms.aspectRatio) transformParts.push(`ar-${transforms.aspectRatio}`);
+  if (transforms.crop) transformParts.push(`c-${transforms.crop}`);
+  if (transforms.focus) transformParts.push(`fo-${transforms.focus}`);
+  if (transforms.blur) transformParts.push(`bl-${transforms.blur}`);
+  if (transforms.progressive) transformParts.push('pr-true');
+
+  const transformString = transformParts.length > 0
+    ? `tr:${transformParts.join(',')}`
+    : '';
+
+  // Construct full URL
+  return `${IMAGEKIT_URL_ENDPOINT}/${transformString}/${cleanPath}`;
+}
+
+/**
+ * Generate responsive srcset for different screen sizes
+ *
+ * @param imagePath - Path to image
+ * @param widths - Array of widths to generate (default: [400, 800, 1200, 1600])
+ * @param quality - Image quality (default: 85)
+ * @returns srcset string
+ */
+export function getImageKitSrcSet(
+  imagePath: string,
+  widths: number[] = [400, 800, 1200, 1600],
+  quality: number = 85
+): string {
+  return widths
+    .map(width => {
+      const url = getImageKitUrl(imagePath, { width, quality });
+      return `${url} ${width}w`;
+    })
+    .join(', ');
+}
+
+/**
+ * Get optimized sizes attribute for responsive images
+ *
+ * @param maxWidth - Maximum width in pixels (default: 1200)
+ * @returns sizes attribute string
+ */
+export function getImageKitSizes(maxWidth: number = 1200): string {
+  return `(max-width: 640px) 100vw, (max-width: 1024px) 80vw, ${maxWidth}px`;
+}
+
+/**
+ * Get image props object for easy spreading
+ *
+ * @example
+ * <img {...getImageKitProps('landing-hero.png', { width: 1200 })} alt="Hero" />
+ */
+export function getImageKitProps(
+  imagePath: string,
+  options: {
+    width?: number;
+    quality?: number;
+    responsive?: boolean;
+    loading?: 'lazy' | 'eager';
+  } = {}
+) {
+  const { width = 1200, quality = 85, responsive = true, loading = 'lazy' } = options;
+
+  const props: any = {
+    src: getImageKitUrl(imagePath, { width, quality }),
+    loading,
+  };
+
+  if (responsive) {
+    props.srcSet = getImageKitSrcSet(imagePath, [400, 800, 1200, 1600], quality);
+    props.sizes = getImageKitSizes(width);
+  }
+
+  return props;
+}
+
+/**
+ * Preload critical images for faster loading
+ *
+ * Call this for above-the-fold images
+ *
+ * @param imagePath - Path to image
+ * @param width - Image width
+ */
+export function preloadImage(imagePath: string, width: number = 1200) {
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = 'image';
+  link.href = getImageKitUrl(imagePath, { width, quality: 85 });
+
+  // Add to head
+  document.head.appendChild(link);
+}
+
+/**
+ * Utility to migrate local images to ImageKit
+ * This generates the URLs you need after uploading to ImageKit
+ */
+export const LANDING_PAGE_IMAGES = {
+  // Hero section
+  heroYoungProfessional: 'landing-young-professional.png',
+
+  // Ease of use section
+  elderlyWoman: 'landing-elderly-woman.png',
+
+  // Business showcase
+  spiceShop: 'landing-spice-shop.png',
+  businessEcosystem: 'landing-business-ecosystem.png',
+
+  // AI chatbot section
+  aiChatbot: 'ai-chatbot-store.png',
+
+  // Feature icons
+  works247: 'works-24-7.png',
+  whatsappReady: 'whatsapp-ready.png',
+  anyDevice: 'any-device.png',
+
+  // Logo
+  logoNew: 'storehouse-logo-new.png',
+  logoBlue: 'storehouse-logo-blue.png',
+} as const;
+
+export default {
+  getImageKitUrl,
+  getImageKitSrcSet,
+  getImageKitSizes,
+  getImageKitProps,
+  preloadImage,
+  LANDING_PAGE_IMAGES,
+};
