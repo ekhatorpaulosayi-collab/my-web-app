@@ -875,6 +875,49 @@ export const StoreSettings: React.FC = () => {
             Enable customers to pay instantly with cards, bank transfer, or USSD directly on your storefront.
           </p>
 
+          {/* How It Works - Helpful Info Box */}
+          <div style={{
+            padding: '16px 18px',
+            background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+            border: '1px solid #93C5FD',
+            borderRadius: '12px',
+            marginBottom: '1.5rem'
+          }}>
+            <div style={{
+              fontSize: '14px',
+              fontWeight: 700,
+              color: '#1E40AF',
+              marginBottom: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '20px' }}>💡</span>
+              How Paystack Works
+            </div>
+            <div style={{
+              fontSize: '13px',
+              color: '#1E40AF',
+              lineHeight: 1.6,
+              marginBottom: '10px'
+            }}>
+              Your customers pay you directly through Paystack (just like Shopify or WooCommerce).
+            </div>
+            <div style={{
+              fontSize: '13px',
+              color: '#1E40AF',
+              lineHeight: 1.7
+            }}>
+              <strong>Benefits:</strong>
+              <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+                <li>Money goes straight to your Paystack account</li>
+                <li>You control refunds and customer service</li>
+                <li>No middleman holding your funds</li>
+                <li>Instant payment notifications</li>
+              </ul>
+            </div>
+          </div>
+
           {/* Enable Paystack Toggle */}
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
             <label style={{
@@ -1410,6 +1453,364 @@ export const StoreSettings: React.FC = () => {
           Tell your story! Why should customers choose you?
         </p>
 
+        {/* Completion Progress Indicator */}
+        {!aboutUs && (
+          <div style={{
+            marginBottom: '24px',
+            padding: '16px',
+            background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+            border: '2px solid #3B82F6',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <div style={{
+              fontSize: '32px',
+              flexShrink: 0
+            }}>⚡</div>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: 700,
+                color: '#1E40AF',
+                marginBottom: '4px'
+              }}>
+                Complete Your Store Profile
+              </div>
+              <div style={{
+                fontSize: '13px',
+                color: '#1E40AF',
+                lineHeight: 1.5
+              }}>
+                Add your business story to unlock smarter AI responses for customers! 🤖
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Benefits Section - Why Tell Your Story */}
+        <div style={{
+          marginBottom: '24px',
+          padding: '20px',
+          background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+          borderRadius: '12px',
+          border: '1px solid #10B981'
+        }}>
+          <h4 style={{
+            margin: '0 0 12px 0',
+            fontSize: '15px',
+            fontWeight: 700,
+            color: '#065F46',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '20px' }}>💡</span>
+            Why Tell Your Story?
+          </h4>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '12px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '16px', marginTop: '2px' }}>✅</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#065F46' }}>Build Trust</div>
+                <div style={{ fontSize: '12px', color: '#047857', lineHeight: 1.4 }}>
+                  67% more likely to buy from stores with an "About Us"
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '16px', marginTop: '2px' }}>🤖</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#065F46' }}>Smart AI Assistant</div>
+                <div style={{ fontSize: '12px', color: '#047857', lineHeight: 1.4 }}>
+                  AI can answer customer questions about delivery, hours, policies
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '16px', marginTop: '2px' }}>🎯</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#065F46' }}>Stand Out</div>
+                <div style={{ fontSize: '12px', color: '#047857', lineHeight: 1.4 }}>
+                  Show what makes you different from competitors
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '16px', marginTop: '2px' }}>❤️</span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#065F46' }}>Build Loyalty</div>
+                <div style={{ fontSize: '12px', color: '#047857', lineHeight: 1.4 }}>
+                  Emotional connection = repeat customers
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Smart Writing Guide - Collapsible */}
+        <details style={{
+          marginBottom: '20px',
+          border: '2px solid #E5E7EB',
+          borderRadius: '12px',
+          overflow: 'hidden'
+        }}>
+          <summary style={{
+            cursor: 'pointer',
+            fontWeight: 700,
+            fontSize: '14px',
+            color: '#10B981',
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            userSelect: 'none',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)';
+          }}>
+            <span style={{ fontSize: '18px' }}>📝</span>
+            <span>Writing Guide - What Should I Include?</span>
+            <span style={{ marginLeft: 'auto', fontSize: '12px', opacity: 0.7 }}>(Click to expand)</span>
+          </summary>
+
+          <div style={{
+            padding: '20px',
+            background: '#FAFAFA',
+            fontSize: '13px',
+            lineHeight: '1.6'
+          }}>
+            <div style={{
+              marginBottom: '16px',
+              padding: '12px',
+              background: '#EFF6FF',
+              borderLeft: '4px solid #3B82F6',
+              borderRadius: '6px',
+              fontSize: '12px'
+            }}>
+              <strong style={{ color: '#1E40AF' }}>💡 Pro Tip:</strong> The more details you add, the better your AI assistant can help customers 24/7!
+            </div>
+
+            {/* Section 1: Your Story */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontWeight: 700,
+                color: '#1F2937',
+                fontSize: '14px'
+              }}>
+                <span>📖</span>
+                <span>YOUR STORY</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: '#6B7280' }}>(30-50 words)</span>
+              </div>
+              <div style={{ paddingLeft: '24px', color: '#4B5563' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>What to write:</strong> How long in business, your mission, expertise
+                </div>
+                <div style={{ marginBottom: '6px', fontStyle: 'italic', color: '#059669' }}>
+                  Example: "Serving Lagos families since 2015 with quality products and excellent service..."
+                </div>
+                <div style={{ fontSize: '12px', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🤖</span>
+                  <span>AI can answer: "How long have you been in business?" "Tell me about your store"</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Delivery & Location */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontWeight: 700,
+                color: '#1F2937',
+                fontSize: '14px'
+              }}>
+                <span>📍</span>
+                <span>DELIVERY & LOCATION</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: '#6B7280' }}>(20-40 words)</span>
+              </div>
+              <div style={{ paddingLeft: '24px', color: '#4B5563' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>What to write:</strong> Areas you serve, delivery time, shipping info
+                </div>
+                <div style={{ marginBottom: '6px', fontStyle: 'italic', color: '#059669' }}>
+                  Example: "We deliver to Victoria Island, Lekki, Ikoyi. Same-day delivery on orders before 2pm."
+                </div>
+                <div style={{ fontSize: '12px', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🤖</span>
+                  <span>AI can answer: "Do you deliver to Lekki?" "How long is delivery?"</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Business Hours */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontWeight: 700,
+                color: '#1F2937',
+                fontSize: '14px'
+              }}>
+                <span>⏰</span>
+                <span>BUSINESS HOURS</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: '#6B7280' }}>(10-20 words)</span>
+              </div>
+              <div style={{ paddingLeft: '24px', color: '#4B5563' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>What to write:</strong> Days and times you're open
+                </div>
+                <div style={{ marginBottom: '6px', fontStyle: 'italic', color: '#059669' }}>
+                  Example: "Monday-Saturday 8am-8pm, Sunday by appointment only"
+                </div>
+                <div style={{ fontSize: '12px', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🤖</span>
+                  <span>AI can answer: "Are you open on Sunday?" "What time do you close?"</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Payment Options */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontWeight: 700,
+                color: '#1F2937',
+                fontSize: '14px'
+              }}>
+                <span>💳</span>
+                <span>PAYMENT OPTIONS</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: '#6B7280' }}>(10-20 words)</span>
+              </div>
+              <div style={{ paddingLeft: '24px', color: '#4B5563' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>What to write:</strong> All payment methods you accept
+                </div>
+                <div style={{ marginBottom: '6px', fontStyle: 'italic', color: '#059669' }}>
+                  Example: "OPay, Moniepoint, Bank Transfer (GTBank, Access), Cash on Delivery"
+                </div>
+                <div style={{ fontSize: '12px', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🤖</span>
+                  <span>AI can answer: "How can I pay?" "Do you accept OPay?"</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: What Makes You Special */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontWeight: 700,
+                color: '#1F2937',
+                fontSize: '14px'
+              }}>
+                <span>🎯</span>
+                <span>WHAT MAKES YOU SPECIAL</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: '#6B7280' }}>(30-50 words)</span>
+              </div>
+              <div style={{ paddingLeft: '24px', color: '#4B5563' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>What to write:</strong> Quality guarantees, unique service, expertise
+                </div>
+                <div style={{ marginBottom: '6px', fontStyle: 'italic', color: '#059669' }}>
+                  Example: "100% genuine products, expert staff with 10+ years experience, 30-day returns"
+                </div>
+                <div style={{ fontSize: '12px', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🤖</span>
+                  <span>AI can answer: "Why should I choose you?" "Are your products genuine?"</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 6: Contact Info */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontWeight: 700,
+                color: '#1F2937',
+                fontSize: '14px'
+              }}>
+                <span>📱</span>
+                <span>CONTACT INFO</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: '#6B7280' }}>(Optional - 10 words)</span>
+              </div>
+              <div style={{ paddingLeft: '24px', color: '#4B5563' }}>
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>What to write:</strong> WhatsApp, phone, email (if different from settings)
+                </div>
+                <div style={{ marginBottom: '6px', fontStyle: 'italic', color: '#059669' }}>
+                  Example: "WhatsApp: 0803... for urgent orders"
+                </div>
+                <div style={{ fontSize: '12px', color: '#0284C7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>🤖</span>
+                  <span>AI can answer: "How do I contact you?" "What's your WhatsApp?"</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{
+              marginTop: '20px',
+              padding: '12px',
+              background: 'white',
+              border: '2px solid #10B981',
+              borderRadius: '8px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontWeight: 700, color: '#065F46', marginBottom: '4px' }}>
+                📊 Target Length: 110-180 words (750-1000 characters)
+              </div>
+              <div style={{ fontSize: '12px', color: '#047857' }}>
+                This gives your AI assistant enough context to help customers 24/7!
+              </div>
+            </div>
+          </div>
+        </details>
+
         {/* Template Buttons */}
         <div style={{ marginBottom: '16px' }}>
           <p style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
@@ -1456,25 +1857,25 @@ export const StoreSettings: React.FC = () => {
             <label style={{ margin: 0 }}>About Us</label>
             <span style={{
               fontSize: '13px',
-              color: countCharacters(aboutUs) > 500 ? '#DC2626' : '#6B7280',
+              color: countCharacters(aboutUs) > 1000 ? '#DC2626' : '#6B7280',
               fontWeight: 600,
             }}>
-              {countCharacters(aboutUs)}/500
+              {countCharacters(aboutUs)}/1000
             </span>
           </div>
           <textarea
             value={aboutUs}
             onChange={(e) => setAboutUs(e.target.value)}
             placeholder="Tell customers about your business, your experience, what makes you special..."
-            rows={5}
-            maxLength={500}
+            rows={8}
+            maxLength={1000}
             style={{
-              borderColor: countCharacters(aboutUs) > 500 ? '#DC2626' : '#D1D5DB',
+              borderColor: countCharacters(aboutUs) > 1000 ? '#DC2626' : '#D1D5DB',
             }}
           />
-          {countCharacters(aboutUs) > 500 && (
+          {countCharacters(aboutUs) > 1000 && (
             <p style={{ fontSize: '13px', color: '#DC2626', marginTop: '6px' }}>
-              Text exceeds maximum length of 500 characters
+              Please keep your description under 1000 characters (about 150 words) for best results
             </p>
           )}
         </div>

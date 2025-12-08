@@ -22,6 +22,7 @@ import ReviewForm from '../components/ReviewForm';
 import ReviewList from '../components/ReviewList';
 import { getProductReviewStats, type ReviewStats } from '../services/reviewService';
 import AIChatWidget from '../components/AIChatWidget';
+import { ShareButton } from '../components/ProductShareMenu';
 import '../styles/storefront.css';
 
 interface Product {
@@ -170,14 +171,22 @@ function StorefrontContent() {
           logoUrl: storeData.logo_url,
           primaryColor: storeData.primary_color,
           isPublic: storeData.is_public,
+          aboutUs: storeData.about_us,
+          returnPolicy: storeData.return_policy,
+          deliveryAreas: storeData.delivery_areas,
+          deliveryTime: storeData.delivery_time,
+          businessHours: storeData.business_hours,
         } as StoreProfile;
 
         setStore(store);
 
-        // 2. Get public products
+        // 2. Get public products with primary images
         const { data: productsData, error: productsError } = await supabase
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            product_images(image_url, is_primary)
+          `)
           .eq('user_id', storeData.user_id)
           .eq('is_public', true)
           .eq('is_active', true)
@@ -190,16 +199,24 @@ function StorefrontContent() {
 
         console.log('[Storefront] Products loaded:', productsData?.length || 0, 'products');
 
-        const publicProducts = (productsData || []).map(product => ({
-          id: product.id,
-          name: product.name,
-          selling_price: product.selling_price,
-          quantity: product.quantity,
-          category: product.category,
-          is_public: product.is_public,
-          image_url: product.image_url,
-          image_thumbnail: product.image_thumbnail,
-        })) as Product[];
+        const publicProducts = (productsData || []).map(product => {
+          // Get primary image or first image
+          const primaryImage = Array.isArray(product.product_images)
+            ? product.product_images.find((img: any) => img.is_primary)?.image_url ||
+              product.product_images[0]?.image_url
+            : null;
+
+          return {
+            id: product.id,
+            name: product.name,
+            selling_price: product.selling_price,
+            quantity: product.quantity,
+            category: product.category,
+            is_public: product.is_public,
+            image_url: primaryImage || product.image_url,
+            image_thumbnail: primaryImage || product.image_thumbnail,
+          };
+        }) as Product[];
 
         setProducts(publicProducts);
 
@@ -435,7 +452,7 @@ function StorefrontContent() {
                         style={{
                           width: '100%',
                           height: '100%',
-                          objectFit: 'cover'
+                          objectFit: 'contain'
                         }}
                       />
                       {/* Zoom badge - highly visible */}
@@ -480,9 +497,7 @@ function StorefrontContent() {
 
                   <div className="product-card-header">
                     <h3 className="product-name">{product.name}</h3>
-                    {product.category && (
-                      <span className="product-category">{product.category}</span>
-                    )}
+                    {/* Category badge hidden for cleaner look - customers can use filter at top */}
                   </div>
 
                   <div className="product-card-body">
@@ -674,57 +689,24 @@ function StorefrontContent() {
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                         </svg>
-                        Order Now
+                        Order via WhatsApp
                       </button>
                     )}
 
-                    {/* Share to WhatsApp Status Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const productUrl = `${window.location.origin}/store/${slug}`;
-                        shareProductToWhatsApp({
+                    {/* Share Button - Instagram, WhatsApp, Facebook, TikTok */}
+                    <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+                      <ShareButton
+                        product={{
+                          id: product.id,
                           name: product.name,
                           price: product.selling_price,
-                          selling_price: product.selling_price,
                           description: product.description,
-                          category: product.category,
-                          quantity: product.quantity
-                        }, productUrl);
-                      }}
-                      className="btn-share"
-                      title="Share to WhatsApp Status"
-                      style={{
-                        padding: '0.75rem 1rem',
-                        backgroundColor: 'white',
-                        color: '#25d366',
-                        border: '2px solid #25d366',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 2px 4px rgba(37, 211, 102, 0.1)',
-                        width: '100%'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f0fdf4';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 211, 102, 0.2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'white';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 211, 102, 0.1)';
-                      }}
-                    >
-                      <Share2 size={18} />
-                      Share
-                    </button>
+                          imageUrl: product.image_url
+                        }}
+                        variant="full"
+                        className="storefront-share-button"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -1655,7 +1637,7 @@ function StorefrontContent() {
             style={{
               backgroundColor: 'white',
               borderRadius: '16px',
-              maxWidth: '600px',
+              maxWidth: '800px',
               width: '100%',
               maxHeight: '95vh',
               overflow: 'hidden',
@@ -1676,11 +1658,11 @@ function StorefrontContent() {
                 position: 'absolute',
                 top: '16px',
                 right: '16px',
-                width: '56px',
-                height: '56px',
-                border: 'none',
-                backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                color: '#1f2937',
+                width: '112px',
+                height: '112px',
+                border: '3px solid #e5e7eb',
+                backgroundColor: '#ef4444',
+                color: 'white',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1689,7 +1671,7 @@ function StorefrontContent() {
                 transition: 'all 0.2s ease',
                 outline: 'none',
                 borderRadius: '50%',
-                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.2)',
+                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.3)',
                 WebkitTapHighlightColor: 'transparent'
               }}
               onTouchStart={(e: React.TouchEvent) => {
@@ -1698,8 +1680,14 @@ function StorefrontContent() {
               onTouchEnd={(e: React.TouchEvent) => {
                 (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
               }}
+              onMouseEnter={(e: React.MouseEvent) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#dc2626';
+              }}
+              onMouseLeave={(e: React.MouseEvent) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#ef4444';
+              }}
             >
-              <X size={28} strokeWidth={2.5} />
+              <X size={56} strokeWidth={3} />
             </button>
 
             {/* Product Image Gallery */}
@@ -2065,50 +2053,20 @@ function StorefrontContent() {
                 </button>
               )}
 
-              {/* Share to WhatsApp Status */}
-              <button
-                onClick={() => {
-                  const productUrl = `${window.location.origin}/store/${slug}`;
-                  shareProductToWhatsApp({
+              {/* Share Button - Instagram, WhatsApp, Facebook, TikTok */}
+              <div style={{ marginTop: '12px' }}>
+                <ShareButton
+                  product={{
+                    id: selectedProduct.id,
                     name: selectedProduct.name,
                     price: selectedProduct.selling_price,
-                    selling_price: selectedProduct.selling_price,
                     description: selectedProduct.description,
-                    category: selectedProduct.category,
-                    quantity: selectedProduct.quantity
-                  }, productUrl);
-                }}
-                style={{
-                  width: '100%',
-                  padding: '14px 24px',
-                  backgroundColor: 'white',
-                  color: '#25d366',
-                  border: '2px solid #25d366',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '10px',
-                  transition: 'all 0.2s',
-                  marginTop: '12px'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f0fdf4';
-                  e.currentTarget.style.borderColor = '#20ba5a';
-                  e.currentTarget.style.color = '#20ba5a';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                  e.currentTarget.style.borderColor = '#25d366';
-                  e.currentTarget.style.color = '#25d366';
-                }}
-              >
-                <Share2 size={20} />
-                Share to WhatsApp Status
-              </button>
+                    imageUrl: selectedProduct.image_url
+                  }}
+                  variant="full"
+                  className="storefront-share-button-modal"
+                />
+              </div>
 
               {/* Customer Reviews Section */}
               <div style={{ marginTop: '2rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
@@ -2196,6 +2154,16 @@ function StorefrontContent() {
       <AIChatWidget
         contextType="storefront"
         storeSlug={slug}
+        storeInfo={store ? {
+          businessName: store.businessName,
+          aboutUs: store.aboutUs,
+          address: store.address,
+          whatsappNumber: store.whatsappNumber,
+          deliveryAreas: store.deliveryAreas,
+          deliveryTime: store.deliveryTime,
+          businessHours: store.businessHours,
+          returnPolicy: store.returnPolicy,
+        } : undefined}
       />
     </div>
   );

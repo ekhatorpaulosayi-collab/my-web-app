@@ -11,6 +11,7 @@ import type { StoreProfile, PaymentMethod } from '../types';
 import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
 import { supabase } from '../lib/supabase';
 import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
+import { OptimizedImage } from './OptimizedImage';
 import '../styles/cart.css';
 
 // Payment method provider configurations
@@ -374,7 +375,7 @@ export function Cart({ store }: CartProps) {
         (selectedPaymentDetails.instructions ? `\n\n📝 ${selectedPaymentDetails.instructions}` : '');
     }
 
-    const message = `🛒 *New Order from ${store.businessName}*\n\n` +
+    const message = `🛒 *New Order - ${store.businessName}*\n\n` +
       `👤 Customer: ${customerName}\n` +
       `📱 Phone: ${customerPhone}` +
       (customerAddress ? `\n📍 Address: ${customerAddress}` : '') +
@@ -422,7 +423,7 @@ export function Cart({ store }: CartProps) {
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
           </div>
           <button onClick={closeCart} className="cart-close-btn">
-            <X size={28} strokeWidth={2.5} />
+            <X size={35} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -442,7 +443,13 @@ export function Cart({ store }: CartProps) {
                   {/* Item Image */}
                   <div className="cart-item-image">
                     {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} />
+                      <OptimizedImage
+                        src={item.imageUrl}
+                        alt={item.name}
+                        width={80}
+                        height={80}
+                        objectFit="contain"
+                      />
                     ) : (
                       <div className="cart-item-no-image">
                         <ShoppingCart size={24} />
@@ -713,14 +720,14 @@ export function Cart({ store }: CartProps) {
                         >
                           <CreditCard size={20} />
                           <div style={{ flex: 1 }}>
-                            <div>Pay with Card (Paystack)</div>
+                            <div>Pay with Card</div>
                             <div style={{
                               fontSize: '11px',
                               opacity: 0.8,
                               marginTop: '2px',
                               fontWeight: 400
                             }}>
-                              Instant payment - Card, Transfer, USSD
+                              Secured by Paystack
                             </div>
                           </div>
                         </button>
@@ -961,6 +968,36 @@ export function Cart({ store }: CartProps) {
                         </>
                       )}
                     </button>
+                  </div>
+
+                  {/* Subtle Security & Contact Info */}
+                  <div style={{
+                    marginTop: '16px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid #e5e7eb',
+                    textAlign: 'center'
+                  }}>
+                    {paymentMethod === 'paystack' && (
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#6b7280',
+                        marginBottom: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}>
+                        🔒 <span style={{ fontWeight: 500 }}>Secured by Paystack</span>
+                      </div>
+                    )}
+                    {store.whatsappNumber && (
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#9ca3af'
+                      }}>
+                        Questions? Contact: {store.whatsappNumber}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

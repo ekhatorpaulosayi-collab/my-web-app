@@ -6,11 +6,23 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+interface StoreInfo {
+  businessName?: string;
+  aboutUs?: string;
+  address?: string;
+  whatsappNumber?: string;
+  deliveryAreas?: string;
+  deliveryTime?: string;
+  businessHours?: string;
+  returnPolicy?: string;
+}
+
 interface ChatRequest {
   message: string;
   sessionId?: string;
   contextType?: 'onboarding' | 'help' | 'storefront';
   storeSlug?: string; // For storefront widget
+  storeInfo?: StoreInfo; // Store details for AI context
   userType?: 'visitor' | 'shopper' | 'user'; // NEW: User type for better prompts
   appContext?: any; // NEW: User's app state (products, sales, etc.)
   relevantDocs?: any[]; // NEW: Documentation search results (RAG)
@@ -207,6 +219,7 @@ serve(async (req) => {
       sessionId = 'default',
       contextType = 'onboarding',
       storeSlug,
+      storeInfo,           // Store info (business name, about us, etc.)
       userType = 'user',   // NEW: Visitor/Shopper/User type
       appContext = {},     // NEW: User's app state
       relevantDocs = []    // NEW: Documentation search results (RAG)
@@ -264,7 +277,8 @@ serve(async (req) => {
 
     // Check chat quota (for logged-in users ONLY, skip for landing page visitors)
     let quotaInfo = null;
-    if (userId && userType !== 'visitor') {
+    // TEMPORARY FIX: Quota check disabled until check_chat_quota function is created
+    /* if (userId && userType !== 'visitor') {
       const { data: quota } = await supabase.rpc('check_chat_quota', {
         p_user_id: userId,
         p_context_type: contextType, // Pass context type for quota tracking
@@ -280,7 +294,7 @@ serve(async (req) => {
           upgradeRequired: true,
         }, 429);
       }
-    }
+    } */
 
     // Get user context (for personalization)
     let userContext: any = {};
@@ -293,7 +307,7 @@ serve(async (req) => {
 
     // Handle storefront context (different logic)
     if (contextType === 'storefront' && storeSlug) {
-      return await handleStorefrontChat(supabase, message, storeSlug);
+      return await handleStorefrontChat(supabase, message, storeSlug, storeInfo);
     }
 
     // For visitors (landing page), skip database conversation tracking (saves costs, no quotas)
@@ -1312,12 +1326,12 @@ You: "Ah, I can help! Quick fix: You can export your inventory and share it. Eve
 }
 
 // Handle storefront chat (customer inquiries) - FAQ first, AI fallback
-async function handleStorefrontChat(supabase: any, message: string, storeSlug: string) {
+async function handleStorefrontChat(supabase: any, message: string, storeSlug: string, storeInfo?: StoreInfo) {
   // Get store owner
   const { data: store } = await supabase
-    .from('store_settings')
-    .select('user_id, business_name, phone, address, delivery_info, payment_methods')
-    .eq('slug', storeSlug)
+    .from('stores')
+    .select('user_id, business_name, whatsapp_number, business_hours, payment_methods')
+    .eq('store_slug', storeSlug)
     .single();
 
   if (!store) {
@@ -1325,13 +1339,31 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
   }
 
   const lowerMessage = message.toLowerCase();
+  const businessName = storeInfo?.businessName || store.business_name;
 
-  // FAQ-based responses (FREE, no AI cost!)
+  // FAQ-based responses (FREE, no AI cost!) - Enhanced with storeInfo
+
+  // About the store
+  if (lowerMessage.match(/about|who are you|tell me about|what (do you|does this store)|your business|your store/i)) {
+    const aboutText = storeInfo?.aboutUs || `Welcome to ${businessName}!`;
+    const contactInfo = storeInfo?.whatsappNumber || store.whatsapp_number
+      ? `\n\n📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}`
+      : '';
+
+    return jsonResponse({
+      response: `**About ${businessName}**\n\n${aboutText}${contactInfo}\n\nWhat can I help you find today?`,
+      confidence: 0.95
+    });
+  }
 
   // Greeting
   if (lowerMessage.match(/^(hi|hello|hey|good morning|good afternoon|good evening)/i)) {
+    const storeIntro = storeInfo?.aboutUs
+      ? `\n\n${storeInfo.aboutUs.substring(0, 150)}${storeInfo.aboutUs.length > 150 ? '...' : ''}`
+      : '';
+
     return jsonResponse({
-      response: `👋 Welcome to ${store.business_name}! I'm here to help you find products.\n\n💬 Ask me:\n• "How much is [product]?"\n• "Do you have [product]?"\n• "What phones do you have?"\n\nWhat are you looking for today?`,
+      response: `👋 Welcome to ${businessName}! I'm here to help you find products.${storeIntro}\n\n💬 Ask me:\n• "How much is [product]?"\n• "Do you have [product]?"\n• "What do you sell?"\n• "About delivery"\n\nWhat are you looking for today?`,
       confidence: 0.95
     });
   }
@@ -1343,33 +1375,69 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
       : 'Please contact us for payment information.';
 
     return jsonResponse({
-      response: `**Payment Methods:**\n\n${paymentInfo}\n\n${store.phone ? `📱 WhatsApp: ${store.phone}` : ''}`,
+      response: `**Payment Methods:**\n\n${paymentInfo}\n\n${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
       confidence: 0.95
     });
   }
 
   // Delivery
-  if (lowerMessage.match(/deliver|delivery|shipping|ship/i)) {
-    const deliveryInfo = store.delivery_info || 'Please contact us for delivery information.';
+  if (lowerMessage.match(/deliver|delivery|shipping|ship|areas you deliver|do you deliver to/i)) {
+    let deliveryInfo = '';
+
+    if (storeInfo?.deliveryAreas) {
+      deliveryInfo += `📍 **We deliver to:** ${storeInfo.deliveryAreas}\n\n`;
+    }
+
+    if (storeInfo?.deliveryTime) {
+      deliveryInfo += `⏰ **Delivery time:** ${storeInfo.deliveryTime}\n\n`;
+    }
+
+    if (!deliveryInfo) {
+      deliveryInfo = 'Please contact us for delivery information.\n\n';
+    }
+
     return jsonResponse({
-      response: `📦 **Delivery Information:**\n\n${deliveryInfo}\n\n${store.phone ? `📱 WhatsApp: ${store.phone} for details` : ''}`,
+      response: `📦 **Delivery Information:**\n\n${deliveryInfo}${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number} for details` : ''}`,
       confidence: 0.95
     });
   }
 
-  // Location
-  if (lowerMessage.match(/location|address|where (are you|is your shop)/i)) {
-    const address = store.address || 'Please contact us for our location.';
+  // Return/Refund policy
+  if (lowerMessage.match(/return|refund|exchange|warranty|guarantee/i)) {
+    const returnInfo = storeInfo?.returnPolicy || 'Please contact us for our return and refund policy.';
+
     return jsonResponse({
-      response: `📍 **Our Location:**\n\n${address}\n\n${store.phone ? `📱 Call/WhatsApp: ${store.phone}` : ''}`,
+      response: `🔄 **Return & Refund Policy:**\n\n${returnInfo}\n\n${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 Questions? WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
+      confidence: 0.95
+    });
+  }
+
+  // Location / Business hours / Address
+  if (lowerMessage.match(/location|address|where (are you|is your shop)|hours|open|closed|time/i)) {
+    let locationInfo = '';
+
+    if (storeInfo?.address) {
+      locationInfo += `📍 **Address:** ${storeInfo.address}\n\n`;
+    }
+
+    if (storeInfo?.businessHours || store.business_hours) {
+      locationInfo += `🕒 **Business Hours:** ${storeInfo?.businessHours || store.business_hours}\n\n`;
+    }
+
+    if (!locationInfo) {
+      locationInfo = 'Please contact us for our location and hours.\n\n';
+    }
+
+    return jsonResponse({
+      response: `${locationInfo}${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 Call/WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
       confidence: 0.95
     });
   }
 
   // Contact
   if (lowerMessage.match(/contact|phone|whatsapp|call/i)) {
-    const contact = store.phone
-      ? `📱 **Contact Us:**\n\nWhatsApp/Call: ${store.phone}`
+    const contact = store.whatsapp_number
+      ? `📱 **Contact Us:**\n\nWhatsApp/Call: ${store.whatsapp_number}`
       : 'Please check our store for contact information.';
     return jsonResponse({
       response: contact,
@@ -1380,7 +1448,7 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
   // Block unrelated questions (FREE - no AI cost!)
   if (lowerMessage.match(/subscription|how much (do|does) (you|they|he|she) pay|owner|profit|revenue|salary|employee|staff|business cost|your price|what (do|does) you (pay|charge)|storehouse|smartstock/i)) {
     return jsonResponse({
-      response: `I'm here to help you shop for products! 😊\n\n💬 I can answer questions about:\n• Product prices and availability\n• Payment methods\n• Delivery information\n• Our location\n\n${store.phone ? `📱 For business inquiries, please WhatsApp us: ${store.phone}` : 'For other questions, please contact the store directly.'}\n\nWhat product are you looking for today?`,
+      response: `I'm here to help you shop for products! 😊\n\n💬 I can answer questions about:\n• Product prices and availability\n• Payment methods\n• Delivery information\n• Our location\n\n${store.whatsapp_number ? `📱 For business inquiries, please WhatsApp us: ${store.whatsapp_number}` : 'For other questions, please contact the store directly.'}\n\nWhat product are you looking for today?`,
       confidence: 0.95
     });
   }
@@ -1405,8 +1473,8 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
     let response = `Here's what we have:\n\n${productList}\n\n`;
 
     // Add WhatsApp order instructions
-    if (store.phone) {
-      response += `📱 **Ready to order?**\nWhatsApp us: ${store.phone}\n\n`;
+    if (store.whatsapp_number) {
+      response += `📱 **Ready to order?**\nWhatsApp us: ${store.whatsapp_number}\n\n`;
     }
 
     // Get related products for upselling (only in-stock items)
@@ -1460,7 +1528,7 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
 
     if (available.length === 0) {
       return jsonResponse({
-        response: `Sorry, the product you're interested in is currently out of stock. 😔\n\n${store.phone ? `📱 WhatsApp us at ${store.phone} to know when it's back in stock or explore alternatives!` : 'Please check back later!'}`,
+        response: `Sorry, the product you're interested in is currently out of stock. 😔\n\n${store.whatsapp_number ? `📱 WhatsApp us at ${store.whatsapp_number} to know when it's back in stock or explore alternatives!` : 'Please check back later!'}`,
         confidence: 0.9
       });
     }
@@ -1480,8 +1548,8 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
 
     let response = `Great choice! 🎉\n\n**${mainProduct.name}** - ₦${price.toLocaleString()} (${mainProduct.quantity} in stock)\n\n`;
 
-    if (store.phone) {
-      response += `📱 **To place your order:**\n1. WhatsApp us: ${store.phone}\n2. Message: "I want to order ${mainProduct.name}"\n3. We'll confirm payment & delivery!\n\n`;
+    if (store.whatsapp_number) {
+      response += `📱 **To place your order:**\n1. WhatsApp us: ${store.whatsapp_number}\n2. Message: "I want to order ${mainProduct.name}"\n3. We'll confirm payment & delivery!\n\n`;
     } else {
       response += `Add to cart to complete your order!\n\n`;
     }
@@ -1516,7 +1584,7 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
   // No products found - try AI (uses credits)
   if (!OPENAI_API_KEY) {
     return jsonResponse({
-      response: `Sorry, I couldn't find "${message}" in our store. Try searching for something else, or contact us at ${store.phone || 'our phone number'}.`,
+      response: `Sorry, I couldn't find "${message}" in our store. Try searching for something else, or contact us at ${store.whatsapp_number || 'our phone number'}.`,
       confidence: 0.3
     });
   }
@@ -1540,12 +1608,12 @@ Available products: ${productContext}
 
 STRICT RULES:
 1. ONLY answer questions about OUR products, prices, availability, payment methods, or delivery
-2. DECLINE unrelated questions politely: "I can only help with product inquiries. ${store.phone ? `WhatsApp us at ${store.phone} for other questions.` : 'Contact the store for other questions.'}"
+2. DECLINE unrelated questions politely: "I can only help with product inquiries. ${store.whatsapp_number ? `WhatsApp us at ${store.whatsapp_number} for other questions.` : 'Contact the store for other questions.'}"
 3. NEVER discuss: owner's costs, subscriptions, business expenses, profits, or internal operations
-4. When customers show interest in buying, ALWAYS say: "${store.phone ? `Great! WhatsApp us at ${store.phone} to complete your order!` : 'Add to cart to complete your order!'}"
+4. When customers show interest in buying, ALWAYS say: "${store.whatsapp_number ? `Great! WhatsApp us at ${store.whatsapp_number} to complete your order!` : 'Add to cart to complete your order!'}"
 5. Suggest 1-2 related products when appropriate to increase sales
 6. Be friendly, helpful, and concise (max 100 words)
-7. If unsure about something, say: "${store.phone ? `Contact us on WhatsApp: ${store.phone} for details!` : 'Contact the store for more details!'}"
+7. If unsure about something, say: "${store.whatsapp_number ? `Contact us on WhatsApp: ${store.whatsapp_number} for details!` : 'Contact the store for more details!'}"
 
 Your goal: Help customers find products and guide them to make a purchase via WhatsApp.`;
 
@@ -1567,7 +1635,7 @@ Your goal: Help customers find products and guide them to make a purchase via Wh
   });
 
   const data = await aiResponse.json();
-  const response = data.choices?.[0]?.message?.content || `Sorry, I couldn't understand that. Contact us at ${store.phone || 'our store'} for help!`;
+  const response = data.choices?.[0]?.message?.content || `Sorry, I couldn't understand that. Contact us at ${store.whatsapp_number || 'our store'} for help!`;
 
   return jsonResponse({
     response,
