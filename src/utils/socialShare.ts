@@ -238,62 +238,87 @@ export function shareToWhatsApp(product: ProductShareData): {
 export function formatForFacebook(product: ProductShareData): string {
   const lines: string[] = [];
 
-  lines.push(product.name);
+  // Product name with emoji
+  lines.push(`✨ ${product.name.toUpperCase()}`);
   lines.push('');
-  lines.push(`Price: ${formatNGN(product.price)}`);
 
+  // Price
+  lines.push(`💰 Price: ${formatNGN(product.price)}`);
+  lines.push('');
+
+  // Description (if available)
   if (product.description) {
-    lines.push('');
     lines.push(product.description);
+    lines.push('');
   }
 
+  // Call to action
+  lines.push('📲 Send us a message to order!');
+  lines.push('');
+
+  // Store URL
   if (product.storeUrl) {
+    lines.push(`🔗 Shop here: ${product.storeUrl}`);
     lines.push('');
-    lines.push(product.storeUrl);
   }
+
+  // Availability
+  lines.push('✅ Available now!');
+  lines.push('');
+
+  // Hashtags for better reach
+  lines.push('#NigerianBusiness #ShopNigeria #NaijaStore #OnlineShopping #ShopLocal');
 
   return lines.join('\n');
 }
 
 /**
  * Share product to Facebook
+ * Copies formatted caption and opens Facebook
  */
 export function shareToFacebook(product: ProductShareData): {
   success: boolean;
   message: string;
   url?: string;
 } {
-  // Facebook sharing options
-  if (product.storeUrl) {
-    // Share a link (opens Facebook sharer)
-    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(product.storeUrl)}`;
-    window.open(url, '_blank', 'width=600,height=400');
+  // Format product details for Facebook post
+  const text = formatForFacebook(product);
 
-    return {
-      success: true,
-      message: '✅ Opening Facebook...',
-      url
-    };
-  } else {
-    // No URL to share - copy text to clipboard
-    const text = formatForFacebook(product);
-
+  try {
+    // Copy text to clipboard
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text);
+    }
 
-      // Open Facebook in new tab
+    // Open Facebook
+    if (isMobileDevice()) {
+      // On mobile, try to open Facebook app
+      window.location.href = 'fb://facewebmodal/f?href=https://www.facebook.com';
+
+      // Fallback to web if app not installed
+      setTimeout(() => {
+        window.open('https://www.facebook.com', '_blank');
+      }, 500);
+
+      return {
+        success: true,
+        message: '📋 Product details copied! Opening Facebook...\nPaste when creating your post.'
+      };
+    } else {
+      // On desktop, open Facebook in new tab
       window.open('https://www.facebook.com', '_blank');
 
       return {
         success: true,
-        message: '📋 Text copied! Opening Facebook...\nPaste when creating your post.'
-      };
-    } else {
-      return {
-        success: false,
-        message: '❌ Unable to copy text'
+        message: '📋 Product details copied to clipboard!\nOpen Facebook and paste when creating your post.'
       };
     }
+  } catch (error) {
+    console.error('[Facebook Share] Error:', error);
+    return {
+      success: false,
+      message: '❌ Failed to prepare Facebook share'
+    };
   }
 }
 
