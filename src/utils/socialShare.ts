@@ -106,8 +106,34 @@ export function formatForInstagram(product: ProductShareData): string {
 }
 
 /**
- * Share product to Instagram
- * Copies formatted caption and opens Instagram
+ * Download image to device (helps user save product photo before posting)
+ */
+async function downloadProductImage(imageUrl: string, productName: string): Promise<boolean> {
+  try {
+    // Fetch the image
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+
+    // Create download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${productName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('[Image Download] Error:', error);
+    return false;
+  }
+}
+
+/**
+ * Share product to Instagram with improved UX
+ * Downloads image (optional) + copies caption + opens Instagram
  */
 export async function shareToInstagram(product: ProductShareData): Promise<{
   success: boolean;
@@ -122,6 +148,12 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
       await navigator.clipboard.writeText(caption);
     }
 
+    // Optionally download product image to make it easier to post
+    let imageDownloaded = false;
+    if (product.imageUrl) {
+      imageDownloaded = await downloadProductImage(product.imageUrl, product.name);
+    }
+
     // On mobile, try to open Instagram
     if (isMobileDevice()) {
       // Instagram deep link (opens app if installed)
@@ -132,13 +164,17 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
 
       return {
         success: true,
-        message: '📋 Product details copied! Opening Instagram...\n\nPaste the caption when posting your product photo.'
+        message: imageDownloaded
+          ? '✅ Image downloaded & caption copied!\n\nNext steps:\n1. Select the downloaded image\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!'
+          : '📋 Caption copied! Opening Instagram...\n\nNext steps:\n1. Select your product photo\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!'
       };
     } else {
-      // On desktop, just copy caption
+      // On desktop
       return {
         success: true,
-        message: '📋 Instagram caption copied to clipboard!\n\nOpen Instagram app on your phone and paste when posting your product photo.'
+        message: imageDownloaded
+          ? '✅ Image downloaded & caption copied!\n\nNext steps:\n1. Transfer image to phone (AirDrop/Google Photos)\n2. Open Instagram app\n3. Tap + → Select downloaded image\n4. Paste caption & post!'
+          : '📋 Instagram caption copied to clipboard!\n\nNext steps:\n1. Save your product photo to phone\n2. Open Instagram app\n3. Tap + → Select photo\n4. Paste caption (long-press & paste)\n5. Add hashtags & post!'
       };
     }
   } catch (error) {
@@ -250,18 +286,42 @@ export function formatForFacebook(product: ProductShareData): string {
 }
 
 /**
- * Share product to Facebook
- * Copies formatted caption and opens Facebook
+ * Share product to Facebook using Share Dialog
+ * Uses Facebook's official sharer.php - auto-includes product image via Open Graph
  */
 export function shareToFacebook(product: ProductShareData): {
   success: boolean;
   message: string;
   url?: string;
 } {
-  // Format product details for Facebook post
-  const text = formatForFacebook(product);
-
   try {
+    // If product has a store URL, use Facebook Share Dialog
+    // This automatically pulls image and details from Open Graph meta tags
+    if (product.storeUrl) {
+      const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(product.storeUrl)}`;
+
+      // Open Facebook Share Dialog in popup (better UX than new tab)
+      const width = 600;
+      const height = 400;
+      const left = (window.screen.width - width) / 2;
+      const top = (window.screen.height - height) / 2;
+
+      window.open(
+        shareUrl,
+        'facebook-share-dialog',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
+      );
+
+      return {
+        success: true,
+        message: '✅ Opening Facebook Share...\n\nProduct image and details will auto-load from your store!',
+        url: shareUrl
+      };
+    }
+
+    // Fallback: If no store URL, use old method (copy text)
+    const text = formatForFacebook(product);
+
     // Copy text to clipboard
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text);
@@ -279,7 +339,7 @@ export function shareToFacebook(product: ProductShareData): {
 
       return {
         success: true,
-        message: '📋 Product details copied! Opening Facebook...\nPaste when creating your post.'
+        message: '📋 Product details copied! Opening Facebook...\n\nNext steps:\n1. Tap "What\'s on your mind?"\n2. Paste product details\n3. Tap "Photo" to upload product image\n4. Post!'
       };
     } else {
       // On desktop, open Facebook in new tab
@@ -287,7 +347,7 @@ export function shareToFacebook(product: ProductShareData): {
 
       return {
         success: true,
-        message: '📋 Product details copied to clipboard!\nOpen Facebook and paste when creating your post.'
+        message: '📋 Product details copied to clipboard!\n\nNext steps:\n1. Click "What\'s on your mind?"\n2. Paste product details (Ctrl+V)\n3. Click "Photo/Video" to upload image\n4. Post!'
       };
     }
   } catch (error) {
