@@ -125,7 +125,10 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
     // On mobile, try to open Instagram
     if (isMobileDevice()) {
       // Instagram deep link (opens app if installed)
-      window.location.href = 'instagram://camera';
+      // Use setTimeout to allow clipboard operation to complete
+      setTimeout(() => {
+        window.location.href = 'instagram://camera';
+      }, 100);
 
       return {
         success: true,
@@ -135,7 +138,7 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
       // On desktop, just copy caption
       return {
         success: true,
-        message: '📋 Instagram caption copied to clipboard!\n\nOpen Instagram and paste when posting your product photo.'
+        message: '📋 Instagram caption copied to clipboard!\n\nOpen Instagram app on your phone and paste when posting your product photo.'
       };
     }
   } catch (error) {

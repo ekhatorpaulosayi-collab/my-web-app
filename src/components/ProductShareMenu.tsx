@@ -61,17 +61,40 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
     setIsSharing(true);
     setMessage('');
 
+    // Generate store URL from current page location
+    // If we're on a storefront page, use that URL
+    const currentPath = window.location.pathname;
+    const isStorefront = currentPath.startsWith('/store/');
+
+    let storeBaseUrl: string | undefined;
+    if (isStorefront) {
+      // Extract store slug from current URL
+      const match = currentPath.match(/^\/store\/([^\/]+)/);
+      if (match) {
+        const storeSlug = match[1];
+        storeBaseUrl = `${window.location.origin}/store/${storeSlug}`;
+      }
+    } else if (profile.storeUrl && profile.storeUrl.trim()) {
+      // Use profile store URL if available
+      storeBaseUrl = profile.storeUrl;
+    }
+
+    // Generate product-specific URL
+    const productUrl = storeBaseUrl
+      ? `${storeBaseUrl}?product=${product.id}`
+      : undefined;
+
     // Prepare share data
     const shareData: ProductShareData = {
       name: product.name,
       price: product.price,
       description: product.description,
       imageUrl: product.imageUrl,
-      storeUrl: profile.storeUrl,
+      storeUrl: productUrl, // Product-specific URL
       whatsappNumber: profile.whatsappNumber,
       instagramHandle: profile.instagramHandle,
       facebookPage: profile.facebookPage,
-      storeName: profile.businessName // For Instagram card generation
+      storeName: profile.businessName
     };
 
     try {
