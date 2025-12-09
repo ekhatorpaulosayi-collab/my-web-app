@@ -6,7 +6,6 @@
 
 import { formatNGN } from './currency';
 import { isMobileDevice } from './whatsapp';
-import { generateAndDownloadInstagramCard } from './instagramCardGenerator';
 
 export interface ProductShareData {
   name: string;
@@ -108,37 +107,13 @@ export function formatForInstagram(product: ProductShareData): string {
 
 /**
  * Share product to Instagram
- * Generates a beautiful branded card and downloads it
- * Falls back to caption copy if card generation fails
+ * Copies formatted caption and opens Instagram
  */
 export async function shareToInstagram(product: ProductShareData): Promise<{
   success: boolean;
   message: string;
 }> {
-  // Try to generate and download Instagram card (NEW METHOD)
-  try {
-    if (product.imageUrl && product.storeName) {
-      const cardGenerated = await generateAndDownloadInstagramCard({
-        productName: product.name,
-        productPrice: product.price,
-        productImageUrl: product.imageUrl,
-        storeName: product.storeName,
-        storeUrl: product.storeUrl || '',
-        instagramHandle: product.instagramHandle
-      });
-
-      if (cardGenerated) {
-        return {
-          success: true,
-          message: '✨ Instagram card downloaded! Open Instagram and post the image from your gallery.'
-        };
-      }
-    }
-  } catch (error) {
-    console.warn('[Instagram Card] Generation failed, falling back to caption copy:', error);
-  }
-
-  // FALLBACK: Old method (caption copy)
+  // Format product caption
   const caption = formatForInstagram(product);
 
   try {
@@ -150,18 +125,17 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
     // On mobile, try to open Instagram
     if (isMobileDevice()) {
       // Instagram deep link (opens app if installed)
-      // Note: Can't pre-fill post, but opens camera/library
       window.location.href = 'instagram://camera';
 
       return {
         success: true,
-        message: '📋 Caption copied! Opening Instagram...\nPaste the caption when posting your photo.'
+        message: '📋 Product details copied! Opening Instagram...\n\nPaste the caption when posting your product photo.'
       };
     } else {
       // On desktop, just copy caption
       return {
         success: true,
-        message: '📋 Instagram caption copied to clipboard!\nOpen Instagram and paste when posting.'
+        message: '📋 Instagram caption copied to clipboard!\n\nOpen Instagram and paste when posting your product photo.'
       };
     }
   } catch (error) {
