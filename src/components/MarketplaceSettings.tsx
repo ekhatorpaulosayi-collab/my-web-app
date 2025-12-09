@@ -219,10 +219,10 @@ export const MarketplaceSettings: React.FC = () => {
           onChange={(e) => setStoreDescription(e.target.value)}
           placeholder="We sell premium fashion items in Lagos..."
           rows={3}
-          maxLength={500}
+          maxLength={1000}
           disabled={loading}
         />
-        <div className="char-count">{storeDescription.length}/500</div>
+        <div className="char-count">{storeDescription.length}/1000</div>
       </div>
 
       {/* Current Plan */}

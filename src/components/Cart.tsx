@@ -422,8 +422,34 @@ export function Cart({ store }: CartProps) {
             <h2>Your Cart</h2>
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
           </div>
-          <button onClick={closeCart} className="cart-close-btn">
-            <X size={35} strokeWidth={2.5} />
+          <button
+            onClick={closeCart}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '48px',
+              height: '48px',
+              background: '#1e293b',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#ef4444';
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#1e293b';
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.2)';
+            }}
+          >
+            <X size={28} strokeWidth={3} />
           </button>
         </div>
 

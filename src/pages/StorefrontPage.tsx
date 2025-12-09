@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check, Heart } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
 import type { StoreProfile, PaymentMethod } from '../types';
 import type { ProductVariant } from '../types/variants';
@@ -234,6 +234,33 @@ function StorefrontContent() {
     loadStorefront();
   }, [slug]);
 
+  // Auto-open product from URL parameter (for shared links)
+  useEffect(() => {
+    if (!products.length || loading) return;
+
+    // Check if URL has ?product=ID parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = urlParams.get('product');
+
+    if (productId && !selectedProduct) {
+      console.log('[Storefront] Auto-opening product from URL:', productId);
+
+      // Find the product by ID
+      const product = products.find(p => p.id === productId);
+
+      if (product) {
+        console.log('[Storefront] Product found, opening modal:', product.name);
+        setSelectedProduct(product);
+
+        // Clean URL after opening product (optional - makes URL cleaner)
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      } else {
+        console.warn('[Storefront] Product not found in store:', productId);
+      }
+    }
+  }, [products, loading, selectedProduct]);
+
   // Lock body scroll when modal is open
   useEffect(() => {
     if (selectedProduct) {
@@ -340,10 +367,59 @@ function StorefrontContent() {
           ? `linear-gradient(135deg, ${store.primaryColor} 0%, ${store.primaryColor}dd 100%)`
           : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
       }}>
-        {/* Cart Button - Fixed Position */}
-        <button onClick={openCart} className="storefront-cart-btn">
-          <ShoppingCart size={24} />
-          {itemCount > 0 && <span className="storefront-cart-badge">{itemCount}</span>}
+        {/* Cart Button - High Visibility (Matches Close Button Style) */}
+        <button
+          onClick={openCart}
+          style={{
+            position: 'absolute',
+            top: '1.25rem',
+            right: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '52px',
+            height: '52px',
+            background: '#1e293b',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+            transition: 'all 0.2s ease',
+            zIndex: 10
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.2)';
+          }}
+        >
+          <ShoppingCart size={24} strokeWidth={2.5} />
+          {itemCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '22px',
+              height: '22px',
+              padding: '0 5px',
+              background: '#ef4444',
+              color: 'white',
+              borderRadius: '11px',
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.35)',
+              border: '2px solid #1e293b'
+            }}>
+              {itemCount}
+            </span>
+          )}
         </button>
 
         <div className="storefront-header-content">
@@ -455,6 +531,7 @@ function StorefrontContent() {
                           objectFit: 'contain'
                         }}
                       />
+
                       {/* Zoom badge - highly visible */}
                       <div style={{
                         position: 'absolute',
@@ -2094,7 +2171,7 @@ function StorefrontContent() {
         />
       )}
 
-      {/* Full-Screen Image Viewer */}
+      {/* Full-Screen Image Viewer - Clean White (Storehouse Style) */}
       {imageViewerOpen && viewerImageUrl && (
         <div
           onClick={() => setImageViewerOpen(false)}
@@ -2104,45 +2181,89 @@ function StorefrontContent() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            backgroundColor: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 10000,
-            cursor: 'zoom-out',
+            padding: '80px 40px 40px',
             animation: 'fadeIn 0.2s ease-in-out'
           }}
         >
-          <OptimizedImage
-            src={viewerImageUrl}
-            alt="Product image"
-            width={1600}
-            height={1600}
-            sizes="100vw"
-            objectFit="contain"
-            priority={true}
-            style={{
-              maxWidth: '95vw',
-              maxHeight: '95vh',
-              objectFit: 'contain'
+          {/* Close Button - Maximum Visibility (Dark Button) */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setImageViewerOpen(false);
             }}
-          />
-          {/* Close hint */}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              backgroundColor: '#1e293b',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 10001,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#ef4444';
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#1e293b';
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.2)';
+            }}
+          >
+            <X size={28} strokeWidth={3} style={{ color: '#ffffff' }} />
+          </button>
+
+          {/* Image Container - Clean & Centered */}
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <img
+              src={viewerImageUrl}
+              alt="Product image"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '85%',
+                maxHeight: '85%',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+                border: '1px solid #f1f5f9'
+              }}
+            />
+          </div>
+
+          {/* Product Name / Hint (Optional - Clean Design) */}
           <div style={{
             position: 'absolute',
-            bottom: '32px',
+            bottom: '24px',
             left: '50%',
             transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            color: '#1f2937',
-            padding: '12px 24px',
-            borderRadius: '8px',
+            color: '#64748b',
             fontSize: '14px',
-            fontWeight: 600,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            fontWeight: 500,
             pointerEvents: 'none'
           }}>
-            Click anywhere to close
+            Click outside to close
           </div>
         </div>
       )}

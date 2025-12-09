@@ -1220,7 +1220,7 @@ export default function OnlineStoreSetup() {
                     </label>
                     <textarea
                       value={aboutUs}
-                      onChange={(e) => setAboutUs(e.target.value.slice(0, 500))}
+                      onChange={(e) => setAboutUs(e.target.value.slice(0, 1000))}
                       placeholder="Tell customers about your business..."
                       rows={6}
                       style={{
@@ -1237,7 +1237,7 @@ export default function OnlineStoreSetup() {
                       }}
                     />
                     <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
-                      {aboutUs.length}/500 characters
+                      {aboutUs.length}/1000 characters
                     </div>
                   </div>
                   <button
