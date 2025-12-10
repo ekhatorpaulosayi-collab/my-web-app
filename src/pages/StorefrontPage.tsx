@@ -1728,17 +1728,17 @@ function StorefrontContent() {
               boxSizing: 'border-box'
             }}
           >
-            {/* Close Button - Clean mobile-friendly design */}
+            {/* Close Button - Professional Storehouse design */}
             <button
               onClick={() => setSelectedProduct(null)}
               style={{
                 position: 'absolute',
                 top: '16px',
                 right: '16px',
-                width: '112px',
-                height: '112px',
-                border: '3px solid #e5e7eb',
-                backgroundColor: '#ef4444',
+                width: '56px',
+                height: '56px',
+                border: 'none',
+                backgroundColor: '#64748b',
                 color: 'white',
                 cursor: 'pointer',
                 display: 'flex',
@@ -1748,7 +1748,7 @@ function StorefrontContent() {
                 transition: 'all 0.2s ease',
                 outline: 'none',
                 borderRadius: '50%',
-                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.3)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                 WebkitTapHighlightColor: 'transparent'
               }}
               onTouchStart={(e: React.TouchEvent) => {
@@ -1758,13 +1758,15 @@ function StorefrontContent() {
                 (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
               }}
               onMouseEnter={(e: React.MouseEvent) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = '#dc2626';
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#ef4444';
+                (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)';
               }}
               onMouseLeave={(e: React.MouseEvent) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = '#ef4444';
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#64748b';
+                (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
               }}
             >
-              <X size={56} strokeWidth={3} />
+              <X size={28} strokeWidth={2.5} />
             </button>
 
             {/* Product Image Gallery */}
