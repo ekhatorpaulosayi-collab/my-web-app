@@ -176,6 +176,16 @@ function StorefrontContent() {
           deliveryAreas: storeData.delivery_areas,
           deliveryTime: storeData.delivery_time,
           businessHours: storeData.business_hours,
+          // Bank details for checkout
+          bankName: storeData.bank_name,
+          accountNumber: storeData.account_number,
+          accountName: storeData.account_name,
+          // Payment methods for checkout
+          payment_methods: storeData.payment_methods,
+          // Paystack
+          paystackEnabled: storeData.paystack_enabled,
+          paystackPublicKey: storeData.paystack_public_key,
+          paystackTestMode: storeData.paystack_test_mode,
         } as StoreProfile;
 
         setStore(store);
