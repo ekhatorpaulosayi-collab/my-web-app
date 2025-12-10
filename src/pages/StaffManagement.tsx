@@ -192,7 +192,7 @@ export default function StaffManagement() {
           </button>
 
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             style={{
               padding: '12px 20px',
               background: '#F3F4F6',

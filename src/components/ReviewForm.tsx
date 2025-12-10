@@ -192,23 +192,28 @@ export default function ReviewForm({
               width: '40px',
               height: '40px',
               borderRadius: '50%',
-              border: 'none',
-              background: '#f1f5f9',
-              color: '#64748b',
+              border: '2px solid #e2e8f0',
+              background: '#ffffff',
+              color: '#475569',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#e2e8f0';
+              e.currentTarget.style.background = '#f8fafc';
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.color = '#1e293b';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#f1f5f9';
+              e.currentTarget.style.background = '#ffffff';
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.color = '#475569';
             }}
           >
-            <X size={20} />
+            <X size={20} strokeWidth={2.5} />
           </button>
         </div>
 

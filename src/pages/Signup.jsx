@@ -136,7 +136,7 @@ export default function Signup() {
         setSuccess(true);
       } else {
         console.debug('[Signup] Redirecting to dashboard');
-        navigate('/');
+        navigate('/dashboard');
       }
     } catch (err) {
       console.error('[Signup] Signup failed:', err);

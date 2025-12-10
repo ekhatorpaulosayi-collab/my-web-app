@@ -65,7 +65,7 @@ export default function Login() {
       // Log successful login
       logLoginAttempt(formData.email, true);
 
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       console.error('[Login] Sign in failed:', err);
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import {
   Package, ShoppingCart, Users, TrendingUp,
   Smartphone, Wifi, WifiOff, MessageCircle,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import AIChatWidget from '../components/AIChatWidget';
 import { getImageKitUrl, getImageKitSrcSet, getImageKitSizes } from '../utils/imagekit';
+import { useAuth } from '../contexts/AuthContext';
 import './LandingPage.css';
 
 // Pricing Toggle Component
@@ -72,11 +73,17 @@ function PricingAmount({ monthly, annual, billingCycle }: {
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrollY, setScrollY] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
+
+  // Auto-redirect logged-in users to dashboard
+  if (currentUser) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   // Scroll tracking for parallax
   useEffect(() => {

@@ -569,7 +569,7 @@ Thank you for your business! 🙏
         </div>
 
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/dashboard')}
           style={{
             padding: '10px 20px',
             background: '#f3f4f6',

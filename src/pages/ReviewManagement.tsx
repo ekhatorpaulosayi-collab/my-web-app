@@ -159,7 +159,7 @@ export default function ReviewManagement() {
       <div className="page-header">
         <button
           className="back-button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/dashboard')}
         >
           <ArrowLeft size={20} />
           Back to Dashboard

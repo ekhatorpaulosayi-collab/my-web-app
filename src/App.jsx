@@ -4561,9 +4561,9 @@ Low Stock: ${lowStockItems.length}
       <BusinessSettings
         isOpen={showSettings}
         onClose={() => {
-          console.log('[App] Closing settings and navigating to /');
+          console.log('[App] Closing settings and navigating to /dashboard');
           setShowSettings(false);
-          navigate('/');
+          navigate('/dashboard');
         }}
         onExportCSV={exportToCSV}
         onSendEOD={() => {

@@ -115,19 +115,19 @@ export default function AppRoutes() {
         <Route
           path="/login"
           element={
-            loading ? <LoadingScreen /> : currentUser ? <Navigate to="/" replace /> : <Login />
+            loading ? <LoadingScreen /> : currentUser ? <Navigate to="/dashboard" replace /> : <Login />
           }
         />
         <Route
           path="/signup"
           element={
-            loading ? <LoadingScreen /> : currentUser ? <Navigate to="/" replace /> : <Signup />
+            loading ? <LoadingScreen /> : currentUser ? <Navigate to="/dashboard" replace /> : <Signup />
           }
         />
         <Route
           path="/forgot-password"
           element={
-            loading ? <LoadingScreen /> : currentUser ? <Navigate to="/" replace /> : <ForgotPassword />
+            loading ? <LoadingScreen /> : currentUser ? <Navigate to="/dashboard" replace /> : <ForgotPassword />
           }
         />
         <Route
@@ -322,15 +322,15 @@ export default function AppRoutes() {
         <Route path="/account" element={<Navigate to="/settings" replace />} />
         <Route path="/profile" element={<Navigate to="/settings" replace />} />
 
-        {/* Landing Page - Public marketing page */}
-        <Route path="/landing" element={<LandingPage />} />
+        {/* Landing Page - Public marketing page (ROOT DOMAIN) */}
+        <Route path="/" element={<LandingPage />} />
 
         {/* Testimonial Submission - Public form for customers */}
         <Route path="/submit-testimonial" element={<SubmitTestimonial />} />
 
-        {/* Main dashboard */}
+        {/* Main dashboard - Protected route */}
         <Route
-          path="/"
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <App />
@@ -338,13 +338,16 @@ export default function AppRoutes() {
           }
         />
 
+        {/* Legacy /landing route - Redirect to root */}
+        <Route path="/landing" element={<Navigate to="/" replace />} />
+
         {/* Public storefront - accessible without login */}
         <Route path="/store/:slug" element={<StorefrontPage />} />
 
         {/* Public invoice view - accessible without login */}
         <Route path="/invoice/:id" element={<PublicInvoiceView />} />
 
-        {/* Catch-all - redirect to home */}
+        {/* Catch-all - redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
