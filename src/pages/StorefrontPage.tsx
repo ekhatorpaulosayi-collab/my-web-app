@@ -531,24 +531,6 @@ function StorefrontContent() {
                           objectFit: 'contain'
                         }}
                       />
-
-                      {/* Zoom badge - highly visible */}
-                      <div style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                        backgroundColor: 'rgba(59, 130, 246, 0.95)',
-                        color: 'white',
-                        padding: '8px 14px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                        pointerEvents: 'none',
-                        zIndex: 2
-                      }}>
-                        🔍 ZOOM
-                      </div>
                     </div>
                   ) : (
                     <div style={{

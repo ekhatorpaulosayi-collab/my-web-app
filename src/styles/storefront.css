@@ -438,36 +438,36 @@
   box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
 }
 
-/* Add to Cart and Quick Order Buttons */
+/* Add to Cart - Primary Action (Vibrant Blue) */
 .btn-add-to-cart {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: #1e293b; /* Darker, more professional like Next's "ADD TO BAG" */
+  background: #2563eb; /* Vibrant blue - primary action */
   color: white;
   border: none;
-  padding: 1rem 1.25rem; /* Larger padding for better click target */
+  padding: 1rem 1.25rem;
   border-radius: 10px;
   font-size: 0.9375rem;
-  font-weight: 700; /* Bolder text */
-  letter-spacing: 0.025em; /* Slightly wider letter spacing */
-  text-transform: uppercase; /* Professional uppercase styling */
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(30, 41, 59, 0.2);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .btn-add-to-cart:hover {
-  background: #0f172a; /* Even darker on hover */
+  background: #1d4ed8; /* Darker blue on hover */
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(30, 41, 59, 0.3);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
 }
 
 .btn-add-to-cart:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(30, 41, 59, 0.2);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 /* WhatsApp Button (new) */
