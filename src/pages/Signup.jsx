@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 // MIGRATION: Using Supabase auth
 import { signUp } from '../lib/authService-supabase';
 import { validateReferralCode, claimReferralCode } from '../services/referralService';
+import { checkSignupRateLimit, recordSignupAttempt, getRateLimitMessage } from '../utils/rateLimiter';
 import '../styles/Auth.css';
 
 export default function Signup() {
@@ -105,11 +106,22 @@ export default function Signup() {
       return;
     }
 
+    // Rate limiting check
+    const rateLimit = checkSignupRateLimit();
+    if (!rateLimit.allowed) {
+      setError(getRateLimitMessage(rateLimit.resetTime));
+      return;
+    }
+
     try {
       setLoading(true);
       console.debug('[Signup] Attempting signup:', email);
+      console.debug('[Signup] Rate limit remaining:', rateLimit.remaining - 1);
 
       const result = await signUp(email, password, storeName);
+
+      // Record successful signup attempt for rate limiting
+      recordSignupAttempt(email);
 
       console.debug('[Signup] Signup successful');
 
