@@ -518,19 +518,16 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
           maxWidth: '600px',
           width: '100%',
           maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          overflowY: 'auto',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <form onSubmit={handleSubmit}>
           {/* Header */}
           <div style={{
             padding: '1.5rem',
-            borderBottom: '1px solid #e5e7eb',
-            flexShrink: 0
+            borderBottom: '1px solid #e5e7eb'
           }}>
             <h3 style={{
               fontSize: '1.5rem',
@@ -550,7 +547,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
           </div>
 
           {/* Form */}
-          <div style={{ padding: '1.5rem', flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <div style={{ padding: '1.5rem' }}>
             {/* Payment Type Selection */}
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{
@@ -746,8 +743,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
             borderTop: '1px solid #e5e7eb',
             display: 'flex',
             gap: '0.75rem',
-            justifyContent: 'flex-end',
-            flexShrink: 0
+            justifyContent: 'flex-end'
           }}>
             <button
               type="button"
