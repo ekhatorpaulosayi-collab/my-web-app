@@ -1738,6 +1738,9 @@ function StorefrontContent() {
         <p className="footer-note">
           {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} available
         </p>
+        <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+          <a href="https://github.com/anthropics/storehouse/blob/main/TERMS_OF_SERVICE.md" target="_blank" rel="noopener noreferrer" style={{ color: '#64748b', textDecoration: 'underline' }}>Terms of Service</a>
+        </p>
       </footer>
 
       {/* Product Detail Modal */}

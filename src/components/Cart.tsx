@@ -1015,10 +1015,29 @@ export function Cart({ store }: CartProps) {
                     </button>
                   </div>
 
-                  {/* Subtle Security & Contact Info */}
+                  {/* Buyer Protection Info - Friendly & Reassuring */}
                   <div style={{
                     marginTop: '16px',
-                    paddingTop: '16px',
+                    padding: '12px',
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    lineHeight: 1.6,
+                    color: '#0369a1'
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>🛡️</span> You're ordering directly from {store.businessName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#075985' }}>
+                      All sales are managed by the merchant. For support, contact them directly.
+                    </div>
+                  </div>
+
+                  {/* Subtle Security & Contact Info */}
+                  <div style={{
+                    marginTop: '12px',
+                    paddingTop: '12px',
                     borderTop: '1px solid #e5e7eb',
                     textAlign: 'center'
                   }}>
