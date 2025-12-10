@@ -1267,8 +1267,8 @@ export default function OnlineStoreSetup() {
               <AccordionSection
                 id="payment"
                 icon="💳"
-                title="Payment Details"
-            description="Make it easy for customers to pay you"
+                title="Your Business Bank Account"
+            description="Your primary bank account for business records, invoices, and customer payments"
             completed={!!bankName && !!accountNumber}
             isOpen={openSection === 'payment'}
             onToggle={() => toggleSection('payment')}
@@ -1281,7 +1281,7 @@ export default function OnlineStoreSetup() {
                 color: '#1F2937',
                 marginBottom: '12px',
               }}>
-                🏦 Manual Bank Transfer
+                🏦 Bank Account Details
               </h4>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{

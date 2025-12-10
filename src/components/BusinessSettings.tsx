@@ -778,7 +778,7 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 2: Payment Methods (OPay, Moniepoint, PalmPay, etc.) */}
+            {/* Section 2: Online Store Payment Methods */}
             <div className="bs-section" id="section-payment-methods">
               <button
                 type="button"
@@ -786,7 +786,7 @@ export default function BusinessSettings({
                 onClick={() => handleToggleSection('payment-methods')}
               >
                 <div className="bs-section-title-row">
-                  <h3 className="bs-section-title">💳 Payment Methods</h3>
+                  <h3 className="bs-section-title">💳 Online Store Payment Methods</h3>
                 </div>
                 <span className={`bs-chevron ${isSectionExpanded('payment-methods') ? 'open' : ''}`}>›</span>
               </button>
@@ -796,10 +796,22 @@ export default function BusinessSettings({
                   <p style={{
                     fontSize: '14px',
                     color: '#64748b',
-                    marginBottom: '1.5rem',
+                    marginBottom: '0.75rem',
                     lineHeight: 1.6
                   }}>
-                    Add multiple payment methods (OPay, Moniepoint, PalmPay, Banks) for your customers. They'll see these options on your storefront and during checkout.
+                    Payment options customers see when buying from your online store.
+                  </p>
+                  <p style={{
+                    fontSize: '13px',
+                    color: '#3b82f6',
+                    marginBottom: '1.5rem',
+                    lineHeight: 1.5,
+                    padding: '12px',
+                    background: '#eff6ff',
+                    borderRadius: '8px',
+                    border: '1px solid #bfdbfe'
+                  }}>
+                    💡 <strong>For online store only.</strong> If you only use Storehouse for record-keeping (no online store), you can skip this.
                   </p>
                   <PaymentMethodsManager onToast={onToast} />
                 </div>
