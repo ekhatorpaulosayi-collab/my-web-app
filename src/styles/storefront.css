@@ -906,3 +906,45 @@
 .product-modal-image .smart-picture-container {
   border-radius: 0;
 }
+
+/* ==================== ADD TO CART TOAST NOTIFICATION ==================== */
+/* Industry-standard instant feedback - Amazon/Shopify style */
+.add-to-cart-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #10b981;
+  color: white;
+  padding: 14px 24px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
+  z-index: 99999;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  pointer-events: none;
+}
+
+.add-to-cart-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.add-to-cart-toast svg {
+  flex-shrink: 0;
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+  .add-to-cart-toast {
+    bottom: 80px;
+    padding: 12px 20px;
+    font-size: 14px;
+    max-width: calc(100% - 32px);
+  }
+}

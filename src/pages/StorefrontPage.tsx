@@ -531,6 +531,53 @@ function StorefrontContent() {
                         backgroundColor: '#f3f4f6'
                       }}
                     >
+                      {/* Stock Badge Overlays - Industry Standard UX */}
+                      {product.quantity === 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'rgba(0, 0, 0, 0.7)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '8px 8px 0 0',
+                          zIndex: 1
+                        }}>
+                          <span style={{
+                            background: '#ef4444',
+                            color: 'white',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                          }}>
+                            OUT OF STOCK
+                          </span>
+                        </div>
+                      )}
+
+                      {product.quantity > 0 && product.quantity <= 10 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: '#f59e0b',
+                          color: 'white',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          zIndex: 1,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                        }}>
+                          Only {product.quantity} left!
+                        </div>
+                      )}
+
                       <img
                         src={product.image_url || product.image_thumbnail}
                         alt={product.name}
@@ -538,7 +585,8 @@ function StorefrontContent() {
                         style={{
                           width: '100%',
                           height: '100%',
-                          objectFit: 'contain'
+                          objectFit: 'contain',
+                          opacity: product.quantity === 0 ? 0.6 : 1
                         }}
                       />
                     </div>
@@ -701,6 +749,23 @@ function StorefrontContent() {
                             attributes: product.attributes || {}
                           });
                           console.log('Item added successfully');
+
+                          // Show toast notification - Industry standard UX
+                          const toast = document.createElement('div');
+                          toast.className = 'add-to-cart-toast';
+                          toast.innerHTML = `
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <span>${product.name} added to cart!</span>
+                          `;
+                          document.body.appendChild(toast);
+                          setTimeout(() => toast.classList.add('show'), 10);
+                          setTimeout(() => {
+                            toast.classList.remove('show');
+                            setTimeout(() => toast.remove(), 300);
+                          }, 2500);
+
                           openCart();
                         } catch (error) {
                           console.error('Error adding to cart:', error);
