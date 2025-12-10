@@ -519,6 +519,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
           width: '100%',
           maxHeight: '90vh',
           overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
         }}
         onClick={(e) => e.stopPropagation()}
