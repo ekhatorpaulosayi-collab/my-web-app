@@ -1179,7 +1179,10 @@ export default function BusinessSettings({
                   justifyContent: 'center',
                   gap: '10px',
                   transition: 'all 0.2s',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  WebkitTapHighlightColor: 'rgba(239, 68, 68, 0.1)', // Mobile tap feedback
+                  touchAction: 'manipulation', // Disable double-tap zoom on mobile
+                  minHeight: '48px' // Ensure minimum touch target size (iOS/Android standard)
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = '#fef2f2';
@@ -1188,6 +1191,18 @@ export default function BusinessSettings({
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'white';
                   e.currentTarget.style.borderColor = '#ef4444';
+                }}
+                onTouchStart={(e) => {
+                  // Mobile touch feedback
+                  e.currentTarget.style.background = '#fef2f2';
+                  e.currentTarget.style.borderColor = '#dc2626';
+                }}
+                onTouchEnd={(e) => {
+                  // Reset after touch
+                  setTimeout(() => {
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.borderColor = '#ef4444';
+                  }, 150);
                 }}
               >
                 <span style={{ fontSize: '18px' }}>🚪</span>
