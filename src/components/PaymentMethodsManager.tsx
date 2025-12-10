@@ -208,7 +208,7 @@ export default function PaymentMethodsManager({ onToast }: PaymentMethodsManager
         <button
           onClick={() => setShowAddModal(true)}
           style={{
-            display: 'flex',
+            display: window.innerWidth < 768 ? 'none' : 'flex',
             alignItems: 'center',
             gap: '0.5rem',
             padding: '0.75rem 1.25rem',
