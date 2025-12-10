@@ -527,11 +527,11 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
         <form onSubmit={handleSubmit}>
           {/* Header */}
           <div style={{
-            padding: '1.5rem',
+            padding: window.innerWidth < 768 ? '0.75rem 1rem' : '1.5rem',
             borderBottom: '1px solid #e5e7eb'
           }}>
             <h3 style={{
-              fontSize: '1.5rem',
+              fontSize: window.innerWidth < 768 ? '1.125rem' : '1.5rem',
               fontWeight: 700,
               color: '#1e293b',
               margin: 0
@@ -539,31 +539,31 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
               Add Payment Method
             </h3>
             <p style={{
-              fontSize: '0.875rem',
+              fontSize: '0.8125rem',
               color: '#64748b',
-              margin: '0.5rem 0 0'
+              margin: '0.25rem 0 0'
             }}>
               Add OPay, Moniepoint, Bank or any payment account
             </p>
           </div>
 
           {/* Form */}
-          <div style={{ padding: '1.5rem' }}>
+          <div style={{ padding: window.innerWidth < 768 ? '0.75rem 1rem' : '1.5rem' }}>
             {/* Payment Type Selection */}
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: window.innerWidth < 768 ? '0.75rem' : '1.5rem' }}>
               <label style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: '0.8125rem',
                 fontWeight: 600,
                 color: '#374151',
-                marginBottom: '0.75rem'
+                marginBottom: window.innerWidth < 768 ? '0.5rem' : '0.75rem'
               }}>
                 Payment Type
               </label>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '0.75rem'
+                gap: window.innerWidth < 768 ? '0.5rem' : '0.75rem'
               }}>
                 {PAYMENT_PROVIDERS.map(provider => (
                   <button
@@ -571,7 +571,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
                     type="button"
                     onClick={() => setSelectedType(provider.type)}
                     style={{
-                      padding: '1rem',
+                      padding: window.innerWidth < 768 ? '0.5rem' : '1rem',
                       background: selectedType === provider.type ? provider.color : 'white',
                       color: selectedType === provider.type ? 'white' : '#1f2937',
                       border: `2px solid ${selectedType === provider.type ? provider.color : '#e5e7eb'}`,
@@ -580,13 +580,13 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '0.5rem',
-                      fontSize: '0.875rem',
+                      gap: window.innerWidth < 768 ? '0.25rem' : '0.5rem',
+                      fontSize: window.innerWidth < 768 ? '0.75rem' : '0.875rem',
                       fontWeight: 600,
                       transition: 'all 0.2s'
                     }}
                   >
-                    <span style={{ fontSize: '1.5rem' }}>{provider.icon}</span>
+                    <span style={{ fontSize: window.innerWidth < 768 ? '1.25rem' : '1.5rem' }}>{provider.icon}</span>
                     <span>{provider.name}</span>
                   </button>
                 ))}
@@ -595,7 +595,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
 
             {/* Custom Label for "Other" type */}
             {selectedType === 'other' && (
-              <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ marginBottom: window.innerWidth < 768 ? '0.75rem' : '1.5rem' }}>
                 <label style={{
                   display: 'block',
                   fontSize: '0.875rem',
@@ -624,7 +624,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
 
             {/* Bank Name (for bank type) */}
             {selectedProvider?.requiresBankName && (
-              <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ marginBottom: window.innerWidth < 768 ? '0.75rem' : '1.5rem' }}>
                 <label style={{
                   display: 'block',
                   fontSize: '0.875rem',
@@ -653,7 +653,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
             )}
 
             {/* Account Number */}
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: window.innerWidth < 768 ? '0.75rem' : '1.5rem' }}>
               <label style={{
                 display: 'block',
                 fontSize: '0.875rem',
@@ -682,7 +682,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
             </div>
 
             {/* Account Name */}
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: window.innerWidth < 768 ? '0.75rem' : '1.5rem' }}>
               <label style={{
                 display: 'block',
                 fontSize: '0.875rem',
@@ -710,10 +710,10 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
             </div>
 
             {/* Payment Instructions */}
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: window.innerWidth < 768 ? '0.5rem' : '1.5rem' }}>
               <label style={{
                 display: 'block',
-                fontSize: '0.875rem',
+                fontSize: '0.8125rem',
                 fontWeight: 600,
                 color: '#374151',
                 marginBottom: '0.5rem'
@@ -724,7 +724,7 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
                 placeholder="e.g., After payment, send screenshot to WhatsApp"
-                rows={3}
+                rows={window.innerWidth < 768 ? 2 : 3}
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -740,10 +740,10 @@ function AddPaymentMethodModal({ onAdd, onClose }: AddPaymentMethodModalProps) {
 
           {/* Footer */}
           <div style={{
-            padding: '1.5rem',
+            padding: window.innerWidth < 768 ? '0.75rem 1rem' : '1.5rem',
             borderTop: '1px solid #e5e7eb',
             display: 'flex',
-            gap: '0.75rem',
+            gap: '0.5rem',
             justifyContent: 'flex-end'
           }}>
             <button
