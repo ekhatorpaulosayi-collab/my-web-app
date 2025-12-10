@@ -51,19 +51,23 @@ export function Cart({ store }: CartProps) {
   // Get available payment methods (multi-payment + legacy bank details)
   const availablePaymentMethods = store.payment_methods?.filter(m => m.enabled) || [];
 
-  // Add legacy bank details as fallback if available and no modern payment methods
+  // ALWAYS add legacy bank details if they exist (regardless of modern payment methods)
   const hasLegacyBankDetails = store.bankName && store.accountNumber;
-  if (hasLegacyBankDetails && availablePaymentMethods.length === 0) {
-    availablePaymentMethods.push({
-      id: 'legacy-bank',
-      type: 'bank',
-      enabled: true,
-      label: store.bankName || 'Bank Transfer',
-      account_name: store.accountName || store.businessName,
-      account_number: store.accountNumber || '',
-      bank_name: store.bankName || '',
-      created_at: new Date().toISOString()
-    });
+  if (hasLegacyBankDetails) {
+    // Check if legacy bank not already in array
+    const hasLegacyInArray = availablePaymentMethods.some(m => m.id === 'legacy-bank');
+    if (!hasLegacyInArray) {
+      availablePaymentMethods.push({
+        id: 'legacy-bank',
+        type: 'bank',
+        enabled: true,
+        label: store.bankName || 'Bank Transfer',
+        account_name: store.accountName || store.businessName,
+        account_number: store.accountNumber || '',
+        bank_name: store.bankName || '',
+        created_at: new Date().toISOString()
+      });
+    }
   }
 
   // Calculate discount and final total
