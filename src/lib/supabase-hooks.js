@@ -101,14 +101,18 @@ export function useUser(firebaseUser) {
           throw fetchError;
         }
 
-        // User should already exist from Supabase Auth signup
-        // If not found, auto-create profile (handles race condition in signup flow)
+        // User should already exist from Supabase Auth signup trigger
+        // If not found, auto-create profile (handles race condition or trigger failure)
         if (!existingUser) {
           console.log('[Supabase] Auto-creating missing user profile for:', firebaseUser.email);
 
           const newUser = {
             id: firebaseUser.uid,
             email: firebaseUser.email,
+            phone_number: firebaseUser.phone || firebaseUser.email, // Use email as fallback (now allowed by DB)
+            business_name: 'My Store', // Default business name
+            device_type: 'web',
+            is_active: true,
             created_at: new Date().toISOString(),
             last_login_at: new Date().toISOString()
           };
