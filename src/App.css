@@ -5207,7 +5207,9 @@ select.calc-input,
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px;
-  background: #FFFFFF;
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  opacity: 1 !important;
 }
 
 /* Debt Card */

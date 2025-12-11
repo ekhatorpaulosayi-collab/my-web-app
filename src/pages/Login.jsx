@@ -13,6 +13,7 @@ export default function Login() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Track page view for error monitoring
   useEffect(() => {
@@ -141,17 +142,43 @@ export default function Login() {
             <label htmlFor="password" className="form-label">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="form-input"
-              placeholder="••••••••"
-              required
-              disabled={loading}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="••••••••"
+                required
+                disabled={loading}
+                style={{ paddingRight: '45px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  fontSize: '18px',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
           </div>
 
           <div className="forgot-password-link">

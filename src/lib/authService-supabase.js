@@ -70,7 +70,8 @@ export async function signUp(email, password, storeName) {
             console.debug('[Auth] User record already exists, continuing...');
           } else {
             console.error('[Auth] User record creation error:', userError);
-            throw userError;
+            // Provide user-friendly error message with actual error details
+            throw new Error(`Database error saving new user: ${userError.message || userError.details || 'Unknown error'}. Please try again or contact support.`);
           }
         } else {
           console.debug('[Auth] User record created in public.users');

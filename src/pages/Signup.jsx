@@ -13,6 +13,7 @@ export default function Signup() {
     storeName: '',
     email: '',
     password: '',
+    confirmPassword: '',
     referralCode: ''
   });
   const [error, setError] = useState('');
@@ -21,6 +22,8 @@ export default function Signup() {
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [referralCodeValid, setReferralCodeValid] = useState(null);
   const [validatingReferral, setValidatingReferral] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Check for referral code in URL on mount
   useEffect(() => {
@@ -103,6 +106,12 @@ export default function Signup() {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      return;
+    }
+
+    // Check if passwords match
+    if (password !== formData.confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
@@ -309,19 +318,109 @@ export default function Signup() {
             <label htmlFor="password" className="form-label">
               Password *
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="form-input"
-              placeholder="••••••••"
-              required
-              minLength={6}
-              disabled={loading}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="••••••••"
+                required
+                minLength={6}
+                disabled={loading}
+                style={{ paddingRight: '45px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  fontSize: '18px',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
             <p className="form-hint">Minimum 6 characters</p>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="confirmPassword" className="form-label">
+              Confirm Password *
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="••••••••"
+                required
+                minLength={6}
+                disabled={loading}
+                style={{
+                  paddingRight: '45px',
+                  ...(formData.confirmPassword && formData.password !== formData.confirmPassword && {
+                    borderColor: '#ef4444',
+                    background: '#fef2f2'
+                  }),
+                  ...(formData.confirmPassword && formData.password === formData.confirmPassword && formData.confirmPassword.length >= 6 && {
+                    borderColor: '#10b981',
+                    background: '#f0fdf4'
+                  })
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  fontSize: '18px',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
+            {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+              <p className="form-hint" style={{ color: '#ef4444', marginTop: '6px' }}>
+                Passwords do not match
+              </p>
+            )}
+            {formData.confirmPassword && formData.password === formData.confirmPassword && formData.confirmPassword.length >= 6 && (
+              <p className="form-hint" style={{ color: '#10b981', marginTop: '6px' }}>
+                ✓ Passwords match
+              </p>
+            )}
           </div>
 
           <div className="form-group">
