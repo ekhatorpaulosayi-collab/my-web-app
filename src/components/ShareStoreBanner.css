@@ -46,29 +46,32 @@
 }
 
 .share-label {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .share-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: nowrap;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .share-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 8px 10px;
   border: none;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .whatsapp-btn {
