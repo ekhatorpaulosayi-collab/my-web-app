@@ -5174,6 +5174,54 @@ select.calc-input,
   font-size: 14px;
   padding: 8px 14px;
   border-radius: 8px;
+  border: 2px solid transparent;
+  background: #334155;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.debt-chip:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Active state - selected button */
+.debt-chip.active {
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+/* First button (All) - Blue */
+.debt-chip:nth-child(1) {
+  background: #1e3a8a;
+}
+
+.debt-chip:nth-child(1).active {
+  background: #1e40af;
+  box-shadow: 0 2px 12px rgba(30, 58, 138, 0.4);
+}
+
+/* Second button (Overdue) - Red/Orange */
+.debt-chip:nth-child(2) {
+  background: #dc2626;
+}
+
+.debt-chip:nth-child(2).active {
+  background: #ef4444;
+  box-shadow: 0 2px 12px rgba(220, 38, 38, 0.4);
+}
+
+/* Third button (Paid) - Green */
+.debt-chip:nth-child(3) {
+  background: #16a34a;
+}
+
+.debt-chip:nth-child(3).active {
+  background: #22c55e;
+  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.4);
 }
 
 /* Search Input */

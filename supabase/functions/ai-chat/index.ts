@@ -965,7 +965,7 @@ async function generateAIResponse(
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 200,
+        max_tokens: 100,  // Reduced from 200 for more concise responses
         temperature: 0.7,
       }),
     });
@@ -1624,7 +1624,7 @@ STRICT RULES:
 3. NEVER discuss: owner's costs, subscriptions, business expenses, profits, or internal operations
 4. When customers show interest in buying, ALWAYS say: "${store.whatsapp_number ? `Great! WhatsApp us at ${store.whatsapp_number} to complete your order!` : 'Add to cart to complete your order!'}"
 5. Suggest 1-2 related products when appropriate to increase sales
-6. Be friendly, helpful, and concise (max 100 words)
+6. Be friendly, helpful, and VERY concise (1-2 sentences max, 50 words or less)
 7. If unsure about something, say: "${store.whatsapp_number ? `Contact us on WhatsApp: ${store.whatsapp_number} for details!` : 'Contact the store for more details!'}"
 
 Your goal: Help customers find products and guide them to make a purchase via WhatsApp.`;
@@ -1641,7 +1641,7 @@ Your goal: Help customers find products and guide them to make a purchase via Wh
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
-      max_tokens: 120,
+      max_tokens: 80,  // Reduced from 120 for very concise responses (1-2 sentences)
       temperature: 0.7,
     }),
   });
