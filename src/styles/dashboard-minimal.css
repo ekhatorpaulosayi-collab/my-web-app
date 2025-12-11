@@ -43,7 +43,7 @@
 .dashboard-minimal {
   max-width: 100%;
   padding: var(--space-base);
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   background: var(--bg-body);
   min-height: 100vh;
