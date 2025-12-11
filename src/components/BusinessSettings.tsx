@@ -1261,14 +1261,14 @@ export default function BusinessSettings({
                 e.currentTarget.style.transform = 'scale(1)';
                 e.currentTarget.style.background = '';
               }}
-              disabled={!dirty || !formData.businessName.trim() || isSaving}
+              disabled={!dirty || isSaving}
               aria-busy={isSaving}
-              aria-disabled={!dirty || !formData.businessName.trim() || isSaving}
+              aria-disabled={!dirty || isSaving}
               style={{
                 WebkitTapHighlightColor: 'rgba(79, 70, 229, 0.3)',
                 touchAction: 'manipulation',
                 minHeight: '48px',
-                cursor: (!dirty || !formData.businessName.trim() || isSaving) ? 'not-allowed' : 'pointer'
+                cursor: (!dirty || isSaving) ? 'not-allowed' : 'pointer'
               }}
             >
               {isSaving && <Spinner />}
