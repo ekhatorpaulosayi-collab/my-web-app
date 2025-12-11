@@ -68,6 +68,7 @@ export default function PaymentsSection({ onToast, onOpenPaystackSetup }: Paymen
             type="button"
             className="bs-btn-secondary"
             onClick={onOpenPaystackSetup}
+            data-action="add-paystack"
             style={{ fontSize: '13px', padding: '6px 12px' }}
           >
             {paystackConnected ? 'Manage' : 'Connect'}

@@ -9,7 +9,7 @@
   justify-content: space-between;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 16px;
+  padding: 20px 16px 16px 16px;
   border-radius: 12px;
   margin-bottom: 16px;
   gap: 12px;
@@ -17,8 +17,8 @@
 
 .share-banner-dismiss {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 4px;
+  right: 4px;
   background: rgba(255, 255, 255, 0.2);
   border: none;
   border-radius: 6px;
@@ -29,6 +29,7 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  z-index: 10;
 }
 
 .share-banner-dismiss:hover {
@@ -109,6 +110,29 @@
 .preview-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+/* Helper Text Below Banner */
+.share-banner-helper-text {
+  margin: -8px 0 16px 0;
+  padding: 0 4px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+  text-align: center;
+  opacity: 0.85;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 640px) {

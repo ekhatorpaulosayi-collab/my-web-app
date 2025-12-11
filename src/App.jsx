@@ -95,6 +95,7 @@ import { VariantManager } from './components/VariantManager.tsx';
 import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
 import MultiImageUpload from './components/MultiImageUpload.tsx';
 import UpgradeModal from './components/UpgradeModal.tsx';
+import { exportAllDataCSV } from './utils/csvExport.ts';
 
 function App() {
   const navigate = useNavigate();
@@ -3079,8 +3080,42 @@ Low Stock: ${lowStockItems.length}
   // Export CSV handler
   const handleExportCSV = () => {
     console.log('[App] Export CSV triggered from More menu');
-    // TODO: Implement CSV export functionality
-    alert('Export CSV functionality coming soon! This will download all your inventory, sales, and customer data.');
+
+    try {
+      // Get customers from debts (unique customers who have made purchases)
+      const uniqueCustomers = Array.from(
+        new Map(
+          sales
+            .filter(sale => sale.customerName || sale.customer_name)
+            .map(sale => {
+              const name = sale.customerName || sale.customer_name || '';
+              const phone = sale.customerPhone || sale.customer_phone || '';
+              return [name, { name, phone }];
+            })
+        ).values()
+      );
+
+      const result = exportAllDataCSV(items, sales, uniqueCustomers);
+
+      console.log('[App] Export complete:', result);
+
+      // Show success message with helpful tips
+      const message = `✅ Export successful!\n\n` +
+        `Downloaded:\n` +
+        `• ${result.inventory} inventory items\n` +
+        `• ${result.sales} sales records\n` +
+        `• ${result.customers} customers\n\n` +
+        `💡 What to do next:\n` +
+        `1. Check your Downloads folder for 3 CSV files\n` +
+        `2. Open files in Excel, Google Sheets, or Numbers\n` +
+        `3. Use for backup, analysis, or importing to other software\n\n` +
+        `💾 Tip: Save these files in a safe place as backup!`;
+
+      alert(message);
+    } catch (error) {
+      console.error('[App] Export failed:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   // First Sale Modal check

@@ -7,6 +7,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
 import { ShareStoreBanner } from './ShareStoreBanner';
+import { PaymentStatusIndicator } from './PaymentStatusIndicator';
+import { PaymentSetupNudge } from './PaymentSetupNudge';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
 import { MoreMenu } from './MoreMenu';
 import { ChannelAnalytics } from './ChannelAnalytics';
@@ -146,6 +148,34 @@ export function Dashboard({
   const handleShowHero = () => {
     setHeroDismissed(false);
   };
+
+  // Payment Setup Nudge state
+  const paymentNudgeKey = userId
+    ? `storehouse:${userId}:payment-nudge:dismissed`
+    : 'storehouse:payment-nudge:dismissed';
+
+  const [paymentNudgeDismissed, setPaymentNudgeDismissed] = useState(() => {
+    return localStorage.getItem(paymentNudgeKey) === 'true';
+  });
+
+  const handleDismissPaymentNudge = () => {
+    localStorage.setItem(paymentNudgeKey, 'true');
+    setPaymentNudgeDismissed(true);
+  };
+
+  // Determine if we should show the payment setup nudge
+  const shouldShowPaymentNudge = useMemo(() => {
+    if (paymentNudgeDismissed || !store) return false;
+
+    // Only show if user has 3+ products
+    if (items.length < 3) return false;
+
+    // Only show if no payment methods are set up
+    const hasBank = !!(store.bank_name && store.account_number);
+    const hasOnlinePayments = store.payment_methods?.some((pm: any) => pm.enabled && pm.type !== 'bank') || false;
+
+    return !hasBank && !hasOnlinePayments;
+  }, [paymentNudgeDismissed, store, items.length]);
 
   // Listen for hero re-enable from settings
   useEffect(() => {
@@ -356,6 +386,86 @@ export function Dashboard({
           storeUrl={storeUrl}
           storeName={businessName}
           onDismiss={handleDismissHero}
+        />
+      )}
+
+      {/* Payment Setup Nudge - Shows after 3+ products added, no payment methods */}
+      {shouldShowPaymentNudge && (
+        <PaymentSetupNudge
+          productCount={items.length}
+          onSetupClick={() => {
+            if (onViewSettings) {
+              onViewSettings();
+              // Scroll to payment section AND open Paystack modal
+              setTimeout(() => {
+                const paymentSection = document.querySelector('[data-section="payment"]');
+                if (paymentSection) {
+                  // Expand the section first if collapsed
+                  const sectionHeader = paymentSection.querySelector('.bs-section-header');
+                  if (sectionHeader) {
+                    const isExpanded = paymentSection.querySelector('.bs-section-content');
+                    if (!isExpanded) {
+                      (sectionHeader as HTMLElement).click();
+                    }
+                  }
+
+                  // Scroll to the section
+                  setTimeout(() => {
+                    paymentSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                    // After scrolling, click the Paystack button to open modal
+                    setTimeout(() => {
+                      const addPaystackBtn = document.querySelector('[data-action="add-paystack"]');
+                      if (addPaystackBtn) {
+                        (addPaystackBtn as HTMLElement).click();
+                      }
+                    }, 500);
+                  }, 100);
+                }
+              }, 300);
+            }
+          }}
+          onDismiss={handleDismissPaymentNudge}
+        />
+      )}
+
+      {/* Payment Status Indicator */}
+      {store && !shouldShowPaymentNudge && (
+        <PaymentStatusIndicator
+          hasBank={!!(store.bank_name && store.account_number)}
+          onlinePaymentMethods={store.payment_methods?.filter((pm: any) => pm.enabled && pm.type !== 'bank').length || 0}
+          onSetupClick={() => {
+            if (onViewSettings) {
+              onViewSettings();
+              // Scroll to payment section AND open Paystack modal
+              setTimeout(() => {
+                const paymentSection = document.querySelector('[data-section="payment"]');
+                if (paymentSection) {
+                  // Expand the section first if collapsed
+                  const sectionHeader = paymentSection.querySelector('.bs-section-header');
+                  if (sectionHeader) {
+                    const isExpanded = paymentSection.querySelector('.bs-section-content');
+                    if (!isExpanded) {
+                      (sectionHeader as HTMLElement).click();
+                    }
+                  }
+
+                  // Scroll to the section
+                  setTimeout(() => {
+                    paymentSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                    // After scrolling, click the Paystack button to open modal
+                    setTimeout(() => {
+                      const addPaystackBtn = document.querySelector('[data-action="add-paystack"]');
+                      if (addPaystackBtn) {
+                        (addPaystackBtn as HTMLElement).click();
+                      }
+                    }, 500);
+                  }, 100);
+                }
+              }, 300);
+            }
+          }}
         />
       )}
 

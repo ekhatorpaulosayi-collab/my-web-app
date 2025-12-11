@@ -781,7 +781,7 @@ export default function BusinessSettings({
             </div>
 
             {/* Section 2: Online Store Payment Methods */}
-            <div className="bs-section" id="section-payment-methods">
+            <div className="bs-section" id="section-payment-methods" data-section="payment">
               <button
                 type="button"
                 className="bs-section-header"
