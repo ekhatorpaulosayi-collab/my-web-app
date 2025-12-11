@@ -49,7 +49,7 @@ body {
 /* Desktop: Center content professionally */
 @media (min-width: 1024px) {
   .app {
-    max-width: 1600px;
+    max-width: 95%;
     margin: 0 auto;
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
   }
