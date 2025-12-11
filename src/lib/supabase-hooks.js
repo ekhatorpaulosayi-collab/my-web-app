@@ -102,13 +102,31 @@ export function useUser(firebaseUser) {
         }
 
         // User should already exist from Supabase Auth signup
-        // If not found, it means auth.users exists but users table record missing
+        // If not found, auto-create profile (handles race condition in signup flow)
         if (!existingUser) {
-          console.warn('[Supabase] User exists in auth but not in users table - this should not happen');
-          // Don't try to create - let the auth flow handle it
-          setUser(null);
-          setError(new Error('User profile not found'));
-          return;
+          console.log('[Supabase] Auto-creating missing user profile for:', firebaseUser.email);
+
+          const newUser = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            created_at: new Date().toISOString(),
+            last_login_at: new Date().toISOString()
+          };
+
+          const { data: createdUser, error: createError } = await supabase
+            .from('users')
+            .insert(newUser)
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('[Supabase] Failed to create user profile:', createError);
+            setError(new Error('Failed to create user profile'));
+            return;
+          }
+
+          existingUser = createdUser;
+          console.log('[Supabase] User profile created successfully:', existingUser.id);
         }
 
         // Update last login
