@@ -300,8 +300,10 @@ export default function BusinessSettings({
 
   // Handle input changes (marks dirty)
   const handleInputChange = (field: string, value: string) => {
+    console.log('[Settings] Input changed:', field, '=', value);
     setFormData(prev => ({ ...prev, [field]: value }));
     markDirty();
+    console.log('[Settings] Dirty state should now be true');
   };
 
   // Phase 2B: Toast notification system
@@ -1245,19 +1247,29 @@ export default function BusinessSettings({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                console.log('[Settings] Save button clicked - dirty:', dirty, 'businessName:', formData.businessName);
                 handleSave();
               }}
               onTouchStart={(e) => {
+                console.log('[Settings] Save button touched - dirty:', dirty);
                 if (!e.currentTarget.disabled) {
                   e.currentTarget.style.transform = 'scale(0.98)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)';
                 }
               }}
               onTouchEnd={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.background = '';
               }}
               disabled={!dirty || !formData.businessName.trim() || isSaving}
               aria-busy={isSaving}
               aria-disabled={!dirty || !formData.businessName.trim() || isSaving}
+              style={{
+                WebkitTapHighlightColor: 'rgba(79, 70, 229, 0.3)',
+                touchAction: 'manipulation',
+                minHeight: '48px',
+                cursor: (!dirty || !formData.businessName.trim() || isSaving) ? 'not-allowed' : 'pointer'
+              }}
             >
               {isSaving && <Spinner />}
               {saveStatus === 'saving' && 'Saving...'}
