@@ -85,6 +85,12 @@ export function Dashboard({
     return saved === null ? true : saved === 'true';
   });
 
+  // Load showProfitData from localStorage (default to true if not set)
+  const [showProfitData, setShowProfitData] = useState(() => {
+    const saved = localStorage.getItem('storehouse-show-profit-data');
+    return saved === null ? true : saved === 'true';
+  });
+
   // Load quickSellExpanded from localStorage (default to true if not set)
   const [quickSellExpanded, setQuickSellExpanded] = useState(() => {
     const saved = localStorage.getItem('storehouse-quick-sell-expanded');
@@ -111,6 +117,11 @@ export function Dashboard({
   useEffect(() => {
     localStorage.setItem('storehouse-show-sales-data', String(showSalesData));
   }, [showSalesData]);
+
+  // Save showProfitData to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('storehouse-show-profit-data', String(showProfitData));
+  }, [showProfitData]);
 
   // Save quickSellExpanded to localStorage whenever it changes
   useEffect(() => {
@@ -220,6 +231,40 @@ export function Dashboard({
             staffRole: s.recorded_by_staff_role || null
           };
         })
+    };
+  }, [sales, items]);
+
+  // Today's profit calculation
+  const todaysProfit = useMemo(() => {
+    const todayRange = getTodayRange();
+    const filtered = filterSalesByTimestamp(sales, todayRange);
+
+    let totalRevenue = 0;
+    let totalCost = 0;
+
+    filtered.forEach(sale => {
+      const revenue = (sale.sellKobo || 0) * (sale.qty || 0);
+      totalRevenue += revenue;
+
+      // Look up cost price from items
+      if (sale.itemId) {
+        const item = items.find(i => String(i.id) === String(sale.itemId));
+        if (item) {
+          // cost_price is in kobo, multiply by quantity sold
+          const cost = (item.cost_price || item.purchaseKobo || 0) * (sale.qty || 0);
+          totalCost += cost;
+        }
+      }
+    });
+
+    const profit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+    return {
+      profit,
+      profitMargin,
+      revenue: totalRevenue,
+      cost: totalCost
     };
   }, [sales, items]);
 
@@ -552,52 +597,85 @@ export function Dashboard({
         </button>
       </div>
 
-      {/* 3. Today's Sales */}
-      <div className="sales-card clickable-card" onClick={onViewHistory} style={{ cursor: 'pointer' }}>
-        <div className="sales-header">
-          <h3>Today's Sales</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      {/* 3. Today's Sales - Only visible to Owner + Manager */}
+      {(!isStaffMode || canViewReports()) && (
+        <div className="sales-card clickable-card" onClick={onViewHistory} style={{ cursor: 'pointer' }}>
+          <div className="sales-header">
+            <h3>Today's Sales</h3>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                className="toggle-visibility-btn"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent card click when toggling visibility
+                  setShowSalesData(!showSalesData);
+                }}
+                aria-label={showSalesData ? "Hide sales data" : "Show sales data"}
+                title={showSalesData ? "Hide amounts" : "Show amounts"}
+              >
+                {showSalesData ? <Eye size={18} /> : <EyeOff size={18} />}
+              </button>
+              <ChevronRight size={20} style={{ color: '#666' }} />
+            </div>
+          </div>
+          <div className="sales-total">{showSalesData ? currencyNGN(todaySales.total) : '******'}</div>
+          <div className="sales-count">{todaySales.count} sale{todaySales.count !== 1 ? 's' : ''}</div>
+
+          {todaySales.recent.length > 0 && (
+            <div className="recent-sales">
+              <div className="recent-sales-header">Recent</div>
+              {todaySales.recent.map((sale, index) => (
+                <div key={index} className="sale-row">
+                  <div className="sale-row-main">
+                    <span className="sale-time">{sale.time}</span>
+                    <span className="sale-item">{sale.itemName}</span>
+                    <span className="sale-amount">{showSalesData ? currencyNGN(sale.amount) : '***'}</span>
+                  </div>
+                  {sale.staffName && (
+                    <div className="sale-staff-info">
+                      👤 by {sale.staffName} {sale.staffRole && `(${sale.staffRole})`}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {todaySales.count === 0 && (
+            <div className="empty-state">No sales yet today</div>
+          )}
+        </div>
+      )}
+
+      {/* 4. Today's Profit - Only visible to Owner + Manager */}
+      {(!isStaffMode || canViewReports()) && (
+        <div className="sales-card" style={{ background: 'linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%)', border: '1px solid #e5e7eb' }}>
+          <div className="sales-header">
+            <h3>Today's Profit</h3>
             <button
               className="toggle-visibility-btn"
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent card click when toggling visibility
-                setShowSalesData(!showSalesData);
-              }}
-              aria-label={showSalesData ? "Hide sales data" : "Show sales data"}
-              title={showSalesData ? "Hide amounts" : "Show amounts"}
+              onClick={() => setShowProfitData(!showProfitData)}
+              aria-label={showProfitData ? "Hide profit data" : "Show profit data"}
+              title={showProfitData ? "Hide amounts" : "Show amounts"}
             >
-              {showSalesData ? <Eye size={18} /> : <EyeOff size={18} />}
+              {showProfitData ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
-            <ChevronRight size={20} style={{ color: '#666' }} />
           </div>
+          <div className="sales-total" style={{ color: todaysProfit.profit >= 0 ? '#10b981' : '#ef4444' }}>
+            {showProfitData ? currencyNGN(todaysProfit.profit) : '******'}
+          </div>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
+            <div>
+              Margin: {showProfitData ? `${todaysProfit.profitMargin.toFixed(1)}%` : '**%'}
+            </div>
+            <div>
+              Revenue: {showProfitData ? currencyNGN(todaysProfit.revenue) : '****'}
+            </div>
+          </div>
+          {todaySales.count === 0 && (
+            <div className="empty-state">No sales yet today</div>
+          )}
         </div>
-        <div className="sales-total">{showSalesData ? currencyNGN(todaySales.total) : '******'}</div>
-        <div className="sales-count">{todaySales.count} sale{todaySales.count !== 1 ? 's' : ''}</div>
-
-        {todaySales.recent.length > 0 && (
-          <div className="recent-sales">
-            <div className="recent-sales-header">Recent</div>
-            {todaySales.recent.map((sale, index) => (
-              <div key={index} className="sale-row">
-                <div className="sale-row-main">
-                  <span className="sale-time">{sale.time}</span>
-                  <span className="sale-item">{sale.itemName}</span>
-                  <span className="sale-amount">{showSalesData ? currencyNGN(sale.amount) : '***'}</span>
-                </div>
-                {sale.staffName && (
-                  <div className="sale-staff-info">
-                    👤 by {sale.staffName} {sale.staffRole && `(${sale.staffRole})`}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {todaySales.count === 0 && (
-          <div className="empty-state">No sales yet today</div>
-        )}
-      </div>
+      )}
 
       {/* Sales Trend Chart - Last 7 days */}
       {sales.length > 0 && (
