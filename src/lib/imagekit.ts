@@ -36,7 +36,45 @@ export interface ImageKitTransformOptions {
  */
 export function getImageKitUrl(path: string, options: ImageKitTransformOptions = {}): string {
   if (!IMAGEKIT_URL_ENDPOINT) {
-    console.warn('ImageKit URL endpoint not configured');
+    console.warn('[ImageKit] URL endpoint not configured, returning original path');
+    return path;
+  }
+
+  // If path is already a full Supabase URL, use it directly (for now)
+  // This is a temporary fix until ImageKit is configured with Supabase as external origin
+  if (path.startsWith('http')) {
+    console.log('[ImageKit] Path is already a full URL, using it directly:', path);
+
+    // Extract the storage path from the full Supabase URL
+    const urlObj = new URL(path);
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/(.+)/);
+
+    if (pathMatch) {
+      const storagePath = pathMatch[1]; // e.g., "products/userId/productId/image.jpg"
+
+      // Build transformation string
+      const transformations: string[] = [];
+      if (options.width) transformations.push(`w-${options.width}`);
+      if (options.height) transformations.push(`h-${options.height}`);
+      if (options.quality) transformations.push(`q-${options.quality}`);
+      if (options.format) transformations.push(`f-${options.format}`);
+      if (options.blur) transformations.push(`bl-${options.blur}`);
+      if (options.aspectRatio) transformations.push(`ar-${options.aspectRatio}`);
+      if (options.crop) transformations.push(`c-${options.crop}`);
+      if (options.focus) transformations.push(`fo-${options.focus}`);
+
+      const transformString = transformations.length > 0 ? `/tr:${transformations.join(',')}` : '';
+
+      // ImageKit URL format with external storage origin
+      // This assumes ImageKit is configured to proxy from Supabase Storage
+      const imagekitUrl = `${IMAGEKIT_URL_ENDPOINT}${transformString}/${storagePath}`;
+      console.log('[ImageKit] Generated URL:', imagekitUrl);
+
+      return imagekitUrl;
+    }
+
+    // If we can't parse the URL, return the original
+    console.warn('[ImageKit] Could not extract storage path from URL, returning original');
     return path;
   }
 
