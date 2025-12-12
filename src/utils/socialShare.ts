@@ -138,6 +138,8 @@ async function downloadProductImage(imageUrl: string, productName: string): Prom
 export async function shareToInstagram(product: ProductShareData): Promise<{
   success: boolean;
   message: string;
+  caption?: string;
+  imageDownloaded?: boolean;
 }> {
   // Format product caption
   const caption = formatForInstagram(product);
@@ -166,7 +168,9 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
         success: true,
         message: imageDownloaded
           ? '✅ Image downloaded & caption copied!\n\nNext steps:\n1. Select the downloaded image\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!'
-          : '📋 Caption copied! Opening Instagram...\n\nNext steps:\n1. Select your product photo\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!'
+          : '📋 Caption copied! Opening Instagram...\n\nNext steps:\n1. Select your product photo\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!',
+        caption,
+        imageDownloaded
       };
     } else {
       // On desktop
@@ -174,7 +178,9 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
         success: true,
         message: imageDownloaded
           ? '✅ Image downloaded & caption copied!\n\nNext steps:\n1. Transfer image to phone (AirDrop/Google Photos)\n2. Open Instagram app\n3. Tap + → Select downloaded image\n4. Paste caption & post!'
-          : '📋 Instagram caption copied to clipboard!\n\nNext steps:\n1. Save your product photo to phone\n2. Open Instagram app\n3. Tap + → Select photo\n4. Paste caption (long-press & paste)\n5. Add hashtags & post!'
+          : '📋 Instagram caption copied to clipboard!\n\nNext steps:\n1. Save your product photo to phone\n2. Open Instagram app\n3. Tap + → Select photo\n4. Paste caption (long-press & paste)\n5. Add hashtags & post!',
+        caption,
+        imageDownloaded
       };
     }
   } catch (error) {
@@ -366,6 +372,7 @@ export function shareToFacebook(product: ProductShareData): {
 export function shareToTikTok(product: ProductShareData): {
   success: boolean;
   message: string;
+  caption?: string;
 } {
   const caption = `${product.name} - ${formatNGN(product.price)}${product.description ? `\n\n${product.description}` : ''}\n\n#TikTokShop #NaijaStore #ShopTikTok`;
 
@@ -380,12 +387,14 @@ export function shareToTikTok(product: ProductShareData): {
 
       return {
         success: true,
-        message: '📋 Caption copied! Opening TikTok...\nPaste when creating your video.'
+        message: '📋 Caption copied! Opening TikTok...\nPaste when creating your video.',
+        caption
       };
     } else {
       return {
         success: true,
-        message: '📋 TikTok caption copied to clipboard!\nOpen TikTok app and paste when posting.'
+        message: '📋 TikTok caption copied to clipboard!\nOpen TikTok app and paste when posting.',
+        caption
       };
     }
   } catch (error) {

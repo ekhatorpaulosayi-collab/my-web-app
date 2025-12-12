@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Share2, X } from 'lucide-react';
 import { shareToInstagram, shareToWhatsApp, shareToFacebook, shareToTikTok, type ProductShareData } from '../utils/socialShare';
 import { useBusinessProfile } from '../contexts/BusinessProfile';
+import { ShareInstructionsModal } from './ShareInstructionsModal';
 import './ProductShareMenu.css';
 
 interface ProductShareMenuProps {
@@ -23,6 +24,12 @@ interface ProductShareMenuProps {
 export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onClose }) => {
   const [message, setMessage] = useState('');
   const [isSharing, setIsSharing] = useState(false);
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  const [modalData, setModalData] = useState<{
+    platform: 'instagram' | 'tiktok';
+    caption: string;
+    imageDownloaded: boolean;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { profile } = useBusinessProfile();
 
@@ -116,10 +123,20 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
       }
 
       if (result) {
-        showMessage(result.message);
+        // Show modal for Instagram and TikTok with detailed instructions
+        if ((platform === 'instagram' || platform === 'tiktok') && result.caption) {
+          setModalData({
+            platform,
+            caption: result.caption,
+            imageDownloaded: result.imageDownloaded || false
+          });
+          setShowInstructionsModal(true);
+          // Don't close menu immediately - modal will handle this
+        } else {
+          // For other platforms, use old toast message behavior
+          showMessage(result.message);
 
-        // Close menu after short delay (except for Instagram which needs time to paste)
-        if (platform !== 'instagram') {
+          // Close menu after short delay
           setTimeout(() => onClose?.(), 1500);
         }
       }
@@ -207,6 +224,20 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
           </div>
         )}
       </div>
+
+      {/* Share Instructions Modal */}
+      {showInstructionsModal && modalData && (
+        <ShareInstructionsModal
+          platform={modalData.platform}
+          caption={modalData.caption}
+          imageDownloaded={modalData.imageDownloaded}
+          onClose={() => {
+            setShowInstructionsModal(false);
+            setModalData(null);
+            onClose?.(); // Also close the share menu
+          }}
+        />
+      )}
     </div>
   );
 };

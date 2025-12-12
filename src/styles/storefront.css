@@ -780,10 +780,6 @@
   .storefront-main {
     margin-top: -3rem;
   }
-
-  .product-grid {
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  }
 }
 
 /* Touch device optimizations */

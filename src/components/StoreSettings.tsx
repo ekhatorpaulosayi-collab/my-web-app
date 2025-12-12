@@ -1898,6 +1898,27 @@ export const StoreSettings: React.FC = () => {
               Please keep your description under 1000 characters (about 150 words) for best results
             </p>
           )}
+
+          {/* Helpful tip about chat widget */}
+          <div style={{
+            marginTop: '12px',
+            padding: '12px 16px',
+            backgroundColor: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            borderRadius: '8px',
+            display: 'flex',
+            gap: '10px'
+          }}>
+            <span style={{ fontSize: '16px', flexShrink: 0 }}>💡</span>
+            <p style={{
+              margin: 0,
+              fontSize: '0.875rem',
+              color: '#1E40AF',
+              lineHeight: '1.5'
+            }}>
+              <strong>Tip:</strong> The more detailed and rich your "About" section is, the better our AI chat widget can assist customers with questions about your business, products, shipping, and policies.
+            </p>
+          </div>
         </div>
       </div>
 
