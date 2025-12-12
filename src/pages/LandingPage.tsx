@@ -800,9 +800,9 @@ export default function LandingPage() {
               <div className="pricing-features-section">
                 <h4 className="features-category">Core Features</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> 50 products, 1 image each</li>
+                  <li><CheckCircle size={16} /> 30 products, 1 image each</li>
                   <li><CheckCircle size={16} /> 1 user account</li>
-                  <li><CheckCircle size={16} /> 50 AI chats/month</li>
+                  <li><CheckCircle size={16} /> Unlimited AI chats (beta testing)</li>
                 </ul>
 
                 <h4 className="features-category">🛍️ Online Store</h4>
@@ -862,7 +862,7 @@ export default function LandingPage() {
                 <ul className="pricing-features-list">
                   <li><CheckCircle size={16} /> Credit sales tracking</li>
                   <li><CheckCircle size={16} /> Installment plans</li>
-                  <li><CheckCircle size={16} /> WhatsApp reminders</li>
+                  <li><CheckCircle size={16} /> Customer payment records</li>
                 </ul>
 
                 <h4 className="features-category">📄 Professional Invoicing</h4>
@@ -873,8 +873,7 @@ export default function LandingPage() {
 
                 <h4 className="features-category">📊 Analytics & Reports</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Profit tracking</li>
-                  <li><CheckCircle size={16} /> Sales trends</li>
+                  <li><CheckCircle size={16} /> Basic sales analytics</li>
                   <li><CheckCircle size={16} /> Export to Excel</li>
                 </ul>
 
@@ -924,8 +923,8 @@ export default function LandingPage() {
 
                 <h4 className="features-category">Advanced Features</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Recurring invoices</li>
-                  <li><CheckCircle size={16} /> 2,000 AI chats/month</li>
+                  <li><CheckCircle size={16} /> Manual recurring invoices</li>
+                  <li><CheckCircle size={16} /> 1,500 AI chats/month</li>
                   <li><CheckCircle size={16} /> Daily AI business tips</li>
                   <li><CheckCircle size={16} /> Priority support</li>
                 </ul>
@@ -956,7 +955,7 @@ export default function LandingPage() {
                 <ul className="pricing-features-list">
                   <li><CheckCircle size={16} /> 10 images per product</li>
                   <li><CheckCircle size={16} /> 10 users</li>
-                  <li><CheckCircle size={16} /> 5,000 AI chats/month</li>
+                  <li><CheckCircle size={16} /> 10,000 AI chats/month</li>
                   <li><CheckCircle size={16} /> ⚡ Lightning fast loading</li>
                 </ul>
 
@@ -1105,11 +1104,11 @@ export default function LandingPage() {
               },
               {
                 question: 'How much does it cost?',
-                answer: 'Start free with 50 products and 50 AI chats per month. When you need more, upgrade to Starter (₦5,000/month for 200 products), Pro (₦10,000/month for unlimited products + WhatsApp AI), or Business (₦15,000/month for maximum scale). No credit card required to start.'
+                answer: 'Start free with 30 products and unlimited AI chats (during beta testing). When you need more, upgrade to Starter (₦5,000/month for 200 products), Pro (₦10,000/month for unlimited products + WhatsApp AI), or Business (₦15,000/month for maximum scale). No credit card required to start.'
               },
               {
                 question: 'Can I try it before paying?',
-                answer: 'Yes! Start with our generous free plan (50 products, 50 AI chats/month, online store, invoicing) to test everything. Upgrade only when you hit your limits. No credit card needed, no time restrictions on the free plan.'
+                answer: 'Yes! Start with our generous free plan (30 products, unlimited AI chats during testing, online store, invoicing) to test everything. Upgrade only when you hit your limits. No credit card needed, no time restrictions on the free plan.'
               },
               {
                 question: 'Is my data secure?',
