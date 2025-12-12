@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Share2, X } from 'lucide-react';
-import { shareToInstagram, shareToWhatsApp, shareToFacebook, shareToTikTok, type ProductShareData } from '../utils/socialShare';
+import { shareToInstagram, shareToWhatsApp, shareToWhatsAppStatus, shareToFacebook, shareToTikTok, type ProductShareData } from '../utils/socialShare';
 import { useBusinessProfile } from '../contexts/BusinessProfile';
 import { ShareInstructionsModal } from './ShareInstructionsModal';
 import './ProductShareMenu.css';
@@ -62,7 +62,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
     setTimeout(() => setMessage(''), duration);
   };
 
-  const handleShare = async (platform: 'instagram' | 'whatsapp' | 'facebook' | 'tiktok') => {
+  const handleShare = async (platform: 'instagram' | 'whatsapp' | 'whatsapp-status' | 'facebook' | 'tiktok') => {
     if (isSharing) return;
 
     setIsSharing(true);
@@ -114,6 +114,9 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
         case 'whatsapp':
           result = shareToWhatsApp(shareData);
           break;
+        case 'whatsapp-status':
+          result = await shareToWhatsAppStatus(shareData);
+          break;
         case 'facebook':
           result = shareToFacebook(shareData);
           break;
@@ -123,10 +126,10 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
       }
 
       if (result) {
-        // Show modal for Instagram and TikTok with detailed instructions
-        if ((platform === 'instagram' || platform === 'tiktok') && result.caption) {
+        // Show modal for Instagram, TikTok, and WhatsApp Status with detailed instructions
+        if ((platform === 'instagram' || platform === 'tiktok' || platform === 'whatsapp-status') && result.caption) {
           setModalData({
-            platform,
+            platform: platform === 'whatsapp-status' ? 'whatsapp' : platform as 'instagram' | 'tiktok',
             caption: result.caption,
             imageDownloaded: result.imageDownloaded || false
           });
@@ -189,7 +192,19 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
             <div className="share-option-icon">💬</div>
             <div className="share-option-info">
               <div className="share-option-name">WhatsApp</div>
-              <div className="share-option-desc">Status & Chat</div>
+              <div className="share-option-desc">Send to Contacts</div>
+            </div>
+          </button>
+
+          <button
+            className="share-option whatsapp-status"
+            onClick={() => handleShare('whatsapp-status')}
+            disabled={isSharing}
+          >
+            <div className="share-option-icon">📱</div>
+            <div className="share-option-info">
+              <div className="share-option-name">WhatsApp Status</div>
+              <div className="share-option-desc">Post to Status</div>
             </div>
           </button>
 

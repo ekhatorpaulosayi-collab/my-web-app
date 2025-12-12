@@ -8,7 +8,7 @@ import { X, Check, Copy } from 'lucide-react';
 import './ShareInstructionsModal.css';
 
 interface ShareInstructionsModalProps {
-  platform: 'instagram' | 'tiktok';
+  platform: 'instagram' | 'tiktok' | 'whatsapp';
   caption: string;
   imageDownloaded?: boolean;
   onClose: () => void;
@@ -32,7 +32,46 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
   };
 
   const getInstructions = () => {
-    if (platform === 'instagram') {
+    if (platform === 'whatsapp') {
+      // WhatsApp Status
+      if (isMobile) {
+        return imageDownloaded
+          ? [
+              'Open WhatsApp',
+              'Tap "Status" tab at the top',
+              'Tap camera icon to create new Status',
+              'Select the downloaded image from gallery',
+              'Long-press text area and tap "Paste" to add caption',
+              'Tap send to post to your Status!'
+            ]
+          : [
+              'Open WhatsApp',
+              'Tap "Status" tab at the top',
+              'Tap camera icon to create new Status',
+              'Select your product photo',
+              'Long-press text area and tap "Paste"',
+              'Tap send to post!'
+            ];
+      } else {
+        return imageDownloaded
+          ? [
+              'Transfer the downloaded image to your phone',
+              'Open WhatsApp on your phone',
+              'Tap "Status" → Camera icon',
+              'Select the image from gallery',
+              'Long-press text area and paste caption',
+              'Tap send to post to Status!'
+            ]
+          : [
+              'Save product photo to your phone',
+              'Open WhatsApp',
+              'Tap "Status" tab → Camera icon',
+              'Select your product photo',
+              'Long-press text area and paste caption',
+              'Post to Status!'
+            ];
+      }
+    } else if (platform === 'instagram') {
       if (isMobile) {
         return imageDownloaded
           ? [
@@ -86,11 +125,15 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
   };
 
   const getPlatformEmoji = () => {
-    return platform === 'instagram' ? '📸' : '🎵';
+    if (platform === 'whatsapp') return '💬';
+    if (platform === 'instagram') return '📸';
+    return '🎵';
   };
 
   const getPlatformName = () => {
-    return platform === 'instagram' ? 'Instagram' : 'TikTok';
+    if (platform === 'whatsapp') return 'WhatsApp Status';
+    if (platform === 'instagram') return 'Instagram';
+    return 'TikTok';
   };
 
   const getStatusMessage = () => {

@@ -219,7 +219,66 @@ export function formatForWhatsApp(product: ProductShareData): string {
 }
 
 /**
- * Share product to WhatsApp Status or Chat
+ * Share product to WhatsApp Status
+ * Downloads image and copies caption for posting to Status
+ */
+export async function shareToWhatsAppStatus(product: ProductShareData): Promise<{
+  success: boolean;
+  message: string;
+  caption?: string;
+  imageDownloaded?: boolean;
+}> {
+  const caption = formatForWhatsApp(product);
+
+  try {
+    // Copy caption to clipboard
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(caption);
+    }
+
+    // Download product image if available
+    let imageDownloaded = false;
+    if (product.imageUrl) {
+      imageDownloaded = await downloadProductImage(product.imageUrl, product.name);
+    }
+
+    // Open WhatsApp
+    if (isMobileDevice()) {
+      // On mobile, use deep link to open WhatsApp directly
+      setTimeout(() => {
+        window.location.href = 'whatsapp://';
+      }, 100);
+
+      return {
+        success: true,
+        message: imageDownloaded
+          ? '✅ Image downloaded & caption copied! Open WhatsApp Status to post.'
+          : '📋 Caption copied! Open WhatsApp Status to post.',
+        caption,
+        imageDownloaded
+      };
+    } else {
+      // On desktop, provide instructions
+      return {
+        success: true,
+        message: imageDownloaded
+          ? '✅ Image downloaded & caption copied! Transfer to your phone and post to WhatsApp Status.'
+          : '📋 Caption copied! Use your phone to post to WhatsApp Status.',
+        caption,
+        imageDownloaded
+      };
+    }
+  } catch (error) {
+    console.error('[WhatsApp Status Share] Error:', error);
+    return {
+      success: false,
+      message: '❌ Failed to prepare WhatsApp Status share'
+    };
+  }
+}
+
+/**
+ * Share product to WhatsApp Chat
  */
 export function shareToWhatsApp(product: ProductShareData): {
   success: boolean;
