@@ -162,6 +162,12 @@ export const uploadProductImage = async (
     .from('products')
     .getPublicUrl(data.path);
 
+  console.log('[uploadProductImage] ✅ Upload successful:', {
+    filename,
+    path: data.path,
+    publicUrl
+  });
+
   return publicUrl;
 };
 

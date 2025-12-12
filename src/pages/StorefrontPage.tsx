@@ -578,16 +578,13 @@ function StorefrontContent() {
                         </div>
                       )}
 
-                      <img
-                        src={product.image_url || product.image_thumbnail}
+                       <OptimizedImage
+                        src={product.image_url || product.image_thumbnail || ''}
                         alt={product.name}
-                        loading="lazy"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'contain',
-                          opacity: product.quantity === 0 ? 0.6 : 1
-                        }}
+                        width={400}
+                        height={240}
+                        objectFit="contain"
+                        className={product.quantity === 0 ? 'opacity-60' : ''}
                       />
                     </div>
                   ) : (
