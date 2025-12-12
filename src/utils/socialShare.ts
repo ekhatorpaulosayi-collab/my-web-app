@@ -496,3 +496,147 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * TikTok URL Validation & Normalization
+ *
+ * TikTok username rules:
+ * - 2-24 characters
+ * - Letters, numbers, underscores, periods
+ * - Cannot start with period
+ *
+ * Valid formats:
+ * - @username
+ * - username
+ * - https://tiktok.com/@username
+ * - https://www.tiktok.com/@username
+ * - http://tiktok.com/@username (rare)
+ */
+
+// TikTok handle pattern (without @)
+const TIKTOK_HANDLE_REGEX = /^[a-z0-9_](?:[a-z0-9_.]{0,22}[a-z0-9_])?$/i;
+
+// TikTok profile URL pattern
+const TIKTOK_URL_REGEX = /^(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([a-z0-9_](?:[a-z0-9_.]{0,22}[a-z0-9_])?)(?:\/.*)?$/i;
+
+export interface TikTokValidationResult {
+  valid: boolean;
+  normalized: string; // Full URL: https://tiktok.com/@username
+  handle: string;     // Just username (no @)
+  error?: string;
+}
+
+/**
+ * Validate and normalize TikTok URL or handle
+ *
+ * @param input - Can be: @username, username, or full TikTok URL
+ * @returns Validation result with normalized URL and handle
+ *
+ * @example
+ * validateTikTokUrl('@mystore')
+ * // { valid: true, normalized: 'https://tiktok.com/@mystore', handle: 'mystore' }
+ *
+ * validateTikTokUrl('https://tiktok.com/@mystore')
+ * // { valid: true, normalized: 'https://tiktok.com/@mystore', handle: 'mystore' }
+ *
+ * validateTikTokUrl('https://tiktok.com/@mystore/video/123456')
+ * // { valid: false, error: 'Please use profile URL, not video URL' }
+ */
+export function validateTikTokUrl(input: string): TikTokValidationResult {
+  // Empty is valid (optional field)
+  if (!input || input.trim() === '') {
+    return {
+      valid: true,
+      normalized: '',
+      handle: ''
+    };
+  }
+
+  const trimmed = input.trim();
+
+  // Check for video URLs (not allowed - want profile URLs only)
+  if (trimmed.includes('/video/') || /\/\d{10,}/.test(trimmed)) {
+    return {
+      valid: false,
+      normalized: '',
+      handle: '',
+      error: 'Please use your profile URL, not a video URL'
+    };
+  }
+
+  // Check for invalid domains
+  if (trimmed.includes('://') && !trimmed.match(/^https?:\/\/(?:www\.)?tiktok\.com/i)) {
+    return {
+      valid: false,
+      normalized: '',
+      handle: '',
+      error: 'Invalid TikTok URL. Must be tiktok.com'
+    };
+  }
+
+  // Try to match as full URL
+  const urlMatch = trimmed.match(TIKTOK_URL_REGEX);
+  if (urlMatch) {
+    const handle = urlMatch[1];
+    return {
+      valid: true,
+      normalized: `https://tiktok.com/@${handle}`,
+      handle: handle
+    };
+  }
+
+  // Try to match as handle (with or without @)
+  const handleInput = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+
+  // Check if it looks like a URL but didn't match (partial URL, wrong format, etc)
+  if (handleInput.includes('/') || handleInput.includes('.com')) {
+    return {
+      valid: false,
+      normalized: '',
+      handle: '',
+      error: 'Invalid TikTok URL format. Use: https://tiktok.com/@username'
+    };
+  }
+
+  // Validate as handle
+  if (TIKTOK_HANDLE_REGEX.test(handleInput)) {
+    return {
+      valid: true,
+      normalized: `https://tiktok.com/@${handleInput}`,
+      handle: handleInput
+    };
+  }
+
+  // Invalid handle format
+  return {
+    valid: false,
+    normalized: '',
+    handle: '',
+    error: 'Invalid TikTok username. Use 2-24 characters (letters, numbers, _, .)'
+  };
+}
+
+/**
+ * Check if TikTok URL/handle is valid (simple boolean check)
+ */
+export function isValidTikTokUrl(input: string): boolean {
+  return validateTikTokUrl(input).valid;
+}
+
+/**
+ * Normalize TikTok input to full URL
+ * Returns empty string if invalid
+ */
+export function normalizeTikTokUrl(input: string): string {
+  const result = validateTikTokUrl(input);
+  return result.valid ? result.normalized : '';
+}
+
+/**
+ * Extract TikTok handle from URL or @handle
+ * Returns empty string if invalid
+ */
+export function extractTikTokHandle(input: string): string {
+  const result = validateTikTokUrl(input);
+  return result.valid ? result.handle : '';
+}

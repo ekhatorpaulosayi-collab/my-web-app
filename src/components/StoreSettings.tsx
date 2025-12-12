@@ -11,6 +11,7 @@ import { ABOUT_TEMPLATES, countCharacters } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { useAutoSave, getSaveStatusMessage, getSaveStatusColor } from '../hooks/useAutoSave';
 import { showFriendlyError } from '../utils/friendlyErrors';
+import { validateTikTokUrl, normalizeTikTokUrl } from '../utils/socialShare';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -290,7 +291,7 @@ export const StoreSettings: React.FC = () => {
         // Social media
         instagram_url: instagramUrl.trim(),
         facebook_url: facebookUrl.trim(),
-        tiktok_url: tiktokUrl.trim(),
+        tiktok_url: normalizeTikTokUrl(tiktokUrl), // Normalize to full URL format
         twitter_url: twitterUrl.trim(),
         // About & Policies
         about_us: aboutUs.trim(),
@@ -1394,19 +1395,38 @@ export const StoreSettings: React.FC = () => {
             TikTok URL (Optional)
           </label>
           <input
-            type="url"
+            type="text"
             value={tiktokUrl}
             onChange={(e) => setTiktokUrl(e.target.value)}
-            placeholder="https://tiktok.com/@yourbusiness"
+            placeholder="@yourbusiness or https://tiktok.com/@yourbusiness"
             style={{
-              borderColor: tiktokUrl && !tiktokUrl.includes('tiktok.com') ? '#FFA500' : '#D1D5DB',
+              borderColor: (() => {
+                if (!tiktokUrl) return '#D1D5DB';
+                const validation = validateTikTokUrl(tiktokUrl);
+                return validation.valid ? '#10B981' : '#EF4444';
+              })(),
             }}
           />
-          {tiktokUrl && !tiktokUrl.includes('tiktok.com') && (
-            <p style={{ fontSize: '13px', color: '#EA580C', marginTop: '6px' }}>
-              ⚠️ Make sure this is a valid TikTok URL
-            </p>
-          )}
+          {tiktokUrl && (() => {
+            const validation = validateTikTokUrl(tiktokUrl);
+            if (validation.valid && validation.normalized) {
+              return (
+                <p style={{ fontSize: '13px', color: '#10B981', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Check size={14} /> Will be saved as: {validation.normalized}
+                </p>
+              );
+            } else if (!validation.valid) {
+              return (
+                <p style={{ fontSize: '13px', color: '#EF4444', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <X size={14} /> {validation.error}
+                </p>
+              );
+            }
+            return null;
+          })()}
+          <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Enter your TikTok username (@yourname) or full profile URL
+          </p>
         </div>
 
         {/* Twitter/X */}
