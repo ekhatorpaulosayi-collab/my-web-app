@@ -211,13 +211,14 @@ export async function signIn(email, password) {
  * Sign out current user
  */
 export async function logOut() {
+  console.debug('[Auth] Signing out user');
+
   try {
-    console.debug('[Auth] Signing out user');
-    const { error } = await supabase.auth.signOut();
+    // Try to sign out from Supabase
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
 
     if (error) {
-      // If session is already missing/expired (403 or session error), treat as successful logout
-      // User is already logged out, no need to throw error
+      // If session is already missing/expired (403 or session error), just clear local data
       const isSessionError =
         error.message?.includes('session') ||
         error.message?.includes('Session') ||
@@ -226,17 +227,17 @@ export async function logOut() {
         error.message?.includes('Forbidden');
 
       if (isSessionError) {
-        console.debug('[Auth] Session already expired/missing - treating as successful logout');
-        return; // Successfully "logged out" (already was)
+        console.debug('[Auth] Session already expired - clearing local storage');
+      } else {
+        // Real error (not session-related)
+        console.error('[Auth] Sign out error:', error);
+        throw formatAuthError(error);
       }
-
-      console.error('[Auth] Sign out error:', error);
-      throw formatAuthError(error);
+    } else {
+      console.debug('[Auth] User signed out successfully');
     }
-
-    console.debug('[Auth] User signed out');
   } catch (error) {
-    // If session is already missing/expired (403 or session error), treat as successful logout
+    // If error is session-related, ignore it
     const isSessionError =
       error.message?.includes('session') ||
       error.message?.includes('Session') ||
@@ -244,13 +245,28 @@ export async function logOut() {
       error.status === 403 ||
       error.message?.includes('Forbidden');
 
-    if (isSessionError) {
-      console.debug('[Auth] Session already expired/missing - treating as successful logout');
-      return; // Successfully "logged out" (already was)
+    if (!isSessionError) {
+      // Real error, propagate it
+      console.error('[Auth] Sign out error:', error);
+      throw formatAuthError(error);
     }
 
-    console.error('[Auth] Sign out error:', error);
-    throw formatAuthError(error);
+    console.debug('[Auth] Session error ignored, clearing local storage');
+  }
+
+  // Always clear local storage at the end, regardless of signOut result
+  // This ensures user is logged out even if session was expired
+  try {
+    // Clear all Supabase auth data from localStorage
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('sb-') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+    console.debug('[Auth] Local storage cleared');
+  } catch (storageError) {
+    console.warn('[Auth] Could not clear local storage:', storageError);
   }
 }
 
