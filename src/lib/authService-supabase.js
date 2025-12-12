@@ -216,9 +216,16 @@ export async function logOut() {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      // If session is already missing/expired, treat as successful logout
+      // If session is already missing/expired (403 or session error), treat as successful logout
       // User is already logged out, no need to throw error
-      if (error.message?.includes('session') || error.message?.includes('Session') || error.name === 'AuthSessionMissingError') {
+      const isSessionError =
+        error.message?.includes('session') ||
+        error.message?.includes('Session') ||
+        error.name === 'AuthSessionMissingError' ||
+        error.status === 403 ||
+        error.message?.includes('Forbidden');
+
+      if (isSessionError) {
         console.debug('[Auth] Session already expired/missing - treating as successful logout');
         return; // Successfully "logged out" (already was)
       }
@@ -229,8 +236,15 @@ export async function logOut() {
 
     console.debug('[Auth] User signed out');
   } catch (error) {
-    // If session is already missing/expired, treat as successful logout
-    if (error.message?.includes('session') || error.message?.includes('Session') || error.name === 'AuthSessionMissingError') {
+    // If session is already missing/expired (403 or session error), treat as successful logout
+    const isSessionError =
+      error.message?.includes('session') ||
+      error.message?.includes('Session') ||
+      error.name === 'AuthSessionMissingError' ||
+      error.status === 403 ||
+      error.message?.includes('Forbidden');
+
+    if (isSessionError) {
       console.debug('[Auth] Session already expired/missing - treating as successful logout');
       return; // Successfully "logged out" (already was)
     }
