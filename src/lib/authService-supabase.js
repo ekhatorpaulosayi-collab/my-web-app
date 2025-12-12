@@ -216,12 +216,25 @@ export async function logOut() {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
+      // If session is already missing/expired, treat as successful logout
+      // User is already logged out, no need to throw error
+      if (error.message?.includes('session') || error.message?.includes('Session') || error.name === 'AuthSessionMissingError') {
+        console.debug('[Auth] Session already expired/missing - treating as successful logout');
+        return; // Successfully "logged out" (already was)
+      }
+
       console.error('[Auth] Sign out error:', error);
       throw formatAuthError(error);
     }
 
     console.debug('[Auth] User signed out');
   } catch (error) {
+    // If session is already missing/expired, treat as successful logout
+    if (error.message?.includes('session') || error.message?.includes('Session') || error.name === 'AuthSessionMissingError') {
+      console.debug('[Auth] Session already expired/missing - treating as successful logout');
+      return; // Successfully "logged out" (already was)
+    }
+
     console.error('[Auth] Sign out error:', error);
     throw formatAuthError(error);
   }
