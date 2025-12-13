@@ -35,6 +35,12 @@ export interface ImageKitTransformOptions {
  * @returns Optimized ImageKit URL
  */
 export function getImageKitUrl(path: string, options: ImageKitTransformOptions = {}): string {
+  // Detect blob URLs early and return them as-is (can't be optimized)
+  if (path.startsWith('blob:')) {
+    console.warn('[ImageKit] Blob URL detected, skipping optimization:', path);
+    return path;
+  }
+
   if (!IMAGEKIT_URL_ENDPOINT) {
     console.warn('[ImageKit] URL endpoint not configured, returning original path');
     return path;
@@ -204,6 +210,12 @@ export const ImagePresets = {
  * @returns Path portion for ImageKit
  */
 export function extractStoragePath(url: string): string {
+  // Check for blob URLs (temporary client-side URLs)
+  if (url.startsWith('blob:')) {
+    console.warn('[ImageKit] Blob URL detected, cannot optimize:', url);
+    return url; // Return as-is, will be handled by fallback logic
+  }
+
   try {
     // Handle full Supabase URLs
     // Example: https://yzlniqwzqlsftxrtapdl.supabase.co/storage/v1/object/public/products/image.jpg
