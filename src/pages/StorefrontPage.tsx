@@ -512,17 +512,16 @@ function StorefrontContent() {
                   onClick={() => setSelectedProduct(product)}
                   style={{ cursor: 'pointer' }}
                 >
-                  {/* Product Image - Click to zoom full-screen directly */}
+                  {/* Product Image - Click to open product detail modal */}
                   {product.image_thumbnail || product.image_url ? (
                     <div
                       onClick={(e) => {
-                        e.stopPropagation();
-                        setViewerImageUrl(product.image_url || product.image_thumbnail || null);
-                        setImageViewerOpen(true);
+                        // Don't stop propagation - let it bubble to parent's onClick
+                        // This makes image click also open the product modal (industry standard UX)
                       }}
                       style={{
                         position: 'relative',
-                        cursor: 'zoom-in',
+                        cursor: 'pointer',
                         borderRadius: '8px 8px 0 0',
                         marginBottom: '12px',
                         overflow: 'hidden',

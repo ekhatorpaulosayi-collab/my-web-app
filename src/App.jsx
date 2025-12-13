@@ -1745,6 +1745,29 @@ Thank you for your business! 🙏
         const oldQty = existingItem.qty;
         const oldPurchaseKobo = existingItem.purchaseKobo || 0;
 
+        // Upload product image if provided (when editing existing products)
+        let imageUrl = existingItem.image_url || ''; // Keep existing image URL by default
+
+        if (productImageFile) {
+          try {
+            console.log('[handleSave] Uploading product image for existing product...');
+            displayToast('📤 Uploading image...');
+
+            imageUrl = await uploadProductImage(
+              productImageFile,
+              currentUser.uid,
+              existingItem.id,
+              existingItem.image_url // Pass old image URL for deletion
+            );
+
+            console.log('[handleSave] ✅ Image uploaded:', imageUrl);
+          } catch (error) {
+            console.error('[handleSave] Image upload failed:', error);
+            displayToast('⚠ Image upload failed, but product will be saved');
+            // Continue saving product even if image fails
+          }
+        }
+
         // If product has variants, calculate total quantity from variants
         const totalVariantQty = productVariants.length > 0
           ? productVariants.reduce((sum, v) => sum + (v.quantity || 0), 0)
@@ -1763,7 +1786,8 @@ Thank you for your business! 🙏
           const updatedItem = {
             quantity: newQty,  // Changed from 'qty'
             cost_price: newPurchaseKobo / 100,  // Changed from 'purchaseKobo', convert to naira
-            selling_price: selling  // Changed from 'sellKobo', service converts to kobo
+            selling_price: selling,  // Changed from 'sellKobo', service converts to kobo
+            image_url: imageUrl  // Include image URL in update
           };
 
           await updateProduct(currentUser.uid, existingItem.id, updatedItem);
@@ -1790,7 +1814,8 @@ Thank you for your business! 🙏
           const updatedItem = {
             quantity: newTotal,  // Sum of variants or new total
             cost_price: purchase,  // Changed from 'purchaseKobo', service converts to kobo
-            selling_price: selling  // Changed from 'sellKobo', service converts to kobo
+            selling_price: selling,  // Changed from 'sellKobo', service converts to kobo
+            image_url: imageUrl  // Include image URL in update
           };
 
           await updateProduct(currentUser.uid, existingItem.id, updatedItem);
@@ -1837,8 +1862,14 @@ Thank you for your business! 🙏
         // CREATING NEW ITEM
         let imageUrl = '';
 
-        // Upload product image if provided
-        if (productImageFile) {
+        // Use first image from MultiImageUpload component if available
+        console.log('[handleSave] Checking productImages state:', productImages);
+        if (productImages && productImages.length > 0 && productImages[0].url) {
+          imageUrl = productImages[0].url;
+          console.log('[handleSave] ✅ Using image from MultiImageUpload:', imageUrl);
+        }
+        // Fallback to old single-image upload if provided
+        else if (productImageFile) {
           try {
             console.log('[handleSave] Uploading product image...');
             displayToast('📤 Uploading image...');
@@ -1924,6 +1955,7 @@ Thank you for your business! 🙏
         // Clear image state
         setProductImageFile(null);
         setProductImagePreview('');
+        setProductImages([]); // Clear MultiImageUpload state
       }
 
       // DEMO CLEANUP: Remove all demo items when user adds first real item

@@ -291,13 +291,14 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.9)',
-            zIndex: 9999,
+            background: 'rgba(0,0,0,0.95)',
+            zIndex: 10000,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px',
-            cursor: 'zoom-out'
+            padding: '80px 20px 20px 20px', // Extra top padding for close button
+            cursor: 'zoom-out',
+            overflow: 'hidden' // Prevent scrolling
           }}
         >
           <img
@@ -306,8 +307,11 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
             style={{
               maxWidth: '100%',
               maxHeight: '100%',
+              width: 'auto',
+              height: 'auto',
               objectFit: 'contain',
-              borderRadius: '8px'
+              borderRadius: '8px',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
             }}
             onClick={(e) => e.stopPropagation()}
           />
