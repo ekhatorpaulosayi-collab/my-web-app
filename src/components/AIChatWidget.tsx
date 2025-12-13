@@ -234,6 +234,35 @@ export default function AIChatWidget({
         score: result.score,
       }));
 
+      // STEP 2.5: Fetch store info for intelligent storefront chat responses
+      let storeInfo = null;
+      if (storeSlug && userType === 'shopper') {
+        console.log('[AIChatWidget] Fetching store info for:', storeSlug);
+        const { data: storeData } = await supabase
+          .from('stores')
+          .select('about_us, delivery_areas, delivery_time, return_policy, whatsapp_number, business_name')
+          .eq('store_slug', storeSlug)
+          .single();
+
+        if (storeData) {
+          storeInfo = {
+            aboutUs: storeData.about_us,
+            deliveryAreas: storeData.delivery_areas,
+            deliveryTime: storeData.delivery_time,
+            returnPolicy: storeData.return_policy,
+            whatsappNumber: storeData.whatsapp_number,
+            businessName: storeData.business_name,
+          };
+          console.log('[AIChatWidget] Store info fetched successfully:', {
+            hasAbout: !!storeInfo.aboutUs,
+            hasDelivery: !!storeInfo.deliveryAreas,
+            hasReturns: !!storeInfo.returnPolicy,
+          });
+        } else {
+          console.log('[AIChatWidget] Store not found or no data');
+        }
+      }
+
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -252,6 +281,7 @@ export default function AIChatWidget({
           userType, // NEW: Send visitor/shopper/user type
           appContext, // Send app state
           relevantDocs, // Send documentation context (RAG)
+          storeInfo, // NEW: Send store info for intelligent responses
         }),
       });
 
