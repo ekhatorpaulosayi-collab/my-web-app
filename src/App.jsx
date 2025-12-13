@@ -1927,6 +1927,52 @@ Thank you for your business! 🙏
         const addedItem = await addProduct(currentUser.uid, newItem);
         console.log('[handleSave] ✅ Item added to Firebase:', addedItem);
 
+        // Save all images to product_images table if multiple images were uploaded
+        if (productImages && productImages.length > 0) {
+          try {
+            console.log('[handleSave] Saving multiple images to product_images table...', {
+              productId: addedItem.id,
+              imageCount: productImages.length
+            });
+
+            // Import supabase if not already available
+            const { supabase } = await import('./lib/supabase');
+
+            // Save each image to product_images table
+            for (let i = 0; i < productImages.length; i++) {
+              const imageUrl = productImages[i].url;
+              const isPrimary = i === 0; // First image is primary
+
+              console.log(`[handleSave] Saving image ${i + 1}/${productImages.length}:`, {
+                url: imageUrl,
+                position: i,
+                isPrimary
+              });
+
+              const { error } = await supabase
+                .from('product_images')
+                .insert({
+                  product_id: addedItem.id,
+                  user_id: currentUser.uid,
+                  image_url: imageUrl,
+                  position: i,
+                  is_primary: isPrimary
+                });
+
+              if (error) {
+                console.error(`[handleSave] Failed to save image ${i + 1}:`, error);
+              } else {
+                console.log(`[handleSave] ✅ Image ${i + 1} saved to database`);
+              }
+            }
+
+            console.log('[handleSave] ✅ All images saved to product_images table');
+          } catch (error) {
+            console.error('[handleSave] Error saving images to database:', error);
+            // Don't show error to user - product was still created successfully
+          }
+        }
+
         // Save variants if any exist
         if (productVariants.length > 0) {
           try {
