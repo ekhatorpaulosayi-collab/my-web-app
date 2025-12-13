@@ -306,17 +306,77 @@ function StorefrontContent() {
     loadVariants();
   }, [selectedProduct]);
 
-  // Get unique categories
+  // Function to normalize category names (defined outside useMemo for reuse)
+  const normalizeCategory = (cat: string | undefined): string => {
+    if (!cat) return '';
+
+    // Trim whitespace
+    let normalized = cat.trim();
+
+    // Handle known duplicates (Fashion/Fashion and cloths, etc.)
+    const categoryMap: Record<string, string> = {
+      'fashion and cloths': 'Fashion',
+      'fashion and clothes': 'Fashion',
+      'fashion': 'Fashion',
+      'food and beverages': 'Food & Beverages',
+      'food and beverage': 'Food & Beverages',
+      'furniture': 'Furniture',
+      'electronics': 'Electronics',
+      'home and garden': 'Home & Garden',
+      'beauty and health': 'Beauty & Health',
+      'sports and outdoors': 'Sports & Outdoors'
+    };
+
+    // Convert to lowercase for comparison
+    const lowerNormalized = normalized.toLowerCase();
+
+    // Check if we have a mapping for this category
+    if (categoryMap[lowerNormalized]) {
+      return categoryMap[lowerNormalized];
+    }
+
+    // Otherwise, just capitalize first letter of each word
+    return normalized
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Get unique categories with normalization and product counts
   const categories = useMemo(() => {
-    const cats = new Set(products.map(p => p.category).filter(Boolean));
-    return ['all', ...Array.from(cats)];
+    if (products.length === 0) return [];
+
+    // Count products per category
+    const categoryCounts = new Map<string, number>();
+
+    products.forEach(product => {
+      if (product.category) {
+        const normalized = normalizeCategory(product.category);
+        categoryCounts.set(normalized, (categoryCounts.get(normalized) || 0) + 1);
+      }
+    });
+
+    // Build category list with counts
+    const categoryList = Array.from(categoryCounts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0])) // Sort alphabetically
+      .map(([name, count]) => ({ name, count }));
+
+    // Add "All Products" at the beginning
+    return [
+      { name: 'all', count: products.filter(p => p.is_public !== false).length },
+      ...categoryList
+    ];
   }, [products]);
 
   // Filter products
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+
+      // Normalize both the selected category and the product's category for comparison
+      const matchesCategory = selectedCategory === 'all' ||
+        normalizeCategory(product.category) === normalizeCategory(selectedCategory);
+
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, selectedCategory]);
@@ -477,15 +537,15 @@ function StorefrontContent() {
             />
           </div>
 
-          {categories.length > 2 && (
+          {categories.length > 1 && (
             <div className="category-filter">
               {categories.map(cat => (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
+                  key={cat.name}
+                  onClick={() => setSelectedCategory(cat.name)}
+                  className={`category-btn ${selectedCategory === cat.name ? 'active' : ''}`}
                 >
-                  {cat === 'all' ? 'All Products' : cat}
+                  {cat.name === 'all' ? 'All Products' : cat.name} ({cat.count})
                 </button>
               ))}
             </div>
