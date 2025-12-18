@@ -273,6 +273,13 @@ export default function MultiImageUpload({
   const saveImageToDatabase = async (imageUrl: string, position: number, isPrimary: boolean) => {
     if (!currentUser || !productId) return;
 
+    // ⚠️ CRITICAL FIX: Never save blob URLs to database (they expire!)
+    if (imageUrl.startsWith('blob:')) {
+      console.error('[MultiImageUpload] ❌ PREVENTED saving blob URL to database:', imageUrl);
+      console.error('[MultiImageUpload] This would cause images to disappear after browser refresh!');
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('product_images')

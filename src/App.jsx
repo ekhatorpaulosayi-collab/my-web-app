@@ -1938,10 +1938,17 @@ Thank you for your business! 🙏
             // Import supabase if not already available
             const { supabase } = await import('./lib/supabase');
 
-            // Save each image to product_images table
+            // Save each image to product_images table (SKIP BLOB URLs)
+            let savedCount = 0;
             for (let i = 0; i < productImages.length; i++) {
               const imageUrl = productImages[i].url;
               const isPrimary = i === 0; // First image is primary
+
+              // ⚠️ FIX: Skip blob URLs (temporary preview URLs that expire)
+              if (imageUrl.startsWith('blob:')) {
+                console.warn(`[handleSave] ⚠️ Skipping image ${i + 1} - still uploading (blob URL)`);
+                continue; // Skip this image, it's not uploaded yet
+              }
 
               console.log(`[handleSave] Saving image ${i + 1}/${productImages.length}:`, {
                 url: imageUrl,
@@ -1963,10 +1970,15 @@ Thank you for your business! 🙏
                 console.error(`[handleSave] Failed to save image ${i + 1}:`, error);
               } else {
                 console.log(`[handleSave] ✅ Image ${i + 1} saved to database`);
+                savedCount++;
               }
             }
 
-            console.log('[handleSave] ✅ All images saved to product_images table');
+            console.log(`[handleSave] ✅ ${savedCount}/${productImages.length} images saved to product_images table`);
+
+            if (savedCount < productImages.length) {
+              console.warn(`[handleSave] ⚠️ ${productImages.length - savedCount} images still uploading - they will be saved automatically when upload completes`);
+            }
           } catch (error) {
             console.error('[handleSave] Error saving images to database:', error);
             // Don't show error to user - product was still created successfully

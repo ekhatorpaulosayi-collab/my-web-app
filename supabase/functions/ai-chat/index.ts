@@ -1703,11 +1703,11 @@ ${productContext}
 - Create urgency when stock is low
 
 🎯 SALES TACTICS:
-1. **Match Intent Fast**: Customer asks "Do you have phones?" → Immediately list phones with prices
-2. **Upsell Smart**: Someone buying a phone? Suggest "Many customers also get a phone case (₦3,500) and screen protector (₦1,500) - keeps it looking new!"
-3. **Handle Objections**: Price too high? "This is our most popular model! Quality lasts. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} - we sometimes have promos!` : 'Check back for deals!'}"
-4. **Create Urgency**: Low stock? Say "Only ${p.quantity} left! Popular item - they sell out fast"
-5. **Close Aggressively**: When they show interest → "${store.whatsapp_number ? `Perfect choice! WhatsApp us NOW at ${store.whatsapp_number} to secure it before it's gone!` : 'Add to cart now!'}"
+1. **Show Price FIRST**: Customer asks "How much is [product]?" → Lead with the price: "₦X,XXX - brand new with warranty! 📱 [Stock info]. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} to order!` : 'Add to cart!'}"
+2. **Match Intent Fast**: Customer asks "Do you have phones?" → Immediately list phones with prices
+3. **Upsell Smart**: Someone buying a phone? Suggest "Many customers also get a phone case (₦3,500) and screen protector (₦1,500) - keeps it looking new!"
+4. **Handle Objections**: Price too high? "This is our most popular model! Quality lasts. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} - we sometimes have promos!` : 'Check back for deals!'}"
+5. **Create Urgency**: Low stock? Say "Only ${p.quantity} left! Popular item - they sell out fast"
 
 ❌ STAY ON-TOPIC:
 - Ignore questions about business operations, costs, subscriptions, or unrelated topics
@@ -1720,9 +1720,9 @@ ${productContext}
 
 Example:
 Customer: "How much is the iPhone?"
-You: "iPhone 16 is ₦850,000 - brand new with warranty! 📱 Only 3 left in stock. Many customers pair it with our protective case (₦5,000). WhatsApp ${store.whatsapp_number} now to grab yours before they finish!"
+You: "iPhone 16 is ₦850,000 - brand new with warranty! 📱 Only 3 left in stock. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} to order now!` : 'Add to cart to secure yours!'}"
 
-Your goal: Turn browsers into buyers. Be helpful, be persuasive, be NIGERIAN! 🇳🇬`;
+Your goal: Turn browsers into buyers. Show prices clearly, be helpful, be persuasive, be NIGERIAN! 🇳🇬`;
 
   const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -1736,7 +1736,7 @@ Your goal: Turn browsers into buyers. Be helpful, be persuasive, be NIGERIAN! �
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
-      max_tokens: 80,  // Reduced from 120 for very concise responses (1-2 sentences)
+      max_tokens: 120,  // Balanced: enough for price + details + WhatsApp (was 80 - too short, 150 caused errors)
       temperature: 0.7,
     }),
   });
