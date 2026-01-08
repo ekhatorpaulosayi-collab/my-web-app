@@ -6,12 +6,15 @@
  * - Starter: 3 images
  * - Pro: 5 images
  * - Business: 10 images
+ *
+ * Includes EXIF orientation correction for mobile photos.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import UpgradeModal from './UpgradeModal';
+import EXIF from 'exif-js';
 
 interface ProductImage {
   id?: string;
@@ -201,19 +204,33 @@ export default function MultiImageUpload({
 
       console.log('[MultiImageUpload] Public URL:', publicUrl);
 
-      // Update image with final URL (100% progress)
-      setImages(prev => prev.map((img, idx) =>
-        idx === index
-          ? { ...img, url: publicUrl, uploading: false, uploadProgress: 100, file: undefined }
-          : img
-      ));
+      // Update image with final URL (100% progress) using functional update to get latest state
+      setImages(prev => {
+        const updatedImages = prev.map((img, idx) =>
+          idx === index
+            ? { ...img, url: publicUrl, uploading: false, uploadProgress: 100, file: undefined }
+            : img
+        );
+        console.log('[MultiImageUpload] Updated images state after upload:', updatedImages.length, 'images');
+
+        // Notify parent component INSIDE the setState callback to ensure we have the correct state
+        try {
+          console.log('[MultiImageUpload] About to call onImagesChange with', updatedImages.length, 'images');
+          onImagesChange(updatedImages);
+          console.log('[MultiImageUpload] Successfully called onImagesChange');
+        } catch (error) {
+          console.error('[MultiImageUpload] ERROR calling onImagesChange:', error);
+        }
+
+        return updatedImages;
+      });
 
       // Save to Supabase database if product exists
       if (productId) {
         console.log('[MultiImageUpload] Saving to database for product:', productId);
         await saveImageToDatabase(publicUrl, index, index === 0);
       } else {
-        console.log('[MultiImageUpload] Skipping database save (no productId yet)');
+        console.log('[MultiImageUpload] Skipping database save (no productId yet) - will be saved when product is created');
       }
 
       console.log('[MultiImageUpload] Upload complete!');
@@ -224,49 +241,100 @@ export default function MultiImageUpload({
     }
   };
 
-  // Helper function to compress images (same as supabase-storage.ts)
+  // Helper function to get EXIF orientation
+  const getOrientation = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      EXIF.getData(file as any, function(this: any) {
+        const orientation = EXIF.getTag(this, 'Orientation');
+        resolve(orientation || 1);
+      });
+    });
+  };
+
+  // Helper function to compress images with EXIF orientation correction
   const compressImage = async (file: File): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d', { alpha: true });
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Get EXIF orientation
+        const orientation = await getOrientation(file);
 
-      if (!ctx) {
-        reject(new Error('Canvas context not available'));
-        return;
-      }
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: true });
 
-      img.onload = () => {
-        let { width, height } = img;
-        const maxSize = 1200;
-        const quality = 0.92;
-
-        // Only resize if image is larger than maxSize
-        if (width > maxSize || height > maxSize) {
-          if (width > height) {
-            height = Math.round((height * maxSize) / width);
-            width = maxSize;
-          } else {
-            width = Math.round((width * maxSize) / height);
-            height = maxSize;
-          }
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
         }
 
-        canvas.width = width;
-        canvas.height = height;
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, width, height);
+        img.onload = () => {
+          let { width, height } = img;
+          const maxSize = 1200;
+          const quality = 0.85; // Optimized for web - ImageKit will handle variants
 
-        canvas.toBlob(
-          (blob) => blob ? resolve(blob) : reject(new Error('Compression failed')),
-          'image/jpeg',
-          quality
-        );
-      };
+          // Only resize if image is larger than maxSize
+          if (width > maxSize || height > maxSize) {
+            if (width > height) {
+              height = Math.round((height * maxSize) / width);
+              width = maxSize;
+            } else {
+              width = Math.round((width * maxSize) / height);
+              height = maxSize;
+            }
+          }
 
-      img.onerror = () => reject(new Error('Image load failed'));
-      img.src = URL.createObjectURL(file);
+          // Adjust canvas size based on EXIF orientation
+          if (orientation >= 5 && orientation <= 8) {
+            canvas.width = height;
+            canvas.height = width;
+          } else {
+            canvas.width = width;
+            canvas.height = height;
+          }
+
+          // Apply EXIF orientation transformation
+          switch (orientation) {
+            case 2:
+              ctx.transform(-1, 0, 0, 1, width, 0);
+              break;
+            case 3:
+              ctx.transform(-1, 0, 0, -1, width, height);
+              break;
+            case 4:
+              ctx.transform(1, 0, 0, -1, 0, height);
+              break;
+            case 5:
+              ctx.transform(0, 1, 1, 0, 0, 0);
+              break;
+            case 6:
+              ctx.transform(0, 1, -1, 0, height, 0);
+              break;
+            case 7:
+              ctx.transform(0, -1, -1, 0, height, width);
+              break;
+            case 8:
+              ctx.transform(0, -1, 1, 0, 0, width);
+              break;
+            default:
+              break;
+          }
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => blob ? resolve(blob) : reject(new Error('Compression failed')),
+            'image/jpeg',
+            quality
+          );
+        };
+
+        img.onerror = () => reject(new Error('Image load failed'));
+        img.src = URL.createObjectURL(file);
+      } catch (error) {
+        reject(error);
+      }
     });
   };
 

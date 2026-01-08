@@ -3,63 +3,128 @@
  *
  * Handles image uploads to Supabase Storage with client-side compression.
  * Images are then served through ImageKit CDN for optimization.
+ * Includes EXIF orientation correction for mobile photos.
  */
 
 import { supabase } from './supabase';
+import EXIF from 'exif-js';
 
 /**
- * Compress image before upload
+ * Get EXIF orientation from image file
+ * Returns orientation value (1-8) where 1 is normal
+ */
+const getOrientation = (file: File): Promise<number> => {
+  return new Promise((resolve) => {
+    EXIF.getData(file as any, function(this: any) {
+      const orientation = EXIF.getTag(this, 'Orientation');
+      resolve(orientation || 1);
+    });
+  });
+};
+
+/**
+ * Compress image before upload with EXIF orientation correction
  * Preserves aspect ratio and uses high quality settings
+ * Automatically fixes rotated mobile photos
  */
 const compressImage = async (
   file: File,
   maxSize: number = 1200,
-  quality: number = 0.92
+  quality: number = 0.85
 ): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { alpha: true });
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Get EXIF orientation
+      const orientation = await getOrientation(file);
 
-    if (!ctx) {
-      reject(new Error('Canvas context not available'));
-      return;
-    }
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { alpha: true });
 
-    img.onload = () => {
-      let { width, height } = img;
-
-      // Only resize if image is larger than maxSize
-      if (width > maxSize || height > maxSize) {
-        if (width > height) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        } else {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
+      if (!ctx) {
+        reject(new Error('Canvas context not available'));
+        return;
       }
 
-      canvas.width = width;
-      canvas.height = height;
+      img.onload = () => {
+        let { width, height } = img;
 
-      // Use high-quality image smoothing
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+        // Only resize if image is larger than maxSize
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
 
-      // Draw image
-      ctx.drawImage(img, 0, 0, width, height);
+        // Adjust canvas size based on EXIF orientation
+        // Orientations 5-8 require width/height swap
+        if (orientation >= 5 && orientation <= 8) {
+          canvas.width = height;
+          canvas.height = width;
+        } else {
+          canvas.width = width;
+          canvas.height = height;
+        }
 
-      // Convert to JPEG with high quality
-      canvas.toBlob(
-        (blob) => blob ? resolve(blob) : reject(new Error('Compression failed')),
-        'image/jpeg',
-        quality
-      );
-    };
+        // Apply EXIF orientation transformation
+        switch (orientation) {
+          case 2:
+            // Horizontal flip
+            ctx.transform(-1, 0, 0, 1, width, 0);
+            break;
+          case 3:
+            // 180° rotation
+            ctx.transform(-1, 0, 0, -1, width, height);
+            break;
+          case 4:
+            // Vertical flip
+            ctx.transform(1, 0, 0, -1, 0, height);
+            break;
+          case 5:
+            // Vertical flip + 90° rotation
+            ctx.transform(0, 1, 1, 0, 0, 0);
+            break;
+          case 6:
+            // 90° rotation
+            ctx.transform(0, 1, -1, 0, height, 0);
+            break;
+          case 7:
+            // Horizontal flip + 90° rotation
+            ctx.transform(0, -1, -1, 0, height, width);
+            break;
+          case 8:
+            // 270° rotation
+            ctx.transform(0, -1, 1, 0, 0, width);
+            break;
+          default:
+            // Normal orientation (1)
+            break;
+        }
 
-    img.onerror = () => reject(new Error('Image load failed'));
-    img.src = URL.createObjectURL(file);
+        // Use high-quality image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Draw image with proper orientation
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to JPEG with optimized quality
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error('Compression failed')),
+          'image/jpeg',
+          quality
+        );
+      };
+
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = URL.createObjectURL(file);
+    } catch (error) {
+      reject(error);
+    }
   });
 };
 
@@ -86,8 +151,8 @@ export const uploadStoreLogo = async (
     }
   }
 
-  // Compress image (1200px, 95% quality for crisp logos)
-  const compressed = await compressImage(file, 1200, 0.95);
+  // Compress image (1200px, 85% quality - optimized for web)
+  const compressed = await compressImage(file, 1200, 0.85);
 
   // Generate unique filename
   const timestamp = Date.now();
@@ -138,8 +203,8 @@ export const uploadProductImage = async (
     }
   }
 
-  // Compress image (1200px, 92% quality for stunning product photos)
-  const compressed = await compressImage(file, 1200, 0.92);
+  // Compress image (1200px, 85% quality - optimized for web, ImageKit will handle variants)
+  const compressed = await compressImage(file, 1200, 0.85);
 
   // Generate unique filename
   const timestamp = Date.now();

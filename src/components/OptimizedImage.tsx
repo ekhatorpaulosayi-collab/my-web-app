@@ -49,15 +49,15 @@ export function OptimizedImage({
   // Generate LQIP for blur placeholder
   const lqipUrl = getLQIP(imagePath);
 
-  // Generate responsive srcsets
-  const srcSet = buildImageKitSrcSet(imagePath, [400, 800, 1200, 1600], {
+  // Generate responsive srcsets (mobile-first: 320, 640, 960, 1280, 1600)
+  const srcSet = buildImageKitSrcSet(imagePath, [320, 640, 960, 1280, 1600], {
     quality: 85,
     format: 'auto'
   });
 
-  // Fallback URL (optimized)
+  // Fallback URL (optimized for mobile-first)
   const fallbackUrl = getImageKitUrl(imagePath, {
-    width: 1200,
+    width: 800, // Smaller fallback for faster loading
     quality: 85,
     format: 'auto'
   });
@@ -212,7 +212,7 @@ export function SimpleImage({
   const imageUrl = getImageKitUrl(imagePath, {
     width,
     height,
-    quality: 85,
+    quality: 80, // Slightly lower for simple fixed-size images
     format: 'auto',
     crop: 'maintain_ratio'
   });

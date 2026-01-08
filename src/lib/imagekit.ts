@@ -46,10 +46,9 @@ export function getImageKitUrl(path: string, options: ImageKitTransformOptions =
     return path;
   }
 
-  // If path is already a full Supabase URL, use it directly (for now)
-  // This is a temporary fix until ImageKit is configured with Supabase as external origin
+  // If path is already a full Supabase URL, convert to ImageKit URL
   if (path.startsWith('http')) {
-    console.log('[ImageKit] Path is already a full URL, using it directly:', path);
+    console.log('[ImageKit] Path is already a full URL, converting to ImageKit:', path);
 
     // Extract the storage path from the full Supabase URL
     const urlObj = new URL(path);
@@ -71,10 +70,11 @@ export function getImageKitUrl(path: string, options: ImageKitTransformOptions =
 
       const transformString = transformations.length > 0 ? `/tr:${transformations.join(',')}` : '';
 
-      // ImageKit URL format with external storage origin
-      // This assumes ImageKit is configured to proxy from Supabase Storage
+      // ImageKit URL format: https://ik.imagekit.io/{urlEndpoint}/tr:transformations/storagePath
+      // The storagePath will be appended to the ImageKit origin base URL automatically
       const imagekitUrl = `${IMAGEKIT_URL_ENDPOINT}${transformString}/${storagePath}`;
       console.log('[ImageKit] Generated URL:', imagekitUrl);
+      console.log('[ImageKit] This will fetch from origin:', `https://yzlniqwzqlsftxrtapdl.supabase.co/storage/v1/object/public/${storagePath}`);
 
       return imagekitUrl;
     }
@@ -152,9 +152,43 @@ export const ImagePresets = {
   productThumbnail: (path: string) => getImageKitUrl(path, {
     width: 300,
     height: 300,
-    quality: 85,
+    quality: 80,
     format: 'auto',
     crop: 'maintain_ratio',
+    focus: 'auto'
+  }),
+
+  /**
+   * Product grid (mobile-optimized for listings)
+   */
+  productGrid: (path: string) => getImageKitUrl(path, {
+    width: 320,
+    height: 320,
+    quality: 75,
+    format: 'auto',
+    crop: 'maintain_ratio',
+    focus: 'auto'
+  }),
+
+  /**
+   * Product card (medium size for cards/tiles)
+   */
+  productCard: (path: string) => getImageKitUrl(path, {
+    width: 640,
+    height: 640,
+    quality: 80,
+    format: 'auto',
+    crop: 'maintain_ratio',
+    focus: 'auto'
+  }),
+
+  /**
+   * Product mobile (optimized for mobile detail view)
+   */
+  productMobile: (path: string) => getImageKitUrl(path, {
+    width: 800,
+    quality: 85,
+    format: 'auto',
     focus: 'auto'
   }),
 
@@ -163,7 +197,7 @@ export const ImagePresets = {
    */
   productDetail: (path: string) => getImageKitUrl(path, {
     width: 1200,
-    quality: 90,
+    quality: 85,
     format: 'auto',
     focus: 'auto'
   }),
@@ -174,7 +208,7 @@ export const ImagePresets = {
   storeLogo: (path: string) => getImageKitUrl(path, {
     width: 400,
     height: 400,
-    quality: 95,
+    quality: 90,
     format: 'auto',
     crop: 'maintain_ratio'
   }),
@@ -197,7 +231,7 @@ export const ImagePresets = {
   banner: (path: string) => getImageKitUrl(path, {
     width: 1920,
     height: 600,
-    quality: 85,
+    quality: 80,
     format: 'auto',
     crop: 'maintain_ratio'
   })
