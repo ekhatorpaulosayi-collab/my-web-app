@@ -422,35 +422,6 @@ function StorefrontContent() {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="storefront-container">
-        <div className="storefront-loading">
-          <div className="loading-spinner"></div>
-          <p>Loading store...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error || !store) {
-    return (
-      <div className="storefront-container">
-        <div className="storefront-error">
-          <ShoppingBag size={64} strokeWidth={1} />
-          <h2>{error || 'Store not found'}</h2>
-          <p>This store may be private or the link may be incorrect.</p>
-          <button onClick={() => navigate('/')} className="btn-back">
-            <ArrowLeft size={20} />
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // Update meta tags for social media sharing (vanilla JS - no dependencies)
   useEffect(() => {
     if (!store) return;
@@ -527,6 +498,35 @@ function StorefrontContent() {
     canonical.setAttribute('href', storeUrl);
 
   }, [store, selectedProduct, slug]);
+
+  // Loading state (moved after all hooks to avoid React error #310)
+  if (loading) {
+    return (
+      <div className="storefront-container">
+        <div className="storefront-loading">
+          <div className="loading-spinner"></div>
+          <p>Loading store...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state (moved after all hooks to avoid React error #310)
+  if (error || !store) {
+    return (
+      <div className="storefront-container">
+        <div className="storefront-error">
+          <ShoppingBag size={64} strokeWidth={1} />
+          <h2>{error || 'Store not found'}</h2>
+          <p>This store may be private or the link may be incorrect.</p>
+          <button onClick={() => navigate('/')} className="btn-back">
+            <ArrowLeft size={20} />
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
       <div className="storefront-container">
