@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabase';
 import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check, Heart } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
@@ -452,69 +451,84 @@ function StorefrontContent() {
     );
   }
 
-  // Generate meta tags for social media sharing
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const storeUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/store/${slug}`
-    : '';
+  // Update meta tags for social media sharing (vanilla JS - no dependencies)
+  useEffect(() => {
+    if (!store) return;
 
-  // Meta tag values with fallbacks
-  const metaTitle = selectedProduct
-    ? `${selectedProduct.name} - ${currencyNGN(selectedProduct.selling_price)} | ${store?.businessName || 'Storehouse'}`
-    : `${store?.businessName || 'Shop'} | Online Store`;
+    const currentUrl = window.location.href;
+    const storeUrl = `${window.location.origin}/store/${slug}`;
 
-  const metaDescription = selectedProduct
-    ? (selectedProduct.description || `${selectedProduct.name} available at ${store?.businessName || 'our store'}`).slice(0, 155)
-    : (store?.description || `Shop quality products at ${store?.businessName || 'our online store'}`).slice(0, 155);
+    // Meta tag values with fallbacks
+    const metaTitle = selectedProduct
+      ? `${selectedProduct.name} - ${currencyNGN(selectedProduct.selling_price)} | ${store.businessName}`
+      : `${store.businessName} | Online Store`;
 
-  const metaImage = selectedProduct?.image_url
-    ? ImagePresets.productDetail(selectedProduct.image_url)
-    : (store?.logoUrl ? ImagePresets.storeLogo(store.logoUrl) : 'https://www.storehouse.ng/og-image.png');
+    const metaDescription = selectedProduct
+      ? (selectedProduct.description || `${selectedProduct.name} available at ${store.businessName}`).slice(0, 155)
+      : (store.description || `Shop quality products at ${store.businessName}`).slice(0, 155);
+
+    const metaImage = selectedProduct?.image_url
+      ? ImagePresets.productDetail(selectedProduct.image_url)
+      : (store.logoUrl ? ImagePresets.storeLogo(store.logoUrl) : 'https://www.storehouse.ng/og-image.png');
+
+    // Update document title
+    document.title = metaTitle;
+
+    // Helper function to update or create meta tag
+    const updateMetaTag = (property: string, content: string, isProperty = true) => {
+      const attr = isProperty ? 'property' : 'name';
+      let element = document.querySelector(`meta[${attr}="${property}"]`);
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attr, property);
+        document.head.appendChild(element);
+      }
+      element.setAttribute('content', content);
+    };
+
+    // Update meta tags
+    updateMetaTag('title', metaTitle, false);
+    updateMetaTag('description', metaDescription, false);
+
+    // Open Graph / Facebook
+    updateMetaTag('og:type', selectedProduct ? 'product' : 'website');
+    updateMetaTag('og:url', currentUrl);
+    updateMetaTag('og:title', metaTitle);
+    updateMetaTag('og:description', metaDescription);
+    updateMetaTag('og:image', metaImage);
+    updateMetaTag('og:image:width', '1200');
+    updateMetaTag('og:image:height', '630');
+    updateMetaTag('og:site_name', store.businessName);
+    updateMetaTag('og:image:alt', selectedProduct?.name || store.businessName);
+
+    // Twitter
+    updateMetaTag('twitter:card', 'summary_large_image');
+    updateMetaTag('twitter:url', currentUrl);
+    updateMetaTag('twitter:title', metaTitle);
+    updateMetaTag('twitter:description', metaDescription);
+    updateMetaTag('twitter:image', metaImage);
+
+    // Product-specific meta tags
+    if (selectedProduct) {
+      updateMetaTag('product:price:amount', (selectedProduct.selling_price / 100).toString());
+      updateMetaTag('product:price:currency', 'NGN');
+      if (selectedProduct.quantity > 0) {
+        updateMetaTag('product:availability', 'in stock');
+      }
+    }
+
+    // Update canonical URL
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', storeUrl);
+
+  }, [store, selectedProduct, slug]);
 
   return (
-    <>
-      {/* Dynamic Meta Tags for Social Media */}
-      <Helmet>
-        {/* Primary Meta Tags */}
-        <title>{metaTitle}</title>
-        <meta name="title" content={metaTitle} />
-        <meta name="description" content={metaDescription} />
-
-        {/* Open Graph / Facebook */}
-        <meta property="og:type" content={selectedProduct ? 'product' : 'website'} />
-        <meta property="og:url" content={currentUrl} />
-        <meta property="og:title" content={metaTitle} />
-        <meta property="og:description" content={metaDescription} />
-        <meta property="og:image" content={metaImage} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
-        <meta property="og:site_name" content={store?.businessName || 'Storehouse'} />
-
-        {/* Twitter */}
-        <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content={currentUrl} />
-        <meta property="twitter:title" content={metaTitle} />
-        <meta property="twitter:description" content={metaDescription} />
-        <meta property="twitter:image" content={metaImage} />
-
-        {/* WhatsApp specific */}
-        <meta property="og:image:alt" content={selectedProduct?.name || store?.businessName || 'Product image'} />
-
-        {/* Product-specific meta tags */}
-        {selectedProduct && (
-          <>
-            <meta property="product:price:amount" content={(selectedProduct.selling_price / 100).toString()} />
-            <meta property="product:price:currency" content="NGN" />
-            {selectedProduct.quantity > 0 && (
-              <meta property="product:availability" content="in stock" />
-            )}
-          </>
-        )}
-
-        {/* Canonical URL */}
-        <link rel="canonical" href={storeUrl} />
-      </Helmet>
-
       <div className="storefront-container">
         {/* Header */}
         <header className="storefront-header" style={{
@@ -2548,7 +2562,6 @@ function StorefrontContent() {
         } : undefined}
       />
     </div>
-    </>
   );
 }
 
