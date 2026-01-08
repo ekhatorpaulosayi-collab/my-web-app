@@ -16,13 +16,21 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client (serverless environment)
+// Note: Vercel automatically exposes VITE_* vars to serverless functions
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
+  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
 );
 
 // ImageKit configuration
-const IMAGEKIT_ENDPOINT = process.env.VITE_IMAGEKIT_URL_ENDPOINT;
+const IMAGEKIT_ENDPOINT = process.env.VITE_IMAGEKIT_URL_ENDPOINT || process.env.IMAGEKIT_URL_ENDPOINT;
+
+// Debug logging (only in development)
+if (!supabase) {
+  console.error('[OG Meta] Supabase client not initialized');
+  console.error('[OG Meta] VITE_SUPABASE_URL:', !!process.env.VITE_SUPABASE_URL);
+  console.error('[OG Meta] SUPABASE_URL:', !!process.env.SUPABASE_URL);
+}
 
 /**
  * Generate ImageKit URL for social sharing
