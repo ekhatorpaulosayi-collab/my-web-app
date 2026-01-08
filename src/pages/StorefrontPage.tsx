@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabase';
 import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check, Heart } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
@@ -23,6 +24,8 @@ import ReviewList from '../components/ReviewList';
 import { getProductReviewStats, type ReviewStats } from '../services/reviewService';
 import AIChatWidget from '../components/AIChatWidget';
 import { ShareButton } from '../components/ProductShareMenu';
+import WhatsAppQuickReplies from '../components/WhatsAppQuickReplies';
+import { ImagePresets } from '../lib/imagekit';
 import '../styles/storefront.css';
 
 interface Product {
@@ -368,10 +371,31 @@ function StorefrontContent() {
     ];
   }, [products]);
 
-  // Filter products
+  // Filter products - PHASE 2A: Enhanced search across multiple fields
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const query = searchQuery.toLowerCase().trim();
+
+      // If no search query, just filter by category
+      if (!query) {
+        const matchesCategory = selectedCategory === 'all' ||
+          normalizeCategory(product.category) === normalizeCategory(selectedCategory);
+        return matchesCategory;
+      }
+
+      // PHASE 2A: Enhanced search across multiple fields
+      const searchableFields = [
+        product.name || '',
+        product.description || '',
+        product.category || '',
+        // Search in attributes (e.g., color, size, material)
+        JSON.stringify(product.attributes || {}),
+        // PHASE 2A: Search in specifications (battery, screen, etc.)
+        JSON.stringify(product.specifications || {})
+      ].map(field => field.toLowerCase());
+
+      // Check if query matches any searchable field
+      const matchesSearch = searchableFields.some(field => field.includes(query));
 
       // Normalize both the selected category and the product's category for comparison
       const matchesCategory = selectedCategory === 'all' ||
@@ -428,10 +452,72 @@ function StorefrontContent() {
     );
   }
 
+  // Generate meta tags for social media sharing
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const storeUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/store/${slug}`
+    : '';
+
+  // Meta tag values with fallbacks
+  const metaTitle = selectedProduct
+    ? `${selectedProduct.name} - ${currencyNGN(selectedProduct.selling_price)} | ${store?.businessName || 'Storehouse'}`
+    : `${store?.businessName || 'Shop'} | Online Store`;
+
+  const metaDescription = selectedProduct
+    ? (selectedProduct.description || `${selectedProduct.name} available at ${store?.businessName || 'our store'}`).slice(0, 155)
+    : (store?.description || `Shop quality products at ${store?.businessName || 'our online store'}`).slice(0, 155);
+
+  const metaImage = selectedProduct?.image_url
+    ? ImagePresets.productDetail(selectedProduct.image_url)
+    : (store?.logoUrl ? ImagePresets.storeLogo(store.logoUrl) : 'https://www.storehouse.ng/og-image.png');
+
   return (
-    <div className="storefront-container">
-      {/* Header */}
-      <header className="storefront-header" style={{
+    <>
+      {/* Dynamic Meta Tags for Social Media */}
+      <Helmet>
+        {/* Primary Meta Tags */}
+        <title>{metaTitle}</title>
+        <meta name="title" content={metaTitle} />
+        <meta name="description" content={metaDescription} />
+
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content={selectedProduct ? 'product' : 'website'} />
+        <meta property="og:url" content={currentUrl} />
+        <meta property="og:title" content={metaTitle} />
+        <meta property="og:description" content={metaDescription} />
+        <meta property="og:image" content={metaImage} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:site_name" content={store?.businessName || 'Storehouse'} />
+
+        {/* Twitter */}
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:url" content={currentUrl} />
+        <meta property="twitter:title" content={metaTitle} />
+        <meta property="twitter:description" content={metaDescription} />
+        <meta property="twitter:image" content={metaImage} />
+
+        {/* WhatsApp specific */}
+        <meta property="og:image:alt" content={selectedProduct?.name || store?.businessName || 'Product image'} />
+
+        {/* Product-specific meta tags */}
+        {selectedProduct && (
+          <>
+            <meta property="product:price:amount" content={(selectedProduct.selling_price / 100).toString()} />
+            <meta property="product:price:currency" content="NGN" />
+            {selectedProduct.quantity > 0 && (
+              <meta property="product:availability" content="in stock" />
+            )}
+          </>
+        )}
+
+        {/* Canonical URL */}
+        <link rel="canonical" href={storeUrl} />
+      </Helmet>
+
+      <div className="storefront-container">
+        {/* Header */}
+        <header className="storefront-header" style={{
         backgroundColor: store.primaryColor || '#2563eb',
         backgroundImage: store.primaryColor
           ? `linear-gradient(135deg, ${store.primaryColor} 0%, ${store.primaryColor}dd 100%)`
@@ -548,6 +634,37 @@ function StorefrontContent() {
                   {cat.name === 'all' ? 'All Products' : cat.name} ({cat.count})
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* PHASE 2A: Search Results Info */}
+          {searchQuery && (
+            <div style={{
+              padding: '8px 16px',
+              background: filteredProducts.length === 0 ? '#fef2f2' : '#f0f9ff',
+              borderRadius: '6px',
+              marginTop: '12px',
+              fontSize: '14px',
+              color: filteredProducts.length === 0 ? '#991b1b' : '#0369a1',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              {filteredProducts.length === 0 ? (
+                <>
+                  <span>❌</span>
+                  <span>
+                    No products found for "<strong>{searchQuery}</strong>". Try different keywords or browse all products.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>✓</span>
+                  <span>
+                    Found <strong>{filteredProducts.length}</strong> product{filteredProducts.length !== 1 ? 's' : ''} matching "<strong>{searchQuery}</strong>"
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -2199,6 +2316,32 @@ function StorefrontContent() {
                 </button>
               )}
 
+              {/* PHASE 2A: WhatsApp Quick Replies */}
+              {store?.whatsappNumber && selectedProduct.quantity > 0 && store?.businessName && (
+                <div style={{
+                  marginBottom: '20px',
+                  padding: '16px',
+                  background: '#f9fafb',
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <WhatsAppQuickReplies
+                    product={{
+                      id: selectedProduct.id,
+                      name: selectedProduct.name,
+                      selling_price: selectedProduct.selling_price,
+                      quantity: selectedProduct.quantity,
+                      category: selectedProduct.category,
+                      description: selectedProduct.description
+                    }}
+                    storeInfo={{
+                      store_name: store.businessName || store.storeName || 'Store',
+                      whatsapp_number: store.whatsappNumber
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Order via WhatsApp Button */}
               {store?.whatsappNumber && selectedProduct.quantity > 0 && (
                 <button
@@ -2405,6 +2548,7 @@ function StorefrontContent() {
         } : undefined}
       />
     </div>
+    </>
   );
 }
 
