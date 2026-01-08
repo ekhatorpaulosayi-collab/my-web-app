@@ -234,6 +234,19 @@ export const ImagePresets = {
     quality: 80,
     format: 'auto',
     crop: 'maintain_ratio'
+  }),
+
+  /**
+   * Social media sharing (Facebook, WhatsApp, Twitter)
+   * Optimized for Open Graph previews
+   */
+  socialShare: (path: string) => getImageKitUrl(path, {
+    width: 1200,
+    height: 630,
+    quality: 90,
+    format: 'jpg',  // JPG for maximum compatibility
+    crop: 'maintain_ratio',
+    focus: 'auto'
   })
 };
 
