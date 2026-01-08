@@ -75,9 +75,10 @@ export default async function handler(req, res) {
 
     // Fetch store data
     const { data: store, error: storeError } = await supabase
-      .from('businesses')
-      .select('id, business_name, description, logo_url, slug')
-      .eq('slug', slug)
+      .from('users')
+      .select('id, business_name, store_description, profile_picture_url, store_slug')
+      .eq('store_slug', slug)
+      .eq('store_visible', true)
       .single();
 
     if (storeError || !store) {
@@ -93,7 +94,8 @@ export default async function handler(req, res) {
         .from('products')
         .select('id, name, description, selling_price, image_url, quantity')
         .eq('id', productId)
-        .eq('business_id', store.id)
+        .eq('user_id', store.id)
+        .eq('public_visible', true)
         .single();
 
       if (!productError && product) {
@@ -105,7 +107,7 @@ export default async function handler(req, res) {
           .slice(0, 155);
         metaImage = product.image_url
           ? getImageKitSocialUrl(product.image_url)
-          : (store.logo_url ? getImageKitSocialUrl(store.logo_url) : 'https://www.storehouse.ng/og-image.png');
+          : (store.profile_picture_url ? getImageKitSocialUrl(store.profile_picture_url) : 'https://www.storehouse.ng/og-image.png');
         metaUrl = `https://www.storehouse.ng/store/${slug}?product=${productId}`;
       }
     }
@@ -113,10 +115,10 @@ export default async function handler(req, res) {
     // Fallback to store-level meta tags if no product
     if (!metaTitle) {
       metaTitle = `${store.business_name} | Online Store`;
-      metaDescription = (store.description || `Shop quality products at ${store.business_name}`)
+      metaDescription = (store.store_description || `Shop quality products at ${store.business_name}`)
         .slice(0, 155);
-      metaImage = store.logo_url
-        ? getImageKitSocialUrl(store.logo_url)
+      metaImage = store.profile_picture_url
+        ? getImageKitSocialUrl(store.profile_picture_url)
         : 'https://www.storehouse.ng/og-image.png';
       metaUrl = `https://www.storehouse.ng/store/${slug}`;
     }
