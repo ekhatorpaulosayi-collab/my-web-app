@@ -10,17 +10,20 @@ import './ShareInstructionsModal.css';
 interface ShareInstructionsModalProps {
   platform: 'instagram' | 'tiktok' | 'whatsapp';
   caption: string;
-  imageDownloaded?: boolean;
+  imageUrl?: string;
+  productName?: string;
   onClose: () => void;
 }
 
 export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
   platform,
   caption,
-  imageDownloaded = false,
+  imageUrl,
+  productName,
   onClose
 }) => {
   const [captionCopied, setCaptionCopied] = React.useState(false);
+  const [imageDownloaded, setImageDownloaded] = React.useState(false);
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
@@ -31,76 +34,73 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
     setTimeout(() => setCaptionCopied(false), 2000);
   };
 
+  const handleDownloadImage = async () => {
+    console.log('[ShareInstructionsModal] Download button clicked');
+    console.log('[ShareInstructionsModal] Image URL:', imageUrl);
+    console.log('[ShareInstructionsModal] Product Name:', productName);
+
+    if (!imageUrl || !productName) {
+      console.error('[ShareInstructionsModal] Missing imageUrl or productName');
+      return;
+    }
+
+    try {
+      console.log('[ShareInstructionsModal] Starting download...');
+      // Import download function
+      const { downloadProductImage } = await import('../utils/socialShare');
+      const success = await downloadProductImage(imageUrl, productName);
+      console.log('[ShareInstructionsModal] Download result:', success);
+      if (success) {
+        setImageDownloaded(true);
+        console.log('[ShareInstructionsModal] Download complete!');
+      }
+    } catch (error) {
+      console.error('[ShareInstructionsModal] Download error:', error);
+    }
+  };
+
   const getInstructions = () => {
-    if (platform === 'whatsapp') {
+    if (platform === 'instagram') {
+      if (isMobile) {
+        return [
+          'Tap "Download Image" button below',
+          'Open Instagram app',
+          'Tap + button to create new post',
+          'Select the downloaded image from your gallery',
+          'Long-press the caption area and tap "Paste"',
+          'Add hashtags and post!'
+        ];
+      } else {
+        return [
+          'Click "Download Image" button below',
+          'Transfer the image to your phone (AirDrop/Google Photos)',
+          'Open Instagram app on your phone',
+          'Tap + button → Select the image',
+          'Paste the caption and post!'
+        ];
+      }
+    } else if (platform === 'whatsapp') {
       // WhatsApp Status
       if (isMobile) {
-        return imageDownloaded
-          ? [
-              'Open WhatsApp',
-              'Tap "Status" tab at the top',
-              'Tap camera icon to create new Status',
-              'Select the downloaded image from gallery',
-              'Long-press text area and tap "Paste" to add caption',
-              'Tap send to post to your Status!'
-            ]
-          : [
-              'Open WhatsApp',
-              'Tap "Status" tab at the top',
-              'Tap camera icon to create new Status',
-              'Select your product photo',
-              'Long-press text area and tap "Paste"',
-              'Tap send to post!'
-            ];
+        return [
+          'Tap "Download Image" button below',
+          'Open WhatsApp',
+          'Tap "Status" tab at the top',
+          'Tap camera icon to create new Status',
+          'Select the downloaded image from gallery',
+          'Long-press text area and tap "Paste" to add caption',
+          'Tap send to post to your Status!'
+        ];
       } else {
-        return imageDownloaded
-          ? [
-              'Transfer the downloaded image to your phone',
-              'Open WhatsApp on your phone',
-              'Tap "Status" → Camera icon',
-              'Select the image from gallery',
-              'Long-press text area and paste caption',
-              'Tap send to post to Status!'
-            ]
-          : [
-              'Save product photo to your phone',
-              'Open WhatsApp',
-              'Tap "Status" tab → Camera icon',
-              'Select your product photo',
-              'Long-press text area and paste caption',
-              'Post to Status!'
-            ];
-      }
-    } else if (platform === 'instagram') {
-      if (isMobile) {
-        return imageDownloaded
-          ? [
-              'Select the downloaded image from your gallery',
-              'Tap "Next"',
-              'Long-press the caption area and tap "Paste"',
-              'Add hashtags and post!'
-            ]
-          : [
-              'Select your product photo',
-              'Tap "Next"',
-              'Long-press the caption area and tap "Paste"',
-              'Add hashtags and post!'
-            ];
-      } else {
-        return imageDownloaded
-          ? [
-              'Transfer the downloaded image to your phone (AirDrop/Google Photos)',
-              'Open Instagram app on your phone',
-              'Tap + button → Select the image',
-              'Paste the caption and post!'
-            ]
-          : [
-              'Save your product photo to your phone',
-              'Open Instagram app',
-              'Tap + button → Select the photo',
-              'Long-press caption area and paste',
-              'Add hashtags and post!'
-            ];
+        return [
+          'Click "Download Image" button below',
+          'Transfer the image to your phone',
+          'Open WhatsApp on your phone',
+          'Tap "Status" → Camera icon',
+          'Select the image from gallery',
+          'Long-press text area and paste caption',
+          'Tap send to post to Status!'
+        ];
       }
     } else {
       // TikTok
@@ -142,9 +142,6 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
     if (imageDownloaded) {
       parts.push('Image downloaded');
     }
-    if (isMobile) {
-      parts.push(`${getPlatformName()} opening...`);
-    }
     return parts;
   };
 
@@ -184,6 +181,24 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
 
         {/* Actions */}
         <div className="share-modal-actions">
+          {imageUrl && (
+            <button
+              className="share-modal-btn share-btn-primary"
+              onClick={handleDownloadImage}
+              disabled={imageDownloaded}
+            >
+              {imageDownloaded ? (
+                <>
+                  <Check size={16} />
+                  <span>Downloaded!</span>
+                </>
+              ) : (
+                <>
+                  <span>📥 Download Image</span>
+                </>
+              )}
+            </button>
+          )}
           <button
             className="share-modal-btn share-btn-secondary"
             onClick={handleViewCaption}
@@ -200,8 +215,8 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
               </>
             )}
           </button>
-          <button className="share-modal-btn share-btn-primary" onClick={onClose}>
-            Got it
+          <button className="share-modal-btn share-btn-secondary" onClick={onClose}>
+            Done
           </button>
         </div>
       </div>

@@ -25,7 +25,10 @@ import AIChatWidget from '../components/AIChatWidget';
 import { ShareButton } from '../components/ProductShareMenu';
 import WhatsAppQuickReplies from '../components/WhatsAppQuickReplies';
 import { ImagePresets } from '../lib/imagekit';
+import { DebugConsole } from '../components/DebugConsole';
+import WhatsAppSupportButton from '../components/WhatsAppSupportButton';
 import '../styles/storefront.css';
+import '../styles/whatsapp-support.css';
 
 interface Product {
   id: string;
@@ -768,14 +771,30 @@ function StorefrontContent() {
                         </div>
                       )}
 
-                       <OptimizedImage
-                        src={product.image_url || product.image_thumbnail || ''}
-                        alt={product.name}
-                        width={400}
-                        height={240}
-                        objectFit="contain"
-                        className={product.quantity === 0 ? 'opacity-60' : ''}
-                      />
+                       {(product.image_url || product.image_thumbnail) ? (
+                        <OptimizedImage
+                          src={product.image_url || product.image_thumbnail}
+                          alt={product.name}
+                          width={400}
+                          height={240}
+                          objectFit="contain"
+                          className={product.quantity === 0 ? 'opacity-60' : ''}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '400px',
+                            height: '240px',
+                            backgroundColor: '#f3f4f6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#9ca3af'
+                          }}
+                        >
+                          No image
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div style={{
@@ -1026,6 +1045,9 @@ function StorefrontContent() {
                         }}
                         variant="full"
                         className="storefront-share-button"
+                        storeUrl={`https://www.storehouse.ng/store/${slug}?product=${product.id}`}
+                        storeName={store?.businessName}
+                        whatsappNumber={store?.whatsappNumber}
                       />
                     </div>
                   </div>
@@ -2417,6 +2439,9 @@ function StorefrontContent() {
                   }}
                   variant="full"
                   className="storefront-share-button-modal"
+                  storeUrl={`https://www.storehouse.ng/store/${slug}?product=${selectedProduct.id}`}
+                  storeName={store?.businessName}
+                  whatsappNumber={store?.whatsappNumber}
                 />
               </div>
 
@@ -2570,6 +2595,9 @@ export default function StorefrontPage() {
   return (
     <CartProvider>
       <StorefrontContent />
+      <WhatsAppSupportButton />
+      {/* <DebugConsole /> */}
+      {/* DebugConsole temporarily disabled - uncomment to re-enable console debugging */}
     </CartProvider>
   );
 }

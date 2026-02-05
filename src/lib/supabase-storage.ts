@@ -3,29 +3,40 @@
  *
  * Handles image uploads to Supabase Storage with client-side compression.
  * Images are then served through ImageKit CDN for optimization.
- * Includes EXIF orientation correction for mobile photos.
+ * EXIF library removed to fix mobile upload crashes - ImageKit handles orientation.
  */
 
 import { supabase } from './supabase';
-import EXIF from 'exif-js';
 
 /**
- * Get EXIF orientation from image file
- * Returns orientation value (1-8) where 1 is normal
+ * Get EXIF orientation from image file (DISABLED for mobile compatibility)
+ * Always returns 1 (normal orientation) - ImageKit will handle rotation
  */
 const getOrientation = (file: File): Promise<number> => {
-  return new Promise((resolve) => {
-    EXIF.getData(file as any, function(this: any) {
-      const orientation = EXIF.getTag(this, 'Orientation');
-      resolve(orientation || 1);
-    });
-  });
+  return Promise.resolve(1);
+};
+
+/**
+ * Detect if device is mobile
+ * Aggressively detects mobile devices to prevent upload freeze
+ */
+const isMobile = (): boolean => {
+  const ua = navigator.userAgent;
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isSmallScreen = window.innerWidth <= 768;
+
+  const mobile = isMobileUA || (isTouchDevice && isSmallScreen);
+  console.log('[Mobile Detection]', { ua: ua.substring(0, 50), isMobileUA, isTouchDevice, isSmallScreen, mobile });
+
+  return mobile;
 };
 
 /**
  * Compress image before upload with EXIF orientation correction
  * Preserves aspect ratio and uses high quality settings
  * Automatically fixes rotated mobile photos
+ * Uses lighter processing on mobile devices for better performance
  */
 const compressImage = async (
   file: File,
@@ -34,8 +45,27 @@ const compressImage = async (
 ): Promise<Blob> => {
   return new Promise(async (resolve, reject) => {
     try {
-      // Get EXIF orientation
-      const orientation = await getOrientation(file);
+      // On mobile, skip compression entirely to avoid freeze
+      const mobile = isMobile();
+      console.log('[Upload] Starting compression check - Mobile:', mobile, 'File size:', file.size);
+
+      // MOBILE FIX: Skip ALL compression on mobile to prevent 33% freeze
+      // ImageKit will handle optimization after upload
+      if (mobile) {
+        console.log('[Mobile Upload] ✅ SKIPPING COMPRESSION - Using original file');
+        console.log('[Mobile Upload] File will be optimized by ImageKit after upload');
+        resolve(file);
+        return;
+      }
+
+      console.log('[Desktop Upload] Compressing image...');
+
+      // EXIF processing disabled - ImageKit will handle orientation automatically
+      const orientation = 1;
+
+      // Use smaller dimensions on mobile to reduce memory usage
+      const mobileMaxSize = mobile ? 600 : maxSize; // Even smaller for mobile
+      const mobileQuality = mobile ? 0.7 : quality; // Lower quality for speed
 
       const img = new Image();
       const canvas = document.createElement('canvas');
@@ -46,81 +76,69 @@ const compressImage = async (
         return;
       }
 
+      // Set a timeout for mobile to prevent hanging
+      let timeoutId: NodeJS.Timeout | null = null;
+      if (mobile) {
+        timeoutId = setTimeout(() => {
+          console.log('[Mobile Upload] Timeout - using original file');
+          resolve(file);
+        }, 5000); // 5 second timeout on mobile
+      }
+
       img.onload = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+
         let { width, height } = img;
 
-        // Only resize if image is larger than maxSize
-        if (width > maxSize || height > maxSize) {
+        // Only resize if image is larger than maxSize (use mobile-optimized size on mobile)
+        const targetMaxSize = mobile ? mobileMaxSize : maxSize;
+        if (width > targetMaxSize || height > targetMaxSize) {
           if (width > height) {
-            height = Math.round((height * maxSize) / width);
-            width = maxSize;
+            height = Math.round((height * targetMaxSize) / width);
+            width = targetMaxSize;
           } else {
-            width = Math.round((width * maxSize) / height);
-            height = maxSize;
+            width = Math.round((width * targetMaxSize) / height);
+            height = targetMaxSize;
           }
         }
 
-        // Adjust canvas size based on EXIF orientation
-        // Orientations 5-8 require width/height swap
-        if (orientation >= 5 && orientation <= 8) {
-          canvas.width = height;
-          canvas.height = width;
-        } else {
-          canvas.width = width;
-          canvas.height = height;
-        }
+        // Set canvas size (no EXIF orientation handling - ImageKit will fix rotation)
+        canvas.width = width;
+        canvas.height = height;
 
-        // Apply EXIF orientation transformation
-        switch (orientation) {
-          case 2:
-            // Horizontal flip
-            ctx.transform(-1, 0, 0, 1, width, 0);
-            break;
-          case 3:
-            // 180° rotation
-            ctx.transform(-1, 0, 0, -1, width, height);
-            break;
-          case 4:
-            // Vertical flip
-            ctx.transform(1, 0, 0, -1, 0, height);
-            break;
-          case 5:
-            // Vertical flip + 90° rotation
-            ctx.transform(0, 1, 1, 0, 0, 0);
-            break;
-          case 6:
-            // 90° rotation
-            ctx.transform(0, 1, -1, 0, height, 0);
-            break;
-          case 7:
-            // Horizontal flip + 90° rotation
-            ctx.transform(0, -1, -1, 0, height, width);
-            break;
-          case 8:
-            // 270° rotation
-            ctx.transform(0, -1, 1, 0, 0, width);
-            break;
-          default:
-            // Normal orientation (1)
-            break;
-        }
-
-        // Use high-quality image smoothing
+        // Use medium-quality smoothing on mobile, high on desktop
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+        ctx.imageSmoothingQuality = mobile ? 'medium' : 'high';
 
         // Draw image with proper orientation
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to JPEG with optimized quality
+        // Convert to JPEG with optimized quality (lighter on mobile)
         canvas.toBlob(
-          (blob) => blob ? resolve(blob) : reject(new Error('Compression failed')),
+          (blob) => {
+            if (blob) {
+              console.log(`[Image Compression] Success - Size: ${(blob.size / 1024).toFixed(0)}KB, Mobile: ${mobile}`);
+              resolve(blob);
+            } else {
+              reject(new Error('Compression failed'));
+            }
+          },
           'image/jpeg',
-          quality
+          mobile ? mobileQuality : quality
         );
       };
 
-      img.onerror = () => reject(new Error('Image load failed'));
+      img.onerror = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        // On mobile, if image load fails, just use original file
+        if (mobile) {
+          console.log('[Mobile Upload] Image load failed, using original file');
+          resolve(file);
+        } else {
+          reject(new Error('Image load failed'));
+        }
+      };
+
       img.src = URL.createObjectURL(file);
     } catch (error) {
       reject(error);
@@ -151,8 +169,8 @@ export const uploadStoreLogo = async (
     }
   }
 
-  // Compress image (1200px, 85% quality - optimized for web)
-  const compressed = await compressImage(file, 1200, 0.85);
+  // Compress image (1000px, 75% quality - optimized for speed and quality balance)
+  const compressed = await compressImage(file, 1000, 0.75);
 
   // Generate unique filename
   const timestamp = Date.now();
@@ -170,11 +188,19 @@ export const uploadStoreLogo = async (
     throw new Error(`Upload failed: ${error.message}`);
   }
 
-  // Return public URL
+  // Return optimized public URL with Supabase transformation
   const { data: { publicUrl } } = supabase.storage
     .from('stores')
-    .getPublicUrl(data.path);
+    .getPublicUrl(data.path, {
+      transform: {
+        width: 600,
+        height: 600,
+        quality: 85,
+        resize: 'contain'
+      }
+    });
 
+  console.log('[uploadStoreLogo] ✅ Upload successful with optimization');
   return publicUrl;
 };
 
@@ -203,8 +229,8 @@ export const uploadProductImage = async (
     }
   }
 
-  // Compress image (1200px, 85% quality - optimized for web, ImageKit will handle variants)
-  const compressed = await compressImage(file, 1200, 0.85);
+  // Compress image (1000px, 75% quality - optimized for speed and quality balance)
+  const compressed = await compressImage(file, 1000, 0.75);
 
   // Generate unique filename
   const timestamp = Date.now();
@@ -222,15 +248,23 @@ export const uploadProductImage = async (
     throw new Error(`Upload failed: ${error.message}`);
   }
 
-  // Return public URL
+  // Return optimized public URL with Supabase transformation
   const { data: { publicUrl } } = supabase.storage
     .from('products')
-    .getPublicUrl(data.path);
+    .getPublicUrl(data.path, {
+      transform: {
+        width: 1000,
+        height: 1000,
+        quality: 80,
+        resize: 'contain'
+      }
+    });
 
-  console.log('[uploadProductImage] ✅ Upload successful:', {
+  console.log('[uploadProductImage] ✅ Upload successful with optimization:', {
     filename,
     path: data.path,
-    publicUrl
+    publicUrl,
+    optimization: 'width: 1000px, quality: 80%'
   });
 
   return publicUrl;

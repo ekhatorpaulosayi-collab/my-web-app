@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signUp } from '../lib/authService-supabase';
 import { validateReferralCode, claimReferralCode } from '../services/referralService';
 import { checkSignupRateLimit, recordSignupAttempt, getRateLimitMessage } from '../utils/rateLimiter';
+import { setAffiliateCookie, getAffiliateCookie, trackAffiliateClick, recordAffiliateSignup } from '../services/affiliateService';
 import '../styles/Auth.css';
 
 export default function Signup() {
@@ -32,6 +33,19 @@ export default function Signup() {
       setFormData(prev => ({ ...prev, referralCode: refCode.toUpperCase() }));
       // Validate the code from URL
       validateReferralCodeAsync(refCode);
+
+      // Track affiliate click and set cookie (30-day attribution)
+      const affiliateCode = refCode.toUpperCase();
+      setAffiliateCookie(affiliateCode);
+
+      // Track the click asynchronously
+      trackAffiliateClick(affiliateCode, {
+        referrer: document.referrer,
+        device: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop'
+      }).catch(err => {
+        console.error('[Signup] Failed to track affiliate click:', err);
+        // Don't block user experience
+      });
     }
   }, [searchParams]);
 
@@ -147,6 +161,18 @@ export default function Signup() {
         } catch (refError) {
           console.error('[Signup] Failed to claim referral code:', refError);
           // Don't block signup if referral fails
+        }
+      }
+
+      // Track affiliate signup (check cookie for 30-day attribution)
+      const affiliateCookie = getAffiliateCookie();
+      if (affiliateCookie && result.user) {
+        try {
+          await recordAffiliateSignup(result.user.uid, affiliateCookie);
+          console.debug('[Signup] Affiliate signup recorded:', affiliateCookie);
+        } catch (affError) {
+          console.error('[Signup] Failed to record affiliate signup:', affError);
+          // Don't block signup if affiliate tracking fails
         }
       }
 

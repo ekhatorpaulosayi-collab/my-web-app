@@ -28,7 +28,9 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-console.log('[Firebase] App initialized successfully');
+if (import.meta.env.DEV) {
+  console.log('[Firebase] App initialized successfully');
+}
 
 // Initialize services
 export const auth = getAuth(app);
@@ -42,13 +44,11 @@ export const db = !import.meta.env.DEV
     })
   : getFirestore(app);
 
-if (!import.meta.env.DEV) {
-  console.log('[Firebase] Production: Using forced long polling');
-}
-
 export const storage = getStorage(app);
 
-console.log('[Firebase] All services initialized');
+if (import.meta.env.DEV) {
+  console.log('[Firebase] All services initialized');
+}
 
 // Only enable persistence in development (not production)
 if (import.meta.env.DEV) {
@@ -68,35 +68,13 @@ if (import.meta.env.DEV) {
 // Force enable network immediately to prevent "offline" detection
 enableNetwork(db)
   .then(() => {
-    console.log('[Firebase] Network enabled successfully');
-    console.log('[Firebase] Firestore instance:', db.type, db.app.options.projectId);
-
-    // Test connection after network is enabled (production only)
-    if (!import.meta.env.DEV) {
-      console.log('[Firebase] Waiting 2 seconds before testing connection...');
-      setTimeout(() => {
-        import('firebase/firestore').then(({ getDoc, doc }) => {
-          console.log('[Firebase] Starting connection test...');
-          getDoc(doc(db, '_test_connection', 'test'))
-            .then(() => {
-              console.log('[Firebase] ✅ Firestore connection test PASSED');
-            })
-            .catch((err) => {
-              console.error('[Firebase] ❌ Firestore connection test FAILED');
-              console.error('[Firebase] Error Code:', err.code);
-              console.error('[Firebase] Error Message:', err.message);
-              console.error('[Firebase] Error Name:', err.name);
-              console.error('[Firebase] Error toString:', err.toString());
-              console.error('[Firebase] Full error object:', err);
-              console.error('[Firebase] This error suggests Firestore cannot connect. Possible causes:');
-              console.error('[Firebase] 1. Firestore database not created in Firebase Console');
-              console.error('[Firebase] 2. Network/firewall blocking firestore.googleapis.com');
-              console.error('[Firebase] 3. Browser blocking third-party requests');
-              console.error('[Firebase] 4. Vercel edge network cannot reach Firestore servers');
-            });
-        });
-      }, 2000);
+    if (import.meta.env.DEV) {
+      console.log('[Firebase] Network enabled successfully');
+      console.log('[Firebase] Firestore instance:', db.type, db.app.options.projectId);
     }
+
+    // Connection test disabled in production to reduce console noise
+    // Firebase will connect automatically when needed
   })
   .catch((err) => {
     console.error('[Firebase] Could not enable network:', err);

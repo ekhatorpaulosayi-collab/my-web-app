@@ -7,6 +7,7 @@ import { useAppContext } from '../hooks/useAppContext';
 import SupportEscalation from './SupportEscalation';
 import { BookOpen, Zap } from 'lucide-react';
 import { Documentation } from '../types/documentation';
+import { getSmartQuestionsForContext, getTopQuestions } from '../data/smartQuestions';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -21,18 +22,178 @@ interface QuickAction {
   action: () => void;
 }
 
+// Simple markdown-to-JSX renderer for chat messages
+function renderMarkdown(text: string): React.ReactNode {
+  console.log('[renderMarkdown] Rendering text:', text.substring(0, 100));
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, lineIndex) => {
+    // Handle horizontal rules (---)
+    if (line.trim() === '---') {
+      elements.push(<hr key={lineIndex} style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />);
+      return;
+    }
+
+    // Handle headings (## text)
+    const headingMatch = line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ fontWeight: 700, fontSize: '1.0625rem', marginTop: '8px', marginBottom: '4px' }}>
+          {parseInlineMarkdown(headingMatch[1])}
+        </div>
+      );
+      return;
+    }
+
+    // Handle numbered lists (1️⃣ or 1. text)
+    const numberedMatch = line.match(/^(\d+[️⃣.])\s+(.+)$/);
+    if (numberedMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ marginLeft: '8px', marginTop: '4px' }}>
+          <span style={{ fontWeight: 600 }}>{numberedMatch[1]}</span> {parseInlineMarkdown(numberedMatch[2])}
+        </div>
+      );
+      return;
+    }
+
+    // Handle bullet lists (✅ or - or • text)
+    const bulletMatch = line.match(/^([✅🎉📧💬📞🔵🟢🟣→•-])\s+(.+)$/);
+    if (bulletMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ marginLeft: '8px', marginTop: '4px' }}>
+          {bulletMatch[1]} {parseInlineMarkdown(bulletMatch[2])}
+        </div>
+      );
+      return;
+    }
+
+    // Regular text with inline markdown
+    if (line.trim()) {
+      elements.push(
+        <div key={lineIndex} style={{ marginTop: '4px' }}>
+          {parseInlineMarkdown(line)}
+        </div>
+      );
+    } else {
+      // Empty line = spacing
+      elements.push(<div key={lineIndex} style={{ height: '4px' }} />);
+    }
+  });
+
+  return <>{elements}</>;
+}
+
+// Parse inline markdown (bold, links)
+function parseInlineMarkdown(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Check for markdown link [text](url)
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (linkMatch) {
+      const linkText = linkMatch[1];
+      const linkUrl = linkMatch[2];
+      console.log('[parseInlineMarkdown] Found link:', { linkText, linkUrl });
+      parts.push(
+        <a
+          key={key++}
+          href={linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#667eea',
+            fontWeight: 600,
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          }}
+          onClick={async (e) => {
+            e.stopPropagation();
+            console.log('[AIChatWidget] Link clicked:', linkUrl);
+
+            // Track click analytics
+            try {
+              const eventType = linkUrl.includes('signup') ? 'signup_clicked' :
+                               linkUrl.includes('support') || linkUrl.includes('mailto') ? 'support_clicked' :
+                               'link_clicked';
+
+              await fetch(`${supabaseUrl}/functions/v1/track-chat-event`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': supabaseAnonKey,
+                },
+                body: JSON.stringify({
+                  eventType,
+                  linkUrl,
+                  userType,
+                }),
+              }).catch(err => console.error('Analytics tracking failed:', err));
+            } catch (err) {
+              console.error('Failed to track link click:', err);
+            }
+          }}
+        >
+          {linkText}
+        </a>
+      );
+      remaining = remaining.substring(linkMatch[0].length);
+      continue;
+    }
+
+    // Check for bold **text**
+    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
+    if (boldMatch) {
+      parts.push(<strong key={key++}>{boldMatch[1]}</strong>);
+      remaining = remaining.substring(boldMatch[0].length);
+      continue;
+    }
+
+    // Regular text until next markdown
+    const nextSpecial = remaining.search(/\[|\*\*/);
+    if (nextSpecial === -1) {
+      // No more markdown, add rest as text
+      parts.push(<span key={key++}>{remaining}</span>);
+      break;
+    } else {
+      // Add text before next markdown
+      parts.push(<span key={key++}>{remaining.substring(0, nextSpecial)}</span>);
+      remaining = remaining.substring(nextSpecial);
+    }
+  }
+
+  return <>{parts}</>;
+}
+
 interface AIChatWidgetProps {
-  contextType?: 'onboarding' | 'help' | 'storefront';
+  contextType?: 'onboarding' | 'help' | 'storefront' | 'business-advisory';
   storeSlug?: string;
   autoOpen?: boolean;
+  persistentBubble?: boolean;  // PHASE 1: Always show chat bubble even if not auto-opening
+  storeInfo?: {
+    businessName?: string;
+    aboutUs?: string;
+    address?: string;
+    whatsappNumber?: string;
+    deliveryAreas?: string;
+    deliveryTime?: string;
+    businessHours?: string;
+    returnPolicy?: string;
+  };
 }
 
 export default function AIChatWidget({
   contextType = 'onboarding',
   storeSlug,
-  autoOpen = false
+  autoOpen = false,
+  persistentBubble = false,  // PHASE 1: Default false for backward compatibility
+  storeInfo: propsStoreInfo  // Rename to avoid conflict
 }: AIChatWidgetProps) {
-  console.log('[AIChatWidget] Component mounted!', { contextType, autoOpen });
+  // Removed excessive logging - was causing performance issues
+  // console.log('[AIChatWidget] Component mounted!', { contextType, autoOpen });
   const { user } = useAuth();
   const location = useLocation();
   const appContext = useAppContext(); // Get app context for personalization
@@ -50,20 +211,73 @@ export default function AIChatWidget({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Detect user type (visitor, shopper, or authenticated user)
+  // IMPORTANT: Wait for auth to load before setting userType
   useEffect(() => {
-    if (user) {
-      setUserType('user'); // Logged in = onboarding mode
-    } else if (storeSlug) {
-      setUserType('shopper'); // On storefront = shopping assistant
-    } else {
-      setUserType('visitor'); // Landing page = marketing mode
-    }
+    console.log('[AIChatWidget] Auth check starting...', {
+      hasUserFromContext: !!user,
+      userIdFromContext: user?.id,
+      storeSlug
+    });
+
+    // Give auth context time to load (check session)
+    const checkAuth = async () => {
+      try {
+        console.log('[AIChatWidget] Checking Supabase session...');
+
+        // Check Supabase session directly
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        console.log('[AIChatWidget] Session check result:', {
+          hasSession: !!session,
+          sessionUserId: session?.user?.id,
+          hasUser: !!user,
+          userIdFromContext: user?.id,
+          error: error?.message
+        });
+
+        if (session?.user || user) {
+          setUserType('user'); // Logged in = user mode
+          console.log('[AIChatWidget] ✅ User detected - userType set to: user', {
+            userId: user?.id,
+            hasAuthContext: !!user,
+            hasSession: !!session
+          });
+        } else if (storeSlug) {
+          setUserType('shopper'); // On storefront = shopping assistant
+          console.log('[AIChatWidget] 🛍️ Storefront mode - userType set to: shopper', { storeSlug });
+        } else {
+          setUserType('visitor'); // Landing page = marketing mode
+          console.log('[AIChatWidget] 👋 No user - userType set to: visitor');
+        }
+      } catch (err) {
+        console.error('[AIChatWidget] Auth check error:', err);
+        setUserType('visitor');
+      }
+    };
+
+    checkAuth();
   }, [user, storeSlug]);
 
   // Auto-open with context-aware welcome messages
   useEffect(() => {
     const isOnlineStoreSetup = location.pathname.includes('/online-store-setup');
     const isLandingPage = location.pathname === '/' || location.pathname === '/home' || location.pathname === '/landing';
+
+    // PHASE 1: Help mode - Available anytime for assistance (non-intrusive)
+    // IMPORTANT: Check this FIRST before any early returns so it always runs
+    if (contextType === 'help' && persistentBubble && user) {
+      const hasSeenHelpChat = localStorage.getItem('storehouse_help_chat_seen');
+      if (!hasSeenHelpChat) {
+        // Show a subtle welcome after 10 seconds (non-intrusive)
+        setTimeout(() => {
+          // Don't auto-open, just show a small notification
+          console.log('[AIChatWidget] Help mode activated - bubble always visible');
+          localStorage.setItem('storehouse_help_chat_seen', 'true');
+        }, 10000);
+      }
+      // In help mode with persistentBubble, we still want the bubble to show
+      // even if we don't auto-open, so don't return early
+    }
 
     // Auto-open for Online Store Setup (first visit only)
     if (isOnlineStoreSetup && user) {
@@ -114,9 +328,9 @@ export default function AIChatWidget({
         }, 8000); // 8 seconds delay to let users view dashboard first
       }
     }
-  }, [autoOpen, contextType, location.pathname, user]);
+  }, [autoOpen, contextType, location.pathname, user, persistentBubble]);
 
-  // Load suggested questions based on user type and app context
+  // PHASE 2: Load context-aware smart questions based on user type and current page
   useEffect(() => {
     let suggestions: string[] = [];
 
@@ -138,13 +352,46 @@ export default function AIChatWidget({
         "Do you deliver?",
         "Can I get a bulk discount?",
       ];
+    } else if (contextType === 'business-advisory') {
+      // Business tips and marketing strategies
+      suggestions = [
+        "How do I price my products to attract customers?",
+        "What's the best way to market on WhatsApp?",
+        "How can I get more customers for my business?",
+        "How do I retain customers and get repeat sales?",
+        "What are good sales techniques for Nigerian markets?",
+        "How do I deal with slow-moving inventory?",
+      ];
+    } else if (contextType === 'help') {
+      // PHASE 2: Context-aware smart questions for help mode
+      // Detect current page context from URL
+      const path = location.pathname.toLowerCase();
+      let pageContext = 'dashboard'; // default
+
+      if (path.includes('staff')) pageContext = 'staff';
+      else if (path.includes('customer')) pageContext = 'customers';
+      else if (path.includes('invoice')) pageContext = 'invoices';
+      else if (path.includes('online-store')) pageContext = 'online-store';
+      else if (path.includes('report')) pageContext = 'reports';
+      else if (path.includes('settings')) pageContext = 'settings';
+      else if (path.includes('sale')) pageContext = 'sales';
+      else if (path.includes('product') || path.includes('inventory')) pageContext = 'products';
+      else if (path.includes('referral')) pageContext = 'referrals';
+
+      // Get smart questions for this context
+      suggestions = getSmartQuestionsForContext(pageContext, 6);
+
+      // If no context-specific questions, show top questions
+      if (suggestions.length === 0) {
+        suggestions = getTopQuestions(6);
+      }
     } else {
-      // Onboarding questions for authenticated users (context-aware)
+      // Fallback: Onboarding mode uses original logic
       suggestions = getSuggestedQuestions(appContext);
     }
 
     setSuggestedQuestions(suggestions);
-  }, [appContext, userType]);
+  }, [appContext, userType, contextType, location.pathname]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -234,13 +481,25 @@ export default function AIChatWidget({
         score: result.score,
       }));
 
-      // STEP 2.5: Fetch store info for intelligent storefront chat responses
+      // STEP 2.5: Get store info (use props if provided, otherwise fetch)
       let storeInfo = null;
-      if (storeSlug && userType === 'shopper') {
+
+      // PHASE 1 FIX: Prefer props (already loaded by parent), only fetch if not provided
+      if (propsStoreInfo && Object.keys(propsStoreInfo).length > 0) {
+        // Use storeInfo from props (faster, no extra query)
+        storeInfo = propsStoreInfo;
+        console.log('[AIChatWidget] Using store info from props:', {
+          hasAbout: !!storeInfo.aboutUs,
+          hasDelivery: !!storeInfo.deliveryAreas,
+          hasReturns: !!storeInfo.returnPolicy,
+          aboutUsLength: storeInfo.aboutUs?.length || 0,
+        });
+      } else if (storeSlug && contextType === 'storefront') {
+        // Fallback: Fetch if not provided in props
         console.log('[AIChatWidget] Fetching store info for:', storeSlug);
         const { data: storeData } = await supabase
           .from('stores')
-          .select('about_us, delivery_areas, delivery_time, return_policy, whatsapp_number, business_name')
+          .select('about_us, delivery_areas, delivery_time, return_policy, whatsapp_number, business_name, address')
           .eq('store_slug', storeSlug)
           .single();
 
@@ -252,11 +511,13 @@ export default function AIChatWidget({
             returnPolicy: storeData.return_policy,
             whatsappNumber: storeData.whatsapp_number,
             businessName: storeData.business_name,
+            address: storeData.address,
           };
           console.log('[AIChatWidget] Store info fetched successfully:', {
             hasAbout: !!storeInfo.aboutUs,
             hasDelivery: !!storeInfo.deliveryAreas,
             hasReturns: !!storeInfo.returnPolicy,
+            aboutUsLength: storeInfo.aboutUs?.length || 0,
           });
         } else {
           console.log('[AIChatWidget] Store not found or no data');
@@ -266,12 +527,21 @@ export default function AIChatWidget({
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
 
+      // DEBUG: Log what we're sending
+      console.log('[AIChatWidget] Sending to AI:', {
+        contextType,
+        userType,
+        hasUser: !!user,
+        docsFound: relevantDocs.length,
+        message: userMessage
+      });
+
       // STEP 3: Call AI chat endpoint with RAG context
       const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`,
+          'Authorization': `Bearer ${session?.access_token || supabaseAnonKey}`,
           'apikey': supabaseAnonKey,
         },
         body: JSON.stringify({
@@ -288,6 +558,12 @@ export default function AIChatWidget({
       const data = await response.json();
 
       if (!response.ok) {
+        console.error('[AIChatWidget] API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: data.error,
+          data
+        });
         throw new Error(data.error || 'Failed to get response');
       }
 
@@ -412,6 +688,7 @@ export default function AIChatWidget({
                 <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>
                   {userType === 'visitor' ? 'Your Business Growth Partner' :
                    userType === 'shopper' ? 'Shopping Assistant' :
+                   contextType === 'business-advisory' ? '💡 Nigerian Business Consultant' :
                    contextType === 'onboarding' ? 'Your Setup Guide' :
                    contextType === 'help' ? 'Here to Help' : 'Product Inquiries'}
                 </div>
@@ -517,9 +794,8 @@ export default function AIChatWidget({
                     color: msg.role === 'user' ? 'white' : '#374151',
                     fontSize: '0.9375rem',
                     lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap',
                   }}>
-                    {msg.content}
+                    {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
                   </div>
                 </div>
 
@@ -631,6 +907,41 @@ export default function AIChatWidget({
                 Send
               </button>
             </div>
+
+            {/* New Topic Button */}
+            {messages.length > 0 && (
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setInputMessage('');
+                  console.log('[AIChatWidget] Conversation cleared - starting new topic');
+                }}
+                style={{
+                  marginTop: '8px',
+                  width: '100%',
+                  padding: '8px',
+                  background: '#f3f4f6',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 500,
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#e5e7eb';
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#f3f4f6';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
+              >
+                🔄 New Topic (Clear Chat)
+              </button>
+            )}
+
             <div style={{
               marginTop: '8px',
               fontSize: '0.75rem',

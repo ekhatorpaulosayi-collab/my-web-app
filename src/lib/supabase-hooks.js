@@ -224,6 +224,13 @@ export function useStoreActions(userId) {
   const createStore = useCallback(async (storeData) => {
     if (!userId) throw new Error('User ID required');
 
+    // ⚠️ SAFETY WARNING: Detect if someone is trying to create a private store
+    if (storeData.is_public === false) {
+      console.warn('[⚠️  Supabase] Creating PRIVATE store:', storeData.store_slug || 'unknown');
+      console.warn('This store will NOT be accessible via public URL.');
+      console.warn('If this is unintentional, remove is_public: false from the store data.');
+    }
+
     try {
       setSaving(true);
       setError(null);
@@ -235,13 +242,21 @@ export function useStoreActions(userId) {
         .from('stores')
         .insert({
           user_id: userId,
-          ...storeData,
-          subdomain, // Auto-generated subdomain
+          is_public: true,    // ✅ DEFAULT: Always public (database default as backup)
+          ...storeData,       // Caller can override if explicitly needed
+          subdomain,          // Auto-generated subdomain (always last to prevent override)
         })
         .select()
         .single();
 
       if (createError) throw createError;
+
+      // Log successful store creation
+      console.log('[✅ Supabase] Store created successfully:', {
+        store_slug: data.store_slug,
+        is_public: data.is_public,
+        subdomain: data.subdomain
+      });
 
       // Invalidate cache
       cache.invalidate(`store:${userId}`);

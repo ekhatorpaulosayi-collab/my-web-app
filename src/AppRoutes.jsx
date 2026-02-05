@@ -30,10 +30,14 @@ const StoreQuickSetup = lazy(() => import('./components/StoreQuickSetup.tsx'));
 const StoreSetupComplete = lazy(() => import('./components/StoreSetupComplete.tsx'));
 const OnlineStoreSetup = lazy(() => import('./components/OnlineStoreSetup.tsx'));
 const ErrorMonitoringDashboard = lazy(() => import('./pages/ErrorMonitoringDashboard.tsx'));
+const SentryTest = lazy(() => import('./pages/SentryTest.jsx'));
 const WhatsAppAI = lazy(() => import('./pages/WhatsAppAI.tsx'));
 const HelpCenter = lazy(() => import('./pages/HelpCenter.tsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.tsx'));
 const SubmitTestimonial = lazy(() => import('./pages/SubmitTestimonial.tsx'));
+const AffiliateSignup = lazy(() => import('./pages/AffiliateSignup.tsx'));
+const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard.tsx'));
+const AffiliateAdmin = lazy(() => import('./pages/AffiliateAdmin.tsx'));
 
 /**
  * App Routes
@@ -179,12 +183,52 @@ export default function AppRoutes() {
           }
         />
 
+        {/* Affiliate Signup - Join 30% commission program */}
+        <Route
+          path="/affiliate/signup"
+          element={
+            <ProtectedRoute>
+              <AffiliateSignup />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Affiliate Dashboard - Track earnings and manage account */}
+        <Route
+          path="/affiliate/dashboard"
+          element={
+            <ProtectedRoute>
+              <AffiliateDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Affiliate Admin - Manage all affiliates and payouts */}
+        <Route
+          path="/admin/affiliates"
+          element={
+            <ProtectedRoute>
+              <AffiliateAdmin />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Error Monitoring Dashboard - Admin only */}
         <Route
           path="/admin/monitoring"
           element={
             <ProtectedRoute>
               <ErrorMonitoringDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Sentry Test Page - Test error reporting */}
+        <Route
+          path="/sentry-test"
+          element={
+            <ProtectedRoute>
+              <SentryTest />
             </ProtectedRoute>
           }
         />

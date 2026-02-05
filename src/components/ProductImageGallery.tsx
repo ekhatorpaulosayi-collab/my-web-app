@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { OptimizedImage } from './OptimizedImage';
 
 interface ProductImage {
   id: string;
@@ -28,6 +29,8 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageLoaded, setLightboxImageLoaded] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
   useEffect(() => {
     fetchImages();
@@ -93,6 +96,62 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
     setCurrentIndex(index);
   };
 
+  // Helper to convert relative paths to full Supabase Storage URLs
+  // Add cache-busting parameter for lightbox to force loading uncropped version
+  const getFullImageUrl = (url: string, bustCache: boolean = false): string => {
+    if (url.startsWith('blob:')) {
+      return url; // Blob URLs can't be modified
+    }
+
+    let fullUrl: string;
+    if (url.startsWith('http')) {
+      fullUrl = url;
+    } else {
+      // Remove leading slash if present
+      const cleanPath = url.startsWith('/') ? url.slice(1) : url;
+      fullUrl = `https://yzlniqwzqlsftxrtapdl.supabase.co/storage/v1/object/public/${cleanPath}`;
+    }
+
+    // Add cache-busting parameter for lightbox
+    if (bustCache) {
+      const separator = fullUrl.includes('?') ? '&' : '?';
+      fullUrl = `${fullUrl}${separator}view=full&t=${Date.now()}`;
+    }
+
+    return fullUrl;
+  };
+
+  // Add debug message helper
+  const addDebug = (msg: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugInfo(prev => [...prev.slice(-4), `[${timestamp}] ${msg}`]); // Keep last 5 messages
+    console.log('[ProductImageGallery]', msg);
+  };
+
+  // Preload full image when lightbox opens
+  useEffect(() => {
+    if (lightboxOpen && images.length > 0) {
+      setLightboxImageLoaded(false);
+      const currentImg = images[currentIndex];
+      const fullUrl = getFullImageUrl(currentImg.url, true); // Cache-busting enabled
+      addDebug(`Preloading image: ${fullUrl.substring(0, 80)}...`);
+      const img = new Image();
+      img.onload = () => {
+        addDebug('✓ Image loaded successfully');
+        setLightboxImageLoaded(true);
+      };
+      img.onerror = (e) => {
+        addDebug('✗ Image failed to load');
+        console.error('[ProductImageGallery] Lightbox image failed to load', e);
+        setLightboxImageLoaded(true); // Show even on error
+      };
+      img.src = fullUrl;
+    } else if (!lightboxOpen) {
+      // Reset when lightbox closes
+      setLightboxImageLoaded(false);
+    }
+  }, [lightboxOpen, currentIndex, images]);
+
   if (loading) {
     return (
       <div style={{
@@ -131,30 +190,91 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
   const currentImage = images[currentIndex];
 
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{ width: '100%', position: 'relative' }}>
+      {/* Debug Overlay - visible on mobile */}
+      {debugInfo.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: '10px',
+          left: '10px',
+          right: '10px',
+          background: 'rgba(0,0,0,0.9)',
+          color: '#0f0',
+          padding: '8px',
+          borderRadius: '4px',
+          fontSize: '10px',
+          fontFamily: 'monospace',
+          zIndex: 99999,
+          maxHeight: '120px',
+          overflow: 'auto'
+        }}>
+          <div style={{ marginBottom: '4px', fontWeight: 'bold', color: '#fff' }}>
+            🐛 Debug Log (tap to close)
+          </div>
+          {debugInfo.map((msg, i) => (
+            <div key={i} style={{ marginBottom: '2px' }}>{msg}</div>
+          ))}
+          <button
+            onClick={() => setDebugInfo([])}
+            style={{
+              marginTop: '4px',
+              padding: '4px 8px',
+              background: '#333',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '2px',
+              fontSize: '10px'
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Main Image */}
-      <div style={{ position: 'relative', marginBottom: '12px' }}>
+      <div
+        style={{
+          position: 'relative',
+          marginBottom: '12px',
+          display: lightboxOpen ? 'none' : 'block'
+        }}
+        onTouchStart={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          addDebug('📱 Touch on background-image, opening lightbox...');
+          setLightboxOpen(true);
+        }}
+        onClick={(e) => {
+          // Only fire on non-touch devices (desktop)
+          if (!('ontouchstart' in window)) {
+            e.preventDefault();
+            e.stopPropagation();
+            addDebug('🖱️ Mouse click on background-image, opening lightbox...');
+            setLightboxOpen(true);
+          }
+        }}
+      >
+        {/* Use CSS background-image instead of <img> to avoid iOS native image handling */}
         <div
-          onClick={() => setLightboxOpen(true)}
           style={{
             width: '100%',
             aspectRatio: '1',
             borderRadius: '12px',
             overflow: 'hidden',
-            cursor: images.length > 1 ? 'pointer' : 'zoom-in',
-            position: 'relative'
+            cursor: 'pointer',
+            backgroundImage: `url(${currentImage.url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            WebkitTapHighlightColor: 'transparent',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+            touchAction: 'none'
           }}
-        >
-          <img
-            src={currentImage.url}
-            alt={`Product image ${currentIndex + 1}`}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }}
-          />
-        </div>
+          role="button"
+          aria-label={`View product image ${currentIndex + 1}`}
+        />
 
         {/* Navigation Arrows (only if multiple images) */}
         {images.length > 1 && (
@@ -276,7 +396,8 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  display: 'block'
                 }}
               />
             </div>
@@ -301,20 +422,44 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
             overflow: 'hidden' // Prevent scrolling
           }}
         >
-          <img
-            src={currentImage.url}
-            alt="Full size product image"
-            style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
-              width: 'auto',
-              height: 'auto',
-              objectFit: 'contain',
-              borderRadius: '8px',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
+          {!lightboxImageLoaded ? (
+            <div style={{
+              color: 'white',
+              fontSize: '18px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '40px'
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                border: '4px solid rgba(255,255,255,0.3)',
+                borderTopColor: 'white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <div>Loading image...</div>
+            </div>
+          ) : (
+            <img
+              key={`lightbox-${currentIndex}-${currentImage.url}`}
+              src={getFullImageUrl(currentImage.url, true)}
+              alt="Full size product image"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                display: 'block',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+              }}
+            />
+          )}
 
           {/* Close Button */}
           <button

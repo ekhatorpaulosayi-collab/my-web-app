@@ -103,3 +103,34 @@ export function countCharacters(text: string): number {
 export function isWithinLimit(text: string, maxLength: number = 1000): boolean {
   return text.length <= maxLength;
 }
+
+/**
+ * Check if text is an unmodified template
+ * Returns true if the text exactly matches any template content
+ */
+export function isTemplateText(text: string): boolean {
+  return ABOUT_TEMPLATES.some(template => template.content.trim() === text.trim());
+}
+
+/**
+ * Check if text is mostly template (>80% similar)
+ * Returns true if user made only minor edits to template
+ */
+export function isMostlyTemplate(text: string): boolean {
+  const cleanText = text.trim().toLowerCase();
+
+  return ABOUT_TEMPLATES.some(template => {
+    const cleanTemplate = template.content.trim().toLowerCase();
+
+    // If exact match
+    if (cleanText === cleanTemplate) return true;
+
+    // Check similarity by counting matching words
+    const textWords = cleanText.split(/\s+/);
+    const templateWords = cleanTemplate.split(/\s+/);
+    const matchingWords = textWords.filter(word => templateWords.includes(word));
+    const similarity = matchingWords.length / Math.max(textWords.length, templateWords.length);
+
+    return similarity > 0.8; // 80% similar = mostly template
+  });
+}

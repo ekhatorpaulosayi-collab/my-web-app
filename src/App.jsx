@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import './App.css';
 import { useNavigate } from 'react-router-dom';
 import './styles/dashboard.css';
@@ -275,7 +275,24 @@ function App() {
     sellingPrice: '',
     reorderLevel: '10', // Default reorder level
     isPublic: true, // Default to public for storefront
-    attributes: {} // Category-specific attributes
+    attributes: {}, // Category-specific attributes
+    specifications: {} // PHASE 2A: Product specifications for AI
+  });
+
+  // PHASE 2A: Product specifications state
+  const [specifications, setSpecifications] = useState({
+    battery_life: '',
+    screen_size: '',
+    camera: '',
+    ram: '',
+    storage: '',
+    processor: '',
+    fabric: '',
+    fit: '',
+    care: '',
+    ingredients: '',
+    spice_level: '',
+    allergens: ''
   });
 
   // State for formatted price displays
@@ -296,6 +313,12 @@ function App() {
   const [productImagePreview, setProductImagePreview] = useState('');
   const [productImages, setProductImages] = useState([]);
   const [editingProductId, setEditingProductId] = useState(null);
+
+  // Memoized callback for image changes to prevent stale closures
+  const handleImagesChange = useCallback((images) => {
+    console.log('[App] onImagesChange called with', images.length, 'images');
+    setProductImages(images);
+  }, []);
 
   // Product variants state
   const [productVariants, setProductVariants] = useState([]);
@@ -1783,11 +1806,17 @@ Thank you for your business! 🙏
             (oldQty * oldPurchaseKobo + delta * Math.round(purchase * 100)) / Math.max(newQty, 1)
           );
 
+          // PHASE 2A: Filter out empty specifications
+          const cleanSpecifications = Object.entries(specifications || {})
+            .filter(([_, value]) => value && value.toString().trim() !== '')
+            .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+
           const updatedItem = {
             quantity: newQty,  // Changed from 'qty'
             cost_price: newPurchaseKobo / 100,  // Changed from 'purchaseKobo', convert to naira
             selling_price: selling,  // Changed from 'sellKobo', service converts to kobo
-            image_url: imageUrl  // Include image URL in update
+            image_url: imageUrl,  // Include image URL in update
+            specifications: cleanSpecifications  // PHASE 2A: Product specifications for AI
           };
 
           await updateProduct(currentUser.uid, existingItem.id, updatedItem);
@@ -1811,11 +1840,17 @@ Thank you for your business! 🙏
           const newTotal = totalVariantQty;
           const qtyDiff = newTotal - oldQty;
 
+          // PHASE 2A: Filter out empty specifications
+          const cleanSpecifications = Object.entries(specifications || {})
+            .filter(([_, value]) => value && value.toString().trim() !== '')
+            .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+
           const updatedItem = {
             quantity: newTotal,  // Sum of variants or new total
             cost_price: purchase,  // Changed from 'purchaseKobo', service converts to kobo
             selling_price: selling,  // Changed from 'sellKobo', service converts to kobo
-            image_url: imageUrl  // Include image URL in update
+            image_url: imageUrl,  // Include image URL in update
+            specifications: cleanSpecifications  // PHASE 2A: Product specifications for AI
           };
 
           await updateProduct(currentUser.uid, existingItem.id, updatedItem);
@@ -1908,6 +1943,11 @@ Thank you for your business! 🙏
           inputQty
         });
 
+        // PHASE 2A: Filter out empty specifications
+        const cleanSpecifications = Object.entries(specifications || {})
+          .filter(([_, value]) => value && value.toString().trim() !== '')
+          .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+
         const newItem = {
           name: formData.name.trim(),
           category: formData.category || 'General Merchandise',
@@ -1920,6 +1960,7 @@ Thank you for your business! 🙏
           is_public: formData.isPublic !== false,  // Default to true (public) unless explicitly set to false
           is_active: true,  // Add is_active field
           attributes: cleanAttributes,  // Category-specific attributes
+          specifications: cleanSpecifications,  // PHASE 2A: Product specifications for AI
           isDemo: false
         };
 
@@ -1977,7 +2018,7 @@ Thank you for your business! 🙏
             console.log(`[handleSave] ✅ ${savedCount}/${productImages.length} images saved to product_images table`);
 
             if (savedCount < productImages.length) {
-              console.warn(`[handleSave] ⚠️ ${productImages.length - savedCount} images still uploading - they will be saved automatically when upload completes`);
+              console.warn(`[handleSave] ⚠️ ${productImages.length - savedCount} images were still uploading and were skipped. This should not happen - the Save button should be disabled while uploads are in progress.`);
             }
           } catch (error) {
             console.error('[handleSave] Error saving images to database:', error);
@@ -2050,7 +2091,23 @@ Thank you for your business! 🙏
         sellingPrice: '',
         reorderLevel: '10',
         isPublic: true,  // Reset to public by default
-        attributes: {}  // Reset attributes
+        attributes: {},  // Reset attributes
+        specifications: {}  // PHASE 2A: Reset specifications
+      });
+      // PHASE 2A: Reset specifications state
+      setSpecifications({
+        battery_life: '',
+        screen_size: '',
+        camera: '',
+        ram: '',
+        storage: '',
+        processor: '',
+        fabric: '',
+        fit: '',
+        care: '',
+        ingredients: '',
+        spice_level: '',
+        allergens: ''
       });
       setFormattedPrices({ purchasePrice: '', sellingPrice: '' });
       setCalculatedProfit({ profit: 0, margin: 0 });
@@ -2155,9 +2212,9 @@ Thank you for your business! 🙏
       setExistingItem(item);
       setEditingProductId(item.id);
 
-      // Format prices first
-      const costPrice = item.cost_price || item.purchaseKobo / 100 || 0;
-      const sellPrice = item.selling_price || item.sellKobo / 100 || 0;
+      // Format prices first (prices in DB are stored in KOBO, we need NAIRA for form)
+      const costPrice = (item.cost_price || item.purchaseKobo || 0) / 100;
+      const sellPrice = (item.selling_price || item.sellKobo || 0) / 100;
 
       // Pre-populate form with item data
       setFormData({
@@ -2169,7 +2226,24 @@ Thank you for your business! 🙏
         reorderLevel: (item.low_stock_threshold || item.reorderLevel || 10).toString(),
         description: item.description || '',
         isPublic: item.is_public !== false,
-        attributes: item.attributes || {}
+        attributes: item.attributes || {},
+        specifications: item.specifications || {}  // PHASE 2A: Load specifications
+      });
+
+      // PHASE 2A: Load specifications into state for editing
+      setSpecifications({
+        battery_life: item.specifications?.battery_life || '',
+        screen_size: item.specifications?.screen_size || '',
+        camera: item.specifications?.camera || '',
+        ram: item.specifications?.ram || '',
+        storage: item.specifications?.storage || '',
+        processor: item.specifications?.processor || '',
+        fabric: item.specifications?.fabric || '',
+        fit: item.specifications?.fit || '',
+        care: item.specifications?.care || '',
+        ingredients: item.specifications?.ingredients || '',
+        spice_level: item.specifications?.spice_level || '',
+        allergens: item.specifications?.allergens || ''
       });
 
       setFormattedPrices({
@@ -2196,8 +2270,8 @@ Thank you for your business! 🙏
       } else {
         console.log('[App] No variants found for this product');
         setProductVariants([]);
-        // Default to 'add' mode for products without variants
-        setStockMode('add');
+        // Default to 'replace' mode for editing - most intuitive for users
+        setStockMode('replace');
       }
 
       // Open the modal
@@ -3933,35 +4007,53 @@ Low Stock: ${lowStockItems.length}
                         background: hasVariants ? '#f9fafb' : 'white'
                       }}
                     >
-                      <td className="cellItem" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {hasVariants && (
-                          <span
-                            onClick={toggleExpand}
-                            style={{
-                              cursor: 'pointer',
-                              fontSize: '16px',
-                              userSelect: 'none',
-                              transition: 'transform 0.2s',
-                              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                              display: 'inline-block'
-                            }}
-                          >
-                            ▶
-                          </span>
-                        )}
-                        <span>{item.name}</span>
-                        {hasVariants && (
-                          <span style={{
-                            fontSize: '11px',
-                            background: '#e0e7ff',
-                            color: '#4338ca',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontWeight: 600
-                          }}>
-                            {variants.length} variants
-                          </span>
-                        )}
+                      <td className="cellItem" style={{ position: 'relative' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {hasVariants && (
+                            <span
+                              onClick={toggleExpand}
+                              style={{
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                userSelect: 'none',
+                                transition: 'transform 0.2s',
+                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                display: 'inline-block'
+                              }}
+                            >
+                              ▶
+                            </span>
+                          )}
+                          <span>{item.name}</span>
+                          {hasVariants && (
+                            <span style={{
+                              fontSize: '11px',
+                              background: '#e0e7ff',
+                              color: '#4338ca',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontWeight: 600
+                            }}>
+                              {variants.length} variants
+                            </span>
+                          )}
+                          {/* Low Stock Badge - inline with name */}
+                          {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 10) && (
+                            <span style={{
+                              fontSize: '11px',
+                              background: '#ef4444',
+                              color: 'white',
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              display: 'inline-block',
+                              marginLeft: '8px'
+                            }}>
+                              ⚠️ LOW
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="cellQty">
                         {hasVariants ? formatNumber(totalVariantQty) : formatNumber(item.qty ?? 0)}
@@ -4134,7 +4226,49 @@ Low Stock: ${lowStockItems.length}
               </p>
             </div>
 
-            {/* 3️⃣ QUANTITY - Hidden if product has variants */}
+            {/* 3️⃣ CATEGORY - World-Class UX: Category before images */}
+            <div className="form-group">
+              <label>Category</label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={(e) => {
+                  // Clear attributes when category changes
+                  setFormData({
+                    ...formData,
+                    category: e.target.value,
+                    attributes: {}
+                  });
+                }}
+                className="form-input"
+              >
+                <option value="Fashion">Fashion</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Food & Beverages">Food & Beverages</option>
+                <option value="Beauty & Cosmetics">Beauty & Cosmetics</option>
+                <option value="Furniture">Furniture</option>
+                <option value="Books">Books</option>
+                <option value="Phones & Accessories">Phones & Accessories</option>
+                <option value="Shoes">Shoes</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            {/* 4️⃣ PRODUCT IMAGES - World-Class UX: Visual anchor before details */}
+            <div className="form-group">
+              <label>Product Images</label>
+              <MultiImageUpload
+                productId={editingProductId}
+                onImagesChange={handleImagesChange}
+              />
+            </div>
+
+            {/* 5️⃣ PRODUCT VARIANTS - World-Class UX: Right after images */}
+            <VariantManager
+              onVariantsChange={setProductVariants}
+            />
+
+            {/* 6️⃣ QUANTITY - Hidden if product has variants */}
             {productVariants.length === 0 && (
               <div className="form-group">
                 <label>Quantity</label>
@@ -4237,7 +4371,44 @@ Low Stock: ${lowStockItems.length}
               </div>
             )}
 
-            {/* 4️⃣ PURCHASE PRICE */}
+            {/* 6️⃣B LOW STOCK ALERT LEVEL - Hidden if product has variants */}
+            {productVariants.length === 0 && (
+              <div className="form-group">
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#1e293b',
+                  marginBottom: '8px'
+                }}>
+                  🔔 Low Stock Alert Level
+                </label>
+                <input
+                  type="number"
+                  name="reorderLevel"
+                  value={formData.reorderLevel}
+                  onChange={handleInputChange}
+                  placeholder="Alert when below (e.g., 5)"
+                  min="0"
+                  className="form-input"
+                  style={{
+                    fontSize: '14px'
+                  }}
+                />
+                <p style={{
+                  fontSize: '12px',
+                  color: '#64748b',
+                  marginTop: '6px',
+                  marginBottom: 0
+                }}>
+                  You'll be notified when stock reaches this level. Default: 10
+                </p>
+              </div>
+            )}
+
+            {/* 7️⃣ PURCHASE PRICE */}
             <div className="form-row">
               <div className="form-group">
                 <label>Purchase Price (₦)</label>
@@ -4287,38 +4458,10 @@ Low Stock: ${lowStockItems.length}
             )}
 
             {/* ─────────────────────────────────────────────── */}
-            {/* SECONDARY FIELDS (Category, Details, Media) */}
+            {/* SECONDARY FIELDS (Details & Attributes) */}
             {/* ─────────────────────────────────────────────── */}
 
-            {/* 6️⃣ CATEGORY */}
-            <div className="form-group" style={{ marginTop: '24px' }}>
-              <label>Category</label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={(e) => {
-                  // Clear attributes when category changes
-                  setFormData({
-                    ...formData,
-                    category: e.target.value,
-                    attributes: {}
-                  });
-                }}
-                className="form-input"
-              >
-                <option value="Fashion">Fashion</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Food & Beverages">Food & Beverages</option>
-                <option value="Beauty & Cosmetics">Beauty & Cosmetics</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Books">Books</option>
-                <option value="Phones & Accessories">Phones & Accessories</option>
-                <option value="Shoes">Shoes</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            {/* 7️⃣ BARCODE/SKU */}
+            {/* 8️⃣ BARCODE/SKU */}
             <div className="form-group">
               <label>Barcode / SKU (Optional)</label>
               <input
@@ -4507,15 +4650,6 @@ Low Stock: ${lowStockItems.length}
               );
             })()}
 
-            {/* Multi-Image Upload */}
-            <div className="form-group">
-              <label>Product Images</label>
-              <MultiImageUpload
-                productId={editingProductId}
-                onImagesChange={(images) => setProductImages(images)}
-              />
-            </div>
-
             {/* Public Visibility Toggle */}
             <div className="form-group" style={{
               background: '#f8fafc',
@@ -4550,11 +4684,6 @@ Low Stock: ${lowStockItems.length}
                 </div>
               </label>
             </div>
-
-            {/* 8️⃣ PRODUCT VARIANTS */}
-            <VariantManager
-              onVariantsChange={setProductVariants}
-            />
 
             {/* Visual Separator */}
             <div style={{
@@ -4596,9 +4725,349 @@ Low Stock: ${lowStockItems.length}
               </p>
             </div>
 
+            {/* PHASE 2A: Product Specifications */}
+            <div className="form-group" style={{
+              borderTop: '2px solid #e5e7eb',
+              paddingTop: '16px',
+              marginTop: '16px'
+            }}>
+              <label style={{
+                fontSize: '15px',
+                fontWeight: '600',
+                color: '#1e293b',
+                marginBottom: '8px',
+                display: 'block'
+              }}>
+                📋 Product Specifications <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'normal' }}>(Optional - AI will use these)</span>
+              </label>
+              <p style={{
+                fontSize: '12px',
+                color: '#64748b',
+                marginBottom: '12px'
+              }}>
+                Add specs so AI can answer customer questions accurately. Only fill what's relevant.
+              </p>
+
+              {/* Electronics Specs */}
+              {(formData.category === 'Electronics' || formData.category === 'Technology') && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                  marginBottom: '12px'
+                }}>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Battery Life</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Up to 22 hours"
+                      value={specifications.battery_life}
+                      onChange={(e) => setSpecifications({...specifications, battery_life: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Screen Size</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 6.1 inches"
+                      value={specifications.screen_size}
+                      onChange={(e) => setSpecifications({...specifications, screen_size: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Camera</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 12MP triple"
+                      value={specifications.camera}
+                      onChange={(e) => setSpecifications({...specifications, camera: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>RAM</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 6GB"
+                      value={specifications.ram}
+                      onChange={(e) => setSpecifications({...specifications, ram: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Storage</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 256GB"
+                      value={specifications.storage}
+                      onChange={(e) => setSpecifications({...specifications, storage: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Processor</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., A15 Bionic"
+                      value={specifications.processor}
+                      onChange={(e) => setSpecifications({...specifications, processor: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Fashion Specs */}
+              {formData.category === 'Fashion' && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                  marginBottom: '12px'
+                }}>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Fabric/Material</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 100% cotton"
+                      value={specifications.fabric}
+                      onChange={(e) => setSpecifications({...specifications, fabric: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Fit</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., True to size"
+                      value={specifications.fit}
+                      onChange={(e) => setSpecifications({...specifications, fit: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Care Instructions</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Machine washable"
+                      value={specifications.care}
+                      onChange={(e) => setSpecifications({...specifications, care: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Food Specs */}
+              {(formData.category === 'Food' || formData.category === 'Grocery') && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                  marginBottom: '12px'
+                }}>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Ingredients</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Tomatoes, onions"
+                      value={specifications.ingredients}
+                      onChange={(e) => setSpecifications({...specifications, ingredients: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Spice Level</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Medium (7/10)"
+                      value={specifications.spice_level}
+                      onChange={(e) => setSpecifications({...specifications, spice_level: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>Allergens</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Contains nuts"
+                      value={specifications.allergens}
+                      onChange={(e) => setSpecifications({...specifications, allergens: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <p style={{
+                fontSize: '11px',
+                color: '#94a3b8',
+                fontStyle: 'italic',
+                marginTop: '8px'
+              }}>
+                💡 AI will use these to answer "What's the battery life?" type questions
+              </p>
+            </div>
+
             <div className="modal-footer">
-              <button className="btn-save" onClick={handleSave}>
-                Save Item
+              <button
+                className="btn-save"
+                onClick={handleSave}
+                disabled={productImages.some(img => img.uploading || img.url?.startsWith('blob:'))}
+                style={{
+                  opacity: productImages.some(img => img.uploading || img.url?.startsWith('blob:')) ? 0.5 : 1,
+                  cursor: productImages.some(img => img.uploading || img.url?.startsWith('blob:')) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {productImages.some(img => img.uploading || img.url?.startsWith('blob:'))
+                  ? 'Uploading images...'
+                  : 'Save Item'}
               </button>
               <button className="btn-cancel" onClick={() => {
                 setShowModal(false);
@@ -4608,6 +5077,21 @@ Low Stock: ${lowStockItems.length}
                 setProductImages([]);
                 setEditingProductId(null);
                 setProductVariants([]);
+                // PHASE 2A: Reset specifications when canceling
+                setSpecifications({
+                  battery_life: '',
+                  screen_size: '',
+                  camera: '',
+                  ram: '',
+                  storage: '',
+                  processor: '',
+                  fabric: '',
+                  fit: '',
+                  care: '',
+                  ingredients: '',
+                  spice_level: '',
+                  allergens: ''
+                });
               }}>
                 Cancel
               </button>
@@ -5952,7 +6436,12 @@ Low Stock: ${lowStockItems.length}
       />
 
       {/* AI Chat Widget - Intelligent Onboarding & Help */}
-      <AIChatWidget contextType="onboarding" autoOpen={items.length < 5} />
+      {/* PHASE 1: Enhanced to provide help everywhere, not just onboarding */}
+      <AIChatWidget
+        contextType="help"
+        autoOpen={false}
+        persistentBubble={true}
+      />
 
       {/* Footer Spacer - prevents content from being cut off at bottom */}
       <div className="footer-spacer"></div>

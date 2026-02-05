@@ -119,6 +119,24 @@
   color: #6b7280;
 }
 
+/* Highlight for special items (Affiliate) */
+.more-menu-item.highlight {
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8ecff 100%);
+  border-color: #667eea;
+}
+
+.more-menu-item.highlight:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e8ecff 0%, #dce1ff 100%);
+  border-color: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.more-menu-item.highlight .more-menu-label {
+  color: #667eea;
+  font-weight: 700;
+}
+
 @media (min-width: 640px) {
   .more-menu-grid {
     grid-template-columns: repeat(2, 1fr);

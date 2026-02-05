@@ -46,8 +46,26 @@ export function getImageKitUrl(
   imagePath: string,
   transformations?: ImageKitTransformation
 ): string {
+  // CRITICAL: Validate path FIRST
+  if (!imagePath || typeof imagePath !== 'string') {
+    return '';
+  }
+
+  // Trim whitespace
+  imagePath = imagePath.trim();
+
+  // Check for empty, undefined, null strings
+  if (imagePath === '' || imagePath === '/' || imagePath === 'undefined' || imagePath === 'null') {
+    return '';
+  }
+
   // Remove leading slash if present
   const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+
+  // Validate cleanPath after removing slash
+  if (!cleanPath || cleanPath === '') {
+    return '';
+  }
 
   // Default transformations for optimal performance
   const defaultTransforms: ImageKitTransformation = {
@@ -92,11 +110,17 @@ export function getImageKitSrcSet(
   widths: number[] = [400, 800, 1200, 1600],
   quality: number = 85
 ): string {
+  // Validate imagePath
+  if (!imagePath || imagePath === '' || imagePath === 'undefined' || imagePath === 'null') {
+    return ''; // Return empty string for invalid paths
+  }
+
   return widths
     .map(width => {
       const url = getImageKitUrl(imagePath, { width, quality });
-      return `${url} ${width}w`;
+      return url ? `${url} ${width}w` : ''; // Only include if URL is valid
     })
+    .filter(entry => entry !== '') // Filter out empty entries
     .join(', ');
 }
 

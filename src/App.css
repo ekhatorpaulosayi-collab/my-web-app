@@ -2301,36 +2301,47 @@ body {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #111827;
+  background: #10B981;
   color: white;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
   z-index: 9999;
   animation: slideUp 0.3s ease-out;
+  min-width: 280px;
+  text-align: center;
 }
 
 .toast-content {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  justify-content: center;
+}
+
+.toast-notification .toast-content span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .undo-btn {
   background: white;
-  color: var(--primary-blue);
+  color: #10B981;
   border: none;
-  padding: 6px 16px;
-  border-radius: 4px;
+  padding: 8px 18px;
+  border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.2s ease;
+  font-size: 14px;
 }
 
 .undo-btn:hover {
   transform: scale(1.05);
+  background: #f0fdf4;
 }
 
 .undo-btn:active {

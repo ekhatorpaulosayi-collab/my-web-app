@@ -17,6 +17,19 @@ import { AuthProvider } from './contexts/AuthContext.jsx'
 import { PreferencesProvider } from './contexts/PreferencesContext.tsx'
 import { StaffProvider } from './contexts/StaffContext.tsx'
 import { initializeErrorMonitoring } from './utils/errorMonitoring';
+import { initializeSentry } from './lib/sentry';
+
+// Initialize Sentry FIRST (before any other code)
+initializeSentry();
+
+// Suppress console logs in production to prevent performance issues
+if (import.meta.env.PROD) {
+  const noop = () => {};
+  console.log = noop;
+  console.debug = noop;
+  console.info = noop;
+  // Keep console.warn and console.error for critical issues
+}
 
 // Bypass landing page - go directly to app for development
 localStorage.setItem('hasVisited', 'true');
@@ -94,7 +107,9 @@ if ('serviceWorker' in navigator) {
 
 // Initialize error monitoring
 initializeErrorMonitoring();
-console.log('[Main] Error monitoring initialized');
+if (import.meta.env.DEV) {
+  console.log('[Main] Error monitoring initialized');
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

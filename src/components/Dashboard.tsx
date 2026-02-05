@@ -886,6 +886,21 @@ export function Dashboard({
                                 {variants.length} variant{variants.length !== 1 ? 's' : ''}
                               </span>
                             )}
+                            {/* Low Stock Badge */}
+                            {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 10) && (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                background: '#ef4444',
+                                color: 'white',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 600
+                              }}>
+                                ⚠️ LOW
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="text-right">{item.qty || 0}</td>

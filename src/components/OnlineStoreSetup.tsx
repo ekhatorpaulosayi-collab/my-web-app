@@ -5,7 +5,7 @@ import { useUser, useStore, useStoreActions } from '../lib/supabase-hooks';
 import { supabase } from '../lib/supabase';
 import { formatWhatsAppNumber, formatPhoneDisplay } from '../utils/whatsapp';
 import { NIGERIAN_BANKS, validateAccountNumber } from '../utils/nigerianBanks';
-import { ABOUT_TEMPLATES } from '../utils/aboutTemplates';
+import { ABOUT_TEMPLATES, isTemplateText, isMostlyTemplate } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
 import { PromoCodesManager } from './PromoCodesManager';
@@ -324,6 +324,17 @@ export default function OnlineStoreSetup() {
           updateData.days_of_operation = daysOfOperation;
           break;
         case 'about':
+          // Warn if trying to save unmodified template text
+          if (isTemplateText(aboutUs)) {
+            const proceed = window.confirm(
+              '⚠️ You are trying to save sample template text.\n\n' +
+              'This generic content will appear on your online store and may confuse customers.\n\n' +
+              'Are you sure you want to continue? We recommend customizing it with your actual business details first.'
+            );
+            if (!proceed) {
+              return; // Cancel save
+            }
+          }
           updateData.about_us = aboutUs;
           break;
         case 'social':
@@ -1176,38 +1187,7 @@ export default function OnlineStoreSetup() {
                 onToggle={() => toggleSection('about')}
               >
                 <div style={{ padding: '20px' }}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      marginBottom: '8px',
-                    }}>
-                      Quick Templates
-                    </label>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {ABOUT_TEMPLATES.map(template => (
-                        <button
-                          key={template.id}
-                          onClick={() => applyTemplate(template.content)}
-                          style={{
-                            padding: '8px 16px',
-                            background: '#F3F4F6',
-                            border: '1px solid #E5E7EB',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          {template.icon} {template.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Removed old template section - now integrated below */}
                   <div style={{ marginBottom: '16px' }}>
                     <label style={{
                       display: 'block',
@@ -1218,10 +1198,147 @@ export default function OnlineStoreSetup() {
                     }}>
                       About Your Business
                     </label>
+
+                    {/* AI-Optimized Helper Box */}
+                    <div style={{
+                      backgroundColor: '#EEF2FF',
+                      border: '2px solid #C7D2FE',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      marginBottom: '12px',
+                    }}>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#4338CA',
+                        marginBottom: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}>
+                        <span style={{ fontSize: '18px' }}>💡</span>
+                        Make your AI assistant smarter!
+                      </div>
+                      <div style={{
+                        fontSize: '13px',
+                        color: '#4338CA',
+                        marginBottom: '10px',
+                      }}>
+                        Include these details so your AI can help customers 24/7:
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '6px',
+                        marginBottom: '12px',
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#4338CA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                          What you sell
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#4338CA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                          Your location/area
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#4338CA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                          Business hours
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#4338CA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                          Delivery areas
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#4338CA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                          Payment methods
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#4338CA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                          Special services
+                        </div>
+                      </div>
+
+                      {/* Prominent Template Buttons */}
+                      <div style={{
+                        borderTop: '1px solid #C7D2FE',
+                        paddingTop: '12px',
+                      }}>
+                        <div style={{
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          color: '#4338CA',
+                          marginBottom: '8px',
+                        }}>
+                          📝 Quick Start Templates:
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {ABOUT_TEMPLATES.map(template => (
+                            <button
+                              key={template.id}
+                              onClick={() => applyTemplate(template.content)}
+                              style={{
+                                padding: '8px 14px',
+                                background: 'white',
+                                border: '2px solid #818CF8',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                color: '#4338CA',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s',
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.background = '#818CF8';
+                                e.currentTarget.style.color = 'white';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.background = 'white';
+                                e.currentTarget.style.color = '#4338CA';
+                              }}
+                            >
+                              {template.icon} {template.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Template Warning Banner - Shows when user has template text */}
+                    {isTemplateText(aboutUs) && (
+                      <div style={{
+                        backgroundColor: '#FEF3C7',
+                        border: '2px solid #F59E0B',
+                        borderRadius: '8px',
+                        padding: '12px 16px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'start',
+                        gap: '10px',
+                      }}>
+                        <span style={{ fontSize: '20px', flexShrink: 0 }}>⚠️</span>
+                        <div>
+                          <div style={{
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: '#92400E',
+                            marginBottom: '4px',
+                          }}>
+                            This is sample text - customize it!
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#92400E' }}>
+                            Replace this template with your actual business information for better AI responses and customer trust.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <textarea
                       value={aboutUs}
-                      onChange={(e) => setAboutUs(e.target.value.slice(0, 1000))}
-                      placeholder="Tell customers about your business..."
+                      onChange={(e) => setAboutUs(e.target.value.slice(0, 1500))}
+                      placeholder="Tell customers about your business... Click a template above to get started, then customize it with your actual details!"
                       rows={6}
                       style={{
                         width: '100%',
@@ -1237,7 +1354,7 @@ export default function OnlineStoreSetup() {
                       }}
                     />
                     <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
-                      {aboutUs.length}/1000 characters
+                      {aboutUs.length}/1500 characters
                     </div>
                   </div>
                   <button

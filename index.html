@@ -23,14 +23,14 @@
     <meta name="keywords" content="inventory management Nigeria, stock tracking app, sales management Nigeria, Nigerian business software, offline inventory app, WhatsApp receipts, retail management Nigeria, POS system Nigeria, small business software, inventory tracker">
     <meta name="author" content="Storehouse">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://storehouse.app/" />
+    <link rel="canonical" href="https://www.storehouse.ng/" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://storehouse.app/">
+    <meta property="og:url" content="https://www.storehouse.ng/">
     <meta property="og:title" content="Storehouse - Inventory Management for Nigerian Businesses">
     <meta property="og:description" content="Track stock, record sales, manage credits. Works offline. WhatsApp integration. Free plan available. Join 1,000+ Nigerian businesses.">
-    <meta property="og:image" content="https://storehouse.app/og-image.png">
+    <meta property="og:image" content="https://www.storehouse.ng/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:site_name" content="Storehouse">
@@ -38,10 +38,10 @@
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://storehouse.app/">
+    <meta property="twitter:url" content="https://www.storehouse.ng/">
     <meta property="twitter:title" content="Storehouse - Inventory Management for Nigerian Businesses">
     <meta property="twitter:description" content="Manage inventory from your phone. Works offline. WhatsApp integration. Free plan available.">
-    <meta property="twitter:image" content="https://storehouse.app/twitter-card.png">
+    <meta property="twitter:image" content="https://www.storehouse.ng/twitter-card.png">
     <meta property="twitter:creator" content="@storehouse">
 
     <!-- Additional SEO -->
@@ -100,6 +100,109 @@
     <div id="portal-root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Mobile Debug Console - Shows logs on screen when URL has ?debug=1
+      (function () {
+        if (!location.search.includes('debug=1')) return;
+
+        const box = document.createElement('div');
+        box.style.cssText =
+          'position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow:auto;' +
+          'background:rgba(0,0,0,.95);color:#0f0;font:11px/1.4 -apple-system,system-ui;' +
+          'padding:8px;z-index:2147483647;white-space:pre-wrap;border-top:2px solid #0f0;';
+        box.id = '_debug_console_';
+        box.textContent = '📱 DEBUG CONSOLE (tap header to hide)\n' +
+                         '================================\n';
+
+        // Add toggle button at top
+        const toggleBtn = document.createElement('button');
+        toggleBtn.textContent = '👁️ Show Debug Console';
+        toggleBtn.style.cssText =
+          'position:fixed;bottom:10px;right:10px;z-index:2147483648;' +
+          'background:#0f0;color:#000;border:none;padding:12px 20px;' +
+          'border-radius:25px;font:bold 14px -apple-system,system-ui;' +
+          'box-shadow:0 4px 12px rgba(0,255,0,0.4);display:none;';
+        toggleBtn.id = '_debug_toggle_';
+
+        // Load previous logs from localStorage
+        const savedLogs = localStorage.getItem('debug_logs') || '';
+        if (savedLogs) {
+          box.textContent = '📱 DEBUG CONSOLE (tap header to hide)\n' +
+                           '================================\n' +
+                           '⚠️ PREVIOUS SESSION LOGS:\n' +
+                           savedLogs + '\n' +
+                           '================================\n' +
+                           '🔄 NEW SESSION:\n' +
+                           '================================\n';
+        }
+
+        const write = (type, args) => {
+          const timestamp = new Date().toLocaleTimeString();
+          const line = `[${timestamp}] [${type}] ` + Array.from(args).map(a => {
+            try { return typeof a === 'string' ? a : JSON.stringify(a); }
+            catch { return String(a); }
+          }).join(' ') + '\n';
+          box.textContent += line;
+          box.scrollTop = box.scrollHeight;
+
+          // Save to localStorage (keep last 100 lines)
+          try {
+            const allLogs = (localStorage.getItem('debug_logs') || '') + line;
+            const lines = allLogs.split('\n').slice(-100);
+            localStorage.setItem('debug_logs', lines.join('\n'));
+          } catch (e) {}
+        };
+
+        const orig = { log: console.log, warn: console.warn, error: console.error };
+        console.log = function(){ write('LOG', arguments); orig.log.apply(console, arguments); };
+        console.warn = function(){ write('WARN', arguments); orig.warn.apply(console, arguments); };
+        console.error = function(){ write('ERROR', arguments); orig.error.apply(console, arguments); };
+
+        window.addEventListener('error', (e) => write('JS ERROR', [e.message, `@ ${e.filename}:${e.lineno}:${e.colno}`]));
+        window.addEventListener('unhandledrejection', (e) => write('PROMISE ERROR', [e.reason]));
+
+        // Click header area (first 80px) to toggle
+        box.addEventListener('click', (e) => {
+          if (e.offsetY < 80) {
+            box.style.display = 'none';
+            toggleBtn.style.display = 'block';
+          }
+        });
+
+        toggleBtn.addEventListener('click', () => {
+          box.style.display = 'block';
+          toggleBtn.style.display = 'none';
+          box.scrollTop = box.scrollHeight;
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+          document.body.appendChild(box);
+          document.body.appendChild(toggleBtn);
+        });
+
+        // Add clear logs button
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = '🗑️ Clear Saved Logs';
+        clearBtn.style.cssText =
+          'position:fixed;bottom:60px;right:10px;z-index:2147483648;' +
+          'background:#f00;color:#fff;border:none;padding:8px 16px;' +
+          'border-radius:20px;font:bold 12px -apple-system,system-ui;' +
+          'box-shadow:0 4px 12px rgba(255,0,0,0.4);display:none;';
+        clearBtn.addEventListener('click', () => {
+          localStorage.removeItem('debug_logs');
+          location.reload();
+        });
+
+        // Show clear button if there are saved logs
+        if (savedLogs) {
+          clearBtn.style.display = 'block';
+          document.body.appendChild(clearBtn);
+        }
+
+        // Initial log
+        write('INIT', ['Debug console started. Upload a product to see logs.']);
+      })();
+    </script>
+    <script>
       // Loading timeout and progress
       let progress = 0;
       const statusEl = document.getElementById('load-status');
@@ -147,15 +250,40 @@
         }, 100);
       });
 
-      // Unregister all service workers
+      // AGGRESSIVE: Force unregister all service workers and clear all caches
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          registrations.forEach((registration) => {
-            registration.unregister();
-            console.log('Service worker unregistered');
-          });
+        navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+          for (const registration of registrations) {
+            await registration.unregister();
+            console.log('[CACHE CLEAR] Service worker unregistered');
+          }
         });
       }
+
+      // AGGRESSIVE: Clear all caches
+      if ('caches' in window) {
+        caches.keys().then(async (cacheNames) => {
+          for (const cacheName of cacheNames) {
+            await caches.delete(cacheName);
+            console.log('[CACHE CLEAR] Deleted cache:', cacheName);
+          }
+        });
+      }
+
+      // Force reload if we're stuck on old bundle (check for EXIF error signature)
+      window.addEventListener('error', (e) => {
+        if (e.message && e.message.includes("Can't find variable: n")) {
+          console.error('[CACHE ERROR] Old bundle detected! Clearing caches and reloading...');
+          if ('caches' in window) {
+            caches.keys().then(async (cacheNames) => {
+              for (const cacheName of cacheNames) {
+                await caches.delete(cacheName);
+              }
+              location.reload(true);
+            });
+          }
+        }
+      });
     </script>
   </body>
 </html>

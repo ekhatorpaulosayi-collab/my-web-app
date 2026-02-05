@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Network Inspector - ImageKit URLs</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .guide {
+            background: #1a1a2e;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .guide h2 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        .step {
+            background: #16213e;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 3px solid #4ade80;
+        }
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            border-radius: 50%;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        code {
+            background: #0a0a0a;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
+        }
+        .url-example {
+            background: #0a0a0a;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            border: 1px solid #667eea;
+        }
+        .imagekit { color: #4ade80; }
+        .supabase { color: #f59e0b; }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .card {
+            background: #1a1a2e;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+        .card.good { border-color: #4ade80; }
+        .card.bad { border-color: #ef4444; }
+        .card h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        .card.good h3 { color: #4ade80; }
+        .card.bad h3 { color: #ef4444; }
+        .screenshot {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .screenshot img {
+            max-width: 100%;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+        }
+        ul {
+            line-height: 1.8;
+        }
+        .highlight {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .warning {
+            background: #78350f;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .success {
+            background: #14532d;
+            border-left: 4px solid #4ade80;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 How to Check if ImageKit is Active</h1>
+    <p style="font-size: 1.2em; color: #a0a0a0;">Follow these steps to verify ImageKit is working in your Storehouse app</p>
+
+    <div class="guide">
+        <h2>📋 Quick Check Guide</h2>
+
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>Open Your Storefront</strong>
+            <p>Navigate to: <code>http://localhost:4000</code> in your browser</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>Open DevTools</strong>
+            <p>Press <code>F12</code> or <code>Ctrl+Shift+I</code> (Windows/Linux) or <code>Cmd+Option+I</code> (Mac)</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Go to Network Tab</strong>
+            <p>Click the <span class="highlight">Network</span> tab at the top of DevTools</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>Filter by Images</strong>
+            <p>Click <code>Img</code> filter button (or type "img" in the filter box)</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">5</span>
+            <strong>Reload the Page</strong>
+            <p>Press <code>Ctrl+R</code> or <code>F5</code> to reload and capture network requests</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">6</span>
+            <strong>Check Image URLs</strong>
+            <p>Look at the <strong>Name</strong> column - you should see image URLs</p>
+        </div>
+    </div>
+
+    <div class="guide">
+        <h2>✅ What You Should See</h2>
+
+        <div class="comparison">
+            <div class="card good">
+                <h3>✓ ImageKit IS Working</h3>
+                <p><strong>URLs will look like:</strong></p>
+                <div class="url-example imagekit">
+                    https://ik.imagekit.io/onelove431212341234/tr:w-640,q-75,f-auto/products/xxx/image.jpg
+                </div>
+                <ul>
+                    <li>✓ Starts with <code>ik.imagekit.io</code></li>
+                    <li>✓ Contains <code>/tr:</code> (transformations)</li>
+                    <li>✓ Has parameters like <code>w-640</code>, <code>q-75</code></li>
+                    <li>✓ Much smaller file sizes (50-100KB)</li>
+                </ul>
+                <div class="success">
+                    <strong>🎉 ImageKit is ACTIVE and optimizing your images!</strong>
+                </div>
+            </div>
+
+            <div class="card bad">
+                <h3>✗ ImageKit NOT Working</h3>
+                <p><strong>URLs will look like:</strong></p>
+                <div class="url-example supabase">
+                    https://yzlniqwzqlsftxrtapdl.supabase.co/storage/v1/object/public/products/xxx/image.jpg
+                </div>
+                <ul>
+                    <li>✗ Starts with <code>supabase.co</code></li>
+                    <li>✗ No <code>/tr:</code> transformations</li>
+                    <li>✗ No optimization parameters</li>
+                    <li>✗ Larger file sizes (200-500KB+)</li>
+                </ul>
+                <div class="warning">
+                    <strong>⚠️ Images are loading directly from Supabase (not optimized)</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="guide">
+        <h2>🔎 Detailed Inspection</h2>
+
+        <div class="step">
+            <span class="step-number">7</span>
+            <strong>Click on an Image Request</strong>
+            <p>In the Network tab, click any image to see details</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">8</span>
+            <strong>Check the "Headers" Tab</strong>
+            <p>Look for these indicators:</p>
+            <ul>
+                <li><code>Request URL</code> - Should contain <span class="imagekit">ik.imagekit.io</span></li>
+                <li><code>x-server: ImageKit.io</code> - Confirms ImageKit served it</li>
+                <li><code>server-timing: transformation;dur=XX</code> - Shows optimization time</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <span class="step-number">9</span>
+            <strong>Check File Size</strong>
+            <p>In the <code>Size</code> column, ImageKit images should be much smaller:</p>
+            <ul>
+                <li>ImageKit: 50-150KB (optimized)</li>
+                <li>Supabase Direct: 200-500KB+ (unoptimized)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="guide">
+        <h2>🐛 Console Check (Alternative Method)</h2>
+
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>Open Console Tab</strong>
+            <p>In DevTools, switch to the <code>Console</code> tab</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>Run This Command</strong>
+            <p>Copy and paste this into the console:</p>
+            <div class="url-example">
+// Check all images on the page
+const images = Array.from(document.querySelectorAll('img'));
+const imagekitCount = images.filter(img => img.src.includes('ik.imagekit.io')).length;
+const supabaseCount = images.filter(img => img.src.includes('supabase.co')).length;
+
+console.log(`
+🔍 Image Analysis:
+- ImageKit images: ${imagekitCount}
+- Supabase images: ${supabaseCount}
+- Total images: ${images.length}
+
+${imagekitCount > 0 ? '✅ ImageKit IS ACTIVE!' : '⚠️ ImageKit NOT detected'}
+`);
+
+// Show first few ImageKit URLs
+const imagekitUrls = images
+  .filter(img => img.src.includes('ik.imagekit.io'))
+  .slice(0, 3)
+  .map(img => img.src);
+
+if (imagekitUrls.length > 0) {
+  console.log('\n📸 Sample ImageKit URLs:');
+  imagekitUrls.forEach((url, i) => console.log(`${i+1}. ${url}`));
+}
+            </div>
+        </div>
+
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Check the Results</strong>
+            <p>The console will show you how many images are using ImageKit vs Supabase</p>
+        </div>
+    </div>
+
+    <div class="guide">
+        <h2>📊 What the Results Mean</h2>
+
+        <div class="success">
+            <h3>✅ ImageKit Active (Good)</h3>
+            <ul>
+                <li>Most/all images use <code>ik.imagekit.io</code> URLs</li>
+                <li>Images load faster (CDN delivery)</li>
+                <li>Smaller file sizes (automatic optimization)</li>
+                <li>Modern formats (WebP/AVIF support)</li>
+                <li>Responsive images (srcset working)</li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <h3>⚠️ ImageKit Inactive (Needs Fix)</h3>
+            <ul>
+                <li>Images use <code>supabase.co</code> URLs</li>
+                <li>Slower loading (no CDN optimization)</li>
+                <li>Larger file sizes (uncompressed)</li>
+                <li>No automatic format conversion</li>
+                <li>Check environment variables or configuration</li>
+            </ul>
+        </div>
+    </div>
+
+    <div style="margin-top: 40px; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; text-align: center;">
+        <h2 style="color: white; margin: 0;">🚀 Quick Links</h2>
+        <p style="color: white; opacity: 0.9; margin: 10px 0;">Test your ImageKit integration</p>
+        <div style="margin-top: 20px;">
+            <a href="http://localhost:4000" target="_blank" style="display: inline-block; background: white; color: #667eea; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 5px;">
+                Open Storefront →
+            </a>
+            <a href="/imagekit-live-test.html" target="_blank" style="display: inline-block; background: rgba(255,255,255,0.2); color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 5px;">
+                Run ImageKit Tests →
+            </a>
+        </div>
+    </div>
+
+    <script>
+        console.log('%c🔍 Network Inspector Loaded!', 'color: #667eea; font-size: 20px; font-weight: bold;');
+        console.log('%cUse the guide above to check if ImageKit is working in your app.', 'color: #4ade80;');
+        console.log('\n%cQuick Test Command (copy/paste):', 'color: #f59e0b; font-weight: bold;');
+        console.log('Array.from(document.querySelectorAll(\'img\')).filter(img => img.src.includes(\'ik.imagekit.io\')).length');
+    </script>
+</body>
+</html>

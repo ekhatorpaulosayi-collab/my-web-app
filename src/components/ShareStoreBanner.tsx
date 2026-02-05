@@ -24,9 +24,49 @@ export const ShareStoreBanner: React.FC<ShareStoreBannerProps> = ({
   const [isOpening, setIsOpening] = useState(false);
 
   const handleWhatsAppShare = () => {
-    const message = `Check out ${storeName}! ${storeUrl}`;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+    const message = `🏪 *${storeName}*\n\n` +
+      `🛍️ Browse all my products!\n\n` +
+      `✨ Easy ordering via WhatsApp\n` +
+      `💳 Pay with card or bank transfer\n` +
+      `📦 Fast delivery across Nigeria\n\n` +
+      `👉 Visit store: ${storeUrl}\n\n` +
+      `🔥 Start shopping now!`;
+
+    const fullMessage = message + '\n\n' + storeUrl;
+
+    // Encode message for WhatsApp URL
+    const encodedMessage = encodeURIComponent(fullMessage);
+    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+
+    // Try to open WhatsApp
+    const whatsappWindow = window.open(whatsappUrl, '_blank');
+
+    // Fallback: If popup blocked or WhatsApp not available, copy to clipboard
+    setTimeout(() => {
+      if (!whatsappWindow || whatsappWindow.closed || typeof whatsappWindow.closed === 'undefined') {
+        // WhatsApp failed to open - fallback to clipboard
+        navigator.clipboard.writeText(fullMessage).then(() => {
+          alert(
+            '✅ Message copied to clipboard!\n\n' +
+            'Now open WhatsApp and paste it to share with your contacts.'
+          );
+        }).catch(() => {
+          // Old browser fallback
+          const textArea = document.createElement('textarea');
+          textArea.value = fullMessage;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          alert(
+            '✅ Message copied!\n\n' +
+            'Now open WhatsApp and paste it to share with your contacts.'
+          );
+        });
+      }
+    }, 1000);
   };
 
   const handleCopyLink = async () => {

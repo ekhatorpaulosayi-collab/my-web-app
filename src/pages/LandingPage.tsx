@@ -4,10 +4,11 @@ import {
   Package, ShoppingCart, Users, TrendingUp,
   Smartphone, Wifi, WifiOff, MessageCircle,
   CheckCircle, ArrowRight, Menu, X,
-  Store, Zap, Shield, Clock, ChevronDown, Sparkles
+  Store, Zap, Shield, Clock, ChevronDown, Sparkles,
+  Facebook, Instagram, Mail, Twitter
 } from 'lucide-react';
 import AIChatWidget from '../components/AIChatWidget';
-import { getImageKitUrl, getImageKitSrcSet, getImageKitSizes } from '../utils/imagekit';
+import { getImageKitUrl } from '../lib/imagekit';
 import { useAuth } from '../contexts/AuthContext';
 import './LandingPage.css';
 
@@ -192,8 +193,6 @@ export default function LandingPage() {
           <div className="nav-logo" onClick={() => navigate('/')}>
             <img
               src={getImageKitUrl('storehouse-logo-new.png', { width: 400, quality: 90 })}
-              srcSet={getImageKitSrcSet('storehouse-logo-new.png', [200, 400], 90)}
-              sizes="(max-width: 768px) 200px, 400px"
               alt="Storehouse - Inventory Management"
               className="logo-image"
               loading="eager"
@@ -260,8 +259,6 @@ export default function LandingPage() {
           <div className="hero-image fade-up">
             <img
               src={getImageKitUrl('landing-young-professional.png', { width: 1200, quality: 90 })}
-              srcSet={getImageKitSrcSet('landing-young-professional.png', [400, 800, 1200], 90)}
-              sizes={getImageKitSizes(1200)}
               alt="Nigerian businesswoman in traditional ankara dress using Storehouse inventory management app on smartphone to track stock and sales"
               className="hero-real-image"
               loading="eager"
@@ -313,8 +310,6 @@ export default function LandingPage() {
             <div className="ease-image fade-in">
               <img
                 src={getImageKitUrl('landing-elderly-woman.png', { width: 1000, quality: 85 })}
-                srcSet={getImageKitSrcSet('landing-elderly-woman.png', [400, 700, 1000], 85)}
-                sizes={getImageKitSizes(1000)}
                 alt="Elderly Nigerian woman in traditional gele headwrap smiling while using simple inventory app - easy for all ages"
                 className="grandma-image"
                 loading="lazy"
@@ -475,48 +470,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Real Businesses Showcase */}
-      <section className="businesses-showcase">
-        <div className="section-container">
-          <div className="section-header">
-            <h2 className="section-title">Real Nigerian Businesses Thriving with Storehouse</h2>
-            <p className="section-subtitle">From local shops to growing enterprises</p>
-          </div>
-
-          <div className="businesses-grid">
-            <div className="business-card fade-up">
-              <img
-                src={getImageKitUrl('landing-spice-shop.png', { width: 800, quality: 85 })}
-                srcSet={getImageKitSrcSet('landing-spice-shop.png', [400, 600, 800], 85)}
-                sizes={getImageKitSizes(800)}
-                alt="Nigerian couple managing spice shop inventory using Storehouse software on phone and laptop for retail business"
-                className="business-image"
-                loading="lazy"
-              />
-              <div className="business-overlay">
-                <h3>Works Anywhere</h3>
-                <p>On your phone, tablet, or laptop - manage your business from anywhere</p>
-              </div>
-            </div>
-
-            <div className="business-card fade-up">
-              <img
-                src={getImageKitUrl('landing-business-ecosystem.png', { width: 800, quality: 85 })}
-                srcSet={getImageKitSrcSet('landing-business-ecosystem.png', [400, 600, 800], 85)}
-                sizes={getImageKitSizes(800)}
-                alt="Complete business ecosystem showing Storehouse inventory management with multi-device sync and delivery tracking"
-                className="business-image"
-                loading="lazy"
-              />
-              <div className="business-overlay">
-                <h3>Complete Solution</h3>
-                <p>From inventory to delivery - everything you need in one place</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* 24/7 AI Assistant - Sleep & Sell */}
       <section className="ai-sleep-section">
         <div className="section-container">
@@ -524,8 +477,6 @@ export default function LandingPage() {
             <div className="ai-sleep-image fade-up">
               <img
                 src={getImageKitUrl('ai-chatbot-store.png', { width: 1200, quality: 90 })}
-                srcSet={getImageKitSrcSet('ai-chatbot-store.png', [400, 800, 1200], 90)}
-                sizes={getImageKitSizes(1200)}
                 alt="AI chatbot assistant in Storehouse online store helping customers 24/7 with product questions and availability"
                 className="ai-robot-image"
                 loading="lazy"
@@ -610,6 +561,44 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Real Businesses Showcase */}
+      <section className="businesses-showcase">
+        <div className="section-container">
+          <div className="section-header">
+            <h2 className="section-title">Real Nigerian Businesses Thriving with Storehouse</h2>
+            <p className="section-subtitle">From local shops to growing enterprises</p>
+          </div>
+
+          <div className="businesses-grid">
+            <div className="business-card fade-up">
+              <img
+                src={getImageKitUrl('landing-spice-shop.png', { width: 800, quality: 85 })}
+                alt="Nigerian couple managing spice shop inventory using Storehouse software on phone and laptop for retail business"
+                className="business-image"
+                loading="lazy"
+              />
+              <div className="business-overlay">
+                <h3>Works Anywhere</h3>
+                <p>On your phone, tablet, or laptop - manage your business from anywhere</p>
+              </div>
+            </div>
+
+            <div className="business-card fade-up">
+              <img
+                src={getImageKitUrl('landing-business-ecosystem.png', { width: 800, quality: 85 })}
+                alt="Complete business ecosystem showing Storehouse inventory management with multi-device sync and delivery tracking"
+                className="business-image"
+                loading="lazy"
+              />
+              <div className="business-overlay">
+                <h3>Complete Solution</h3>
+                <p>From inventory to delivery - everything you need in one place</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Feature Deep Dive - Alternating Sections */}
       <section className="feature-showcase">
         <div className="section-container">
@@ -644,8 +633,6 @@ export default function LandingPage() {
               <div className="visual-placeholder offline">
                 <img
                   src={getImageKitUrl('works-24-7.png', { width: 600, quality: 85 })}
-                  srcSet={getImageKitSrcSet('works-24-7.png', [300, 600], 85)}
-                  sizes={getImageKitSizes(600)}
                   alt="Works 24/7"
                   className="feature-icon-image"
                   loading="lazy"
@@ -685,8 +672,6 @@ export default function LandingPage() {
               <div className="visual-placeholder whatsapp">
                 <img
                   src={getImageKitUrl('whatsapp-ready.png', { width: 600, quality: 85 })}
-                  srcSet={getImageKitSrcSet('whatsapp-ready.png', [300, 600], 85)}
-                  sizes={getImageKitSizes(600)}
                   alt="WhatsApp Ready"
                   className="feature-icon-image"
                   loading="lazy"
@@ -726,12 +711,121 @@ export default function LandingPage() {
               <div className="visual-placeholder mobile">
                 <img
                   src={getImageKitUrl('any-device.png', { width: 600, quality: 85 })}
-                  srcSet={getImageKitSrcSet('any-device.png', [300, 600], 85)}
-                  sizes={getImageKitSizes(600)}
                   alt="Any Device"
                   className="feature-icon-image"
                   loading="lazy"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section id="testimonials" className="testimonials-section">
+        <div className="section-container">
+          <h2 className="section-title">Loved by Business Owners Across Nigeria</h2>
+
+          <div className="testimonials-grid">
+            <div className="testimonial-card">
+              <div className="testimonial-rating">
+                {'⭐'.repeat(5)}
+              </div>
+              <p className="testimonial-text">
+                "My customers love how fast my online store loads! They say it's smoother than
+                the big platforms. I'm getting more sales because people don't wait forever for pictures to load."
+              </p>
+              <div className="testimonial-author">
+                <div className="author-avatar">C</div>
+                <div className="author-info">
+                  <div className="author-name">Chioma O.</div>
+                  <div className="author-role">Fashion Store, Lekki, Lagos</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="testimonial-card">
+              <div className="testimonial-rating">
+                {'⭐'.repeat(5)}
+              </div>
+              <p className="testimonial-text">
+                "The WhatsApp feature is a game changer. My customers love getting instant receipts,
+                and I never have to chase payments anymore."
+              </p>
+              <div className="testimonial-author">
+                <div className="author-avatar">A</div>
+                <div className="author-info">
+                  <div className="author-name">Adebayo M.</div>
+                  <div className="author-role">Phone Store, Abuja</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="testimonial-card">
+              <div className="testimonial-rating">
+                {'⭐'.repeat(5)}
+              </div>
+              <p className="testimonial-text">
+                "I was using pen and paper before Storehouse. Now I can see my daily sales,
+                best sellers, and profit margins instantly. This is the future!"
+              </p>
+              <div className="testimonial-author">
+                <div className="author-avatar">F</div>
+                <div className="author-info">
+                  <div className="author-name">Funke A.</div>
+                  <div className="author-role">Supermarket, Port Harcourt</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="testimonial-card">
+              <div className="testimonial-rating">
+                {'⭐'.repeat(5)}
+              </div>
+              <p className="testimonial-text">
+                "Best investment for my pharmacy. The expiry date tracking alone has saved me
+                from losses. Customer support is also excellent!"
+              </p>
+              <div className="testimonial-author">
+                <div className="author-avatar">E</div>
+                <div className="author-info">
+                  <div className="author-name">Emmanuel I.</div>
+                  <div className="author-role">Pharmacy, Enugu</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="testimonial-card">
+              <div className="testimonial-rating">
+                {'⭐'.repeat(5)}
+              </div>
+              <p className="testimonial-text">
+                "Works perfectly offline! Even when NEPA takes light and my internet is down,
+                I can still run my business. Absolutely brilliant."
+              </p>
+              <div className="testimonial-author">
+                <div className="author-avatar">O</div>
+                <div className="author-info">
+                  <div className="author-name">Oluwaseun T.</div>
+                  <div className="author-role">Electronics Store, Ibadan</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="testimonial-card">
+              <div className="testimonial-rating">
+                {'⭐'.repeat(5)}
+              </div>
+              <p className="testimonial-text">
+                "My staff can now record sales on their phones. The reports show me everything
+                at a glance. I wish I found this years ago!"
+              </p>
+              <div className="testimonial-author">
+                <div className="author-avatar">N</div>
+                <div className="author-info">
+                  <div className="author-name">Ngozi P.</div>
+                  <div className="author-role">Cosmetics Store, Lagos</div>
+                </div>
               </div>
             </div>
           </div>
@@ -976,117 +1070,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="testimonials-section">
-        <div className="section-container">
-          <h2 className="section-title">Loved by Business Owners Across Nigeria</h2>
-
-          <div className="testimonials-grid">
-            <div className="testimonial-card">
-              <div className="testimonial-rating">
-                {'⭐'.repeat(5)}
-              </div>
-              <p className="testimonial-text">
-                "My customers love how fast my online store loads! They say it's smoother than
-                the big platforms. I'm getting more sales because people don't wait forever for pictures to load."
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">C</div>
-                <div className="author-info">
-                  <div className="author-name">Chioma O.</div>
-                  <div className="author-role">Fashion Store, Lekki, Lagos</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-rating">
-                {'⭐'.repeat(5)}
-              </div>
-              <p className="testimonial-text">
-                "The WhatsApp feature is a game changer. My customers love getting instant receipts,
-                and I never have to chase payments anymore."
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">A</div>
-                <div className="author-info">
-                  <div className="author-name">Adebayo M.</div>
-                  <div className="author-role">Phone Store, Abuja</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-rating">
-                {'⭐'.repeat(5)}
-              </div>
-              <p className="testimonial-text">
-                "I was using pen and paper before Storehouse. Now I can see my daily sales,
-                best sellers, and profit margins instantly. This is the future!"
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">F</div>
-                <div className="author-info">
-                  <div className="author-name">Funke A.</div>
-                  <div className="author-role">Supermarket, Port Harcourt</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-rating">
-                {'⭐'.repeat(5)}
-              </div>
-              <p className="testimonial-text">
-                "Best investment for my pharmacy. The expiry date tracking alone has saved me
-                from losses. Customer support is also excellent!"
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">E</div>
-                <div className="author-info">
-                  <div className="author-name">Emmanuel I.</div>
-                  <div className="author-role">Pharmacy, Enugu</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-rating">
-                {'⭐'.repeat(5)}
-              </div>
-              <p className="testimonial-text">
-                "Works perfectly offline! Even when NEPA takes light and my internet is down,
-                I can still run my business. Absolutely brilliant."
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">O</div>
-                <div className="author-info">
-                  <div className="author-name">Oluwaseun T.</div>
-                  <div className="author-role">Electronics Store, Ibadan</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-rating">
-                {'⭐'.repeat(5)}
-              </div>
-              <p className="testimonial-text">
-                "My staff can now record sales on their phones. The reports show me everything
-                at a glance. I wish I found this years ago!"
-              </p>
-              <div className="testimonial-author">
-                <div className="author-avatar">N</div>
-                <div className="author-info">
-                  <div className="author-name">Ngozi P.</div>
-                  <div className="author-role">Cosmetics Store, Lagos</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* FAQ Section */}
       <section id="faq" className="faq-section">
         <div className="section-container">
@@ -1157,6 +1140,93 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Affiliate Program CTA */}
+      <section style={{
+        padding: '80px 20px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        textAlign: 'center'
+      }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          <h2 style={{ fontSize: '42px', fontWeight: 700, marginBottom: '16px' }}>
+            💰 Earn 30% Commission as an Affiliate
+          </h2>
+          <p style={{ fontSize: '20px', marginBottom: '32px', opacity: 0.95 }}>
+            Refer businesses to Storehouse and earn recurring commission on every paid subscription
+          </p>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '24px',
+            marginBottom: '40px'
+          }}>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: '12px',
+              padding: '24px',
+              backdropFilter: 'blur(10px)'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>30%</div>
+              <div style={{ fontSize: '16px', fontWeight: 600 }}>Commission Rate</div>
+              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>On all paid plans</div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: '12px',
+              padding: '24px',
+              backdropFilter: 'blur(10px)'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>2</div>
+              <div style={{ fontSize: '16px', fontWeight: 600 }}>Conversions to Unlock</div>
+              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>Low barrier to start</div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: '12px',
+              padding: '24px',
+              backdropFilter: 'blur(10px)'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>Weekly</div>
+              <div style={{ fontSize: '16px', fontWeight: 600 }}>Payouts</div>
+              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>Every Monday</div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/affiliate/signup')}
+            style={{
+              background: 'white',
+              color: '#667eea',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '18px 48px',
+              fontSize: '18px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.2)';
+            }}
+          >
+            Become an Affiliate Partner →
+          </button>
+
+          <p style={{ marginTop: '24px', fontSize: '14px', opacity: 0.85 }}>
+            Perfect for influencers, business coaches, consultants, and community leaders
+          </p>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="final-cta-section">
         <div className="cta-container">
@@ -1173,7 +1243,7 @@ export default function LandingPage() {
             </button>
 
             <a
-              href="https://wa.me/2348000000000?text=Hi!%20I%27m%20interested%20in%20Storehouse"
+              href="https://wa.me/447345014588?text=Hi!%20I%27m%20interested%20in%20Storehouse"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-whatsapp btn-xl"
@@ -1202,6 +1272,55 @@ export default function LandingPage() {
                 <span>Storehouse</span>
               </div>
               <p>Modern inventory and sales management for Nigerian businesses.</p>
+
+              {/* Social Media Links */}
+              <div className="footer-social">
+                <a
+                  href="https://www.facebook.com/profile.php?id=61585403256327"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-link"
+                  aria-label="Follow us on Facebook"
+                >
+                  <Facebook size={20} />
+                </a>
+                <a
+                  href="https://instagram.com/storehouseappng"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-link"
+                  aria-label="Follow us on Instagram"
+                >
+                  <Instagram size={20} />
+                </a>
+                <a
+                  href="https://twitter.com/StorehouseappNg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-link"
+                  aria-label="Follow us on Twitter"
+                >
+                  <Twitter size={20} />
+                </a>
+                <a
+                  href="https://tiktok.com/@storehouseng"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-link"
+                  aria-label="Follow us on TikTok"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                  </svg>
+                </a>
+                <a
+                  href="mailto:storehouseapp@outlook.com"
+                  className="social-link"
+                  aria-label="Email us"
+                >
+                  <Mail size={20} />
+                </a>
+              </div>
             </div>
 
             <div className="footer-col">
@@ -1213,24 +1332,44 @@ export default function LandingPage() {
 
             <div className="footer-col">
               <h4>Company</h4>
-              <a href="#">About Us</a>
-              <a href="#">Blog</a>
-              <a onClick={() => scrollToSection('testimonials')}>Reviews</a>
-              <a onClick={() => navigate('/submit-testimonial')}>Share Your Story</a>
+              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>About Us</a>
+              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Blog</a>
+              <a onClick={() => scrollToSection('testimonials')} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Reviews</a>
+              <a onClick={() => navigate('/submit-testimonial')} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Share Your Story</a>
+              <a onClick={() => navigate('/affiliate/signup')} style={{ pointerEvents: 'auto', cursor: 'pointer', fontWeight: 600, color: '#667eea' }}>
+                💰 Become an Affiliate
+              </a>
             </div>
 
             <div className="footer-col">
               <h4>Support</h4>
-              <a href="https://wa.me/2348000000000" target="_blank" rel="noopener noreferrer">WhatsApp</a>
-              <a href="mailto:support@storehouse.ng">Email</a>
-              <a onClick={() => scrollToSection('faq')}>FAQ</a>
+              <a
+                href="https://wa.me/447345014588?text=Hi!%20I%20need%20support%20with%20Storehouse"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+              >
+                WhatsApp
+              </a>
+              <a
+                href="mailto:storehouseapp@outlook.com"
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+              >
+                Email
+              </a>
+              <a
+                onClick={() => scrollToSection('faq')}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+              >
+                FAQ
+              </a>
             </div>
 
             <div className="footer-col">
               <h4>Legal</h4>
-              <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Service</a>
-              <a href="#">Refund Policy</a>
+              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Privacy Policy</a>
+              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Terms of Service</a>
+              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Refund Policy</a>
             </div>
           </div>
 
@@ -1240,8 +1379,8 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Documentation-Only Chat Widget for Visitors */}
-      <AIChatWidget contextType="help" />
+      {/* FAQ-Only Chat Widget for Visitors (No AI Cost!) */}
+      <AIChatWidget />
     </div>
   );
 }

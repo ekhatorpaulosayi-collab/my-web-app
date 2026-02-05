@@ -70,17 +70,49 @@ export default function ShareStoreCard({ onOpenSettings }) {
 
   // Share on WhatsApp
   const shareStoreOnWhatsApp = () => {
-    const message = encodeURIComponent(
-      `Hi! 👋\n\n` +
-      `Check out ${storeName}:\n` +
-      `${storeUrl}\n\n` +
-      `Browse all my products and pay securely with your card! 🛍️💳`
-    );
+    const message = `🏪 *${storeName}*\n\n` +
+      `🛍️ Browse all my products!\n\n` +
+      `✨ Easy ordering via WhatsApp\n` +
+      `💳 Pay with card or bank transfer\n` +
+      `📦 Fast delivery across Nigeria\n\n` +
+      `👉 Visit store: ${storeUrl}\n\n` +
+      `🔥 Start shopping now!`;
 
-    // This works on both mobile (opens WhatsApp app) and desktop (opens WhatsApp Web)
-    const whatsappUrl = `https://wa.me/?text=${message}`;
+    const fullMessage = message + '\n\n' + storeUrl;
 
-    window.open(whatsappUrl, '_blank');
+    // Encode message for WhatsApp URL
+    const encodedMessage = encodeURIComponent(fullMessage);
+    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+
+    // Try to open WhatsApp
+    const whatsappWindow = window.open(whatsappUrl, '_blank');
+
+    // Fallback: If popup blocked or WhatsApp not available, copy to clipboard
+    setTimeout(() => {
+      if (!whatsappWindow || whatsappWindow.closed || typeof whatsappWindow.closed === 'undefined') {
+        // WhatsApp failed to open - fallback to clipboard
+        navigator.clipboard.writeText(fullMessage).then(() => {
+          alert(
+            '✅ Message copied to clipboard!\n\n' +
+            'Now open WhatsApp and paste it to share with your contacts.'
+          );
+        }).catch(() => {
+          // Old browser fallback
+          const textArea = document.createElement('textarea');
+          textArea.value = fullMessage;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          alert(
+            '✅ Message copied!\n\n' +
+            'Now open WhatsApp and paste it to share with your contacts.'
+          );
+        });
+      }
+    }, 1000);
   };
 
   // Truncate URL for display if too long

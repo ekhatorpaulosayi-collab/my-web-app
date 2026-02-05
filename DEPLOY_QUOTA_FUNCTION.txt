@@ -1,0 +1,134 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 MANUAL DEPLOYMENT: QUOTA CHECK FUNCTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: Go to Supabase SQL Editor
+👉 https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new
+
+STEP 2: Copy ALL the SQL below (from DROP FUNCTION to the end)
+
+STEP 3: Paste into the SQL editor and click "Run"
+
+STEP 4: You should see "Success. No rows returned"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 SQL TO COPY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+-- Drop existing function if it exists
+DROP FUNCTION IF EXISTS check_chat_quota(UUID, TEXT);
+DROP FUNCTION IF EXISTS check_chat_quota(UUID);
+
+CREATE OR REPLACE FUNCTION check_chat_quota(
+  p_user_id UUID,
+  p_context_type TEXT DEFAULT 'help'
+)
+RETURNS TABLE (
+  allowed BOOLEAN,
+  chats_used INTEGER,
+  chat_limit INTEGER,
+  remaining INTEGER,
+  message TEXT,
+  is_grandfathered BOOLEAN
+) AS $$
+DECLARE
+  v_subscription RECORD;
+  v_tier RECORD;
+  v_chat_count INTEGER;
+BEGIN
+  -- Get user's subscription
+  SELECT
+    us.*,
+    st.max_ai_chats_monthly,
+    st.name as tier_name
+  INTO v_subscription
+  FROM user_subscriptions us
+  JOIN subscription_tiers st ON us.tier_id = st.id
+  WHERE us.user_id = p_user_id
+  LIMIT 1;
+
+  -- If no subscription found, deny
+  IF v_subscription IS NULL THEN
+    RETURN QUERY SELECT
+      false::boolean AS allowed,
+      0::integer AS chats_used,
+      0::integer AS chat_limit,
+      0::integer AS remaining,
+      'No subscription found. Please contact support.'::text AS message,
+      false::boolean AS is_grandfathered;
+    RETURN;
+  END IF;
+
+  -- GRANDFATHERED USERS (Beta testers) - UNLIMITED!
+  IF v_subscription.grandfathered = true THEN
+    SELECT COUNT(*) INTO v_chat_count
+    FROM ai_chat_messages acm
+    JOIN ai_chat_conversations acc ON acm.conversation_id = acc.id
+    WHERE acc.user_id = p_user_id
+      AND acm.created_at >= date_trunc('month', NOW());
+
+    RETURN QUERY SELECT
+      true::boolean AS allowed,
+      v_chat_count::integer AS chats_used,
+      -1::integer AS chat_limit,
+      999999::integer AS remaining,
+      '🎉 Beta Tester - Unlimited AI Chats Forever!'::text AS message,
+      true::boolean AS is_grandfathered;
+    RETURN;
+  END IF;
+
+  -- Count chats this month
+  SELECT COUNT(*) INTO v_chat_count
+  FROM ai_chat_messages acm
+  JOIN ai_chat_conversations acc ON acm.conversation_id = acc.id
+  WHERE acc.user_id = p_user_id
+    AND acm.created_at >= date_trunc('month', NOW())
+    AND acm.role = 'user';
+
+  -- Check if tier has unlimited (-1)
+  IF v_subscription.max_ai_chats_monthly = -1 THEN
+    RETURN QUERY SELECT
+      true::boolean AS allowed,
+      v_chat_count::integer AS chats_used,
+      -1::integer AS chat_limit,
+      999999::integer AS remaining,
+      'Unlimited AI chats included!'::text AS message,
+      false::boolean AS is_grandfathered;
+    RETURN;
+  END IF;
+
+  -- Check if under limit
+  IF v_chat_count < v_subscription.max_ai_chats_monthly THEN
+    RETURN QUERY SELECT
+      true::boolean AS allowed,
+      v_chat_count::integer AS chats_used,
+      v_subscription.max_ai_chats_monthly::integer AS chat_limit,
+      (v_subscription.max_ai_chats_monthly - v_chat_count)::integer AS remaining,
+      ''::text AS message,
+      false::boolean AS is_grandfathered;
+  ELSE
+    -- Limit exceeded
+    RETURN QUERY SELECT
+      false::boolean AS allowed,
+      v_chat_count::integer AS chats_used,
+      v_subscription.max_ai_chats_monthly::integer AS chat_limit,
+      0::integer AS remaining,
+      format('You''ve used all %s AI chats this month. Upgrade to get more! ✨',
+        v_subscription.max_ai_chats_monthly)::text AS message,
+      false::boolean AS is_grandfathered;
+  END IF;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION check_chat_quota(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION check_chat_quota(UUID, TEXT) TO service_role;
+
+COMMENT ON FUNCTION check_chat_quota IS 'Checks if user can send more AI chats. Beta users get unlimited.';
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ AFTER RUNNING: Let me know and I'll proceed with enabling enforcement!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

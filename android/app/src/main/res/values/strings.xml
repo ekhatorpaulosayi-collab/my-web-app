@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Storehouse</string>
+    <string name="title_activity_main">Storehouse</string>
+    <string name="package_name">com.storehouse.app</string>
+    <string name="custom_url_scheme">com.storehouse.app</string>
+</resources>

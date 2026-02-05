@@ -20,17 +20,272 @@ interface StoreInfo {
 interface ChatRequest {
   message: string;
   sessionId?: string;
-  contextType?: 'onboarding' | 'help' | 'storefront';
+  contextType?: 'onboarding' | 'help' | 'storefront' | 'business-advisory';
   storeSlug?: string; // For storefront widget
   storeInfo?: StoreInfo; // Store details for AI context
   userType?: 'visitor' | 'shopper' | 'user'; // NEW: User type for better prompts
   appContext?: any; // NEW: User's app state (products, sales, etc.)
   relevantDocs?: any[]; // NEW: Documentation search results (RAG)
+  conversationHistory?: Array<{ role: string; content: string }>; // Track conversation
+}
+
+// Conversation state tracking (in-memory for visitors)
+interface ConversationState {
+  messageCount: number;
+  matchedCategories: string[];
+  intentScores: {
+    buying: number;
+    technical: number;
+    skeptical: number;
+  };
+  averageConfidence: number;
+  hasSeenCTA: boolean;
+}
+
+// In-memory storage for visitor conversation states (resets on function restart)
+const visitorStates = new Map<string, ConversationState>();
+
+//=============================================================================
+// ANALYTICS & RATE LIMITING
+//=============================================================================
+
+async function trackChatEvent(
+  supabase: any,
+  eventType: string,
+  userType: string,
+  visitorIp: string | null,
+  sessionId: string,
+  userId: string | null,
+  contextType: string,
+  messageCount: number = 0,
+  metadata: any = {}
+) {
+  try {
+    await supabase.from('chat_analytics').insert({
+      event_type: eventType,
+      user_type: userType,
+      visitor_ip: visitorIp,
+      session_id: sessionId,
+      user_id: userId,
+      context_type: contextType,
+      message_count: messageCount,
+      metadata
+    });
+  } catch (error) {
+    console.error('[trackChatEvent] Error:', error);
+    // Don't fail the request if analytics fails
+  }
+}
+
+async function checkAndIncrementRateLimit(
+  supabase: any,
+  visitorIp: string,
+  limit: number = 7
+): Promise<{ allowed: boolean; count: number }> {
+  try {
+    // Get or create rate limit entry
+    const { data: existing } = await supabase
+      .from('chat_rate_limits')
+      .select('*')
+      .eq('visitor_ip', visitorIp)
+      .single();
+
+    const now = new Date();
+    let count = 1;
+
+    if (existing) {
+      const lastReset = new Date(existing.last_reset);
+      const hoursSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60);
+
+      // Reset after 24 hours
+      if (hoursSinceReset >= 24) {
+        await supabase
+          .from('chat_rate_limits')
+          .update({ chat_count: 1, last_reset: now.toISOString() })
+          .eq('visitor_ip', visitorIp);
+        count = 1;
+      } else {
+        count = existing.chat_count + 1;
+        await supabase
+          .from('chat_rate_limits')
+          .update({ chat_count: count })
+          .eq('visitor_ip', visitorIp);
+      }
+    } else {
+      // Create new entry
+      await supabase
+        .from('chat_rate_limits')
+        .insert({ visitor_ip: visitorIp, chat_count: 1, last_reset: now.toISOString() });
+      count = 1;
+    }
+
+    return { allowed: count <= limit, count };
+  } catch (error) {
+    console.error('[checkRateLimit] Error:', error);
+    // On error, allow the request
+    return { allowed: true, count: 0 };
+  }
+}
+
+function getConversationState(sessionId: string): ConversationState {
+  if (!visitorStates.has(sessionId)) {
+    visitorStates.set(sessionId, {
+      messageCount: 0,
+      matchedCategories: [],
+      intentScores: { buying: 0, technical: 0, skeptical: 0 },
+      averageConfidence: 0,
+      hasSeenCTA: false
+    });
+  }
+  return visitorStates.get(sessionId)!;
 }
 
 // ============================================================================
 // SAFEGUARD FUNCTIONS - Prevent off-topic & malicious use
 // ============================================================================
+
+/**
+ * PHASE 1: Sanitize storefront messages to prevent prompt injection
+ * Cleans user input before passing to AI
+ */
+function sanitizeStorefrontMessage(message: string): string {
+  let cleaned = message
+    // Remove role-play attempts
+    .replace(/you are (now )?a|act as a|pretend to be/gi, '[removed]')
+    // Remove data source manipulation attempts
+    .replace(/data source|ignore (the )?(above|previous|all)/gi, '[removed]')
+    // Remove instruction overrides
+    .replace(/new instructions?:|system:|assistant:|user:/gi, '[removed]')
+    // Remove JSON injection attempts
+    .replace(/```json|{[\s\S]*"role"[\s\S]*}/gi, '[removed]')
+    // Remove script tags and suspicious patterns
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    .replace(/javascript:/gi, '');
+
+  // Truncate to reasonable length (prevent token stuffing)
+  return cleaned.substring(0, 500).trim();
+}
+
+/**
+ * PHASE 1: Validate storefront AI responses to prevent hallucinations
+ * Checks if AI response is grounded in provided data
+ */
+function validateStorefrontResponse(
+  response: string,
+  originalQuestion: string,
+  availableProducts: any[],
+  storeInfo?: any
+): { valid: boolean; reason?: string; fixedResponse?: string } {
+
+  const responseLower = response.toLowerCase();
+
+  // 1. Check for price hallucination
+  const priceMatches = response.match(/₦([\d,]+)/g);
+  if (priceMatches) {
+    for (const match of priceMatches) {
+      const priceStr = match.replace(/[₦,]/g, '');
+      const price = parseInt(priceStr);
+
+      // Allow small rounding (₦999 vs ₦1,000)
+      const foundInProducts = availableProducts.some(p => {
+        const productPrice = Math.floor(p.selling_price / 100);
+        return Math.abs(productPrice - price) < 50; // Within ₦50 tolerance
+      });
+
+      if (!foundInProducts && price > 100) { // Ignore very small prices (might be generic amounts)
+        console.warn('[PHASE1-Validation] AI mentioned unverified price:', price);
+        return {
+          valid: false,
+          reason: 'price_hallucination',
+          fixedResponse: `I want to give you accurate pricing. Please WhatsApp ${storeInfo?.whatsappNumber || 'the store'} to confirm current prices! 📱`
+        };
+      }
+    }
+  }
+
+  // 2. Check for policy/delivery hallucination (only if mentioned specifically)
+  const hasPolicyDetails = /\d+.?day|money.?back|warranty|guarantee/.test(responseLower);
+  if (hasPolicyDetails && !storeInfo?.returnPolicy) {
+    // AI mentioned specific policy terms but store has none defined
+    console.warn('[PHASE1-Validation] AI mentioned specific policy but none defined');
+    return {
+      valid: false,
+      reason: 'policy_hallucination',
+      fixedResponse: `For warranty and return details, please WhatsApp ${storeInfo?.whatsappNumber || 'the store'} to confirm our policy! 📱`
+    };
+  }
+
+  // 3. Check for specific delivery promises
+  const hasDeliveryPromise = /deliver (in|within) \d+|same.?day delivery|next.?day delivery/.test(responseLower);
+  if (hasDeliveryPromise && !storeInfo?.deliveryTime) {
+    console.warn('[PHASE1-Validation] AI made delivery time promise but none defined');
+    return {
+      valid: false,
+      reason: 'delivery_hallucination',
+      fixedResponse: `For delivery timeline to your area, WhatsApp ${storeInfo?.whatsappNumber || 'the store'} to confirm! 📱`
+    };
+  }
+
+  // 4. Check for competitor mentions (security risk)
+  const competitorKeywords = ['shopify', 'jumia', 'konga', 'amazon', 'aliexpress', 'jiji'];
+  if (competitorKeywords.some(kw => responseLower.includes(kw))) {
+    console.warn('[PHASE1-Validation] AI mentioned competitor');
+    return {
+      valid: false,
+      reason: 'competitor_mention',
+      fixedResponse: `I can only help you shop here! What product are you interested in? 😊`
+    };
+  }
+
+  // 5. Check for Storehouse business info leakage
+  const storehouseLeakage = /storehouse (price|cost|subscription|plan|tier)/i.test(response);
+  if (storehouseLeakage) {
+    console.warn('[PHASE1-Validation] AI leaked Storehouse business info');
+    return {
+      valid: false,
+      reason: 'info_leakage',
+      fixedResponse: `I'm here to help you find products! What are you looking for today? 😊`
+    };
+  }
+
+  // 6. PHASE 2A: Check for specification hallucination
+  // Detect if AI mentioned specific specs (battery, screen, camera, etc.)
+  const specKeywords = [
+    { pattern: /battery.*?(\d+\s*(mah|hours|h))/i, field: 'battery_life' },
+    { pattern: /screen.*?(\d+\.?\d*\s*(inch|"|cm))/i, field: 'screen_size' },
+    { pattern: /camera.*?(\d+\s*mp)/i, field: 'camera' },
+    { pattern: /ram.*?(\d+\s*gb)/i, field: 'ram' },
+    { pattern: /storage.*?(\d+\s*(gb|tb))/i, field: 'storage' },
+    { pattern: /processor.*?(snapdragon|a\d+|intel|amd|mediatek)/i, field: 'processor' }
+  ];
+
+  for (const { pattern, field } of specKeywords) {
+    const match = response.match(pattern);
+    if (match) {
+      // AI mentioned a specific spec value - verify it's in specifications
+      const mentionedValue = match[1].toLowerCase().replace(/\s+/g, '');
+
+      // Check if ANY product has this spec filled with similar value
+      const hasSpecInProducts = availableProducts.some(p => {
+        const spec = p.specifications?.[field];
+        if (!spec) return false;
+        const specValue = String(spec).toLowerCase().replace(/\s+/g, '');
+        return specValue.includes(mentionedValue) || mentionedValue.includes(specValue);
+      });
+
+      if (!hasSpecInProducts) {
+        console.warn(`[PHASE2A-Validation] AI mentioned ${field} spec not in data:`, match[1]);
+        return {
+          valid: false,
+          reason: 'specification_hallucination',
+          fixedResponse: `For detailed specifications, please WhatsApp ${storeInfo?.whatsappNumber || 'the store'} to confirm! 📱`
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+}
 
 /**
  * Detect off-topic questions BEFORE calling expensive OpenAI API
@@ -100,6 +355,52 @@ function isJailbreakAttempt(message: string): boolean {
   ];
 
   return jailbreakPatterns.some(pattern => pattern.test(message));
+}
+
+/**
+ * Validate business advisory responses for dangerous advice
+ * Prevents legal/financial/medical advice that could cause liability
+ */
+function validateBusinessAdvice(response: string): { valid: boolean; reason?: string } {
+  const responseLower = response.toLowerCase();
+
+  // 🚨 CRITICAL: Block dangerous advice patterns
+  const dangerousPatterns = [
+    // Financial guarantees
+    { pattern: /you will (definitely|surely|certainly|100%) (make|earn|get) ₦?\d+/i, reason: 'financial_guarantee' },
+    { pattern: /(guaranteed|promise) to (make|earn|increase).*(profit|revenue|sales)/i, reason: 'revenue_promise' },
+
+    // Tax/Legal advice
+    { pattern: /tax (deduction|filing|return|exemption|relief)/i, reason: 'tax_advice' },
+    { pattern: /legal(ly)? (required|mandatory|must|obligated) to/i, reason: 'legal_requirement' },
+    { pattern: /(file|register) your business with CAC/i, reason: 'legal_procedure' },
+    { pattern: /avoid paying tax|tax evasion|hide income/i, reason: 'illegal_advice' },
+
+    // Medical/Health claims
+    { pattern: /(cure|treat|heal|remedy|prevent) (disease|illness|condition)/i, reason: 'medical_claim' },
+    { pattern: /FDA|NAFDAC approved|medically proven/i, reason: 'regulatory_claim' },
+
+    // Dangerous business practices
+    { pattern: /(fake|counterfeit|replica) product/i, reason: 'illegal_activity' },
+    { pattern: /bribe|kickback|under.?table payment/i, reason: 'corruption' },
+    { pattern: /pyramid scheme|ponzi|get.?rich.?quick/i, reason: 'scam_promotion' },
+
+    // Regulatory/Compliance
+    { pattern: /contact (NAFDAC|SON|FIRS|CAC|CBN)/i, reason: 'regulatory_instruction' },
+    { pattern: /(bypass|avoid|skip) (regulation|compliance|requirement)/i, reason: 'compliance_violation' },
+  ];
+
+  for (const { pattern, reason } of dangerousPatterns) {
+    if (pattern.test(responseLower)) {
+      console.warn('[Business Advisory] Dangerous advice blocked:', {
+        reason,
+        snippet: response.substring(0, 100)
+      });
+      return { valid: false, reason };
+    }
+  }
+
+  return { valid: true };
 }
 
 /**
@@ -196,11 +497,13 @@ serve(async (req) => {
   }
 
   try {
+    console.log('[ai-chat] Request received');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Get user from auth header
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
+    console.log('[ai-chat] Auth header present:', !!authHeader, 'Token length:', token?.length || 0);
 
     let userId: string | null = null;
     let ipAddress = req.headers.get('x-forwarded-for') || 'unknown';
@@ -210,10 +513,12 @@ serve(async (req) => {
       if (!error && user) {
         userId = user.id;
       }
+      console.log('[ai-chat] Auth check:', { hasUser: !!user, error: error?.message });
     }
 
     // Parse request
     const body: ChatRequest = await req.json();
+    console.log('[ai-chat] Request body:', { message: body.message, userType: body.userType, contextType: body.contextType });
     const {
       message,
       sessionId = 'default',
@@ -224,6 +529,50 @@ serve(async (req) => {
       appContext = {},     // NEW: User's app state
       relevantDocs = []    // NEW: Documentation search results (RAG)
     } = body;
+
+    // ENHANCED: IP-based rate limiting for visitors
+    if (userType === 'visitor' && !userId) {
+      console.log('[ai-chat] Visitor detected, checking IP-based rate limit');
+
+      // Track analytics - chat started
+      await trackChatEvent(
+        supabase,
+        'chat_message',
+        userType,
+        ipAddress,
+        sessionId,
+        null,
+        contextType,
+        0,
+        { message_preview: message.substring(0, 50) }
+      );
+
+      // Check rate limit (7 chats per IP per 24 hours)
+      const rateLimit = await checkAndIncrementRateLimit(supabase, ipAddress, 7);
+
+      console.log('[ai-chat] Rate limit check:', rateLimit);
+
+      if (!rateLimit.allowed) {
+        // Track limit reached
+        await trackChatEvent(
+          supabase,
+          'limit_reached',
+          userType,
+          ipAddress,
+          sessionId,
+          null,
+          contextType,
+          rateLimit.count,
+          {}
+        );
+
+        return jsonResponse({
+          response: `🎉 **You've used your 7 free AI chats for today!**\n\nYou're clearly interested in Storehouse - that's awesome!\n\n---\n\n## Ready to unlock unlimited help?\n\n**✨ Create your FREE account** (no credit card needed):\n**[Start Free - Setup in 3 Minutes →](https://www.storehouse.ng/signup)**\n\n**📧 Still have questions?**\nEmail us: **support@storehouse.ng**\nWe respond within 2 hours!\n\n**💬 Prefer to chat?**\nWhatsApp: **+234-XXX-XXX-XXXX**\n\nYour limit resets in 24 hours!`,
+          limited: true,
+          count: rateLimit.count,
+        });
+      }
+    }
 
     // Validation
     if (!message || message.trim().length === 0) {
@@ -261,40 +610,55 @@ serve(async (req) => {
       });
     }
 
-    // Rate limiting (10 messages per hour per IP)
-    const rateLimitIdentifier = userId || ipAddress;
-    const { data: rateLimitOk } = await supabase.rpc('check_rate_limit', {
-      p_identifier: rateLimitIdentifier,
-      p_max_per_hour: userId ? 20 : 10, // Higher limit for logged-in users
-    });
-
-    if (!rateLimitOk) {
-      return jsonResponse({
-        error: 'Too many messages. Please try again in 1 hour.',
-        retryAfter: 3600,
-      }, 429);
-    }
-
-    // Check chat quota (for logged-in users ONLY, skip for landing page visitors)
-    let quotaInfo = null;
-    // TEMPORARY FIX: Quota check disabled until check_chat_quota function is created
-    /* if (userId && userType !== 'visitor') {
-      const { data: quota } = await supabase.rpc('check_chat_quota', {
-        p_user_id: userId,
-        p_context_type: contextType, // Pass context type for quota tracking
+    // Rate limiting - TEMPORARY DISABLED until check_rate_limit function is created
+    // UNLIMITED for authenticated users (business owners)
+    // Only apply rate limiting to unauthenticated users (shoppers/visitors)
+    /* if (!userId) {
+      const rateLimitIdentifier = ipAddress;
+      const { data: rateLimitOk } = await supabase.rpc('check_rate_limit', {
+        p_identifier: rateLimitIdentifier,
+        p_max_per_hour: 15, // 15 messages per hour for unauthenticated users
       });
 
-      quotaInfo = quota;
-
-      if (!quota?.allowed) {
+      if (!rateLimitOk) {
         return jsonResponse({
-          error: quota?.message || 'Chat limit exceeded',
-          chatsUsed: quota?.chats_used,
-          chatLimit: quota?.chat_limit,
-          upgradeRequired: true,
+          error: 'Too many messages. Please try again in 1 hour.',
+          retryAfter: 3600,
         }, 429);
       }
     } */
+    // Authenticated users (business owners) have unlimited access
+
+    // Check chat quota (for logged-in users ONLY, skip for landing page visitors)
+    let quotaInfo = null;
+    // ✅ QUOTA CHECK ENABLED (Phase 2 - Dec 30, 2024)
+    // Beta users (grandfathered) get unlimited, new users get tier limits
+    if (userId && userType !== 'visitor') {
+      const { data: quota, error: quotaError } = await supabase.rpc('check_chat_quota', {
+        p_user_id: userId,
+        p_context_type: contextType, // Pass context type for quota tracking
+      }).single();
+
+      if (quotaError) {
+        console.error('[ai-chat] Quota check error:', quotaError);
+        // On error, allow the chat (fail open, not closed)
+        quotaInfo = null;
+      } else {
+        quotaInfo = quota;
+
+        // Block if not allowed (limit exceeded)
+        if (!quota?.allowed) {
+          return jsonResponse({
+            error: quota?.message || 'Chat limit exceeded',
+            chatsUsed: quota?.chats_used,
+            chatLimit: quota?.chat_limit,
+            remaining: quota?.remaining || 0,
+            isGrandfathered: quota?.is_grandfathered || false,
+            upgradeRequired: !quota?.is_grandfathered, // Don't prompt beta users to upgrade
+          }, 429);
+        }
+      }
+    }
 
     // Get user context (for personalization)
     let userContext: any = {};
@@ -343,13 +707,14 @@ serve(async (req) => {
         content: message,
       });
 
-      // Get conversation history (last 10 messages)
+      // Get conversation history (last 6 messages = 3 exchanges)
+      // PHASE 2: Reduced from 10 to 6 to prevent context confusion from old topics
       const { data: hist } = await supabase
         .from('ai_chat_messages')
         .select('role, content')
         .eq('conversation_id', conversation.id)
         .order('created_at', { ascending: true })
-        .limit(10);
+        .limit(6);
 
       history = hist || [];
     }
@@ -359,11 +724,20 @@ serve(async (req) => {
     let aiResponse: string;
     let confidence: number;
 
+    console.log('[ai-chat] Processing message for userType:', userType);
+
     if (userType === 'visitor') {
-      // Smart FAQ matching - no API calls, instant responses, zero cost
-      const faqResponse = handleVisitorFAQ(message);
+      // ENHANCED: Smart FAQ with intent tracking - no API calls, zero cost
+      console.log('[ai-chat] Using enhanced FAQ for visitor');
+      const conversationState = getConversationState(sessionId);
+      const faqResponse = handleVisitorFAQ(message, conversationState);
       aiResponse = faqResponse.response;
       confidence = faqResponse.confidence;
+      console.log('[ai-chat] Enhanced FAQ response generated:', {
+        confidence,
+        messageCount: conversationState.messageCount,
+        intentScores: conversationState.intentScores
+      });
     } else {
       // Use AI for authenticated users
       const aiResult = await generateAIResponse(
@@ -392,6 +766,24 @@ serve(async (req) => {
       confidence = 0.3; // Low confidence for fallback
     }
 
+    // SAFEGUARD 4: Validate business advisory responses for dangerous advice
+    if (contextType === 'business-advisory') {
+      const adviceValidation = validateBusinessAdvice(aiResponse);
+      if (!adviceValidation.valid) {
+        await logAbuseAttempt(supabase, userId, ipAddress, 'dangerous_business_advice', message);
+        console.error('[Business Advisory] Dangerous advice blocked:', {
+          reason: adviceValidation.reason,
+          userId,
+          userMessage: message,
+          aiResponse: aiResponse.substring(0, 100),
+        });
+
+        // Override with safe fallback response
+        aiResponse = `I can't provide advice on ${adviceValidation.reason?.replace(/_/g, ' ')}. \n\nFor that, please consult:\n• 📊 Tax matters → Certified accountant\n• ⚖️ Legal matters → Business lawyer\n• 🏥 Health products → NAFDAC/regulatory bodies\n\nI can help with:\n• Pricing strategies\n• Marketing tactics (WhatsApp, Instagram)\n• Customer retention\n• Inventory optimization\n\nWhat would you like to know?`;
+        confidence = 0.2; // Very low confidence for blocked advice
+      }
+    }
+
     // Save AI response (only for authenticated users, not visitors)
     if (conversation) {
       await supabase.from('ai_chat_messages').insert({
@@ -405,6 +797,8 @@ serve(async (req) => {
     if (userId && userType !== 'visitor') {
       await updateUserPreferences(supabase, userId, message, userContext);
     }
+
+    console.log('[ai-chat] Returning response, length:', aiResponse?.length || 0);
 
     return jsonResponse({
       response: aiResponse,
@@ -426,14 +820,81 @@ serve(async (req) => {
   }
 });
 
+// ============================================================================
+// INTENT DETECTION & SMART ESCALATION
+// ============================================================================
+
+function detectIntent(message: string, state: ConversationState) {
+  const lower = message.toLowerCase();
+  let { buying, technical, skeptical } = state.intentScores;
+
+  // BUYING SIGNALS
+  if (/start|begin|try|sign.?up|get started|how (do i|to) (start|begin)|ready|create account/i.test(lower)) buying += 4;
+  if (/want to|i'?d like to|can i start|show me how/i.test(lower)) buying += 3;
+  if (state.matchedCategories.includes('pricing') && /feature|what (can|does)/i.test(lower)) buying += 3;
+  if (state.matchedCategories.includes('free') && state.messageCount >= 2) buying += 2;
+
+  // TECHNICAL COMPLEXITY
+  if (/api|webhook|integration|export|import|migrate|bulk/i.test(lower)) technical += 5;
+  if (/database|sql|backend|server/i.test(lower)) technical += 4;
+  if (/currently using|migrating from|switching from/i.test(lower)) technical += 3;
+
+  // SKEPTICISM
+  if (/trust|legit|scam|fake|real|honest|actually|guarantee/i.test(lower)) skeptical += 4;
+  if (/safe|secure|reliable|stable|protection/i.test(lower)) skeptical += 2;
+  if (/what if|concern|worry|afraid|unsure|doubt/i.test(lower)) skeptical += 3;
+
+  return {
+    buying: Math.min(buying, 10),
+    technical: Math.min(technical, 10),
+    skeptical: Math.min(skeptical, 10)
+  };
+}
+
+function getEscalation(state: ConversationState): string | null {
+  const { buying, technical, skeptical } = state.intentScores;
+  const { messageCount, averageConfidence, hasSeenCTA } = state;
+
+  // PATH 1: BUYING INTENT → Signup CTA
+  if (buying >= 7 && !hasSeenCTA) {
+    state.hasSeenCTA = true;
+    return `\n\n---\n\n🎉 **You're ready to transform your business!**\n\n**Setup takes just 3 minutes:**\n1️⃣ Add your first product (1 min)\n2️⃣ Record a test sale (1 min)\n3️⃣ Create your online store (1 min)\n\n**[Start Free - No Credit Card Required →](https://www.storehouse.ng/signup)**\n\n💬 Questions? Keep asking - I'm here to help!`;
+  }
+
+  // PATH 2: TECHNICAL → Email Support
+  if (technical >= 7) {
+    return `\n\n---\n\n📧 **This needs our technical team!**\n\nFor detailed help:\n→ **Email:** support@storehouse.ng\n→ **Response:** Under 2 hours\n\nDon't want to wait?\n**[Try Free Trial →](https://www.storehouse.ng/signup)**`;
+  }
+
+  // PATH 3: SKEPTICISM → Human Contact
+  if (skeptical >= 6 && messageCount >= 4) {
+    return `\n\n---\n\n🤝 **Talk to a real person?**\n\n**Real proof:**\n✅ 5,000+ Nigerian businesses use Storehouse\n✅ 99.9% uptime (bank-level infrastructure)\n✅ You own your data (export anytime)\n\n**Contact us:**\n📞 Book call: calendly.com/storehouse\n💬 WhatsApp: +234-XXX-XXX-XXXX\n📧 Email: hello@storehouse.ng\n\n**Or test risk-free:**\n**[Start Free →](https://www.storehouse.ng/signup)**`;
+  }
+
+  // PATH 4: LOST/CONFUSED
+  if (messageCount >= 8 && averageConfidence < 0.6) {
+    return `\n\n---\n\n🧭 **Let me help you find what you need!**\n\n**Most popular:**\n📺 [Watch 3-Min Demo](https://youtube.com/storehouse)\n💬 [Chat with Founder](https://wa.me/234XXXXXXXXX)\n🚀 [Just Try It Free](https://www.storehouse.ng/signup)\n\n**What sounds best?**`;
+  }
+
+  return null;
+}
+
 // FAQ-based visitor responses (no AI API cost!)
-function handleVisitorFAQ(message: string): { response: string; confidence: number } {
+function handleVisitorFAQ(message: string, state: ConversationState): { response: string; confidence: number } {
   const lowerMessage = message.toLowerCase();
 
-  // Pricing questions
-  if (lowerMessage.match(/how much|cost|price|pricing|payment|pay|fee/i)) {
-    return {
-      response: `**Start completely FREE** - 50 products, unlimited sales tracking, free online store, and 50 AI chats/month. No credit card, no time limit!
+  // Update intent scores
+  state.intentScores = detectIntent(message, state);
+
+  let category = '';
+  let response = '';
+  let confidence = 0.6;
+
+  // Pricing questions (ENHANCED with synonyms)
+  if (lowerMessage.match(/how much|cost|price|pricing|pay|fee|expensive|cheap|afford|budget|monthly|yearly|subscription/i)) {
+    category = 'pricing';
+    const variants = [
+      `**Start completely FREE** - 50 products, unlimited sales tracking, free online store, and 50 AI chats/month. No credit card, no time limit!
 
 When you outgrow the free plan:
 • **Starter**: ₦5,000/month (200 products, debt tracking, 500 AI chats)
@@ -442,9 +903,22 @@ When you outgrow the free plan:
 
 💰 Pay annually and save 20%: ₦48k, ₦96k, or ₦144k/year.
 
-Most people start free, test it for a few weeks, then upgrade when they see the value. Want to try it free right now?`,
-      confidence: 0.95
-    };
+Most people start free, test it for a few weeks, then upgrade when they see the value.`,
+
+      `Good news! **You can start with ZERO upfront cost!** 🎉
+
+**FREE FOREVER PLAN:**
+50 products • Unlimited sales • Free online store • No credit card
+
+**Paid plans (when you grow):**
+• ₦5k/month: 200 products + debt tracking
+• ₦10k/month: UNLIMITED everything + WhatsApp AI
+• ₦15k/month: Business tier + priority support
+
+Save 20% by paying annually! Most shops run perfectly on the FREE plan for months.`
+    ];
+    response = variants[Math.floor(Math.random() * variants.length)];
+    confidence = 0.95;
   }
 
   // Free plan / trial questions
@@ -598,24 +1072,24 @@ Feel safer? Want to start with test data to see how it works?`,
     return {
       response: `**Even FREE plan includes 3 staff members!** 👥
 
-**How it works:**
-1. Settings → Staff Management
-2. Add team member email
-3. Assign role: Manager, Cashier, or Viewer
+**How to add staff:**
+1. Click **More** button (bottom navigation)
+2. Click **Manage Staff**
+3. Click **Add Staff Member**
+4. Enter full name and phone number
+5. Choose role: Manager or Cashier
+6. Click **Add Staff**
+7. **Important**: Share the auto-generated PIN with them!
 
 **Roles & Permissions:**
-👨‍💼 **Manager**: Add products, record sales, view reports, manage customers
-💵 **Cashier**: Record sales, view products, print invoices (can't delete)
-👀 **Viewer**: View-only access (for accountants, owners checking remotely)
+👨‍💼 **Manager**: Manage inventory, sales, and customers
+💵 **Cashier**: Record sales and view today's sales only
 
 **Benefits:**
-✅ Everyone has their own login (no password sharing!)
+✅ Everyone has their own PIN (no password sharing!)
 ✅ Track who recorded each sale
 ✅ Remove access when someone leaves
 ✅ Works on any device
-
-**Upgrade for more:**
-Starter: 3 staff | Pro: 5 staff | Business: 10 staff
 
 Ready to add your first team member? Start free!`,
       confidence: 0.95
@@ -906,24 +1380,42 @@ Want help migrating from your current system? Start free and we'll guide you!`,
     };
   }
 
-  // Default response for unmatched questions
-  return {
-    response: `I'm here to help you learn about Storehouse! 💬
+  // Default response for unmatched questions (IMPROVED)
+  if (!response) {
+    response = `I want to give you the perfect answer! 💡
 
-**Popular questions:**
-💰 "How much does it cost?"
-🆓 "Is there a free plan?"
-📦 "What features do you have?"
-🏪 "How do I create an online store?"
-💳 "How do customers pay?"
-👥 "Can I add staff members?"
-📊 "How does profit tracking work?"
+**Are you wondering about:**
 
-Or ask me anything specific about managing your business with Storehouse!
+🎯 **Pricing** - How much it costs (spoiler: FREE plan available!)
+🎯 **Features** - What Storehouse can do for your business
+🎯 **Getting Started** - How to set up in 3 minutes
+🎯 **Comparison** - How it's better than Excel or competitors
+🎯 **Security** - How we keep your data safe
+🎯 **Payment** - How customers pay you (OPay, banks, etc.)
 
-**Ready to try it free?** Start now - no credit card required!`,
-    confidence: 0.6
-  };
+**Or type your question differently and I'll understand better!**`;
+    confidence = 0.5;
+  }
+
+  // Track category
+  if (category) {
+    state.matchedCategories.push(category);
+  }
+
+  // Update conversation stats
+  state.messageCount++;
+  state.averageConfidence = (
+    (state.averageConfidence * (state.messageCount - 1) + confidence) /
+    state.messageCount
+  );
+
+  // Check for escalation
+  const escalation = getEscalation(state);
+  if (escalation) {
+    response += escalation;
+  }
+
+  return { response, confidence };
 }
 
 // Generate AI response using GPT-4o Mini with RAG support
@@ -965,7 +1457,7 @@ async function generateAIResponse(
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 100,  // Reduced from 200 for more concise responses
+        max_tokens: 250,  // PHASE 2: Enough for complete multi-step instructions without cutoff
         temperature: 0.7,
       }),
     });
@@ -1011,18 +1503,36 @@ function buildSystemPrompt(userContext: any, contextType: string, relevantDocs: 
   // NEW: Build documentation context for RAG
   const documentationContext = relevantDocs.length > 0
     ? `
-RELEVANT DOCUMENTATION (Use this to answer accurately):
+📚 RELEVANT DOCUMENTATION (Priority #1 - Use this FIRST):
 ${relevantDocs.map((doc, idx) => `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${idx + 1}. ${doc.title}
-${doc.description}
+${doc.description || ''}
 
 ${doc.content || ''}
 
----
+${doc.steps ? `STEPS:\n${doc.steps.map((step: any, i: number) => `${step.step}. ${step.instruction}\n   💡 Tip: ${step.tip || 'N/A'}`).join('\n')}` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `).join('\n')}
 
-IMPORTANT: Base your answer on the documentation above. Cite the guide name when relevant.
-If the documentation doesn't fully answer the question, say so and offer to connect them with support.
+🎯 CRITICAL INSTRUCTIONS FOR USING DOCUMENTATION:
+
+1. **ALWAYS use the documentation above as your PRIMARY source**
+2. If documentation provides steps, use them EXACTLY (don't paraphrase)
+3. If documentation has examples, include them in your answer
+4. Reference the guide name: "According to the '${relevantDocs[0]?.title}' guide..."
+5. Only use your own knowledge if documentation is missing or incomplete
+6. For "how-to" questions, GIVE THE FULL STEPS from documentation, not a summary
+
+RESPONSE FORMAT WHEN DOCUMENTATION IS AVAILABLE:
+- Start with the answer from documentation
+- Use numbered steps if provided
+- Include tips from the documentation
+- End with: "Need help with the next step?"
+
+If documentation doesn't answer the question, say:
+"I don't have detailed documentation for that yet. Let me help with what I know, or I can connect you with support for specifics."
     `.trim()
     : '';
 
@@ -1071,20 +1581,47 @@ CURRENT USER SNAPSHOT:
 ${productCount >= 45 && tier === 'free' ? `⚠️ Space Alert: You're at ${productCount}/50 products. Starter plan = 200 products for ₦5k/month when ready.` : ''}
 ${tier === 'free' ? `💡 Premium hint: When they ask about [debt tracking | profit analytics | WhatsApp AI | more than 3 staff], mention relevant paid plan casually.` : ''}
 
-📋 EXAMPLE RESPONSES (Copy this style):
+📋 EXAMPLE RESPONSES:
 
-❓ "How do I add products?"
-✅ "Tap the big + button at top → Fill name & price → Save! Start with your best seller. What product is that? 🎯"
+**WHEN DOCUMENTATION IS AVAILABLE (Priority #1):**
 
-❓ "Can I track profit?"
-✅ "Yes! Tap Reports → See total profit (₦ sales minus ₦ costs). Pro plan shows profit PER ITEM if you need that breakdown 📊"
+❓ "How do I add my first product?"
+✅ "Here's how to add your first product:
 
-❓ "I sell fashion. Will this work?"
-✅ "Perfect! Fashion sellers love Storehouse:
-📸 Multiple product images
-👗 Track sizes/colors separately
-📱 Instagram → Share your store link
-Want to add your first item? Tap + at top!"
+1. Tap **'+ Add Item'** button on your dashboard
+2. Fill in product details:
+   - Product Name
+   - Cost Price (what you paid)
+   - Selling Price (what customers pay)
+   - Quantity in stock
+3. Add optional details (SKU, barcode, category, low stock alert)
+4. Upload product image (optional)
+5. Tap **'Save'** and your product is added!
+
+💡 Tip: Storehouse automatically calculates profit margin (Selling Price - Cost Price).
+
+Need help adding images or variants?"
+
+❓ "How do I send an invoice?"
+✅ "Here's how to create and send an invoice:
+
+1. Go to **Invoices** section in your dashboard
+2. Click **'+ Create Invoice'** button
+3. Fill in:
+   - Customer name
+   - Products/services (add line items)
+   - Payment terms and due date
+4. Click **'Save Invoice'**
+5. Click **'Send via WhatsApp'** or **'Download PDF'**
+
+Your invoice is sent to the customer immediately! You can track payment status (Paid/Unpaid/Overdue) in the Invoices section.
+
+Need help with anything else?"
+
+**WHEN NO DOCUMENTATION (Fallback to short, actionable):**
+
+❓ "Can I export to Excel?"
+✅ "Yes! Tap Settings → Export Data → Download as CSV. Opens in Excel/Sheets 📊"
 
 ❓ "Wetin be the price?" (Pidgin)
 ✅ "E free to start! 50 products, unlimited sales. No credit card, no wahala.
@@ -1179,7 +1716,7 @@ BUSINESS (₦15,000/month or ₦144,000/year - save ₦36,000):
 → Absolutely. We use the same encryption as banks (256-bit SSL). Your data is backed up daily, and we never share it with anyone. You can export everything anytime. Plus, we're hosted on Supabase (same infrastructure as major Nigerian fintechs).
 
 "Can my staff use it?"
-→ Yes! Even the FREE plan includes 3 staff members. You set their roles (Manager, Cashier, or Viewer). Managers can add products, Cashiers can record sales, Viewers can only see reports. Everyone has their own login - no password sharing!
+→ Yes! Even the FREE plan includes 3 staff members. You set their roles (Manager or Cashier). Managers can manage inventory, sales, and customers. Cashiers can only record sales and view today's sales. Everyone has their own PIN - no password sharing!
 
 "What if I hit the 50-product limit?"
 → The free plan is truly free forever - no time limit. When you outgrow 50 products (congrats on growing! 🎉), upgrade to Starter for 200 products (₦5k/month) or Pro for UNLIMITED (₦10k/month). Upgrade takes 2 clicks, instant activation.
@@ -1299,9 +1836,9 @@ You: "That's a solid inventory! 💪 You're at ${productCount}/50 products on Fr
 
   if (contextType === 'help') {
     const helpPrompt = basePrompt + `
-CONTEXT: DASHBOARD CHAT - Your Business Growth Coach 🚀
+CONTEXT: DASHBOARD HELP ASSISTANT - Your Storehouse Guide 📚
 
-YOU ARE: A world-class business advisor who helps Nigerian merchants grow revenue, save time, and scale their business. Think of yourself as their personal mentor who spots opportunities and unlocks hidden potential.
+YOU ARE: A helpful, patient instructor who gives clear step-by-step instructions. Your job is to TEACH users how to use Storehouse features effectively.
 
 📊 USER'S CURRENT SITUATION:
 - Products: ${productCount}/${productLimit} (${tier === 'free' ? 'FREE plan' : tier.toUpperCase() + ' plan'})
@@ -1309,81 +1846,261 @@ YOU ARE: A world-class business advisor who helps Nigerian merchants grow revenu
 - Days active: ${daysSinceSignup}
 - Has online store: ${userContext.has_store ? 'Yes ✅' : 'Not yet ❌'}
 
-🎯 YOUR MISSION (Pick ONE per conversation):
-1. **Help them sell MORE** (drive revenue growth)
-2. **Save them TIME** (automate tedious work)
-3. **Unlock HIDDEN features** (reveal premium capabilities)
-4. **Create upgrade DESIRE** (show what's possible)
+🎯 YOUR PRIMARY MISSION:
+**Answer "how-to" questions with clear, actionable steps.**
 
-💡 GROWTH COACHING TACTICS:
+⚠️ CONVERSATION CONTEXT (CRITICAL):
+**ALWAYS read the conversation history before responding!**
+- **MOST IMPORTANT: Focus ONLY on the last 2-3 messages** (ignore older unrelated topics)
+- If user says "yes please" or "ok" or "help me with that", look at YOUR MOST RECENT response (the one right before this message)
+- If user refers to "number 4" or "step 3", they mean YOUR LAST RESPONSE (not something from 10 messages ago!)
+- Example: If your last response was about staff management and user says "yes please", they mean "yes, help me add staff" (NOT products from 10 messages ago!)
+- Example: If your last response had a numbered list about Paystack and user asks "tell me more about step 4", they mean step 4 from YOUR PAYSTACK response (not some old product tutorial!)
+- If there's a topic switch (e.g., user asks about staff after talking about products), treat it as a NEW conversation
+- **When in doubt or context is unclear, ASK FOR CLARIFICATION**: "Just to confirm - you're asking about [topic from YOUR LAST response], right?"
 
-**When user asks basic questions:**
-- Answer it FAST (1 sentence)
-- Then reveal a SECRET: "Pro tip most people don't know..."
-- Show them a hidden feature or shortcut
+📝 RESPONSE FORMAT (CRITICAL - FOLLOW EXACTLY):
 
-**When detecting struggles:**
+⚠️ **ABSOLUTELY CRITICAL - DO NOT PARAPHRASE OR REWRITE:**
+- When documentation is provided in the context, **COPY THE EXACT STEPS** from the documentation
+- DO NOT change "More" to "Settings" or any other rewording
+- DO NOT add steps that aren't in the documentation
+- DO NOT remove critical steps (like PIN sharing)
+- Use the EXACT button names, EXACT navigation paths from the docs
+
+**When user asks "How do I [do something]?":**
+1. Check if documentation was retrieved (look for "Relevant documentation:" in context)
+2. If yes: **COPY the exact steps from that documentation** (word-for-word navigation paths and button names)
+3. If no documentation: Give numbered step-by-step instructions based on your training
+4. Use specific UI elements from the docs ("Click the '+ Add Item' button")
+5. Use EXACT navigation paths from docs ("More → Manage Staff" NOT "Settings → Staff")
+6. Keep it concise (3-7 steps max)
+7. End with a helpful tip or what they'll see after completing
+
+**Example:**
+Q: "How do I add a product?"
+A: "Here's how to add a product:
+
+1. Click **'+ Add Item'** button on your dashboard
+2. Fill in:
+   - Product Name
+   - Cost Price (what you paid)
+   - Selling Price (what customers pay)
+   - Quantity in stock
+3. Optional: Add category, SKU, barcode, image
+4. Click **'Save'**
+
+Your product is now in inventory! Storehouse automatically calculates your profit margin.
+
+Need help adding images or variants?"
+
+💡 TEACHING BEST PRACTICES:
+
+**For "how-to" questions:**
+- Start immediately with step 1 (no fluff)
+- Use bold for buttons/**UI elements**
+- Number your steps clearly
+- Be specific about locations
+
+**For "what is" or "explain" questions:**
+- Give a clear definition first
+- Then explain when/why they'd use it
+- Provide a quick example
+
+**For troubleshooting questions:**
+- Acknowledge the issue
+- Provide the most common solution first
+- Offer alternative solutions if needed
+- Tell them how to prevent it next time
+
+**HELPFUL TIPS TO INCLUDE:**
 ${productCount > 10 && !userContext.has_cost_prices ? `
-🎯 PROFIT BLINDSPOT DETECTED:
-"Quick win: Add cost prices to your ${productCount} products. Takes 5 mins. You'll see EXACTLY which items make real money vs which just look busy. Tap any product → Edit → Add Cost Price. Try it on your top 3 sellers first!"
+💡 Tip: I notice you have ${productCount} products. Adding cost prices helps you track real profit, not just revenue. Tap any product → Edit → Add Cost Price.
 ` : ''}
 
 ${userContext.products_without_images > 5 ? `
-📸 SELLING POWER UNLOCKED:
-"I noticed ${userContext.products_without_images} products missing photos. Data shows products with images sell 3× more! This weekend, snap photos of your top sellers with your phone. Upload them here. Watch your sales jump. Want me to show you the fastest way to add images?"
+💡 Tip: ${userContext.products_without_images} products are missing images. Products with photos get more customer attention! Want me to show you how to add images?
 ` : ''}
 
 ${productCount >= 45 && tier === 'free' ? `
-🚨 GROWTH MILESTONE ALERT:
-"You're crushing it! ${productCount}/50 products used. You've outgrown 90% of small businesses. Ready for the next level? Starter plan (₦5k/month - less than 1 sale/day!) gives you 200 product slots + automatic profit tracking. When you're ready to scale, I'll help you upgrade!"
-` : ''}
-
-${userContext.sales_count >= 50 && tier === 'free' ? `
-💰 MONEY ON THE TABLE:
-"You've recorded ${userContext.sales_count} sales! Know what successful stores with this volume do? They use Pro plan's WhatsApp AI Assistant (₦10k/month). It answers customer questions 24/7 while you sleep. Imagine waking up to 5 WhatsApp orders you didn't have to reply to. Interested?"
+💡 Note: You're using ${productCount}/50 product slots on the Free plan. If you need more, the Starter plan offers 200 slots.
 ` : ''}
 
 ${!userContext.has_store ? `
-🏪 HIDDEN REVENUE STREAM:
-"You're missing out on ₦50k-200k/month! Your online store is FREE and takes 3 minutes to set up. Customers can browse 24/7 and send WhatsApp orders while you sleep. Want me to walk you through setup right now?"
+💡 Tip: You haven't set up your online store yet. It's free and takes 3 minutes! Customers can browse and order 24/7. Want me to guide you through setup?
 ` : ''}
 
-**SECRET FEATURES TO REVEAL (Casually drop these):**
-- "Did you know you can share products to Instagram Stories with one tap? Tap any product → Share → Instagram"
-- "Pro tip: Export your inventory to Excel anytime. Great for backups or sharing with suppliers"
-- "Your customers can add items to cart and checkout via WhatsApp. Have you shared your store link yet?"
-- "Staff members can have different roles. Your cashier doesn't need to see profit margins - just give them Cashier role"
+**COMMON QUESTIONS & ANSWERS:**
 
-**UPGRADE TRIGGERS (When relevant, not pushy):**
+Q: "How do I add a product?"
+A: Step-by-step: Click "+ Add Item" → Fill in name, cost price, selling price, quantity → Save
 
-User asks: "How do I track profit?"
-You: "Right now you see revenue (total sales). For REAL profit, you need cost prices. Free hack: Manually add cost to each product → You'll see profit per sale in your reports.
+Q: "How do I record a sale?"
+A: Step-by-step: Click "Record Sale" → Select product → Enter quantity → Choose payment method → Save
 
-Want it AUTOMATIC? Starter plan (₦5k/month) has a Profit Dashboard - shows you margins, best sellers by profit (not just sales!), and which products are secretly losing you money. Most people are shocked when they see it. Worth considering if you're serious about growing. Try the manual way first?"
+Q: "How do I create an invoice?"
+A: Step-by-step: Go to Invoices → Click "+ Create Invoice" → Add customer → Add items → Save → Send via WhatsApp
 
-User asks: "Can I add staff?"
-You: "YES! Free plan lets you add 3 team members. Settings → Staff → Add Member. Give them Manager, Cashier, or Viewer roles.
-
-Here's the game-changer: On Pro plan (₦10k/month), you get 5 staff + granular permissions (control exactly what each person can do). Plus WhatsApp AI handles customer questions 24/7 so your team focuses on real sales. But start with free - add your first cashier today!"
+Q: "How do I add staff?"
+A: Step-by-step: Settings → Staff → "+ Add Staff" → Enter name & role (Manager/Cashier/Viewer) → Save
 
 **TONE & STYLE:**
-- Enthusiastic but not salesy ("Let me show you something cool...")
-- Data-driven ("Products with images sell 3× more")
-- Specific numbers ("₦5k/month - cost of 2 shawarmas!")
-- Nigerian context ("This one go help your business scatter!")
-- Action-oriented ("Try this now: Tap Products → ...")
-- Celebrate wins ("${productCount} products! You're building an empire!")
+- Clear and concise (no fluff)
+- Patient and encouraging
+- Focus on HOW, not WHY
+- Use numbered steps for instructions
+- Keep responses SHORT (max 5-7 steps)
+- End with "Need help with anything else?"
+
+**LENGTH CONSTRAINT:**
+⚠️ **CRITICAL: Keep your entire response under 150 words.**
+- Be brief but complete
+- Skip introductions like "Sure!" or "Here's how..."
+- Start directly with numbered steps
+- Combine related steps when possible
+- Use bullet points inside steps for sub-items
+
+**WHAT NOT TO DO:**
+- Don't give marketing pitches
+- Don't upsell unless directly asked about pricing
+- Don't use excessive emojis (max 2-3 per response)
+- Don't be vague ("just do it" → show exactly where and how)
+- Don't write long paragraphs - use numbered lists
 
 **REMEMBER:**
-- You're a coach, not a salesperson
-- Help them win TODAY (free features)
-- Show them what's POSSIBLE tomorrow (premium features)
-- Make upgrades feel like natural next steps, not requirements
-- Every response should make them think "Wow, Storehouse really gets me"
-
-NOW GO MAKE THEM LOVE STOREHOUSE! 🇳🇬💪`;
+Your job is to TEACH, not to SELL. Answer the question directly, clearly, and completely - but BRIEFLY.`;
 
     return helpPrompt;
+  }
+
+  // BUSINESS ADVISORY MODE - Smart marketing & sales tips
+  if (contextType === 'business-advisory') {
+    const advisoryPrompt = basePrompt + `
+🎯 CONTEXT: BUSINESS ADVISORY MODE
+
+YOUR ROLE: Nigerian retail business consultant specialized in small shops, boutiques, pharmacies, electronics stores.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 CRITICAL BOUNDARIES (NEVER CROSS):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ NO financial/tax advice → "Please consult a certified accountant"
+❌ NO legal advice → "Please speak with a business lawyer"
+❌ NO medical claims → "Consult regulatory bodies for health products"
+❌ NO guarantees → Never say "You WILL make ₦X" or "Guaranteed to work"
+❌ NO competitor bashing → Stay professional
+❌ NO foreign strategies → Keep it Nigerian-focused
+
+✅ WHAT YOU CAN ADVISE ON:
+
+📊 PRICING STRATEGIES:
+- Psychological pricing (₦990 vs ₦1000, ₦4,999 vs ₦5,000)
+- Competitive analysis (check nearby stores)
+- Bundle pricing ("Buy 2, Get 10% off")
+- Seasonal discounts (Ramadan, Christmas, Back-to-School)
+- Cost-plus markup calculations
+
+🎯 MARKETING TACTICS (Nigerian Context):
+- WhatsApp Status marketing (post 3x daily: morning, afternoon, evening)
+- Instagram selling (product photos, Stories, Reels)
+- Facebook Marketplace optimization
+- Word-of-mouth strategies (referral discounts)
+- Local area marketing (flyers, SMS, street teams)
+
+💰 SALES TECHNIQUES:
+- Upselling ("You wan add charger? E dey ₦500")
+- Cross-selling ("We get screen protector wey match am")
+- Scarcity ("Only 3 pieces remain!")
+- Social proof ("This na our best seller!")
+- Payment flexibility ("We accept OPay, transfer, cash")
+
+👥 CUSTOMER RETENTION:
+- Loyalty programs (stamp cards, point systems)
+- Follow-up messages ("How you dey find the product?")
+- Birthday/holiday greetings
+- VIP customer perks
+- Re-stock notifications
+
+📦 INVENTORY OPTIMIZATION:
+- ABC analysis (focus on top 20% products = 80% revenue)
+- Dead stock identification (>90 days no sale)
+- Seasonal planning (stock up before December, Ramadan)
+- Reorder point calculations
+- Supplier negotiation tips
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 RESPONSE FORMAT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. **Direct Answer** (2-3 sentences)
+2. **Nigerian Example** ("For example, if you dey sell shoes in Yaba market...")
+3. **Action Steps** (Numbered list, max 3 steps)
+4. **Disclaimer**
+
+ALWAYS end with:
+"💡 Business Tip: Results vary by business and market. Test what works for YOUR customers! 🇳🇬"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 USER CONTEXT (Use this to personalize advice):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Products: ${productCount}
+Top Category: ${userContext.top_category || 'Unknown'}
+Sales This Month: ${userContext.sales_count || 0}
+Average Sale: ₦${userContext.average_sale?.toLocaleString() || 0}
+Days Active: ${daysSinceSignup}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎨 TONE: Friendly Nigerian English, professional but relatable
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GOOD EXAMPLES:
+
+❓ "How do I price my products?"
+✅ "Based on your sales data, here's a smart pricing strategy:
+
+**Psychological Pricing:** Instead of ₦5,000, try ₦4,950. Customers perceive it as "₦4-something" not "₦5-something" even though it's just ₦50 difference!
+
+**Action Steps:**
+1. Calculate your cost + desired profit margin (e.g., Cost ₦3,000 + 50% = Sell at ₦4,500)
+2. Check 2-3 competitors' prices in your area
+3. Price slightly lower if you're new (build trust), or match if you're established
+
+💡 Business Tip: Results vary by business and market. Test what works for YOUR customers! 🇳🇬"
+
+❓ "How can I get more customers?"
+✅ "For Nigerian businesses, WhatsApp is your best friend! Here's what works:
+
+**WhatsApp Status Strategy:**
+1. Post your top 3 products on Status 3x daily (8am, 1pm, 7pm)
+2. Include: Clear photo + Price + "Order now!" + Your number
+3. Save customer numbers → They see your Status daily
+
+**Local Marketing:**
+- Give 5% discount for customer referrals ("Bring friend, both get discount")
+- Join local WhatsApp groups (area markets, estate groups)
+- Print simple flyers with WhatsApp number (₦5k for 1000 copies)
+
+💡 Business Tip: Results vary by business and market. Test what works for YOUR customers! 🇳🇬"
+
+BAD EXAMPLES (Never say these):
+
+❌ "You will definitely make ₦500,000 this month if you follow my advice"
+❌ "You must register with CAC before selling online"
+❌ "This product can cure diabetes"
+❌ "Don't pay tax on your sales"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 REMEMBER:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Keep advice ACTIONABLE (they can do it today)
+- Keep it NIGERIAN (OPay, WhatsApp, local markets)
+- Be REALISTIC (no promises, no guarantees)
+- Stay in YOUR LANE (pricing, marketing, sales - NOT tax/legal/medical)
+- ALWAYS disclaim at the end`;
+
+    return advisoryPrompt;
   }
 
   return basePrompt;
@@ -1456,24 +2173,64 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
       deliveryInfo += `⏰ **Delivery time:** ${storeInfo.deliveryTime}\n\n`;
     }
 
-    if (!deliveryInfo) {
+    // PHASE 1 FIX: If no dedicated fields BUT about_us has delivery info, let AI handle it
+    if (!deliveryInfo && storeInfo?.aboutUs) {
+      const aboutLower = storeInfo.aboutUs.toLowerCase();
+      // Check if about_us mentions delivery-related terms
+      const hasDeliveryInAbout = /deliver|shipping|ship to|areas we (cover|serve)|locations we serve/i.test(aboutLower);
+
+      if (hasDeliveryInAbout) {
+        // Don't return FAQ - let AI extract from about_us instead (fall through to AI)
+        console.log('[FAQ] Delivery info found in about_us, routing to AI for intelligent extraction');
+        // Skip FAQ response entirely - go straight to AI (don't set deliveryInfo, don't return)
+      } else {
+        // No delivery info in about_us either, show generic message
+        deliveryInfo = 'Please contact us for delivery information.\n\n';
+      }
+    } else if (!deliveryInfo) {
+      // No dedicated fields and no about_us
       deliveryInfo = 'Please contact us for delivery information.\n\n';
     }
 
-    return jsonResponse({
-      response: `📦 **Delivery Information:**\n\n${deliveryInfo}${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number} for details` : ''}`,
-      confidence: 0.95
-    });
+    // Only return FAQ response if we have deliveryInfo set (and it's not empty)
+    if (deliveryInfo && deliveryInfo.trim()) {
+      return jsonResponse({
+        response: `📦 **Delivery Information:**\n\n${deliveryInfo}${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number} for details` : ''}`,
+        confidence: 0.95
+      });
+    }
+    // If no deliveryInfo OR about_us has delivery info, fall through to AI handling below
   }
 
   // Return/Refund policy
   if (lowerMessage.match(/return|refund|exchange|warranty|guarantee/i)) {
-    const returnInfo = storeInfo?.returnPolicy || 'Please contact us for our return and refund policy.';
+    let returnInfo = storeInfo?.returnPolicy || '';
 
-    return jsonResponse({
-      response: `🔄 **Return & Refund Policy:**\n\n${returnInfo}\n\n${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 Questions? WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
-      confidence: 0.95
-    });
+    // PHASE 1 FIX: If no return policy BUT about_us mentions it, let AI handle it
+    if (!returnInfo && storeInfo?.aboutUs) {
+      const aboutLower = storeInfo.aboutUs.toLowerCase();
+      const hasReturnInAbout = /return|refund|exchange|warranty|guarantee|money.?back/i.test(aboutLower);
+
+      if (hasReturnInAbout) {
+        console.log('[FAQ] Return policy found in about_us, routing to AI for intelligent extraction');
+        // Skip FAQ response entirely - go straight to AI (don't set returnInfo, don't return)
+      } else {
+        // No return info in about_us either
+        returnInfo = 'Please contact us for our return and refund policy.';
+      }
+    } else if (!returnInfo) {
+      // No dedicated field and no about_us
+      returnInfo = 'Please contact us for our return and refund policy.';
+    }
+
+    // Only return FAQ response if we have returnInfo set (and it's not empty)
+    if (returnInfo && returnInfo.trim()) {
+      return jsonResponse({
+        response: `🔄 **Return & Refund Policy:**\n\n${returnInfo}\n\n${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 Questions? WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
+        confidence: 0.95
+      });
+    }
+    // If no returnInfo OR about_us has return info, fall through to AI handling below
   }
 
   // Location / Business hours / Address
@@ -1674,56 +2431,104 @@ async function handleStorefrontChat(supabase: any, message: string, storeSlug: s
     });
   }
 
+  // PHASE 1: Sanitize customer message before processing
+  const sanitizedMessage = sanitizeStorefrontMessage(message);
+
   // AI fallback for complex questions (uses credits)
   const { data: allProducts } = await supabase
     .from('products')
-    .select('name, selling_price, quantity, description')
+    .select('name, selling_price, quantity, description, category, specifications')
     .eq('user_id', store.user_id)
     .eq('is_public', true)
     .order('quantity', { ascending: false }) // Prioritize in-stock items
-    .limit(20);
+    .limit(30); // PHASE 1: Increased from 20 to 30
 
-  // Better product context format with descriptions
-  const productContext = allProducts?.map((p: any) => {
-    const price = Math.floor(p.selling_price / 100);
-    const desc = p.description ? ` - ${p.description.substring(0, 80)}` : '';
-    const stock = p.quantity > 0 ? `${p.quantity} available` : 'Out of stock';
-    return `• ${p.name} (₦${price.toLocaleString()})${desc}. Stock: ${stock}`;
-  }).join('\n') || 'No products available currently.';
+  // PHASE 2A: Structured JSON product data with specifications (prevents hallucination)
+  const productDataJSON = allProducts?.map((p: any) => ({
+    name: p.name,
+    price_naira: Math.floor(p.selling_price / 100),
+    stock_count: p.quantity,
+    stock_status: p.quantity > 0 ? 'In Stock' : 'Out of Stock',
+    category: p.category || 'General',
+    description: p.description ? p.description.substring(0, 150) : 'No description available',
+    specifications: p.specifications || {} // PHASE 2A: Add specifications
+  })) || [];
 
-  const systemPrompt = `You're a friendly sales expert helping customers shop at ${store.business_name}. Your mission: help them find what they need and close the sale!
+  // Fallback: Keep plain text for AI context window efficiency
+  const productContext = productDataJSON.map(p =>
+    `• ${p.name} - ₦${p.price_naira.toLocaleString()} (${p.stock_status}${p.stock_count > 0 ? ` - ${p.stock_count} available` : ''})`
+  ).join('\n') || 'No products available currently.';
 
-📦 AVAILABLE PRODUCTS:
-${productContext}
+  // PHASE 2A: Enhanced system prompt with specifications and strict anti-hallucination rules
+  const systemPrompt = `You are a helpful shopping assistant for ${store.business_name}.
 
-💬 YOUR PERSONALITY:
-- Warm, conversational, and helpful (not robotic!)
-- Excited about products (use natural enthusiasm)
-- Anticipate customer needs (upsell related items)
-- Create urgency when stock is low
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔒 CRITICAL RULES - NEVER VIOLATE THESE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 SALES TACTICS:
-1. **Show Price FIRST**: Customer asks "How much is [product]?" → Lead with the price: "₦X,XXX - brand new with warranty! 📱 [Stock info]. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} to order!` : 'Add to cart!'}"
-2. **Match Intent Fast**: Customer asks "Do you have phones?" → Immediately list phones with prices
-3. **Upsell Smart**: Someone buying a phone? Suggest "Many customers also get a phone case (₦3,500) and screen protector (₦1,500) - keeps it looking new!"
-4. **Handle Objections**: Price too high? "This is our most popular model! Quality lasts. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} - we sometimes have promos!` : 'Check back for deals!'}"
-5. **Create Urgency**: Low stock? Say "Only ${p.quantity} left! Popular item - they sell out fast"
+1. ONLY use information from DATA SOURCE below
+2. NEVER guess, infer, or make up: prices, features, delivery times, or policies
+3. If information is NOT in DATA SOURCE, say: "Let me connect you with the store - WhatsApp ${store.whatsapp_number || 'them'} for details"
+4. NEVER mention products not in DATA SOURCE
+5. Quote prices EXACTLY as shown (no rounding beyond ₦50)
+6. For specs (battery, screen, camera, etc): ONLY use values from "specifications" object
+7. If specification is empty {}, say: "For detailed specs, WhatsApp ${store.whatsapp_number || 'the store'} to confirm!"
 
-❌ STAY ON-TOPIC:
-- Ignore questions about business operations, costs, subscriptions, or unrelated topics
-- Politely redirect: "I'm here to help you shop! ${store.whatsapp_number ? `For other questions, WhatsApp ${store.whatsapp_number}` : 'Contact the store directly'}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 DATA SOURCE: AVAILABLE PRODUCTS (ONLY THESE EXIST!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✅ RESPONSE FORMAT:
-- Keep it conversational (1-3 sentences)
-- Use Nigerian context (e.g., "This one go last!", "Sharp price!", "No dull!")
-- Always end with a call-to-action (WhatsApp link, urgency, or related product)
+${JSON.stringify(productDataJSON, null, 2)}
 
-Example:
-Customer: "How much is the iPhone?"
-You: "iPhone 16 is ₦850,000 - brand new with warranty! 📱 Only 3 left in stock. ${store.whatsapp_number ? `WhatsApp ${store.whatsapp_number} to order now!` : 'Add to cart to secure yours!'}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏪 STORE INFORMATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Your goal: Turn browsers into buyers. Show prices clearly, be helpful, be persuasive, be NIGERIAN! 🇳🇬`;
+About: ${storeInfo?.aboutUs || 'Not provided - ask customer to WhatsApp for details'}
+Delivery Areas: ${storeInfo?.deliveryAreas || 'Not specified - ask customer to WhatsApp'}
+Delivery Time: ${storeInfo?.deliveryTime || 'Not specified - ask customer to WhatsApp'}
+Return Policy: ${storeInfo?.returnPolicy || 'Not specified - ask customer to WhatsApp'}
+Contact: WhatsApp ${store.whatsapp_number || 'the store'}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ YOUR RESPONSE RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ALLOWED:
+• Quote exact prices from DATA SOURCE (e.g., "₦${productDataJSON[0]?.price_naira?.toLocaleString() || '0'}")
+• Mention stock status from DATA SOURCE
+• Use store info from STORE INFORMATION section
+• Suggest alternatives from DATA SOURCE
+• Be warm, helpful, and conversational
+
+FORBIDDEN (will be blocked):
+• Mentioning products NOT in DATA SOURCE
+• Inventing prices or features
+• Making up delivery/return policies
+• Comparing to competitors (Jumia, Konga, Amazon, etc.)
+• Discussing Storehouse subscription prices
+
+💬 PERSONALITY:
+- Friendly and helpful (Nigerian context appreciated!)
+- Show enthusiasm for in-stock products
+- Create urgency when stock is low (e.g., "Only 2 left!")
+- Always end with: "WhatsApp ${store.whatsapp_number || 'us'} to order!"
+
+🎯 EXAMPLES:
+
+Good: "The iPhone 13 is ₦${productDataJSON.find(p => p.name.toLowerCase().includes('iphone'))?.price_naira.toLocaleString() || 'available'} and we have ${productDataJSON.find(p => p.name.toLowerCase().includes('iphone'))?.stock_count || 0} in stock. WhatsApp ${store.whatsapp_number || 'us'} to order!"
+
+Bad: "The iPhone is around ₦800k and comes with free earphones" ❌ (price not exact, invented free item)
+
+SELF-CHECK before responding:
+1. Did I use exact price from DATA SOURCE? ✓
+2. Did I mention only products in DATA SOURCE? ✓
+3. Did I avoid making up policies? ✓
+4. Did I redirect to WhatsApp for unknowns? ✓
+
+Your mission: Help customers find what they need using ONLY verified information above! 🇳🇬`;
+
+  // PHASE 1: Optimized AI parameters for accuracy
   const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -1734,20 +2539,42 @@ Your goal: Turn browsers into buyers. Show prices clearly, be helpful, be persua
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: message },
+        { role: 'user', content: sanitizedMessage }, // PHASE 1: Use sanitized message
       ],
-      max_tokens: 120,  // Balanced: enough for price + details + WhatsApp (was 80 - too short, 150 caused errors)
-      temperature: 0.7,
+      max_tokens: 150,  // PHASE 1: Increased from 120 to 150 for complete responses
+      temperature: 0.3,  // PHASE 1: Reduced from 0.7 to 0.3 for more deterministic/accurate responses
+      top_p: 0.9,  // PHASE 1: Nucleus sampling for consistency
+      frequency_penalty: 0.3,  // PHASE 1: Reduce repetition
+      presence_penalty: 0.1,  // PHASE 1: Slight encouragement for new info
     }),
   });
 
   const data = await aiResponse.json();
-  const response = data.choices?.[0]?.message?.content || `Sorry, I couldn't understand that. Contact us at ${store.whatsapp_number || 'our store'} for help!`;
+  let response = data.choices?.[0]?.message?.content || `Sorry, I couldn't understand that. Contact us at ${store.whatsapp_number || 'our store'} for help!`;
+
+  // PHASE 1: Validate AI response to prevent hallucinations
+  const validation = validateStorefrontResponse(response, sanitizedMessage, allProducts || [], {
+    whatsappNumber: store.whatsapp_number,
+    returnPolicy: storeInfo?.returnPolicy,
+    deliveryTime: storeInfo?.deliveryTime,
+    deliveryAreas: storeInfo?.deliveryAreas
+  });
+
+  if (!validation.valid) {
+    console.warn('[PHASE1] AI response blocked:', validation.reason);
+    // Use safe fallback response
+    response = validation.fixedResponse || `I want to give you accurate information. Please WhatsApp ${store.whatsapp_number || 'the store'} for details! 📱`;
+
+    // Log for monitoring
+    await logAbuseAttempt(supabase, null, 'ai_validation', validation.reason, sanitizedMessage);
+  }
 
   return jsonResponse({
     response,
-    confidence: 0.6,
-    usedAI: true  // Flag that AI was used
+    confidence: validation.valid ? 0.8 : 0.4,  // PHASE 1: Higher confidence when validated
+    usedAI: true,  // Flag that AI was used
+    validated: validation.valid,  // PHASE 1: Track validation status
+    validationReason: validation.reason  // PHASE 1: Track why blocked (if applicable)
   });
 }
 

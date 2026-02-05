@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test AI Chat Widget</title>
+</head>
+<body>
+    <h1>Testing AI Chat Function</h1>
+    <div id="result"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+
+        async function testChat() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing chat function...</p>';
+
+            try {
+                console.log('Sending test message to AI chat...');
+
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': ANON_KEY,
+                    },
+                    body: JSON.stringify({
+                        message: 'What is Storehouse?',
+                        contextType: 'help',
+                        userType: 'visitor',
+                        appContext: {},
+                        relevantDocs: [],
+                    }),
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!response.ok) {
+                    resultDiv.innerHTML = '<p style="color: red;">Error: ' + (data.error || 'Unknown error') + '</p><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<p style="color: green;">Success!</p><p><strong>Response:</strong> ' + data.response + '</p><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = '<p style="color: red;">Error: ' + error.message + '</p><pre>' + error.stack + '</pre>';
+            }
+        }
+
+        // Run test on load
+        testChat();
+    </script>
+</body>
+</html>

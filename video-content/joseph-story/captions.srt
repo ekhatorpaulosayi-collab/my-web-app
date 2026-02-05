@@ -1,0 +1,51 @@
+1
+00:00:00,000 --> 00:00:03,000
+Joseph runs a store.
+
+2
+00:00:03,000 --> 00:00:05,000
+He has no idea what his profit is.
+
+3
+00:00:05,000 --> 00:00:07,000
+No sales tracking.
+
+4
+00:00:07,000 --> 00:00:09,000
+Stock disappears.
+
+5
+00:00:09,000 --> 00:00:10,500
+Constant chaos.
+
+6
+00:00:10,500 --> 00:00:13,000
+Then he found Storehouse.
+
+7
+00:00:13,000 --> 00:00:15,000
+Free inventory app.
+
+8
+00:00:15,500 --> 00:00:17,000
+Tap to sell.
+
+9
+00:00:17,500 --> 00:00:19,000
+Stock updates.
+
+10
+00:00:19,500 --> 00:00:22,000
+Alerts before you run out.
+
+11
+00:00:22,000 --> 00:00:24,500
+Now he knows exactly how much
+
+12
+00:00:24,500 --> 00:00:27,000
+he's making. Every day.
+
+13
+00:00:27,000 --> 00:00:30,000
+Start free at Storehouse dot NG.

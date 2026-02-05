@@ -5,7 +5,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
 import './MoreMenu.css';
 
@@ -87,6 +87,13 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       label: 'Referral Program',
       description: 'Invite friends, earn rewards',
       action: () => navigate('/referrals')
+    },
+    {
+      icon: TrendingUp,
+      label: '💰 Affiliate Program',
+      description: 'Earn 30% commission',
+      action: () => navigate('/affiliate/signup'),
+      highlight: true
     },
 
     // 🔧 OPERATIONS & TOOLS
@@ -186,7 +193,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
             return (
               <button
                 key={item.label}
-                className="more-menu-item"
+                className={`more-menu-item ${(item as any).highlight ? 'highlight' : ''}`}
                 onClick={() => handleItemClick(item.action)}
                 disabled={!item.action}
               >

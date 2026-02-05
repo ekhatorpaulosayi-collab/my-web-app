@@ -108,11 +108,17 @@ export function formatForInstagram(product: ProductShareData): string {
 /**
  * Download image to device (helps user save product photo before posting)
  */
-async function downloadProductImage(imageUrl: string, productName: string): Promise<boolean> {
+export async function downloadProductImage(imageUrl: string, productName: string): Promise<boolean> {
+  console.log('[downloadProductImage] CALLED - Download starting');
+  console.log('[downloadProductImage] Image URL:', imageUrl);
+  console.log('[downloadProductImage] Product Name:', productName);
+
   try {
     // Fetch the image
+    console.log('[downloadProductImage] Fetching image...');
     const response = await fetch(imageUrl);
     const blob = await response.blob();
+    console.log('[downloadProductImage] Image fetched, creating download link...');
 
     // Create download link
     const url = window.URL.createObjectURL(blob);
@@ -120,69 +126,55 @@ async function downloadProductImage(imageUrl: string, productName: string): Prom
     a.href = url;
     a.download = `${productName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.jpg`;
     document.body.appendChild(a);
+    console.log('[downloadProductImage] Triggering download with a.click()...');
     a.click();
+    console.log('[downloadProductImage] Click triggered - Browser should show download prompt now');
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 
+    console.log('[downloadProductImage] Download complete, returning true');
     return true;
   } catch (error) {
-    console.error('[Image Download] Error:', error);
+    console.error('[downloadProductImage] Error:', error);
     return false;
   }
 }
 
 /**
  * Share product to Instagram with improved UX
- * Downloads image (optional) + copies caption + opens Instagram
+ * Downloads image (optional) + copies caption
+ * No app opening to avoid popup blocking instructions
  */
 export async function shareToInstagram(product: ProductShareData): Promise<{
   success: boolean;
   message: string;
   caption?: string;
-  imageDownloaded?: boolean;
+  imageUrl?: string;
+  productName?: string;
 }> {
+  console.log('[Instagram Share] START - No download should happen here');
+  console.log('[Instagram Share] Product:', product.name);
+
   // Format product caption
   const caption = formatForInstagram(product);
 
   try {
     // Copy caption to clipboard
+    console.log('[Instagram Share] Copying caption to clipboard...');
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(caption);
+      console.log('[Instagram Share] Caption copied successfully');
     }
 
-    // Optionally download product image to make it easier to post
-    let imageDownloaded = false;
-    if (product.imageUrl) {
-      imageDownloaded = await downloadProductImage(product.imageUrl, product.name);
-    }
-
-    // On mobile, try to open Instagram
-    if (isMobileDevice()) {
-      // Instagram deep link (opens app if installed)
-      // Use setTimeout to allow clipboard operation to complete
-      setTimeout(() => {
-        window.location.href = 'instagram://camera';
-      }, 100);
-
-      return {
-        success: true,
-        message: imageDownloaded
-          ? '✅ Image downloaded & caption copied!\n\nNext steps:\n1. Select the downloaded image\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!'
-          : '📋 Caption copied! Opening Instagram...\n\nNext steps:\n1. Select your product photo\n2. Tap "Next"\n3. Long-press caption area & paste\n4. Post!',
-        caption,
-        imageDownloaded
-      };
-    } else {
-      // On desktop
-      return {
-        success: true,
-        message: imageDownloaded
-          ? '✅ Image downloaded & caption copied!\n\nNext steps:\n1. Transfer image to phone (AirDrop/Google Photos)\n2. Open Instagram app\n3. Tap + → Select downloaded image\n4. Paste caption & post!'
-          : '📋 Instagram caption copied to clipboard!\n\nNext steps:\n1. Save your product photo to phone\n2. Open Instagram app\n3. Tap + → Select photo\n4. Paste caption (long-press & paste)\n5. Add hashtags & post!',
-        caption,
-        imageDownloaded
-      };
-    }
+    console.log('[Instagram Share] Returning success - NO DOWNLOAD CALL');
+    // Return success with image URL - modal will show instructions with download button
+    return {
+      success: true,
+      message: '📋 Caption copied to clipboard!',
+      caption,
+      imageUrl: product.imageUrl,
+      productName: product.name
+    };
   } catch (error) {
     console.error('[Instagram Share] Error:', error);
     return {
@@ -279,6 +271,8 @@ export async function shareToWhatsAppStatus(product: ProductShareData): Promise<
 
 /**
  * Share product to WhatsApp Chat
+ * Mobile-optimized with automatic clipboard fallback
+ * Uses same logic as dashboard share (shareToWhatsApp.js)
  */
 export function shareToWhatsApp(product: ProductShareData): {
   success: boolean;
@@ -289,25 +283,76 @@ export function shareToWhatsApp(product: ProductShareData): {
   const encodedText = encodeURIComponent(text);
 
   // WhatsApp URL scheme
-  let url: string;
+  const url = `https://wa.me/?text=${encodedText}`;
 
-  if (product.whatsappNumber) {
-    // Share to specific number
-    const cleanNumber = product.whatsappNumber.replace(/\D/g, '');
-    url = `https://wa.me/${cleanNumber}?text=${encodedText}`;
-  } else {
-    // Open WhatsApp with text ready to share
-    url = `https://wa.me/?text=${encodedText}`;
-  }
+  // Try to open WhatsApp
+  const whatsappWindow = window.open(url, '_blank');
 
-  // Open WhatsApp
-  window.open(url, '_blank');
+  // Fallback: If popup blocked or WhatsApp not available, copy to clipboard
+  setTimeout(() => {
+    if (!whatsappWindow || whatsappWindow.closed || typeof whatsappWindow.closed === 'undefined') {
+      // WhatsApp failed to open - fallback to clipboard
+      console.log('[WhatsApp Share] WhatsApp failed to open, copying to clipboard');
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert(
+            '✅ Message copied to clipboard!\n\n' +
+            'Now open WhatsApp and paste it to share with your contacts.\n\n' +
+            'Tip: You can paste it to multiple contacts or status!'
+          );
+        }).catch(() => {
+          // Old browser fallback
+          fallbackCopyToClipboard(text);
+        });
+      } else {
+        // Old browser fallback
+        fallbackCopyToClipboard(text);
+      }
+    } else {
+      // WhatsApp opened successfully - show helpful message
+      // Small delay to avoid alert blocking WhatsApp from opening
+      setTimeout(() => {
+        alert(
+          '✅ Opening WhatsApp!\n\n' +
+          'Message is ready to share.\n' +
+          'Select a contact and send!'
+        );
+      }, 500);
+    }
+  }, 1000);
 
   return {
     success: true,
     message: '✅ Opening WhatsApp...',
     url
   };
+}
+
+/**
+ * Fallback copy method for older browsers
+ */
+function fallbackCopyToClipboard(text: string): void {
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-999999px';
+  textArea.style.top = '-999999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    document.execCommand('copy');
+    alert(
+      '✅ Message copied!\n\n' +
+      'Now open WhatsApp and paste it to share with your contacts.'
+    );
+  } catch (err) {
+    alert(`📋 Please copy this message manually:\n\n${text}`);
+  }
+
+  document.body.removeChild(textArea);
 }
 
 /**
@@ -392,29 +437,13 @@ export function shareToFacebook(product: ProductShareData): {
       navigator.clipboard.writeText(text);
     }
 
-    // Open Facebook
-    if (isMobileDevice()) {
-      // On mobile, try to open Facebook app
-      window.location.href = 'fb://facewebmodal/f?href=https://www.facebook.com';
+    // Open Facebook - use same simple web sharing for mobile and desktop
+    window.open('https://www.facebook.com', '_blank');
 
-      // Fallback to web if app not installed
-      setTimeout(() => {
-        window.open('https://www.facebook.com', '_blank');
-      }, 500);
-
-      return {
-        success: true,
-        message: '📋 Product details copied! Opening Facebook...\n\nNext steps:\n1. Tap "What\'s on your mind?"\n2. Paste product details\n3. Tap "Photo" to upload product image\n4. Post!'
-      };
-    } else {
-      // On desktop, open Facebook in new tab
-      window.open('https://www.facebook.com', '_blank');
-
-      return {
-        success: true,
-        message: '📋 Product details copied to clipboard!\n\nNext steps:\n1. Click "What\'s on your mind?"\n2. Paste product details (Ctrl+V)\n3. Click "Photo/Video" to upload image\n4. Post!'
-      };
-    }
+    return {
+      success: true,
+      message: '📋 Product details copied! Opening Facebook...\n\nNext steps:\n1. Tap "What\'s on your mind?"\n2. Paste product details\n3. Tap "Photo" to upload product image\n4. Post!'
+    };
   } catch (error) {
     console.error('[Facebook Share] Error:', error);
     return {

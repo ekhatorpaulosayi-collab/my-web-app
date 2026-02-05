@@ -9,11 +9,30 @@
  * - LQIP (Low Quality Image Placeholder) generation
  */
 
-const IMAGEKIT_URL_ENDPOINT = import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT;
+const IMAGEKIT_URL_ENDPOINT = import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/onelove431212341234';
 const IMAGEKIT_PUBLIC_KEY = import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY;
 
+// Track logged warnings to prevent spam
+const loggedWarnings = new Set<string>();
+
+// Helper function to log only once per unique message
+function logOnce(message: string, type: 'log' | 'warn' = 'warn') {
+  if (!loggedWarnings.has(message)) {
+    loggedWarnings.add(message);
+    if (import.meta.env.DEV) {
+      if (type === 'warn') {
+        console.warn(message);
+      } else {
+        console.log(message);
+      }
+    }
+  }
+}
+
 if (!IMAGEKIT_URL_ENDPOINT || !IMAGEKIT_PUBLIC_KEY) {
-  console.warn('ImageKit configuration missing. Check .env.local file.');
+  if (import.meta.env.DEV) {
+    console.warn('ImageKit configuration missing. Check .env.local file.');
+  }
 }
 
 export interface ImageKitTransformOptions {
@@ -35,27 +54,46 @@ export interface ImageKitTransformOptions {
  * @returns Optimized ImageKit URL
  */
 export function getImageKitUrl(path: string, options: ImageKitTransformOptions = {}): string {
+  // CRITICAL: Validate path FIRST before any processing
+  if (!path || typeof path !== 'string') {
+    return '';
+  }
+
+  // Trim whitespace
+  path = path.trim();
+
+  // Check for empty, undefined, null strings
+  if (path === '' || path === '/' || path === 'undefined' || path === 'null' || path === 'null/null') {
+    return '';
+  }
+
   // Detect blob URLs early and return them as-is (can't be optimized)
   if (path.startsWith('blob:')) {
-    console.warn('[ImageKit] Blob URL detected, skipping optimization:', path);
+    logOnce('[ImageKit] Blob URL detected, skipping optimization (this is normal for image uploads/previews)');
     return path;
   }
 
   if (!IMAGEKIT_URL_ENDPOINT) {
-    console.warn('[ImageKit] URL endpoint not configured, returning original path');
-    return path;
+    console.error('[ImageKit] CRITICAL: URL endpoint not configured! Check VITE_IMAGEKIT_URL_ENDPOINT environment variable.');
+    console.error('[ImageKit] Attempted path:', path);
+    // Return empty string to prevent broken relative URLs
+    return '';
   }
 
   // If path is already a full Supabase URL, convert to ImageKit URL
   if (path.startsWith('http')) {
-    console.log('[ImageKit] Path is already a full URL, converting to ImageKit:', path);
-
     // Extract the storage path from the full Supabase URL
     const urlObj = new URL(path);
     const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/(.+)/);
 
     if (pathMatch) {
       const storagePath = pathMatch[1]; // e.g., "products/userId/productId/image.jpg"
+
+      // Validate extracted storage path
+      if (!storagePath || storagePath === '' || storagePath === 'undefined' || storagePath === 'null') {
+        logOnce('[ImageKit] Extracted storage path is invalid from URL: ' + path);
+        return path; // Return original URL as fallback
+      }
 
       // Build transformation string
       const transformations: string[] = [];
@@ -71,21 +109,32 @@ export function getImageKitUrl(path: string, options: ImageKitTransformOptions =
       const transformString = transformations.length > 0 ? `/tr:${transformations.join(',')}` : '';
 
       // ImageKit URL format: https://ik.imagekit.io/{urlEndpoint}/tr:transformations/storagePath
-      // The storagePath will be appended to the ImageKit origin base URL automatically
       const imagekitUrl = `${IMAGEKIT_URL_ENDPOINT}${transformString}/${storagePath}`;
-      console.log('[ImageKit] Generated URL:', imagekitUrl);
-      console.log('[ImageKit] This will fetch from origin:', `https://yzlniqwzqlsftxrtapdl.supabase.co/storage/v1/object/public/${storagePath}`);
+
+      // Final validation: Ensure the URL is complete and valid
+      if (!imagekitUrl.includes(storagePath)) {
+        logOnce('[ImageKit] Generated URL does not contain storage path: ' + imagekitUrl);
+        return path; // Return original URL as fallback
+      }
 
       return imagekitUrl;
     }
 
     // If we can't parse the URL, return the original
-    console.warn('[ImageKit] Could not extract storage path from URL, returning original');
+    logOnce('[ImageKit] Could not extract storage path from URL, returning original: ' + path);
     return path;
   }
 
   // Remove leading slash if present
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+
+  // Validate cleanPath is not empty after processing
+  if (!cleanPath || cleanPath === '' || cleanPath === 'undefined' || cleanPath === 'null') {
+    if (import.meta.env.DEV) {
+      console.warn('[ImageKit] Empty path after cleaning:', path);
+    }
+    return '';
+  }
 
   // Build transformation string
   const transformations: string[] = [];
@@ -103,6 +152,14 @@ export function getImageKitUrl(path: string, options: ImageKitTransformOptions =
   // Format: https://ik.imagekit.io/your_id/tr:w-400,h-300,q-90/path/to/image.jpg
   const transformString = transformations.length > 0 ? `/tr:${transformations.join(',')}` : '';
 
+  // CRITICAL: Final safety check before constructing URL
+  if (!cleanPath || cleanPath.trim() === '') {
+    if (import.meta.env.DEV) {
+      console.error('[ImageKit] CRITICAL: cleanPath is empty right before URL construction!', { originalPath: path, cleanPath });
+    }
+    return '';
+  }
+
   return `${IMAGEKIT_URL_ENDPOINT}${transformString}/${cleanPath}`;
 }
 
@@ -119,12 +176,46 @@ export function buildImageKitSrcSet(
   widths: number[] = [400, 800, 1200, 1600],
   options: Omit<ImageKitTransformOptions, 'width'> = {}
 ): string {
-  return widths
+  // Early validation - if path is invalid, return empty string immediately
+  if (!path || typeof path !== 'string' || path.trim() === '' || path === 'undefined' || path === 'null') {
+    if (import.meta.env.DEV) {
+      console.warn('[ImageKit] buildImageKitSrcSet received invalid path:', path);
+    }
+    return '';
+  }
+
+  const srcSetParts = widths
     .map(width => {
       const url = getImageKitUrl(path, { ...options, width });
-      return `${url} ${width}w`;
+
+      // Debug logging to identify incomplete URLs
+      if (import.meta.env.DEV && url && !url.includes('/products/') && !url.includes('/stores/')) {
+        console.warn('[ImageKit] Potentially incomplete URL generated:', { url, path, width });
+      }
+
+      return url ? `${url} ${width}w` : ''; // Only include if URL is valid
     })
-    .join(', ');
+    .filter(entry => entry !== ''); // Filter out empty entries
+
+  // If all entries are empty, return empty string (don't set srcset at all)
+  if (srcSetParts.length === 0) {
+    if (import.meta.env.DEV) {
+      console.warn('[ImageKit] buildImageKitSrcSet generated no valid URLs for path:', path);
+    }
+    return '';
+  }
+
+  const finalSrcSet = srcSetParts.join(', ');
+
+  // Additional validation: Check if srcset contains proper descriptors
+  if (import.meta.env.DEV && finalSrcSet) {
+    const hasProperDescriptors = srcSetParts.every(part => part.includes(' ') && part.endsWith('w'));
+    if (!hasProperDescriptors) {
+      console.error('[ImageKit] Invalid srcset format detected:', finalSrcSet);
+    }
+  }
+
+  return finalSrcSet;
 }
 
 /**
@@ -259,7 +350,7 @@ export const ImagePresets = {
 export function extractStoragePath(url: string): string {
   // Check for blob URLs (temporary client-side URLs)
   if (url.startsWith('blob:')) {
-    console.warn('[ImageKit] Blob URL detected, cannot optimize:', url);
+    logOnce('[ImageKit] Blob URL detected in extractStoragePath (normal for uploads)');
     return url; // Return as-is, will be handled by fallback logic
   }
 

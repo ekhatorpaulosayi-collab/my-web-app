@@ -151,6 +151,13 @@ export async function addProduct(userId, productData) {
         : productData.discount_price)
       : null;
 
+    // ⚠️ SAFETY WARNING: Detect if someone is trying to create a private product
+    if (productData.is_public === false) {
+      console.warn('[⚠️  SupabaseProducts] Creating PRIVATE product:', productData.name || 'unknown');
+      console.warn('This product will NOT be visible on public storefront.');
+      console.warn('If this is unintentional, remove is_public: false from the product data.');
+    }
+
     const newProduct = {
       user_id: userId,
       name: productData.name,
@@ -168,6 +175,7 @@ export async function addProduct(userId, productData) {
       image_sizes: productData.image_sizes || null,
       description: productData.description || null,
       tags: productData.tags || [],
+      is_public: productData.is_public !== false,  // ✅ DEFAULT: Public unless explicitly set to false
       is_active: productData.is_active !== false,
       is_featured: productData.is_featured || false,
     };

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ImageKit Live Test - Storehouse</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background: #0d1117;
+            color: #c9d1d9;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #58a6ff; border-bottom: 2px solid #58a6ff; padding-bottom: 10px; }
+        h2 { color: #79c0ff; margin-top: 30px; }
+        .test-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .url-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #79c0ff;
+        }
+        .status {
+            padding: 6px 12px;
+            border-radius: 4px;
+            display: inline-block;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .success { background: #238636; color: white; }
+        .error { background: #da3633; color: white; }
+        .info { background: #1f6feb; color: white; }
+        .warning { background: #9e6a03; color: white; }
+        img {
+            max-width: 100%;
+            border: 2px solid #30363d;
+            border-radius: 6px;
+            margin: 10px 0;
+            display: block;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .metric-card {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 5px;
+        }
+        .console-log {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin-top: 15px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #58a6ff;
+            padding-left: 10px;
+        }
+        .log-error { border-left-color: #da3633; color: #ff7b72; }
+        .log-warn { border-left-color: #d29922; color: #d29922; }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover { background: #2ea043; }
+        .clear-btn { background: #da3633; }
+        .clear-btn:hover { background: #f85149; }
+    </style>
+</head>
+<body>
+    <h1>🔬 ImageKit Live Integration Test</h1>
+    <p>Testing if ImageKit is active in your Storehouse app</p>
+
+    <div class="test-section">
+        <h2>📋 Configuration Check</h2>
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="metric-value" id="config-status">⏳</div>
+                <div class="metric-label">ImageKit Status</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="url-count">0</div>
+                <div class="metric-label">URLs Generated</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="success-count">0</div>
+                <div class="metric-label">Successful Loads</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="fail-count">0</div>
+                <div class="metric-label">Failed Loads</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test 1: ImageKit URL Generation</h2>
+        <p>Checking if URLs are properly formatted for ImageKit CDN</p>
+        <div id="test1-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🖼️ Test 2: Image Loading via ImageKit</h2>
+        <p>Attempting to load images through ImageKit CDN</p>
+        <div id="test2-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Test 3: Responsive srcset Test</h2>
+        <p>Testing responsive image loading with multiple breakpoints</p>
+        <div id="test3-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Test 4: Direct Supabase vs ImageKit Comparison</h2>
+        <div id="test4-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Console Logs</h2>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <button onclick="exportLogs()" class="clear-btn">Export Report</button>
+        <div class="console-log" id="console-output"></div>
+    </div>
+
+    <script>
+        const IMAGEKIT_ENDPOINT = 'https://ik.imagekit.io/onelove431212341234';
+        const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+        const TEST_IMAGE = 'products/dffba89b-869d-422a-a542-2e2494850b44/temp/image-1765661897417.jpg';
+
+        let logs = [];
+        let urlCount = 0;
+        let successCount = 0;
+        let failCount = 0;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push({ timestamp, message, type });
+            const logDiv = document.getElementById('console-output');
+            logDiv.innerHTML += `<div class="log-entry log-${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+
+        function clearLogs() {
+            logs = [];
+            document.getElementById('console-output').innerHTML = '';
+        }
+
+        function exportLogs() {
+            const report = logs.map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`).join('\n');
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `imagekit-test-report-${Date.now()}.txt`;
+            a.click();
+        }
+
+        function updateMetrics() {
+            document.getElementById('url-count').textContent = urlCount;
+            document.getElementById('success-count').textContent = successCount;
+            document.getElementById('fail-count').textContent = failCount;
+        }
+
+        function getImageKitUrl(path, options = {}) {
+            const transformations = [];
+            if (options.width) transformations.push(`w-${options.width}`);
+            if (options.height) transformations.push(`h-${options.height}`);
+            if (options.quality) transformations.push(`q-${options.quality}`);
+            if (options.format) transformations.push(`f-${options.format}`);
+            if (options.blur) transformations.push(`bl-${options.blur}`);
+
+            const transformString = transformations.length > 0 ? `/tr:${transformations.join(',')}` : '';
+            urlCount++;
+            updateMetrics();
+            return `${IMAGEKIT_ENDPOINT}${transformString}/${path}`;
+        }
+
+        function buildImageKitSrcSet(path, widths = [320, 480, 640, 960], options = {}) {
+            return widths.map(width => {
+                const url = getImageKitUrl(path, { ...options, width });
+                return `${url} ${width}w`;
+            }).join(', ');
+        }
+
+        async function testImageLoad(url, name) {
+            return new Promise((resolve) => {
+                const startTime = Date.now();
+                const img = new Image();
+
+                img.onload = () => {
+                    const loadTime = Date.now() - startTime;
+                    successCount++;
+                    updateMetrics();
+                    log(`✓ ${name} loaded successfully in ${loadTime}ms (${img.naturalWidth}x${img.naturalHeight})`, 'info');
+                    resolve({ success: true, loadTime, width: img.naturalWidth, height: img.naturalHeight, url });
+                };
+
+                img.onerror = () => {
+                    const loadTime = Date.now() - startTime;
+                    failCount++;
+                    updateMetrics();
+                    log(`✗ ${name} failed to load after ${loadTime}ms`, 'error');
+                    resolve({ success: false, loadTime, url });
+                };
+
+                img.src = url;
+            });
+        }
+
+        async function runTests() {
+            log('🚀 Starting ImageKit integration tests...', 'info');
+
+            // Test 1: URL Generation
+            log('Test 1: Generating ImageKit URLs...', 'info');
+            const test1Url = getImageKitUrl(TEST_IMAGE, { width: 640, quality: 75, format: 'auto' });
+            document.getElementById('test1-results').innerHTML = `
+                <div class="status info">URL Generated</div>
+                <div class="url-box">${test1Url}</div>
+                <p><strong>Analysis:</strong></p>
+                <ul>
+                    <li>✓ Contains ImageKit endpoint: ${test1Url.includes(IMAGEKIT_ENDPOINT) ? 'YES' : 'NO'}</li>
+                    <li>✓ Has transformation params: ${test1Url.includes('/tr:') ? 'YES' : 'NO'}</li>
+                    <li>✓ Format: ${test1Url.match(/f-([^/]+)/)?.[1] || 'NONE'}</li>
+                    <li>✓ Width: ${test1Url.match(/w-(\d+)/)?.[1] || 'NONE'}px</li>
+                    <li>✓ Quality: ${test1Url.match(/q-(\d+)/)?.[1] || 'NONE'}%</li>
+                </ul>
+            `;
+
+            // Test 2: Image Loading
+            log('Test 2: Testing image load via ImageKit...', 'info');
+            const result1 = await testImageLoad(test1Url, 'ImageKit (640px)');
+            document.getElementById('test2-results').innerHTML = `
+                <div class="status ${result1.success ? 'success' : 'error'}">
+                    ${result1.success ? '✓ Image Loaded Successfully' : '✗ Image Failed to Load'}
+                </div>
+                ${result1.success ? `
+                    <img src="${test1Url}" alt="Test image via ImageKit" style="max-width: 400px;">
+                    <div class="metrics">
+                        <div class="metric-card">
+                            <div class="metric-value">${result1.loadTime}ms</div>
+                            <div class="metric-label">Load Time</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">${result1.width}x${result1.height}</div>
+                            <div class="metric-label">Dimensions</div>
+                        </div>
+                    </div>
+                ` : '<p style="color: #ff7b72;">Image failed to load. ImageKit may be misconfigured or disabled.</p>'}
+            `;
+
+            // Test 3: srcset
+            log('Test 3: Testing responsive srcset...', 'info');
+            const srcset = buildImageKitSrcSet(TEST_IMAGE, [320, 480, 640, 960], { quality: 75, format: 'auto' });
+            const srcsetEntries = srcset.split(', ');
+            let srcsetHtml = `
+                <div class="status info">srcset Generated (${srcsetEntries.length} breakpoints)</div>
+                <div class="url-box">${srcset}</div>
+                <h3>Parsed Entries:</h3>
+            `;
+            for (let i = 0; i < srcsetEntries.length; i++) {
+                const entry = srcsetEntries[i];
+                const parts = entry.split(' ');
+                const url = parts[0];
+                const descriptor = parts[1];
+                const valid = descriptor && descriptor.endsWith('w');
+                srcsetHtml += `
+                    <div style="margin: 10px 0; padding: 10px; background: #0d1117; border-left: 3px solid ${valid ? '#238636' : '#da3633'};">
+                        <strong>Entry ${i + 1}:</strong> ${valid ? '✓' : '✗'} ${descriptor || 'MISSING DESCRIPTOR'}<br>
+                        <span style="font-size: 11px; color: #8b949e; word-break: break-all;">${url}</span>
+                    </div>
+                `;
+            }
+            document.getElementById('test3-results').innerHTML = srcsetHtml;
+
+            // Test 4: Comparison
+            log('Test 4: Comparing Supabase direct vs ImageKit...', 'info');
+            const supabaseUrl = `${SUPABASE_URL}/storage/v1/object/public/${TEST_IMAGE}`;
+            const imagekitUrl = getImageKitUrl(TEST_IMAGE, { width: 640, quality: 75, format: 'auto' });
+
+            const [resultSupabase, resultImageKit] = await Promise.all([
+                testImageLoad(supabaseUrl, 'Supabase Direct'),
+                testImageLoad(imagekitUrl, 'ImageKit CDN')
+            ]);
+
+            document.getElementById('test4-results').innerHTML = `
+                <div class="metrics">
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: ${resultSupabase.success ? '#238636' : '#da3633'}">
+                            ${resultSupabase.success ? '✓' : '✗'}
+                        </div>
+                        <div class="metric-label">Supabase Direct</div>
+                        <div style="font-size: 14px; margin-top: 5px;">
+                            ${resultSupabase.success ? `${resultSupabase.loadTime}ms` : 'Failed'}
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" style="color: ${resultImageKit.success ? '#238636' : '#da3633'}">
+                            ${resultImageKit.success ? '✓' : '✗'}
+                        </div>
+                        <div class="metric-label">ImageKit CDN</div>
+                        <div style="font-size: 14px; margin-top: 5px;">
+                            ${resultImageKit.success ? `${resultImageKit.loadTime}ms` : 'Failed'}
+                        </div>
+                    </div>
+                </div>
+
+                <h3>📊 Analysis:</h3>
+                <div style="background: #0d1117; padding: 15px; border-radius: 6px;">
+                    ${resultImageKit.success && resultSupabase.success ? `
+                        <p><strong>Both sources working! ImageKit integration is ACTIVE ✓</strong></p>
+                        <ul>
+                            <li>Speed difference: ${Math.abs(resultSupabase.loadTime - resultImageKit.loadTime)}ms
+                                (${resultImageKit.loadTime < resultSupabase.loadTime ? 'ImageKit faster 🚀' : 'Supabase faster'})</li>
+                            ${resultSupabase.width && resultImageKit.width ? `
+                                <li>File size reduction: ${((1 - resultImageKit.width / resultSupabase.width) * 100).toFixed(1)}%</li>
+                            ` : ''}
+                        </ul>
+                    ` : `
+                        <p style="color: #ff7b72;"><strong>Issue detected:</strong></p>
+                        <ul>
+                            <li>Supabase: ${resultSupabase.success ? '✓ Working' : '✗ Not working'}</li>
+                            <li>ImageKit: ${resultImageKit.success ? '✓ Working' : '✗ Not working'}</li>
+                        </ul>
+                        ${!resultImageKit.success ? '<p><strong>⚠️ ImageKit appears to be DISABLED or MISCONFIGURED</strong></p>' : ''}
+                    `}
+                </div>
+            `;
+
+            // Final status
+            const imagekitActive = resultImageKit.success;
+            document.getElementById('config-status').innerHTML = imagekitActive ? '✓' : '✗';
+            document.getElementById('config-status').style.color = imagekitActive ? '#238636' : '#da3633';
+
+            log(`🏁 Tests complete! ImageKit status: ${imagekitActive ? 'ACTIVE ✓' : 'INACTIVE ✗'}`, imagekitActive ? 'info' : 'error');
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 500);
+        });
+    </script>
+</body>
+</html>

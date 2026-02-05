@@ -46,21 +46,32 @@ export function OptimizedImage({
   // Extract storage path from full URL
   const imagePath = extractStoragePath(src);
 
+  // Validate imagePath in effect to avoid state updates during render
+  useEffect(() => {
+    if (!imagePath || imagePath === '' || imagePath === 'undefined' || imagePath === 'null') {
+      setHasError(true);
+    }
+  }, [imagePath]);
+
   // Generate LQIP for blur placeholder
-  const lqipUrl = getLQIP(imagePath);
+  const lqipUrl = imagePath && imagePath !== '' && imagePath !== 'undefined' && imagePath !== 'null' ? getLQIP(imagePath) : '';
 
-  // Generate responsive srcsets (mobile-first: 320, 640, 960, 1280, 1600)
-  const srcSet = buildImageKitSrcSet(imagePath, [320, 640, 960, 1280, 1600], {
-    quality: 85,
-    format: 'auto'
-  });
+  // Generate responsive srcsets (optimized for slow Nigerian networks: 320, 480, 640, 960)
+  const srcSet = (imagePath && imagePath !== '' && imagePath !== 'undefined' && imagePath !== 'null')
+    ? buildImageKitSrcSet(imagePath, [320, 480, 640, 960], {
+        quality: 75, // Lower quality for faster loading on slow networks
+        format: 'auto'
+      })
+    : '';
 
-  // Fallback URL (optimized for mobile-first)
-  const fallbackUrl = getImageKitUrl(imagePath, {
-    width: 800, // Smaller fallback for faster loading
-    quality: 85,
-    format: 'auto'
-  });
+  // Fallback URL (optimized for mobile-first, smaller for Nigeria's 2G/3G)
+  const fallbackUrl = (imagePath && imagePath !== '' && imagePath !== 'undefined' && imagePath !== 'null')
+    ? getImageKitUrl(imagePath, {
+        width: 640, // Reduced from 800 for faster loading
+        quality: 75, // Reduced from 85
+        format: 'auto'
+      })
+    : '';
 
   const handleLoad = () => {
     setIsLoaded(true);
@@ -68,8 +79,10 @@ export function OptimizedImage({
   };
 
   const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.error('[OptimizedImage] Failed to load image:', fallbackUrl);
-    console.log('[OptimizedImage] Attempting fallback to original URL:', src);
+    if (import.meta.env.DEV) {
+      console.error('[OptimizedImage] Failed to load image:', fallbackUrl);
+      console.log('[OptimizedImage] Attempting fallback to original URL:', src);
+    }
 
     // Try original URL as last resort
     const img = e.currentTarget;
@@ -85,7 +98,9 @@ export function OptimizedImage({
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!isLoaded && !hasError) {
-        console.warn('[OptimizedImage] Image taking too long to load, forcing visibility');
+        if (import.meta.env.DEV) {
+          console.warn('[OptimizedImage] Image taking too long to load, forcing visibility');
+        }
         setForceShow(true);
       }
     }, 2000);
@@ -177,8 +192,8 @@ export function OptimizedImage({
       {/* Main optimized image */}
       <img
         src={fallbackUrl}
-        srcSet={srcSet}
-        sizes={sizes}
+        srcSet={srcSet || undefined}
+        sizes={srcSet ? sizes : undefined}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         decoding={priority ? 'sync' : 'async'}

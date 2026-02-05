@@ -7,14 +7,13 @@
  * - Pro: 5 images
  * - Business: 10 images
  *
- * Includes EXIF orientation correction for mobile photos.
+ * EXIF library removed for mobile compatibility - ImageKit handles orientation.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import UpgradeModal from './UpgradeModal';
-import EXIF from 'exif-js';
 
 interface ProductImage {
   id?: string;
@@ -241,23 +240,10 @@ export default function MultiImageUpload({
     }
   };
 
-  // Helper function to get EXIF orientation
-  const getOrientation = (file: File): Promise<number> => {
-    return new Promise((resolve) => {
-      EXIF.getData(file as any, function(this: any) {
-        const orientation = EXIF.getTag(this, 'Orientation');
-        resolve(orientation || 1);
-      });
-    });
-  };
-
-  // Helper function to compress images with EXIF orientation correction
+  // Helper function to compress images (EXIF library removed for mobile compatibility - ImageKit handles orientation)
   const compressImage = async (file: File): Promise<Blob> => {
     return new Promise(async (resolve, reject) => {
       try {
-        // Get EXIF orientation
-        const orientation = await getOrientation(file);
-
         const img = new Image();
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d', { alpha: true });
@@ -283,42 +269,11 @@ export default function MultiImageUpload({
             }
           }
 
-          // Adjust canvas size based on EXIF orientation
-          if (orientation >= 5 && orientation <= 8) {
-            canvas.width = height;
-            canvas.height = width;
-          } else {
-            canvas.width = width;
-            canvas.height = height;
-          }
+          // Set canvas size (no EXIF orientation handling - ImageKit will fix rotation)
+          canvas.width = width;
+          canvas.height = height;
 
-          // Apply EXIF orientation transformation
-          switch (orientation) {
-            case 2:
-              ctx.transform(-1, 0, 0, 1, width, 0);
-              break;
-            case 3:
-              ctx.transform(-1, 0, 0, -1, width, height);
-              break;
-            case 4:
-              ctx.transform(1, 0, 0, -1, 0, height);
-              break;
-            case 5:
-              ctx.transform(0, 1, 1, 0, 0, 0);
-              break;
-            case 6:
-              ctx.transform(0, 1, -1, 0, height, 0);
-              break;
-            case 7:
-              ctx.transform(0, -1, -1, 0, height, width);
-              break;
-            case 8:
-              ctx.transform(0, -1, 1, 0, 0, width);
-              break;
-            default:
-              break;
-          }
-
+          // Draw image with high quality
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);

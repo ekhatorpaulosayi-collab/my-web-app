@@ -19,16 +19,26 @@ interface ProductShareMenuProps {
     imageUrl?: string;
   };
   onClose?: () => void;
+  storeUrl?: string; // Optional: override store URL (for public storefront pages)
+  storeName?: string; // Optional: override store name (for public storefront pages)
+  whatsappNumber?: string; // Optional: override WhatsApp number (for public storefront pages)
 }
 
-export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onClose }) => {
+export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
+  product,
+  onClose,
+  storeUrl,
+  storeName,
+  whatsappNumber
+}) => {
   const [message, setMessage] = useState('');
   const [isSharing, setIsSharing] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [modalData, setModalData] = useState<{
-    platform: 'instagram' | 'tiktok';
+    platform: 'instagram' | 'tiktok' | 'whatsapp';
     caption: string;
-    imageDownloaded: boolean;
+    imageUrl?: string;
+    productName?: string;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { profile } = useBusinessProfile();
@@ -74,15 +84,22 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
     const isStorefront = currentPath.startsWith('/store/');
 
     let storeBaseUrl: string | undefined;
-    if (isStorefront) {
-      // Extract store slug from current URL
+
+    // Priority 1: Use explicitly provided storeUrl prop (from StorefrontPage)
+    if (storeUrl) {
+      // Remove query params to get base URL
+      storeBaseUrl = storeUrl.split('?')[0];
+    }
+    // Priority 2: Extract from current URL if on storefront
+    else if (isStorefront) {
       const match = currentPath.match(/^\/store\/([^\/]+)/);
       if (match) {
         const storeSlug = match[1];
         storeBaseUrl = `${window.location.origin}/store/${storeSlug}`;
       }
-    } else if (profile.storeUrl && profile.storeUrl.trim()) {
-      // Use profile store URL if available
+    }
+    // Priority 3: Use profile store URL if available
+    else if (profile.storeUrl && profile.storeUrl.trim()) {
       storeBaseUrl = profile.storeUrl;
     }
 
@@ -91,17 +108,17 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
       ? `${storeBaseUrl}?product=${product.id}`
       : undefined;
 
-    // Prepare share data
+    // Prepare share data with prop overrides
     const shareData: ProductShareData = {
       name: product.name,
       price: product.price,
       description: product.description,
       imageUrl: product.imageUrl,
       storeUrl: productUrl, // Product-specific URL
-      whatsappNumber: profile.whatsappNumber,
+      whatsappNumber: whatsappNumber || profile.whatsappNumber,
       instagramHandle: profile.instagramHandle,
       facebookPage: profile.facebookPage,
-      storeName: profile.businessName
+      storeName: storeName || profile.businessName
     };
 
     try {
@@ -131,7 +148,8 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
           setModalData({
             platform: platform === 'whatsapp-status' ? 'whatsapp' : platform as 'instagram' | 'tiktok',
             caption: result.caption,
-            imageDownloaded: result.imageDownloaded || false
+            imageUrl: result.imageUrl,
+            productName: result.productName
           });
           setShowInstructionsModal(true);
           // Don't close menu immediately - modal will handle this
@@ -153,13 +171,14 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
 
   return (
     <div className="share-menu-overlay">
-      <div ref={menuRef} className="share-menu-content">
-        <div className="share-menu-header">
-          <h3>Share Product</h3>
-          <button onClick={onClose} className="share-menu-close" aria-label="Close">
-            <X size={20} />
-          </button>
-        </div>
+      {!showInstructionsModal && (
+        <div ref={menuRef} className="share-menu-content">
+          <div className="share-menu-header">
+            <h3>Share Product</h3>
+            <button onClick={onClose} className="share-menu-close" aria-label="Close">
+              <X size={20} />
+            </button>
+          </div>
 
         <div className="share-menu-product">
           {product.imageUrl && (
@@ -173,18 +192,6 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
 
         <div className="share-menu-options">
           <button
-            className="share-option instagram"
-            onClick={() => handleShare('instagram')}
-            disabled={isSharing}
-          >
-            <div className="share-option-icon">📷</div>
-            <div className="share-option-info">
-              <div className="share-option-name">Instagram</div>
-              <div className="share-option-desc">Stories & Posts</div>
-            </div>
-          </button>
-
-          <button
             className="share-option whatsapp"
             onClick={() => handleShare('whatsapp')}
             disabled={isSharing}
@@ -197,14 +204,14 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
           </button>
 
           <button
-            className="share-option whatsapp-status"
-            onClick={() => handleShare('whatsapp-status')}
+            className="share-option instagram"
+            onClick={() => handleShare('instagram')}
             disabled={isSharing}
           >
-            <div className="share-option-icon">📱</div>
+            <div className="share-option-icon">📷</div>
             <div className="share-option-info">
-              <div className="share-option-name">WhatsApp Status</div>
-              <div className="share-option-desc">Post to Status</div>
+              <div className="share-option-name">Instagram</div>
+              <div className="share-option-desc">Stories & Posts</div>
             </div>
           </button>
 
@@ -219,18 +226,6 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
               <div className="share-option-desc">Posts & Marketplace</div>
             </div>
           </button>
-
-          <button
-            className="share-option tiktok"
-            onClick={() => handleShare('tiktok')}
-            disabled={isSharing}
-          >
-            <div className="share-option-icon">🎵</div>
-            <div className="share-option-info">
-              <div className="share-option-name">TikTok</div>
-              <div className="share-option-desc">Videos & Shop</div>
-            </div>
-          </button>
         </div>
 
         {message && (
@@ -239,13 +234,15 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({ product, onC
           </div>
         )}
       </div>
+      )}
 
       {/* Share Instructions Modal */}
       {showInstructionsModal && modalData && (
         <ShareInstructionsModal
           platform={modalData.platform}
           caption={modalData.caption}
-          imageDownloaded={modalData.imageDownloaded}
+          imageUrl={modalData.imageUrl}
+          productName={modalData.productName}
           onClose={() => {
             setShowInstructionsModal(false);
             setModalData(null);
@@ -270,12 +267,18 @@ interface ShareButtonProps {
   };
   variant?: 'icon' | 'text' | 'full';
   className?: string;
+  storeUrl?: string; // Optional: override store URL (for public storefront pages)
+  storeName?: string; // Optional: override store name (for public storefront pages)
+  whatsappNumber?: string; // Optional: override WhatsApp number (for public storefront pages)
 }
 
 export const ShareButton: React.FC<ShareButtonProps> = ({
   product,
   variant = 'icon',
-  className = ''
+  className = '',
+  storeUrl,
+  storeName,
+  whatsappNumber
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -301,6 +304,9 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
         <ProductShareMenu
           product={product}
           onClose={() => setShowMenu(false)}
+          storeUrl={storeUrl}
+          storeName={storeName}
+          whatsappNumber={whatsappNumber}
         />
       )}
     </>

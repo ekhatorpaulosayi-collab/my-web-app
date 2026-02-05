@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { MessageCircle, Mail, Phone } from 'lucide-react';
+import { MessageCircle, Mail } from 'lucide-react';
 
 interface SupportEscalationProps {
   conversationHistory?: Array<{ role: string; content: string }>;
@@ -23,23 +23,31 @@ export default function SupportEscalation({
     const message = `Hi Storehouse Support,\n\n${context}Looking for assistance. Thank you!`;
     const encodedMessage = encodeURIComponent(message);
 
-    // Your support WhatsApp number
-    const supportNumber = '2348012345678'; // TODO: Replace with actual support number
+    // Support WhatsApp number - will be added when available
+    const supportNumber = ''; // TODO: Add WhatsApp Business number when ready
+
+    if (!supportNumber) {
+      alert('WhatsApp support coming soon! Please use email: storehouseapp@outlook.com');
+      return;
+    }
+
     window.open(`https://wa.me/${supportNumber}?text=${encodedMessage}`, '_blank');
   };
 
   const handleEmailSupport = () => {
+    console.log('[SupportEscalation] Email support clicked');
     const subject = encodeURIComponent('Storehouse Support Request');
+    // Keep body simple to avoid mailto character limits
     const body = encodeURIComponent(
-      `Hi Storehouse Team,\n\nI need help with the following:\n\n${userQuestion || 'My question...'}\n\n---\nConversation History:\n${conversationHistory?.map(msg => `${msg.role}: ${msg.content}`).join('\n\n') || 'None'}\n\nThank you!`
+      `Hi Storehouse Team,\n\nI need help with: ${userQuestion || 'My question...'}\n\nThank you!`
     );
 
-    window.location.href = `mailto:support@storehouse.ng?subject=${subject}&body=${body}`;
-  };
+    const mailtoLink = `mailto:storehouseapp@outlook.com?subject=${subject}&body=${body}`;
+    console.log('[SupportEscalation] Generated mailto link:', mailtoLink);
 
-  const handleScheduleCall = () => {
-    // TODO: Integrate with Calendly or similar
-    window.open('https://calendly.com/storehouse-support', '_blank');
+    // Simply use window.location.href - most reliable method
+    window.location.href = mailtoLink;
+    console.log('[SupportEscalation] Email client should open now');
   };
 
   return (
@@ -53,6 +61,7 @@ export default function SupportEscalation({
         <button
           className="support-option whatsapp"
           onClick={handleWhatsAppSupport}
+          style={{ pointerEvents: 'auto', cursor: 'pointer' }}
         >
           <div className="support-icon">
             <MessageCircle size={24} />
@@ -64,33 +73,20 @@ export default function SupportEscalation({
           </div>
         </button>
 
-        <button
+        <a
           className="support-option email"
-          onClick={handleEmailSupport}
+          href={`mailto:storehouseapp@outlook.com?subject=${encodeURIComponent('Storehouse Support Request')}&body=${encodeURIComponent(`Hi Storehouse Team,\n\nI need help with: ${userQuestion || 'My question...'}\n\nThank you!`)}`}
+          style={{ pointerEvents: 'auto', cursor: 'pointer', textDecoration: 'none' }}
         >
           <div className="support-icon">
             <Mail size={24} />
           </div>
           <div className="support-info">
             <div className="support-title">Email Support</div>
-            <div className="support-desc">support@storehouse.ng</div>
+            <div className="support-desc">storehouseapp@outlook.com</div>
             <div className="support-badge">Response within 24 hours</div>
           </div>
-        </button>
-
-        <button
-          className="support-option phone"
-          onClick={handleScheduleCall}
-        >
-          <div className="support-icon">
-            <Phone size={24} />
-          </div>
-          <div className="support-info">
-            <div className="support-title">Schedule a Call</div>
-            <div className="support-desc">Book a 15-minute support call</div>
-            <div className="support-badge">BUSINESS plan only</div>
-          </div>
-        </button>
+        </a>
       </div>
 
       {onClose && (
