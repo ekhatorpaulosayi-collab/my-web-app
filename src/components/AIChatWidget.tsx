@@ -5,7 +5,7 @@ import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 import { searchDocumentation, getSuggestedQuestions, getDocById } from '../utils/docSearch';
 import { useAppContext } from '../hooks/useAppContext';
 import SupportEscalation from './SupportEscalation';
-import { BookOpen, Zap } from 'lucide-react';
+import { BookOpen, Zap, MessageCircle } from 'lucide-react';
 import { Documentation } from '../types/documentation';
 import { getSmartQuestionsForContext, getTopQuestions } from '../data/smartQuestions';
 
@@ -235,16 +235,17 @@ export default function AIChatWidget({
           error: error?.message
         });
 
-        if (session?.user || user) {
-          setUserType('user'); // Logged in = user mode
+        // PRIORITY 1: If on storefront, ALWAYS use shopper mode (even if logged in)
+        if (storeSlug && contextType === 'storefront') {
+          setUserType('shopper'); // Storefront = shopping assistant (always!)
+          console.log('[AIChatWidget] 🛍️ Storefront mode - userType set to: shopper', { storeSlug, isLoggedIn: !!(session?.user || user) });
+        } else if (session?.user || user) {
+          setUserType('user'); // Logged in on dashboard/admin = user mode
           console.log('[AIChatWidget] ✅ User detected - userType set to: user', {
             userId: user?.id,
             hasAuthContext: !!user,
             hasSession: !!session
           });
-        } else if (storeSlug) {
-          setUserType('shopper'); // On storefront = shopping assistant
-          console.log('[AIChatWidget] 🛍️ Storefront mode - userType set to: shopper', { storeSlug });
         } else {
           setUserType('visitor'); // Landing page = marketing mode
           console.log('[AIChatWidget] 👋 No user - userType set to: visitor');
@@ -277,6 +278,24 @@ export default function AIChatWidget({
       }
       // In help mode with persistentBubble, we still want the bubble to show
       // even if we don't auto-open, so don't return early
+    }
+
+    // STOREFRONT MODE: Auto-popup for first-time visitors (SHOPPING ASSISTANT)
+    if (contextType === 'storefront' && storeSlug) {
+      const storageKey = `storehouse_storefront_chat_seen_${storeSlug}`;
+      const hasSeenStorefrontChat = localStorage.getItem(storageKey);
+      if (!hasSeenStorefrontChat) {
+        setTimeout(() => {
+          setIsOpen(true);
+          setMessages([{
+            role: 'assistant',
+            content: "👋 Hi! Welcome to our store!\n\n🛍️ I'm your shopping assistant. I can help you:\n\n✅ Find products\n✅ Check prices & availability\n✅ Answer questions about delivery & payment\n✅ Recommend products based on your needs\n\nWhat are you looking for today?",
+            timestamp: new Date(),
+          }]);
+          localStorage.setItem(storageKey, 'true');
+        }, 5000); // 5 seconds - let them browse first
+      }
+      return;
     }
 
     // Auto-open for Online Store Setup (first visit only)
@@ -954,31 +973,95 @@ export default function AIChatWidget({
         </div>
       )}
 
-      {/* Chat Bubble */}
+      {/* Chat Bubble - Enhanced Visibility for Storefront */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: 'none',
-            boxShadow: '0 4px 16px rgba(102, 126, 234, 0.4)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.75rem',
-            transition: 'transform 0.2s',
-            pointerEvents: 'auto', // Re-enable clicks for button
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          aria-label="Open AI Chat Assistant"
-        >
-          💬
-        </button>
+        <div style={{ position: 'relative' }}>
+          {/* Pulsing ring animation for storefront */}
+          {contextType === 'storefront' && (
+            <div
+              className="pulse-ring"
+              style={{
+                position: 'absolute',
+                top: '-4px',
+                left: '-4px',
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                border: '3px solid #667eea',
+                animation: 'pulse-ring 2s ease-out infinite',
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+
+          <button
+            onClick={() => setIsOpen(true)}
+            style={{
+              width: '64px', // Increased from 56px
+              height: '64px', // Increased from 56px
+              borderRadius: '50%',
+              background: contextType === 'storefront'
+                ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' // Green for shopping
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple for admin
+              border: 'none',
+              boxShadow: contextType === 'storefront'
+                ? '0 6px 24px rgba(16, 185, 129, 0.5)' // Stronger green shadow
+                : '0 4px 16px rgba(102, 126, 234, 0.4)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '2rem', // Increased from 1.75rem
+              transition: 'all 0.3s ease',
+              pointerEvents: 'auto',
+              position: 'relative',
+              zIndex: 1,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.15)';
+              e.currentTarget.style.boxShadow = contextType === 'storefront'
+                ? '0 8px 32px rgba(16, 185, 129, 0.6)'
+                : '0 6px 24px rgba(102, 126, 234, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = contextType === 'storefront'
+                ? '0 6px 24px rgba(16, 185, 129, 0.5)'
+                : '0 4px 16px rgba(102, 126, 234, 0.4)';
+            }}
+            aria-label={contextType === 'storefront' ? 'Shop with AI Assistant' : 'Open AI Chat Assistant'}
+          >
+            {contextType === 'storefront' ? (
+              <MessageCircle size={32} color="white" fill="white" />
+            ) : (
+              '💬'
+            )}
+          </button>
+
+          {/* "Need Help?" tooltip for storefront */}
+          {contextType === 'storefront' && (
+            <div
+              className="chat-tooltip"
+              style={{
+                position: 'absolute',
+                bottom: '75px',
+                right: '0',
+                background: 'white',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                color: '#059669',
+                whiteSpace: 'nowrap',
+                animation: 'bounce-tooltip 2s ease-in-out infinite',
+                pointerEvents: 'none',
+              }}
+            >
+              💬 Need help shopping?
+            </div>
+          )}
+        </div>
       )}
 
       {/* Support Escalation Modal */}
@@ -1014,6 +1097,30 @@ export default function AIChatWidget({
         @keyframes pulse {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 1; }
+        }
+
+        @keyframes pulse-ring {
+          0% {
+            transform: scale(0.9);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1.3);
+            opacity: 0;
+          }
+        }
+
+        @keyframes bounce-tooltip {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-8px);
+          }
+        }
+
+        .chat-tooltip {
+          animation: bounce-tooltip 2s ease-in-out 3; /* Bounce 3 times then stop */
         }
 
         /* Smart mobile positioning to avoid blocking key buttons */

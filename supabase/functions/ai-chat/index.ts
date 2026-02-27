@@ -1,6 +1,21 @@
 // AI Chat - Intelligent Onboarding & Help System
+// Version: 2.0.0 - Guardrails Active - 2026-02-27
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  getStoreContext,
+  searchProducts,
+  detectLanguage,
+  getLanguageInstruction,
+  getLanguageFallback,
+  isOffTopic,
+  getOffTopicResponse,
+  isSpam,
+  checkRateLimit,
+  trackOffTopicAttempt,
+  getRateLimitResponse,
+  type StoreContext,
+} from './store-context.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -290,8 +305,9 @@ function validateStorefrontResponse(
 /**
  * Detect off-topic questions BEFORE calling expensive OpenAI API
  * Saves money and prevents abuse
+ * NOTE: For storefront context, use the more detailed isOffTopic from store-context.ts
  */
-function isOffTopic(message: string): boolean {
+function isOffTopicGeneral(message: string): boolean {
   const lowerMessage = message.toLowerCase();
 
   // Explicitly off-topic patterns
@@ -590,7 +606,8 @@ serve(async (req) => {
     }
 
     // SAFEGUARD 1: Check for off-topic questions (blocks BEFORE expensive OpenAI call)
-    if (isOffTopic(message)) {
+    // NOTE: Storefront context uses detailed isOffTopic from store-context.ts
+    if (isOffTopicGeneral(message)) {
       await logAbuseAttempt(supabase, userId, ipAddress, 'off_topic', message);
       return jsonResponse({
         response: "I'm your Storehouse assistant! 🏪 I can help with:\n\n✅ Adding products & managing inventory\n✅ Recording sales & tracking profit\n✅ Setting up your online store\n✅ Payment methods (OPay, Moniepoint, Banks)\n✅ Managing customers & staff\n✅ Generating invoices & reports\n\nWhat would you like help with?",
@@ -671,7 +688,7 @@ serve(async (req) => {
 
     // Handle storefront context (different logic)
     if (contextType === 'storefront' && storeSlug) {
-      return await handleStorefrontChat(supabase, message, storeSlug, storeInfo);
+      return await handleStorefrontChat(supabase, message, storeSlug, storeInfo, sessionId);
     }
 
     // For visitors (landing page), skip database conversation tracking (saves costs, no quotas)
@@ -2106,479 +2123,293 @@ BAD EXAMPLES (Never say these):
   return basePrompt;
 }
 
-// Handle storefront chat (customer inquiries) - FAQ first, AI fallback
-async function handleStorefrontChat(supabase: any, message: string, storeSlug: string, storeInfo?: StoreInfo) {
-  // Get store owner
-  const { data: store } = await supabase
-    .from('stores')
-    .select('user_id, business_name, whatsapp_number, business_hours, payment_methods')
-    .eq('store_slug', storeSlug)
-    .single();
+// Handle storefront chat (customer inquiries) - QUALITY-OPTIMIZED with Guardrails & RAG
+async function handleStorefrontChat(
+  supabase: any,
+  message: string,
+  storeSlug: string,
+  storeInfo?: StoreInfo,
+  sessionId: string = 'default'
+) {
+  console.log('[StorefrontChat] Processing:', { storeSlug, messageLength: message.length });
 
-  if (!store) {
-    return jsonResponse({ error: 'Store not found' }, 404);
+  // ============================================================================
+  // GUARDRAIL 1: SPAM DETECTION (Keep this - blocks abuse)
+  // ============================================================================
+  if (isSpam(message)) {
+    console.warn('[Guardrail] Spam detected');
+    return jsonResponse({
+      response: '🚫 Message blocked. Please send a valid shopping question.',
+      blocked: true,
+      reason: 'spam',
+    });
   }
+
+  // ============================================================================
+  // GUARDRAIL 2: RATE LIMITING (Keep this - prevents abuse)
+  // ============================================================================
+  const rateLimitCheck = checkRateLimit(sessionId, 20, 8);  // INCREASED: 20 msgs/session, 8/min
+  if (!rateLimitCheck.allowed) {
+    console.warn('[Guardrail] Rate limit:', rateLimitCheck.reason);
+
+    const { data: store } = await supabase
+      .from('stores')
+      .select('business_name, whatsapp_number')
+      .eq('store_slug', storeSlug)
+      .single();
+
+    return jsonResponse({
+      response: getRateLimitResponse(
+        rateLimitCheck.reason!,
+        store?.business_name || 'our store',
+        store?.whatsapp_number,
+        rateLimitCheck.waitSeconds
+      ),
+      blocked: true,
+      reason: rateLimitCheck.reason,
+    });
+  }
+
+  // ============================================================================
+  // LOAD STORE CONTEXT (Complete RAG Retrieval)
+  // ============================================================================
+  const storeContext = await getStoreContext(supabase, storeSlug);
+
+  if (!storeContext) {
+    return jsonResponse({
+      error: 'Store not found',
+      response: 'Sorry, this store is not available right now.',
+    }, 404);
+  }
+
+  // ============================================================================
+  // GUARDRAIL 3: OFF-TOPIC DETECTION (Keep this - focuses conversation)
+  // ============================================================================
+  console.log('[DEBUG] About to check off-topic for message:', message);
+  const offTopicCheck = isOffTopic(message);
+  console.log('[DEBUG] Off-topic check result:', offTopicCheck);
+  if (offTopicCheck.isOffTopic) {
+    console.warn('[Guardrail] Off-topic:', offTopicCheck.reason);
+
+    const isBlocked = trackOffTopicAttempt(sessionId);
+
+    return jsonResponse({
+      response: getOffTopicResponse(
+        offTopicCheck.reason!,
+        storeContext.profile.businessName,
+        storeContext.profile.whatsappNumber
+      ),
+      blocked: isBlocked,
+      reason: 'off_topic',
+      offTopicCategory: offTopicCheck.reason,
+    });
+  }
+
+  // ============================================================================
+  // DETECT LANGUAGE (Multi-language support)
+  // ============================================================================
+  const language = detectLanguage(message);
+  console.log('[Language] Detected:', language);
 
   const lowerMessage = message.toLowerCase();
-  const businessName = storeInfo?.businessName || store.business_name;
+  const businessName = storeContext.profile.businessName;
 
-  // FAQ-based responses (FREE, no AI cost!) - Enhanced with storeInfo
+  // ============================================================================
+  // MINIMAL FAQ: Only for TRIVIAL queries (greetings, contact)
+  // Everything else goes to AI for QUALITY
+  // ============================================================================
 
-  // About the store
-  if (lowerMessage.match(/about|who are you|tell me about|what (do you|does this store)|your business|your store/i)) {
-    const aboutText = storeInfo?.aboutUs || `Welcome to ${businessName}!`;
-    const contactInfo = storeInfo?.whatsappNumber || store.whatsapp_number
-      ? `\n\n📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}`
-      : '';
+  // Greeting only
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening)$/i.test(message.trim())) {
+    const greetings = {
+      english: `👋 Welcome to ${businessName}! How can I help you today?`,
+      pidgin: `👋 Welcome to ${businessName}! Wetin you wan buy?`,
+      yoruba: `👋 E kaabo si ${businessName}! Bawo ni MO le ran yin lọwọ?`,
+      igbo: `👋 Nnọọ na ${businessName}! Kedu ka m ga-esi nyere gị aka?`,
+      hausa: `👋 Barka da zuwa ${businessName}! Yaya zan iya taimaka muku?`,
+    };
 
     return jsonResponse({
-      response: `**About ${businessName}**\n\n${aboutText}${contactInfo}\n\nWhat can I help you find today?`,
-      confidence: 0.95
+      response: greetings[language] || greetings.english,
+      confidence: 0.95,
+      source: 'faq',
+      language,
     });
   }
 
-  // Greeting
-  if (lowerMessage.match(/^(hi|hello|hey|good morning|good afternoon|good evening)/i)) {
-    const storeIntro = storeInfo?.aboutUs
-      ? `\n\n${storeInfo.aboutUs.substring(0, 150)}${storeInfo.aboutUs.length > 150 ? '...' : ''}`
-      : '';
-
-    return jsonResponse({
-      response: `👋 Welcome to ${businessName}! I'm here to help you find products.${storeIntro}\n\n💬 Ask me:\n• "How much is [product]?"\n• "Do you have [product]?"\n• "What do you sell?"\n• "About delivery"\n\nWhat are you looking for today?`,
-      confidence: 0.95
-    });
-  }
-
-  // Payment methods
-  if (lowerMessage.match(/payment|pay|how (do|can) i pay|bank|transfer/i)) {
-    const paymentInfo = store.payment_methods && store.payment_methods.length > 0
-      ? `We accept:\n${store.payment_methods.map((pm: any) => `💳 ${pm.provider} - ${pm.account_name} (${pm.account_number})`).join('\n')}`
-      : 'Please contact us for payment information.';
-
-    return jsonResponse({
-      response: `**Payment Methods:**\n\n${paymentInfo}\n\n${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
-      confidence: 0.95
-    });
-  }
-
-  // Delivery
-  if (lowerMessage.match(/deliver|delivery|shipping|ship|areas you deliver|do you deliver to/i)) {
-    let deliveryInfo = '';
-
-    if (storeInfo?.deliveryAreas) {
-      deliveryInfo += `📍 **We deliver to:** ${storeInfo.deliveryAreas}\n\n`;
-    }
-
-    if (storeInfo?.deliveryTime) {
-      deliveryInfo += `⏰ **Delivery time:** ${storeInfo.deliveryTime}\n\n`;
-    }
-
-    // PHASE 1 FIX: If no dedicated fields BUT about_us has delivery info, let AI handle it
-    if (!deliveryInfo && storeInfo?.aboutUs) {
-      const aboutLower = storeInfo.aboutUs.toLowerCase();
-      // Check if about_us mentions delivery-related terms
-      const hasDeliveryInAbout = /deliver|shipping|ship to|areas we (cover|serve)|locations we serve/i.test(aboutLower);
-
-      if (hasDeliveryInAbout) {
-        // Don't return FAQ - let AI extract from about_us instead (fall through to AI)
-        console.log('[FAQ] Delivery info found in about_us, routing to AI for intelligent extraction');
-        // Skip FAQ response entirely - go straight to AI (don't set deliveryInfo, don't return)
-      } else {
-        // No delivery info in about_us either, show generic message
-        deliveryInfo = 'Please contact us for delivery information.\n\n';
-      }
-    } else if (!deliveryInfo) {
-      // No dedicated fields and no about_us
-      deliveryInfo = 'Please contact us for delivery information.\n\n';
-    }
-
-    // Only return FAQ response if we have deliveryInfo set (and it's not empty)
-    if (deliveryInfo && deliveryInfo.trim()) {
+  // Contact info only (quick lookup)
+  if (/^(contact|phone|whatsapp|call)$/i.test(message.trim())) {
+    if (storeContext.profile.whatsappNumber) {
       return jsonResponse({
-        response: `📦 **Delivery Information:**\n\n${deliveryInfo}${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number} for details` : ''}`,
-        confidence: 0.95
+        response: `📱 **Contact Us:**\n\nWhatsApp/Call: ${storeContext.profile.whatsappNumber}`,
+        confidence: 0.95,
+        source: 'faq',
       });
     }
-    // If no deliveryInfo OR about_us has delivery info, fall through to AI handling below
   }
 
-  // Return/Refund policy
-  if (lowerMessage.match(/return|refund|exchange|warranty|guarantee/i)) {
-    let returnInfo = storeInfo?.returnPolicy || '';
+  // ============================================================================
+  // AI-FIRST: Route EVERYTHING else to AI for QUALITY responses
+  // ============================================================================
+  console.log('[AI] Routing to AI for quality response');
 
-    // PHASE 1 FIX: If no return policy BUT about_us mentions it, let AI handle it
-    if (!returnInfo && storeInfo?.aboutUs) {
-      const aboutLower = storeInfo.aboutUs.toLowerCase();
-      const hasReturnInAbout = /return|refund|exchange|warranty|guarantee|money.?back/i.test(aboutLower);
-
-      if (hasReturnInAbout) {
-        console.log('[FAQ] Return policy found in about_us, routing to AI for intelligent extraction');
-        // Skip FAQ response entirely - go straight to AI (don't set returnInfo, don't return)
-      } else {
-        // No return info in about_us either
-        returnInfo = 'Please contact us for our return and refund policy.';
-      }
-    } else if (!returnInfo) {
-      // No dedicated field and no about_us
-      returnInfo = 'Please contact us for our return and refund policy.';
-    }
-
-    // Only return FAQ response if we have returnInfo set (and it's not empty)
-    if (returnInfo && returnInfo.trim()) {
-      return jsonResponse({
-        response: `🔄 **Return & Refund Policy:**\n\n${returnInfo}\n\n${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 Questions? WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
-        confidence: 0.95
-      });
-    }
-    // If no returnInfo OR about_us has return info, fall through to AI handling below
-  }
-
-  // Location / Business hours / Address
-  if (lowerMessage.match(/location|address|where (are you|is your shop)|hours|open|closed|time/i)) {
-    let locationInfo = '';
-
-    if (storeInfo?.address) {
-      locationInfo += `📍 **Address:** ${storeInfo.address}\n\n`;
-    }
-
-    if (storeInfo?.businessHours || store.business_hours) {
-      locationInfo += `🕒 **Business Hours:** ${storeInfo?.businessHours || store.business_hours}\n\n`;
-    }
-
-    if (!locationInfo) {
-      locationInfo = 'Please contact us for our location and hours.\n\n';
-    }
-
-    return jsonResponse({
-      response: `${locationInfo}${storeInfo?.whatsappNumber || store.whatsapp_number ? `📱 Call/WhatsApp: ${storeInfo?.whatsappNumber || store.whatsapp_number}` : ''}`,
-      confidence: 0.95
-    });
-  }
-
-  // Contact
-  if (lowerMessage.match(/contact|phone|whatsapp|call/i)) {
-    const contact = store.whatsapp_number
-      ? `📱 **Contact Us:**\n\nWhatsApp/Call: ${store.whatsapp_number}`
-      : 'Please check our store for contact information.';
-    return jsonResponse({
-      response: contact,
-      confidence: 0.95
-    });
-  }
-
-  // Block unrelated questions (FREE - no AI cost!)
-  if (lowerMessage.match(/subscription|how much (do|does) (you|they|he|she) pay|owner|profit|revenue|salary|employee|staff|business cost|your price|what (do|does) you (pay|charge)|storehouse|smartstock/i)) {
-    return jsonResponse({
-      response: `I'm here to help you shop for products! 😊\n\n💬 I can answer questions about:\n• Product prices and availability\n• Payment methods\n• Delivery information\n• Our location\n\n${store.whatsapp_number ? `📱 For business inquiries, please WhatsApp us: ${store.whatsapp_number}` : 'For other questions, please contact the store directly.'}\n\nWhat product are you looking for today?`,
-      confidence: 0.95
-    });
-  }
-
-  // Clean message: Remove file paths (Windows/Mac) before searching
-  // Example: "C:\Users\name\Downloads\image.jpg" → "image.jpg" → "image"
-  let cleanedMessage = message;
-
-  // Detect and clean Windows file paths
-  if (cleanedMessage.includes('\\') || cleanedMessage.includes(':/')) {
-    const filePathMatch = cleanedMessage.match(/([^\\/:]+)\.(jpg|jpeg|png|webp|gif|heic|heif)/i);
-    if (filePathMatch) {
-      // Extract just the filename without extension
-      cleanedMessage = filePathMatch[1].replace(/[-_]/g, ' '); // "image-2025" → "image 2025"
-    }
-  }
-
-  // If message looks like pure file paths with no useful search terms, return helpful response
-  if (message.match(/^[A-Z]:\\Users\\.*\.(jpg|jpeg|png)/i)) {
-    return jsonResponse({
-      response: `I can see you're interested in products, but I need more information! 😊\n\n💬 Try asking:\n• "Show me all products"\n• "Do you have [product name]?"\n• "How much is [product]?"\n• "What's available?"\n\n${store.whatsapp_number ? `📱 Or WhatsApp us: ${store.whatsapp_number}` : 'Browse our store to see all products!'}`,
-      confidence: 0.8
-    });
-  }
-
-  // Product search (fuzzy matching, better than simple ILIKE)
-  const { data: products } = await supabase
-    .from('products')
-    .select('name, selling_price, quantity, description')
-    .eq('user_id', store.user_id)
-    .eq('is_public', true)
-    .or(`name.ilike.%${cleanedMessage}%,description.ilike.%${cleanedMessage}%`)
-    .limit(10);
-
-  // FAQ: Simple price/availability questions
-  if (lowerMessage.match(/how much|price|cost|sell/i) && products && products.length > 0) {
-    const productList = products.map((p: any) => {
-      const price = Math.floor(p.selling_price / 100); // FIX: Convert kobo to naira
-      const stock = p.quantity > 0 ? `✅ ${p.quantity} in stock` : '❌ Out of stock';
-      return `• ${p.name} - ₦${price.toLocaleString()} (${stock})`;
-    }).join('\n');
-
-    let response = `Here's what we have:\n\n${productList}\n\n`;
-
-    // Add WhatsApp order instructions
-    if (store.whatsapp_number) {
-      response += `📱 **Ready to order?**\nWhatsApp us: ${store.whatsapp_number}\n\n`;
-    }
-
-    // Get related products for upselling (only in-stock items)
-    const { data: relatedProducts } = await supabase
-      .from('products')
-      .select('name, selling_price, quantity')
-      .eq('user_id', store.user_id)
-      .eq('is_public', true)
-      .gt('quantity', 0)
-      .not('name', 'in', `(${products.map((p: any) => p.name).join(',')})`)
-      .limit(3);
-
-    if (relatedProducts && relatedProducts.length > 0) {
-      response += `💡 **You might also like:**\n${relatedProducts.map((p: any) => {
-        const relPrice = Math.floor(p.selling_price / 100);
-        return `• ${p.name} - ₦${relPrice.toLocaleString()}`;
-      }).join('\n')}`;
-    }
-
-    return jsonResponse({
-      response,
-      confidence: 0.95
-    });
-  }
-
-  // FAQ: Availability check
-  if (lowerMessage.match(/do you have|available|in stock/i) && products && products.length > 0) {
-    const available = products.filter((p: any) => p.quantity > 0);
-    const outOfStock = products.filter((p: any) => p.quantity === 0);
-
-    let response = '';
-    if (available.length > 0) {
-      response += `✅ **Available:**\n${available.map((p: any) => {
-        const price = Math.floor(p.selling_price / 100);
-        return `• ${p.name} - ₦${price.toLocaleString()} (${p.quantity} in stock)`;
-      }).join('\n')}`;
-    }
-    if (outOfStock.length > 0) {
-      response += `\n\n❌ **Out of Stock:**\n${outOfStock.map((p: any) => `• ${p.name}`).join('\n')}`;
-    }
-
-    return jsonResponse({
-      response: response || 'Sorry, we don\'t have that product right now.',
-      confidence: 0.9
-    });
-  }
-
-  // FAQ: Interested buyers - Direct to WhatsApp!
-  if (lowerMessage.match(/i want|i would like|i need|interested|buy|purchase|order|place (an )?order|get (the|this|that)|can i (buy|order|get)/i) && products && products.length > 0) {
-    const available = products.filter((p: any) => p.quantity > 0);
-
-    if (available.length === 0) {
-      return jsonResponse({
-        response: `Sorry, the product you're interested in is currently out of stock. 😔\n\n${store.whatsapp_number ? `📱 WhatsApp us at ${store.whatsapp_number} to know when it's back in stock or explore alternatives!` : 'Please check back later!'}`,
-        confidence: 0.9
-      });
-    }
-
-    // Get related products for recommendations
-    const { data: relatedProducts } = await supabase
-      .from('products')
-      .select('name, selling_price, quantity')
-      .eq('user_id', store.user_id)
-      .eq('is_public', true)
-      .gt('quantity', 0)
-      .neq('name', available[0].name)
-      .limit(3);
-
-    const mainProduct = available[0];
-    const price = Math.floor(mainProduct.selling_price / 100);
-
-    let response = `Great choice! 🎉\n\n**${mainProduct.name}** - ₦${price.toLocaleString()} (${mainProduct.quantity} in stock)\n\n`;
-
-    if (store.whatsapp_number) {
-      response += `📱 **To place your order:**\n1. WhatsApp us: ${store.whatsapp_number}\n2. Message: "I want to order ${mainProduct.name}"\n3. We'll confirm payment & delivery!\n\n`;
-    } else {
-      response += `Add to cart to complete your order!\n\n`;
-    }
-
-    // Add recommendations if available
-    if (relatedProducts && relatedProducts.length > 0) {
-      response += `💡 **You might also like:**\n${relatedProducts.map((p: any) => {
-        const relPrice = Math.floor(p.selling_price / 100);
-        return `• ${p.name} - ₦${relPrice.toLocaleString()}`;
-      }).join('\n')}`;
-    }
-
-    return jsonResponse({
-      response,
-      confidence: 0.95
-    });
-  }
-
-  // If products found but not a specific question, list them
-  if (products && products.length > 0) {
-    const productList = products.slice(0, 5).map((p: any) => {
-      const price = Math.floor(p.selling_price / 100);
-      return `• ${p.name} - ₦${price.toLocaleString()}`;
-    }).join('\n');
-
-    return jsonResponse({
-      response: `I found these products:\n\n${productList}\n\n💬 Ask me "How much is [product]?" or "Do you have [product]?" for more details!`,
-      confidence: 0.8
-    });
-  }
-
-  // No products found - try AI (uses credits)
   if (!OPENAI_API_KEY) {
     return jsonResponse({
-      response: `Sorry, I couldn't find "${message}" in our store. Try searching for something else, or contact us at ${store.whatsapp_number || 'our phone number'}.`,
-      confidence: 0.3
+      response: getLanguageFallback(language, storeContext.profile.whatsappNumber),
+      confidence: 0.5,
+      source: 'fallback',
     });
   }
 
-  // PHASE 1: Sanitize customer message before processing
-  const sanitizedMessage = sanitizeStorefrontMessage(message);
+  const languageInstruction = getLanguageInstruction(language);
 
-  // AI fallback for complex questions (uses credits)
-  const { data: allProducts } = await supabase
-    .from('products')
-    .select('name, selling_price, quantity, description, category, specifications')
-    .eq('user_id', store.user_id)
-    .eq('is_public', true)
-    .order('quantity', { ascending: false }) // Prioritize in-stock items
-    .limit(30); // PHASE 1: Increased from 20 to 30
+  // Build COMPREHENSIVE system prompt with ALL store data
+  const systemPrompt = `You are an expert shopping assistant for ${businessName}.
 
-  // PHASE 2A: Structured JSON product data with specifications (prevents hallucination)
-  const productDataJSON = allProducts?.map((p: any) => ({
-    name: p.name,
-    price_naira: Math.floor(p.selling_price / 100),
-    stock_count: p.quantity,
-    stock_status: p.quantity > 0 ? 'In Stock' : 'Out of Stock',
-    category: p.category || 'General',
-    description: p.description ? p.description.substring(0, 150) : 'No description available',
-    specifications: p.specifications || {} // PHASE 2A: Add specifications
-  })) || [];
+**LANGUAGE:**
+${languageInstruction}
 
-  // Fallback: Keep plain text for AI context window efficiency
-  const productContext = productDataJSON.map(p =>
-    `• ${p.name} - ₦${p.price_naira.toLocaleString()} (${p.stock_status}${p.stock_count > 0 ? ` - ${p.stock_count} available` : ''})`
-  ).join('\n') || 'No products available currently.';
+**YOUR ROLE:**
+Help customers find perfect products, answer questions intelligently, and drive sales. Be conversational, helpful, and persuasive (but honest).
 
-  // PHASE 2A: Enhanced system prompt with specifications and strict anti-hallucination rules
-  const systemPrompt = `You are a helpful shopping assistant for ${store.business_name}.
+**STORE PROFILE:**
+Business: ${businessName}
+${storeContext.profile.aboutUs ? `About: ${storeContext.profile.aboutUs}` : ''}
+${storeContext.profile.address ? `Address: ${storeContext.profile.address}` : ''}
+${storeContext.profile.whatsappNumber ? `WhatsApp: ${storeContext.profile.whatsappNumber}` : ''}
+${storeContext.profile.businessHours ? `Hours: ${storeContext.profile.businessHours}` : ''}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔒 CRITICAL RULES - NEVER VIOLATE THESE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**DELIVERY POLICY:**
+${storeContext.policies.delivery.areas ? `Areas: ${storeContext.policies.delivery.areas}` : 'Contact us for delivery info'}
+${storeContext.policies.delivery.time ? `Delivery Time: ${storeContext.policies.delivery.time}` : ''}
 
-1. ONLY use information from DATA SOURCE below
-2. NEVER guess, infer, or make up: prices, features, delivery times, or policies
-3. If information is NOT in DATA SOURCE, say: "Let me connect you with the store - WhatsApp ${store.whatsapp_number || 'them'} for details"
-4. NEVER mention products not in DATA SOURCE
-5. Quote prices EXACTLY as shown (no rounding beyond ₦50)
-6. For specs (battery, screen, camera, etc): ONLY use values from "specifications" object
-7. If specification is empty {}, say: "For detailed specs, WhatsApp ${store.whatsapp_number || 'the store'} to confirm!"
+**RETURN POLICY:**
+${storeContext.policies.returns || 'Contact us for return policy'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📦 DATA SOURCE: AVAILABLE PRODUCTS (ONLY THESE EXIST!)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**PAYMENT METHODS:**
+${storeContext.policies.payment_methods.length > 0
+  ? storeContext.policies.payment_methods.map(pm => `${pm.provider}: ${pm.account_name} (${pm.account_number})`).join('\n')
+  : 'Contact us for payment options'}
 
-${JSON.stringify(productDataJSON, null, 2)}
+**AVAILABLE PRODUCTS (${storeContext.products.filter(p => p.quantity > 0).length} in stock):**
+${storeContext.products.filter(p => p.quantity > 0).slice(0, 30).map(p => {
+  const price = Math.floor(p.selling_price / 100);
+  const specs = Object.entries(p.specifications || {})
+    .map(([key, val]) => `${key}: ${val}`)
+    .join(', ');
+  return `• ${p.name}: ₦${price.toLocaleString()} (${p.quantity} in stock)${p.description ? ` - ${p.description}` : ''}${specs ? ` | Specs: ${specs}` : ''}`;
+}).join('\n')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏪 STORE INFORMATION:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${storeContext.products.filter(p => p.quantity === 0).length > 0 ? `\n**OUT OF STOCK:**\n${storeContext.products.filter(p => p.quantity === 0).slice(0, 10).map(p => `• ${p.name}`).join('\n')}` : ''}
 
-About: ${storeInfo?.aboutUs || 'Not provided - ask customer to WhatsApp for details'}
-Delivery Areas: ${storeInfo?.deliveryAreas || 'Not specified - ask customer to WhatsApp'}
-Delivery Time: ${storeInfo?.deliveryTime || 'Not specified - ask customer to WhatsApp'}
-Return Policy: ${storeInfo?.returnPolicy || 'Not specified - ask customer to WhatsApp'}
-Contact: WhatsApp ${store.whatsapp_number || 'the store'}
+**RESPONSE GUIDELINES:**
+1. **Be Conversational**: Chat naturally in ${language}, don't sound robotic
+2. **Understand Intent**: If customer says "for my mom", recommend accordingly
+3. **Compare Options**: When showing multiple products, explain differences
+4. **Upsell Smartly**: Suggest combos, upgrades if relevant (but don't be pushy)
+5. **Be Specific**: Use exact prices and stock numbers from the list above
+6. **NEVER Invent**: Only mention products, prices, and specs from the data above
+7. **WhatsApp CTA**: Always end product recommendations with WhatsApp number for ordering
+8. **Handle Questions**: If asked about delivery/returns/payment, use the policy data above
+9. **Be Brief But Complete**: 3-5 sentences max, but include all key details
+10. **Out of Stock**: If product unavailable, suggest similar alternatives from stock
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ YOUR RESPONSE RULES:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**EXAMPLES OF QUALITY RESPONSES:**
 
-ALLOWED:
-• Quote exact prices from DATA SOURCE (e.g., "₦${productDataJSON[0]?.price_naira?.toLocaleString() || '0'}")
-• Mention stock status from DATA SOURCE
-• Use store info from STORE INFORMATION section
-• Suggest alternatives from DATA SOURCE
-• Be warm, helpful, and conversational
+Customer: "I need a phone for my dad"
+You: "Great! For dads, I recommend phones with large displays and simple interfaces:
 
-FORBIDDEN (will be blocked):
-• Mentioning products NOT in DATA SOURCE
-• Inventing prices or features
-• Making up delivery/return policies
-• Comparing to competitors (Jumia, Konga, Amazon, etc.)
-• Discussing Storehouse subscription prices
+🏆 Samsung Galaxy A14 - ₦98,000
+→ 6.6" large display (easy to read)
+→ 5000mAh battery (2-3 days use)
+→ Simple Android interface
 
-💬 PERSONALITY:
-- Friendly and helpful (Nigerian context appreciated!)
-- Show enthusiasm for in-stock products
-- Create urgency when stock is low (e.g., "Only 2 left!")
-- Always end with: "WhatsApp ${store.whatsapp_number || 'us'} to order!"
+The large screen and long battery mean he won't struggle with small text or constant charging. Perfect for calls, WhatsApp, and family photos!
 
-🎯 EXAMPLES:
+📱 To order: WhatsApp ${storeContext.profile.whatsappNumber || 'us'}"
 
-Good: "The iPhone 13 is ₦${productDataJSON.find(p => p.name.toLowerCase().includes('iphone'))?.price_naira.toLocaleString() || 'available'} and we have ${productDataJSON.find(p => p.name.toLowerCase().includes('iphone'))?.stock_count || 0} in stock. WhatsApp ${store.whatsapp_number || 'us'} to order!"
+Customer: "Cheapest phone?"
+You: "Our most affordable smartphone is the Infinix Smart 7 at ₦55,000!
 
-Bad: "The iPhone is around ₦800k and comes with free earphones" ❌ (price not exact, invented free item)
+It's budget-friendly but still quality:
+✓ Works great for WhatsApp, calls, social media
+✓ Decent camera
+✓ 5000mAh battery
+✓ In stock: 2 units
 
-SELF-CHECK before responding:
-1. Did I use exact price from DATA SOURCE? ✓
-2. Did I mention only products in DATA SOURCE? ✓
-3. Did I avoid making up policies? ✓
-4. Did I redirect to WhatsApp for unknowns? ✓
+Want something with more features? The Tecno Spark 10 (₦65,000) has a better camera for just ₦10k more.
 
-Your mission: Help customers find what they need using ONLY verified information above! 🇳🇬`;
+📱 Ready to order? WhatsApp: ${storeContext.profile.whatsappNumber || 'us'}"
 
-  // PHASE 1: Optimized AI parameters for accuracy
-  const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: sanitizedMessage }, // PHASE 1: Use sanitized message
-      ],
-      max_tokens: 150,  // PHASE 1: Increased from 120 to 150 for complete responses
-      temperature: 0.3,  // PHASE 1: Reduced from 0.7 to 0.3 for more deterministic/accurate responses
-      top_p: 0.9,  // PHASE 1: Nucleus sampling for consistency
-      frequency_penalty: 0.3,  // PHASE 1: Reduce repetition
-      presence_penalty: 0.1,  // PHASE 1: Slight encouragement for new info
-    }),
-  });
+Customer: "Do you deliver to Lekki?"
+You: "${storeContext.policies.delivery.areas?.toLowerCase().includes('lekki') || storeContext.policies.delivery.areas?.toLowerCase().includes('lagos')
+  ? `Yes! We deliver to Lekki. Delivery takes ${storeContext.policies.delivery.time || '2-3 business days'}. 📱 WhatsApp ${storeContext.profile.whatsappNumber} to place your order!`
+  : `Let me check our delivery areas: ${storeContext.policies.delivery.areas || 'Please WhatsApp us to confirm'}. 📱 ${storeContext.profile.whatsappNumber}`}"
 
-  const data = await aiResponse.json();
-  let response = data.choices?.[0]?.message?.content || `Sorry, I couldn't understand that. Contact us at ${store.whatsapp_number || 'our store'} for help!`;
+Now answer the customer's question using the store data above. Be helpful, accurate, and conversational!`;
 
-  // PHASE 1: Validate AI response to prevent hallucinations
-  const validation = validateStorefrontResponse(response, sanitizedMessage, allProducts || [], {
-    whatsappNumber: store.whatsapp_number,
-    returnPolicy: storeInfo?.returnPolicy,
-    deliveryTime: storeInfo?.deliveryTime,
-    deliveryAreas: storeInfo?.deliveryAreas
-  });
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',  // Fast and good quality
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message },
+        ],
+        max_tokens: 300,  // INCREASED for detailed responses
+        temperature: 0.8,  // INCREASED for more natural, conversational tone
+      }),
+    });
 
-  if (!validation.valid) {
-    console.warn('[PHASE1] AI response blocked:', validation.reason);
-    // Use safe fallback response
-    response = validation.fixedResponse || `I want to give you accurate information. Please WhatsApp ${store.whatsapp_number || 'the store'} for details! 📱`;
+    const data = await response.json();
 
-    // Log for monitoring
-    await logAbuseAttempt(supabase, null, 'ai_validation', validation.reason, sanitizedMessage);
+    if (data.choices && data.choices[0]?.message?.content) {
+      const aiResponse = data.choices[0].message.content.trim();
+
+      // Validate AI response (prevent hallucinations)
+      const validation = validateStorefrontResponse(
+        aiResponse,
+        message,
+        storeContext.products,
+        storeContext.profile
+      );
+
+      if (!validation.valid) {
+        console.warn('[AI] Validation failed:', validation.reason);
+
+        // For quality-first, return the fixed response but log the issue
+        return jsonResponse({
+          response: validation.fixedResponse || getLanguageFallback(language, storeContext.profile.whatsappNumber),
+          confidence: 0.6,
+          source: 'ai_validated',
+          validationWarning: validation.reason,
+        });
+      }
+
+      return jsonResponse({
+        response: aiResponse,
+        confidence: 0.95,  // HIGH confidence for AI responses
+        source: 'ai',
+        language,
+      });
+    }
+  } catch (error) {
+    console.error('[AI] Error:', error);
   }
 
+  // Final fallback (rare)
   return jsonResponse({
-    response,
-    confidence: validation.valid ? 0.8 : 0.4,  // PHASE 1: Higher confidence when validated
-    usedAI: true,  // Flag that AI was used
-    validated: validation.valid,  // PHASE 1: Track validation status
-    validationReason: validation.reason  // PHASE 1: Track why blocked (if applicable)
+    response: getLanguageFallback(language, storeContext.profile.whatsappNumber),
+    confidence: 0.5,
+    source: 'fallback',
   });
 }
 
-// Update user preferences based on conversation
 async function updateUserPreferences(supabase: any, userId: string, message: string, userContext: any) {
   const lowercaseMessage = message.toLowerCase();
 
