@@ -1127,9 +1127,10 @@ export default function AIChatWidget({
 
         /* Smart mobile positioning to avoid blocking key buttons */
         @media (max-width: 768px) {
-          /* When closed, position above mobile nav and footers */
+          /* When closed, position above mobile nav and WhatsApp buttons */
           .ai-chat-container:not(:has(.ai-chat-window)) {
-            bottom: 90px !important; /* Above typical mobile bottom nav (72px) */
+            bottom: 90px !important; /* Above WhatsApp buttons */
+            right: 16px !important; /* Center-right on mobile, not off-screen */
           }
 
           /* When open, stack from bottom with safe spacing */
@@ -1151,16 +1152,21 @@ export default function AIChatWidget({
 
           /* Reduce bubble size slightly on mobile for less obstruction */
           .ai-chat-container:not(:has(.ai-chat-window)) button {
-            width: 52px !important;
-            height: 52px !important;
+            width: 56px !important;
+            height: 56px !important;
+          }
+
+          /* Hide tooltip on mobile to save space */
+          .chat-tooltip {
+            display: none !important;
           }
         }
 
-        /* Extra small screens - even less obtrusive */
+        /* Extra small screens - keep visible */
         @media (max-width: 480px) {
           .ai-chat-container:not(:has(.ai-chat-window)) {
             bottom: 85px !important;
-            right: 12px !important;
+            right: 16px !important; /* Keep on screen */
           }
         }
       `}</style>
