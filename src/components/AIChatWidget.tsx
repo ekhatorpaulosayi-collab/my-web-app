@@ -658,7 +658,7 @@ export default function AIChatWidget({
     <div className="ai-chat-container" style={{
       position: 'fixed',
       bottom: isOpen ? '20px' : '20px',
-      right: '20px',
+      right: contextType === 'storefront' ? '120px' : '20px', // Move left on storefront to avoid WhatsApp button
       zIndex: 9998, // Below modals (10000+) but above content
       pointerEvents: 'none', // Allow clicks to pass through container
     }}>
@@ -1038,14 +1038,16 @@ export default function AIChatWidget({
             )}
           </button>
 
-          {/* "Need Help?" tooltip for storefront */}
+          {/* "Need Help?" tooltip for storefront - positioned to avoid cutoff */}
           {contextType === 'storefront' && (
             <div
               className="chat-tooltip"
               style={{
                 position: 'absolute',
                 bottom: '75px',
-                right: '0',
+                right: 'auto',
+                left: '50%',
+                transform: 'translateX(-50%)', // Center it above the button
                 background: 'white',
                 padding: '8px 12px',
                 borderRadius: '8px',
@@ -1058,7 +1060,7 @@ export default function AIChatWidget({
                 pointerEvents: 'none',
               }}
             >
-              💬 Need help shopping?
+              💬 Need help?
             </div>
           )}
         </div>
