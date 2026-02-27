@@ -1161,7 +1161,7 @@ export default function AIChatWidget({
           /* When closed, position above mobile nav and WhatsApp buttons */
           .ai-chat-container:not(:has(.ai-chat-window)) {
             bottom: 90px !important; /* Above WhatsApp buttons */
-            right: 16px !important; /* Center-right on mobile, not off-screen */
+            right: 90px !important; /* Left of WhatsApp button (20px + 56px width + 14px gap = 90px) */
           }
 
           /* When open, stack from bottom with safe spacing */
