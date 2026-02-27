@@ -280,21 +280,10 @@ export default function AIChatWidget({
       // even if we don't auto-open, so don't return early
     }
 
-    // STOREFRONT MODE: Auto-popup for first-time visitors (SHOPPING ASSISTANT)
+    // STOREFRONT MODE: NO auto-popup (less intrusive, user-initiated)
+    // The pulsing animation and tooltip will draw attention instead
     if (contextType === 'storefront' && storeSlug) {
-      const storageKey = `storehouse_storefront_chat_seen_${storeSlug}`;
-      const hasSeenStorefrontChat = localStorage.getItem(storageKey);
-      if (!hasSeenStorefrontChat) {
-        setTimeout(() => {
-          setIsOpen(true);
-          setMessages([{
-            role: 'assistant',
-            content: "👋 Hi! Welcome to our store!\n\n🛍️ I'm your shopping assistant. I can help you:\n\n✅ Find products\n✅ Check prices & availability\n✅ Answer questions about delivery & payment\n✅ Recommend products based on your needs\n\nWhat are you looking for today?",
-            timestamp: new Date(),
-          }]);
-          localStorage.setItem(storageKey, 'true');
-        }, 5000); // 5 seconds - let them browse first
-      }
+      // No auto-popup - let users click when ready
       return;
     }
 
@@ -1122,7 +1111,7 @@ export default function AIChatWidget({
         }
 
         .chat-tooltip {
-          animation: bounce-tooltip 2s ease-in-out 3; /* Bounce 3 times then stop */
+          animation: bounce-tooltip 2s ease-in-out infinite; /* Continuous bounce for visibility */
         }
 
         /* Smart mobile positioning to avoid blocking key buttons */
@@ -1156,9 +1145,22 @@ export default function AIChatWidget({
             height: 56px !important;
           }
 
-          /* Hide tooltip on mobile to save space */
+          /* Make tooltip more compact on mobile but keep it visible */
           .chat-tooltip {
-            display: none !important;
+            font-size: 0.75rem !important;
+            padding: 6px 10px !important;
+            bottom: 65px !important; /* Closer to button on mobile */
+            animation: bounce-tooltip-mobile 2s ease-in-out infinite !important;
+          }
+        }
+
+        /* Mobile-specific tooltip bounce - continuous */
+        @keyframes bounce-tooltip-mobile {
+          0%, 100% {
+            transform: translateX(-50%) translateY(0);
+          }
+          50% {
+            transform: translateX(-50%) translateY(-6px);
           }
         }
 
