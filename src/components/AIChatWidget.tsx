@@ -1029,28 +1029,56 @@ export default function AIChatWidget({
 
           {/* "Need Help?" tooltip for storefront - positioned to avoid cutoff */}
           {contextType === 'storefront' && (
-            <div
-              className="chat-tooltip"
-              style={{
-                position: 'absolute',
-                bottom: '75px',
-                right: 'auto',
-                left: '50%',
-                transform: 'translateX(-50%)', // Center it above the button
-                background: 'white',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                color: '#059669',
-                whiteSpace: 'nowrap',
-                animation: 'bounce-tooltip 2s ease-in-out infinite',
-                pointerEvents: 'none',
-              }}
-            >
-              💬 Need help?
-            </div>
+            <>
+              {/* Tooltip above button (desktop) */}
+              <div
+                className="chat-tooltip"
+                style={{
+                  position: 'absolute',
+                  bottom: '75px',
+                  right: 'auto',
+                  left: '50%',
+                  transform: 'translateX(-50%)', // Center it above the button
+                  background: 'white',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: '#059669',
+                  whiteSpace: 'nowrap',
+                  animation: 'bounce-tooltip 2s ease-in-out infinite',
+                  pointerEvents: 'none',
+                }}
+              >
+                💬 Need help?
+              </div>
+
+              {/* Label below button (mobile - more visible) */}
+              <div
+                className="chat-label-mobile"
+                style={{
+                  position: 'absolute',
+                  top: '72px', // Just below the 64px button
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  color: '#059669',
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  border: '1.5px solid #10b981',
+                }}
+              >
+                💬 Chat Here
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1114,8 +1142,22 @@ export default function AIChatWidget({
           animation: bounce-tooltip 2s ease-in-out infinite; /* Continuous bounce for visibility */
         }
 
+        /* Desktop: Show tooltip, hide label */
+        .chat-label-mobile {
+          display: none;
+        }
+
         /* Smart mobile positioning to avoid blocking key buttons */
         @media (max-width: 768px) {
+          /* Mobile: Hide tooltip, show label below button */
+          .chat-tooltip {
+            display: none !important;
+          }
+
+          .chat-label-mobile {
+            display: block !important;
+            animation: pulse-label 2s ease-in-out infinite !important;
+          }
           /* When closed, position above mobile nav and WhatsApp buttons */
           .ai-chat-container:not(:has(.ai-chat-window)) {
             bottom: 90px !important; /* Above WhatsApp buttons */
@@ -1145,22 +1187,22 @@ export default function AIChatWidget({
             height: 56px !important;
           }
 
-          /* Make tooltip more compact on mobile but keep it visible */
-          .chat-tooltip {
-            font-size: 0.75rem !important;
-            padding: 6px 10px !important;
-            bottom: 65px !important; /* Closer to button on mobile */
-            animation: bounce-tooltip-mobile 2s ease-in-out infinite !important;
+          /* Adjust button size on mobile */
+          .pulse-ring {
+            width: 56px !important;
+            height: 56px !important;
           }
         }
 
-        /* Mobile-specific tooltip bounce - continuous */
-        @keyframes bounce-tooltip-mobile {
+        /* Pulse animation for mobile label */
+        @keyframes pulse-label {
           0%, 100% {
-            transform: translateX(-50%) translateY(0);
+            transform: translateX(-50%) scale(1);
+            opacity: 1;
           }
           50% {
-            transform: translateX(-50%) translateY(-6px);
+            transform: translateX(-50%) scale(1.05);
+            opacity: 0.9;
           }
         }
 
