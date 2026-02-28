@@ -1059,7 +1059,7 @@ export default function AIChatWidget({
                 className="chat-label-mobile"
                 style={{
                   position: 'absolute',
-                  bottom: '-38px', // Below the button (negative to go down from button)
+                  top: '72px', // Below the 64px button (button height + 8px gap)
                   left: '50%',
                   transform: 'translateX(-50%)',
                   background: 'rgba(255, 255, 255, 0.95)',
@@ -1157,6 +1157,7 @@ export default function AIChatWidget({
           .chat-label-mobile {
             display: block !important;
             animation: pulse-label 2s ease-in-out infinite !important;
+            top: 64px !important; /* 56px button + 8px gap on mobile */
           }
           /* When closed, position above mobile nav and WhatsApp buttons */
           .ai-chat-container:not(:has(.ai-chat-window)) {

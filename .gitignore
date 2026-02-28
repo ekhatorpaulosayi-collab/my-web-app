@@ -12,6 +12,21 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (NEVER commit these!)
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+.env.vercel
+.env.*.local
+*.env.backup
+
+# Security & Secrets
+**/*secret*
+**/*private*
+**/credentials.json
+**/service-account*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
