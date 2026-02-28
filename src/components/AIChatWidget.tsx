@@ -1157,6 +1157,7 @@ export default function AIChatWidget({
           .chat-label-mobile {
             display: block !important;
             animation: pulse-label 2s ease-in-out infinite !important;
+            top: 64px !important; /* Adjust for 56px mobile button + 8px gap */
           }
           /* When closed, position above mobile nav and WhatsApp buttons */
           .ai-chat-container:not(:has(.ai-chat-window)) {
