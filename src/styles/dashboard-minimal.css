@@ -708,7 +708,137 @@
 
 .item-name {
   font-weight: 500;
-  color: var(--text-heading);
+}
+
+/* =====================================================
+   📱 MOBILE CARD LAYOUT - No Horizontal Scroll
+   ===================================================== */
+
+@media (max-width: 640px) {
+  .items-table-wrapper {
+    overflow-x: visible;
+    margin: 0;
+    padding: 0;
+    max-height: none;
+  }
+
+  /* Hide table structure on mobile */
+  .items-table thead {
+    display: none;
+  }
+
+  .items-table,
+  .items-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  /* Transform table rows into cards */
+  .items-table tbody .item-row {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--bg-card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .items-table tbody .item-row:nth-child(even) {
+    background: var(--bg-card); /* Remove alternating bg on mobile */
+  }
+
+  .items-table tbody .item-row:hover {
+    background: var(--bg-hover);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Transform table cells into card content */
+  .items-table tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+    text-align: left !important;
+  }
+
+  /* Item name - Make it prominent */
+  .items-table tbody td:nth-child(1) {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-heading);
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Quantity and Price - Side by side */
+  .items-table tbody td:nth-child(2),
+  .items-table tbody td:nth-child(3) {
+    display: inline-block;
+    width: calc(50% - 6px);
+    font-size: 14px;
+    color: var(--text-body);
+    margin-top: 8px;
+  }
+
+  .items-table tbody td:nth-child(2)::before {
+    content: 'Qty: ';
+    font-weight: 600;
+    color: var(--text-heading);
+  }
+
+  .items-table tbody td:nth-child(3) {
+    margin-left: 12px;
+    font-weight: 600;
+    color: var(--text-heading);
+  }
+
+  /* Actions - Full width buttons */
+  .items-table tbody td:nth-child(4) {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .items-table tbody td:nth-child(4) > div {
+    display: flex !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: auto !important;
+    justify-content: stretch !important;
+  }
+
+  .items-table tbody td:nth-child(4) button {
+    flex: 1 !important;
+    min-width: auto !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    min-height: 44px !important; /* iOS minimum touch target */
+  }
+
+  /* Edit button styling */
+  .items-table tbody td:nth-child(4) button:first-child {
+    background: #eff6ff !important;
+    color: #3b82f6 !important;
+    border: 1px solid #bfdbfe !important;
+  }
+
+  .items-table tbody td:nth-child(4) button:first-child:active {
+    background: #dbeafe !important;
+  }
+
+  /* Delete button styling */
+  .items-table tbody td:nth-child(4) button:last-child {
+    background: #fef2f2 !important;
+    color: #ef4444 !important;
+    border: 1px solid #fecaca !important;
+  }
+
+  .items-table tbody td:nth-child(4) button:last-child:active {
+    background: #fee2e2 !important;
+  }
 }
 
 /* Loading indicator for infinite scroll */
