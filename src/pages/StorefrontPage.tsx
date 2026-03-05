@@ -540,7 +540,7 @@ function StorefrontContent() {
           ? `linear-gradient(135deg, ${store.primaryColor} 0%, ${store.primaryColor}dd 100%)`
           : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
       }}>
-        {/* Cart Button - World-Class Design */}
+        {/* Cart Button - World-Class Design with Enhanced Desktop Visibility */}
         <button
           onClick={openCart}
           aria-label={`Shopping cart with ${itemCount} items`}
@@ -558,10 +558,10 @@ function StorefrontContent() {
             minHeight: '56px',
             background: 'rgba(255, 255, 255, 0.98)',
             color: '#2563eb',
-            border: 'none',
+            border: '2px solid rgba(37, 99, 235, 0.15)',
             borderRadius: '50%',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(37, 99, 235, 0.1)',
             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             zIndex: 10,
             outline: 'none',
@@ -574,14 +574,18 @@ function StorefrontContent() {
             e.currentTarget.style.transform = 'scale(1)';
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.08)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.25)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 1)';
+            e.currentTarget.style.transform = 'scale(1.12)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2)';
+            e.currentTarget.style.background = '#2563eb';
+            e.currentTarget.style.color = 'white';
+            e.currentTarget.style.border = '2px solid #2563eb';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(37, 99, 235, 0.1)';
             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.98)';
+            e.currentTarget.style.color = '#2563eb';
+            e.currentTarget.style.border = '2px solid rgba(37, 99, 235, 0.15)';
           }}
           onFocus={(e) => {
             e.currentTarget.style.outline = '3px solid #3b82f6';
@@ -2021,7 +2025,7 @@ function StorefrontContent() {
               boxSizing: 'border-box'
             }}
           >
-            {/* Close Button - World-Class Design */}
+            {/* Close Button - World-Class Design with Enhanced Desktop Visibility */}
             <button
               onClick={() => setSelectedProduct(null)}
               aria-label="Close product details"
@@ -2030,13 +2034,13 @@ function StorefrontContent() {
                 position: 'absolute',
                 top: '20px',
                 right: '20px',
-                width: '48px',
-                height: '48px',
-                minWidth: '48px',
-                minHeight: '48px',
-                border: 'none',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                color: '#475569',
+                width: '52px',
+                height: '52px',
+                minWidth: '52px',
+                minHeight: '52px',
+                border: '2px solid rgba(71, 85, 105, 0.12)',
+                backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                color: '#64748b',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -2045,10 +2049,10 @@ function StorefrontContent() {
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 outline: 'none',
                 borderRadius: '50%',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.18)',
                 WebkitTapHighlightColor: 'transparent',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)'
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)'
               }}
               onTouchStart={(e: React.TouchEvent) => {
                 (e.currentTarget as HTMLElement).style.transform = 'scale(0.95)';
@@ -2056,19 +2060,21 @@ function StorefrontContent() {
               }}
               onTouchEnd={(e: React.TouchEvent) => {
                 (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
               }}
               onMouseEnter={(e: React.MouseEvent) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-                (e.currentTarget as HTMLElement).style.color = '#ef4444';
-                (e.currentTarget as HTMLElement).style.transform = 'scale(1.08) rotate(90deg)';
-                (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.25)';
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#ef4444';
+                (e.currentTarget as HTMLElement).style.color = '#ffffff';
+                (e.currentTarget as HTMLElement).style.border = '2px solid #ef4444';
+                (e.currentTarget as HTMLElement).style.transform = 'scale(1.15) rotate(90deg)';
+                (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 28px rgba(239, 68, 68, 0.4)';
               }}
               onMouseLeave={(e: React.MouseEvent) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-                (e.currentTarget as HTMLElement).style.color = '#475569';
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
+                (e.currentTarget as HTMLElement).style.color = '#64748b';
+                (e.currentTarget as HTMLElement).style.border = '2px solid rgba(71, 85, 105, 0.12)';
                 (e.currentTarget as HTMLElement).style.transform = 'scale(1) rotate(0deg)';
-                (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.18)';
               }}
               onFocus={(e: React.FocusEvent) => {
                 (e.currentTarget as HTMLElement).style.outline = '3px solid #3b82f6';
@@ -2533,7 +2539,7 @@ function StorefrontContent() {
             animation: 'fadeIn 0.2s ease-in-out'
           }}
         >
-          {/* Close Button - World-Class Design (Dark for Image Viewer) */}
+          {/* Close Button - World-Class Design with Enhanced Desktop Visibility (Dark for Image Viewer) */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -2545,24 +2551,25 @@ function StorefrontContent() {
               position: 'absolute',
               top: '20px',
               right: '20px',
-              width: '56px',
-              height: '56px',
-              minWidth: '56px',
-              minHeight: '56px',
+              width: '60px',
+              height: '60px',
+              minWidth: '60px',
+              minHeight: '60px',
               borderRadius: '50%',
-              backgroundColor: 'rgba(30, 41, 59, 0.9)',
-              border: 'none',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              border: '2px solid rgba(255, 255, 255, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
               zIndex: 10001,
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              boxShadow: '0 6px 24px rgba(0, 0, 0, 0.4)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               outline: 'none',
-              WebkitTapHighlightColor: 'transparent'
+              WebkitTapHighlightColor: 'transparent',
+              color: '#1e293b'
             }}
             onTouchStart={(e) => {
               e.currentTarget.style.transform = 'scale(0.95)';
@@ -2571,14 +2578,18 @@ function StorefrontContent() {
               e.currentTarget.style.transform = 'scale(1)';
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.9)';
-              e.currentTarget.style.transform = 'scale(1.08) rotate(90deg)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)';
+              e.currentTarget.style.backgroundColor = '#ef4444';
+              e.currentTarget.style.border = '2px solid #ef4444';
+              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.transform = 'scale(1.18) rotate(90deg)';
+              e.currentTarget.style.boxShadow = '0 10px 40px rgba(239, 68, 68, 0.5)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(30, 41, 59, 0.9)';
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+              e.currentTarget.style.border = '2px solid rgba(255, 255, 255, 0.3)';
+              e.currentTarget.style.color = '#1e293b';
               e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
-              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.3)';
+              e.currentTarget.style.boxShadow = '0 6px 24px rgba(0, 0, 0, 0.4)';
             }}
             onFocus={(e) => {
               e.currentTarget.style.outline = '3px solid #3b82f6';
@@ -2588,7 +2599,7 @@ function StorefrontContent() {
               e.currentTarget.style.outline = 'none';
             }}
           >
-            <X size={28} strokeWidth={2.5} style={{ color: '#ffffff' }} aria-hidden="true" />
+            <X size={30} strokeWidth={2.5} aria-hidden="true" />
           </button>
 
           {/* Image Container - Clean & Centered */}

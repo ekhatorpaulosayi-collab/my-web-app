@@ -591,16 +591,16 @@ export function Cart({ store }: CartProps) {
                     <button
                       onClick={() => removeItem(item.id, item.variantId)}
                       className="cart-remove-btn"
-                      aria-label="Remove item"
+                      aria-label="Remove item from cart"
                       style={{
-                        minWidth: '40px',
-                        minHeight: '40px',
+                        minWidth: '44px',
+                        minHeight: '44px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}
                     >
-                      <Trash2 size={22} />
+                      <Trash2 size={26} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
