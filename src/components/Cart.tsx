@@ -450,25 +450,30 @@ export function Cart({ store }: CartProps) {
               width: '48px',
               height: '48px',
               background: '#1e293b',
-              color: 'white',
-              border: 'none',
+              color: '#ffffff',
+              border: '2px solid #64748b',
               borderRadius: '50%',
               cursor: 'pointer',
               boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              fontSize: '32px',
+              fontWeight: 'bold',
+              lineHeight: '1'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#ef4444';
+              e.currentTarget.style.borderColor = '#ef4444';
               e.currentTarget.style.transform = 'scale(1.1)';
               e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = '#1e293b';
+              e.currentTarget.style.borderColor = '#64748b';
               e.currentTarget.style.transform = 'scale(1)';
               e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.2)';
             }}
           >
-            <X size={28} strokeWidth={3} />
+            ×
           </button>
         </div>
 
@@ -574,8 +579,13 @@ export function Cart({ store }: CartProps) {
                         onClick={() => updateQuantity(item.id, item.quantity - 1, item.variantId)}
                         className="cart-qty-btn"
                         aria-label="Decrease quantity"
+                        style={{
+                          fontSize: '28px',
+                          fontWeight: 'bold',
+                          lineHeight: '1'
+                        }}
                       >
-                        <Minus size={32} strokeWidth={2.5} />
+                        −
                       </button>
                       <span className="cart-qty-display">{item.quantity}</span>
                       <button
@@ -583,25 +593,26 @@ export function Cart({ store }: CartProps) {
                         className="cart-qty-btn"
                         disabled={item.quantity >= item.maxQty}
                         aria-label="Increase quantity"
+                        style={{
+                          fontSize: '28px',
+                          fontWeight: 'bold',
+                          lineHeight: '1'
+                        }}
                       >
-                        <Plus size={32} strokeWidth={2.5} />
+                        +
                       </button>
                     </div>
 
                     <button
-                      onClick={() => removeItem(item.id, item.variantId)}
+                      onClick={() => {
+                        if (window.confirm(`Remove ${item.name} from cart?`)) {
+                          removeItem(item.id, item.variantId);
+                        }
+                      }}
                       className="cart-remove-btn"
                       aria-label="Remove item from cart"
-                      style={{
-                        minWidth: '48px',
-                        minHeight: '48px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '8px'
-                      }}
                     >
-                      <Trash2 size={32} strokeWidth={2.5} />
+                      <Trash2 size={28} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
