@@ -77,23 +77,18 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
 
     // 💰 GROWTH & REVENUE
     {
+      icon: Gift,
+      label: '💰 Partner Program',
+      description: 'Invite friends → Earn ₦15,000 each (30% forever)',
+      action: () => navigate('/affiliate/signup'),
+      highlight: true,
+      badge: 'Earn Money'
+    },
+    {
       icon: Receipt,
       label: 'Professional Invoices',
-      description: 'B2B sales & payment tracking',
+      description: 'Send invoices in 30 seconds, get paid faster',
       action: () => navigate('/invoices')
-    },
-    {
-      icon: Gift,
-      label: 'Referral Program',
-      description: 'Invite friends, earn rewards',
-      action: () => navigate('/referrals')
-    },
-    {
-      icon: TrendingUp,
-      label: '💰 Affiliate Program',
-      description: 'Earn 30% commission',
-      action: () => navigate('/affiliate/signup'),
-      highlight: true
     },
 
     // 🔧 OPERATIONS & TOOLS

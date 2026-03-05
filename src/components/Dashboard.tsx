@@ -665,12 +665,12 @@ export function Dashboard({
           </button>
         )}
         <button
-          className="btn-more btn-enhanced"
+          className="btn-more btn-enhanced btn-more-features"
           onClick={() => setShowMoreMenu(true)}
-          title="View all features: Settings, Invoices, Reports, Customers, and more"
+          title="Discover more features: Invoices, Referrals, Reviews, and more ways to grow your business"
         >
-          <MoreHorizontal size={20} />
-          <span>Menu</span>
+          <span className="btn-more-icon">💎</span>
+          <span>More Features</span>
         </button>
       </div>
 
@@ -793,6 +793,59 @@ export function Dashboard({
         userId={userId}
         onOpenFullDashboard={() => navigate('/referrals')}
       />
+
+      {/* Partner Program Widget - Compact Collapsible Version */}
+      <div className="partner-widget-compact">
+        <div
+          className="partner-compact-header"
+          onClick={() => {
+            const widget = document.querySelector('.partner-widget-compact');
+            widget?.classList.toggle('expanded');
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="partner-compact-left">
+            <span className="partner-icon-small">💰</span>
+            <div className="partner-compact-text">
+              <h4>Partner Program</h4>
+              <p>Refer 2+ paid customers → Earn 30% annually</p>
+            </div>
+          </div>
+          <button className="partner-expand-btn" aria-label="Expand details">
+            ▼
+          </button>
+        </div>
+
+        <div className="partner-compact-details">
+          <div className="partner-earnings-preview">
+            <div className="earning-example">
+              <div className="earning-label">2 customers @ ₦50k/year</div>
+              <div className="earning-amount">₦30k/year</div>
+            </div>
+            <div className="earning-example">
+              <div className="earning-label">50 customers @ ₦50k/year</div>
+              <div className="earning-amount">₦750k/year</div>
+            </div>
+            <div className="earning-example">
+              <div className="earning-label">100 customers @ ₦50k/year</div>
+              <div className="earning-amount">₦1.5M/year</div>
+            </div>
+          </div>
+
+          <p className="partner-tagline">Earn 30% of what they pay, every year they subscribe. <strong>Minimum: 2 paid customers.</strong></p>
+
+          <button
+            className="btn-partner-start"
+            onClick={() => navigate('/affiliate/signup')}
+          >
+            Become a Partner
+          </button>
+
+          <div className="social-proof">
+            🎯 127 partners earning recurring income
+          </div>
+        </div>
+      </div>
 
       {/* 4. Quick Sell Grid */}
       <div className="quick-sell-card">
