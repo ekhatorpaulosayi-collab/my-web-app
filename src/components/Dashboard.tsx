@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight } from 'lucide-react';
+import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { PaymentStatusIndicator } from './PaymentStatusIndicator';
@@ -70,6 +70,25 @@ export function Dashboard({
   const [showChannelAnalytics, setShowChannelAnalytics] = useState(false);
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 🎯 WORLD-CLASS SORTING STATE
+  // Load sort preference from localStorage
+  const [sortConfig, setSortConfig] = useState<{key: 'name' | 'qty' | 'price' | null; direction: 'asc' | 'desc'}>(() => {
+    const saved = localStorage.getItem('storehouse-inventory-sort');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return { key: 'name', direction: 'asc' };
+      }
+    }
+    return { key: 'name', direction: 'asc' }; // Default: sort by name A-Z
+  });
+
+  // Save sort preference when it changes
+  useEffect(() => {
+    localStorage.setItem('storehouse-inventory-sort', JSON.stringify(sortConfig));
+  }, [sortConfig]);
 
   // Staff permissions
   const { canEditProducts, canDeleteProducts, canAddProducts, isStaffMode, exitStaffMode, currentRole } = useStaff();
@@ -282,6 +301,24 @@ export function Dashboard({
       }));
   }, [items]);
 
+  // 🎯 WORLD-CLASS SORT HANDLER
+  const handleSort = (columnKey: 'name' | 'qty' | 'price') => {
+    setSortConfig(prevConfig => {
+      // If clicking the same column, toggle direction
+      if (prevConfig.key === columnKey) {
+        return {
+          key: columnKey,
+          direction: prevConfig.direction === 'asc' ? 'desc' : 'asc'
+        };
+      }
+      // If clicking a new column, start with ascending
+      return {
+        key: columnKey,
+        direction: 'asc'
+      };
+    });
+  };
+
   // Filtered items for search (all items, no slice)
   const filteredItems = useMemo(() => {
     // Remove duplicates by both ID and name (in case same item has multiple IDs)
@@ -316,11 +353,47 @@ export function Dashboard({
       );
     }
 
-    // Sort alphabetically by name
-    filtered.sort((a, b) => a.name.localeCompare(b.name));
+    // 🎯 WORLD-CLASS SORTING LOGIC
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
 
-    return filtered; // Return all filtered items
-  }, [items, searchQuery]);
+        // Get the values to compare based on sort key
+        if (sortConfig.key === 'name') {
+          aValue = (a.name || '').toLowerCase();
+          bValue = (b.name || '').toLowerCase();
+
+          // String comparison
+          if (sortConfig.direction === 'asc') {
+            return aValue.localeCompare(bValue);
+          } else {
+            return bValue.localeCompare(aValue);
+          }
+        } else if (sortConfig.key === 'qty') {
+          aValue = a.qty || 0;
+          bValue = b.qty || 0;
+        } else if (sortConfig.key === 'price') {
+          // Get price from various possible fields
+          aValue = a.sellKobo || a.sellingPriceKobo || a.sellingPrice || 0;
+          bValue = b.sellKobo || b.sellingPriceKobo || b.sellingPrice || 0;
+        }
+
+        // Numeric comparison (for qty and price)
+        if (sortConfig.key !== 'name') {
+          if (sortConfig.direction === 'asc') {
+            return aValue - bValue;
+          } else {
+            return bValue - aValue;
+          }
+        }
+
+        return 0;
+      });
+    }
+
+    return filtered; // Return all filtered and sorted items
+  }, [items, searchQuery, sortConfig]);
 
   // Items to display (with infinite scroll limit)
   const displayedItems = useMemo(() => {
@@ -852,9 +925,81 @@ export function Dashboard({
               <table className="items-table">
                 <thead>
                   <tr>
-                    <th>ITEM</th>
-                    <th className="text-right">QTY</th>
-                    <th className="text-right">PRICE</th>
+                    {/* 🎯 WORLD-CLASS SORTABLE COLUMN HEADERS */}
+                    <th
+                      onClick={() => handleSort('name')}
+                      style={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ''}
+                      title="Click to sort by item name"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        ITEM
+                        {sortConfig.key === 'name' ? (
+                          sortConfig.direction === 'asc' ? (
+                            <ArrowUp size={14} style={{ color: '#5b47fb' }} />
+                          ) : (
+                            <ArrowDown size={14} style={{ color: '#5b47fb' }} />
+                          )
+                        ) : (
+                          <ArrowUpDown size={14} style={{ opacity: 0.3 }} />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-right"
+                      onClick={() => handleSort('qty')}
+                      style={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ''}
+                      title="Click to sort by quantity"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                        QTY
+                        {sortConfig.key === 'qty' ? (
+                          sortConfig.direction === 'asc' ? (
+                            <ArrowUp size={14} style={{ color: '#5b47fb' }} />
+                          ) : (
+                            <ArrowDown size={14} style={{ color: '#5b47fb' }} />
+                          )
+                        ) : (
+                          <ArrowUpDown size={14} style={{ opacity: 0.3 }} />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-right"
+                      onClick={() => handleSort('price')}
+                      style={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ''}
+                      title="Click to sort by price"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                        PRICE
+                        {sortConfig.key === 'price' ? (
+                          sortConfig.direction === 'asc' ? (
+                            <ArrowUp size={14} style={{ color: '#5b47fb' }} />
+                          ) : (
+                            <ArrowDown size={14} style={{ color: '#5b47fb' }} />
+                          )
+                        ) : (
+                          <ArrowUpDown size={14} style={{ opacity: 0.3 }} />
+                        )}
+                      </div>
+                    </th>
                     <th className="text-center" style={{ width: '50px' }}></th>
                   </tr>
                 </thead>
