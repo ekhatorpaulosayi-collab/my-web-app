@@ -540,7 +540,7 @@ function StorefrontContent() {
           ? `linear-gradient(135deg, ${store.primaryColor} 0%, ${store.primaryColor}dd 100%)`
           : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
       }}>
-        {/* Cart Button - World-Class Design with Enhanced Desktop Visibility */}
+        {/* Cart Button - High Contrast Design for Desktop Visibility */}
         <button
           onClick={openCart}
           aria-label={`Shopping cart with ${itemCount} items`}
@@ -552,17 +552,17 @@ function StorefrontContent() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '56px',
-            height: '56px',
-            minWidth: '56px',
-            minHeight: '56px',
-            background: 'rgba(255, 255, 255, 0.98)',
-            color: '#2563eb',
-            border: '2px solid rgba(37, 99, 235, 0.15)',
+            width: '60px',
+            height: '60px',
+            minWidth: '60px',
+            minHeight: '60px',
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            color: 'white',
+            border: '3px solid rgba(255, 255, 255, 0.2)',
             borderRadius: '50%',
             cursor: 'pointer',
-            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(37, 99, 235, 0.1)',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(37, 99, 235, 0)',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             zIndex: 10,
             outline: 'none',
             WebkitTapHighlightColor: 'transparent'
@@ -574,18 +574,16 @@ function StorefrontContent() {
             e.currentTarget.style.transform = 'scale(1)';
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.12)';
-            e.currentTarget.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2)';
-            e.currentTarget.style.background = '#2563eb';
-            e.currentTarget.style.color = 'white';
-            e.currentTarget.style.border = '2px solid #2563eb';
+            e.currentTarget.style.transform = 'scale(1.15)';
+            e.currentTarget.style.boxShadow = '0 12px 32px rgba(37, 99, 235, 0.5), 0 0 0 6px rgba(37, 99, 235, 0.2)';
+            e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
+            e.currentTarget.style.border = '3px solid rgba(255, 255, 255, 0.4)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(37, 99, 235, 0.1)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.98)';
-            e.currentTarget.style.color = '#2563eb';
-            e.currentTarget.style.border = '2px solid rgba(37, 99, 235, 0.15)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(37, 99, 235, 0)';
+            e.currentTarget.style.background = 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)';
+            e.currentTarget.style.border = '3px solid rgba(255, 255, 255, 0.2)';
           }}
           onFocus={(e) => {
             e.currentTarget.style.outline = '3px solid #3b82f6';
@@ -595,26 +593,27 @@ function StorefrontContent() {
             e.currentTarget.style.outline = 'none';
           }}
         >
-          <ShoppingCart size={24} strokeWidth={2.5} aria-hidden="true" />
+          <ShoppingCart size={28} strokeWidth={2.5} aria-hidden="true" />
           {itemCount > 0 && (
             <span
               style={{
                 position: 'absolute',
-                top: '-4px',
-                right: '-4px',
+                top: '-6px',
+                right: '-6px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minWidth: '24px',
-                height: '24px',
-                padding: '0 6px',
+                minWidth: '28px',
+                height: '28px',
+                padding: '0 7px',
                 background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                 color: 'white',
-                borderRadius: '12px',
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
-                border: '2px solid white'
+                borderRadius: '14px',
+                fontSize: '0.8125rem',
+                fontWeight: 800,
+                boxShadow: '0 3px 12px rgba(239, 68, 68, 0.5)',
+                border: '3px solid white',
+                zIndex: 1
               }}
               aria-label={`${itemCount} items in cart`}
             >

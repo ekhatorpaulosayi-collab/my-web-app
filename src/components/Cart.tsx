@@ -593,14 +593,15 @@ export function Cart({ store }: CartProps) {
                       className="cart-remove-btn"
                       aria-label="Remove item from cart"
                       style={{
-                        minWidth: '44px',
-                        minHeight: '44px',
+                        minWidth: '48px',
+                        minHeight: '48px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        padding: '8px'
                       }}
                     >
-                      <Trash2 size={26} strokeWidth={2.5} />
+                      <Trash2 size={32} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
