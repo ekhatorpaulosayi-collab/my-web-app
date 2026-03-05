@@ -664,9 +664,13 @@ export function Dashboard({
             + Add Item
           </button>
         )}
-        <button className="btn-more" onClick={() => setShowMoreMenu(true)}>
+        <button
+          className="btn-more btn-enhanced"
+          onClick={() => setShowMoreMenu(true)}
+          title="View all features: Settings, Invoices, Reports, Customers, and more"
+        >
           <MoreHorizontal size={20} />
-          More
+          <span>Menu</span>
         </button>
       </div>
 

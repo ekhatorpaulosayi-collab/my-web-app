@@ -247,6 +247,11 @@ function App() {
   });
   const [showFirstSaleModal, setShowFirstSaleModal] = useState(false);
   const [showEODModal, setShowEODModal] = useState(false);
+
+  // 🎯 WELCOME BANNER DISMISSAL STATE
+  const [welcomeBannerDismissed, setWelcomeBannerDismissed] = useState(() => {
+    return localStorage.getItem('storehouse-welcome-dismissed') === 'true';
+  });
   const [eodFormat, setEodFormat] = useState('readable');
   const [showTaxModal, setShowTaxModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -515,6 +520,12 @@ function App() {
     setPinAttempts(3); // Reset attempts each time modal opens
     setShowPinPassword(false);
     setRememberPin(false);
+  };
+
+  // 🎯 HANDLE WELCOME BANNER DISMISSAL
+  const handleDismissWelcomeBanner = () => {
+    localStorage.setItem('storehouse-welcome-dismissed', 'true');
+    setWelcomeBannerDismissed(true);
   };
 
   // Handle Money page access (with PIN check)
@@ -3764,8 +3775,9 @@ Low Stock: ${lowStockItems.length}
       </header>
 
       {/* First-Run Setup Banner */}
-      {!isProfileComplete && (
+      {!isProfileComplete && !welcomeBannerDismissed && (
         <div style={{
+          position: 'relative',
           margin: '8px 0',
           padding: '14px 16px',
           borderRadius: '12px',
@@ -3805,27 +3817,33 @@ Low Stock: ${lowStockItems.length}
           >
             Set Up Now →
           </button>
+          <button
+            onClick={handleDismissWelcomeBanner}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.8)',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '4px',
+              lineHeight: 1,
+              transition: 'all 160ms'
+            }}
+            onMouseEnter={e => e.target.style.color = 'rgba(255, 255, 255, 1)'}
+            onMouseLeave={e => e.target.style.color = 'rgba(255, 255, 255, 0.8)'}
+            aria-label="Dismiss welcome banner"
+            title="Dismiss (you can complete setup later in Settings)"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      {/* Beta Mode Badge */}
-      {isBetaTester && (
-        <div style={{
-          margin: '8px 0',
-          padding: '10px 12px',
-          borderRadius: '12px',
-          background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-          color: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '14px',
-          fontWeight: '600'
-        }}>
-          <span>🧪 BETA MODE - Testing Premium Features</span>
-          <span style={{ fontSize: '12px', opacity: '0.9' }}>Unlimited Access</span>
-        </div>
-      )}
+      {/* Beta Mode Badge - REMOVED */}
+      {/* Beta banner removed for cleaner UX */}
 
       {/* Trial Banner */}
       {showTrialBanner && trialDaysLeft > 0 && (

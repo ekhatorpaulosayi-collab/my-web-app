@@ -146,6 +146,27 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* 🎯 ENHANCED MORE MENU BUTTON */
+.btn-more.btn-enhanced {
+  background: linear-gradient(135deg, #5b47fb 0%, #7c3aed 100%);
+  color: white;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 2px 8px rgba(91, 71, 251, 0.2);
+}
+
+.btn-more.btn-enhanced:hover {
+  background: linear-gradient(135deg, #4c3ed9 0%, #6d2fd4 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(91, 71, 251, 0.3);
+  color: white;
+  border: none;
+}
+
+.btn-more.btn-enhanced span {
+  margin-left: 6px;
+}
+
 /* Mobile - Touch-friendly sizing */
 @media (max-width: 768px) {
   .btn-primary,
