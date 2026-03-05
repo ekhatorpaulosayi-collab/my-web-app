@@ -1,6 +1,7 @@
 /**
  * Share Instructions Modal Styles
- * Clean, modern design following Notion/Linear patterns
+ * World-class design following Shopify/Amazon/Apple patterns
+ * Enhanced accessibility, animations, and touch targets
  */
 
 .share-modal-overlay {
@@ -9,13 +10,15 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6); /* Darker for better focus */
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
   padding: 20px;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(4px); /* iOS-style blur */
+  -webkit-backdrop-filter: blur(4px);
 }
 
 @keyframes fadeIn {
@@ -29,21 +32,27 @@
 
 .share-modal-content {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-radius: 16px; /* More rounded - modern */
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 10px 15px -3px rgba(0, 0, 0, 0.1); /* Deeper shadows */
   max-width: 480px;
   width: 100%;
-  animation: slideUp 0.3s ease-out;
+  animation: slideUpSpring 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); /* Bouncy spring */
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
+/* Spring bounce animation for premium feel */
+@keyframes slideUpSpring {
+  0% {
+    transform: translateY(40px) scale(0.95);
     opacity: 0;
   }
-  to {
-    transform: translateY(0);
+  50% {
+    transform: translateY(-5px) scale(1.01);
+  }
+  100% {
+    transform: translateY(0) scale(1);
     opacity: 1;
   }
 }
@@ -53,39 +62,108 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 24px 24px 20px; /* More spacious */
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .share-modal-title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 18px;
+  gap: 12px;
+  font-size: 19px; /* Slightly larger */
   font-weight: 600;
   color: #111827;
+  letter-spacing: -0.01em; /* Tighter, modern */
 }
 
 .share-modal-emoji {
-  font-size: 24px;
+  font-size: 28px; /* Larger emoji */
+  line-height: 1;
 }
 
+/* WORLD-CLASS CLOSE BUTTON - Shopify/Amazon Level */
 .share-modal-close {
-  background: none;
+  /* Base styles */
+  background: transparent;
   border: none;
-  padding: 6px;
+  padding: 0;
   cursor: pointer;
   color: #6b7280;
-  border-radius: 6px;
-  transition: all 0.2s;
+  border-radius: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+
+  /* Accessibility: 44x44px minimum touch target (Apple HIG) */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+
+  /* Visual feedback */
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.share-modal-close:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+/* Hover state - Desktop only */
+@media (hover: hover) and (pointer: fine) {
+  .share-modal-close:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    color: #111827;
+    transform: scale(1.08); /* Subtle grow */
+  }
+
+  .share-modal-close:hover::before {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Active/pressed state - All devices */
+.share-modal-close:active {
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: scale(0.95); /* Press down effect */
+  transition: all 0.1s;
+}
+
+/* Ripple effect on click (Material Design inspired) */
+.share-modal-close::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  transition: transform 0.5s, opacity 0.5s;
+  pointer-events: none;
+}
+
+/* Focus state for keyboard navigation */
+.share-modal-close:focus-visible {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* Icon inside close button - ensure proper sizing */
+.share-modal-close svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2.5; /* Bolder icon */
+  transition: transform 0.2s;
+}
+
+/* Rotate X on hover for playful effect */
+@media (hover: hover) and (pointer: fine) {
+  .share-modal-close:hover svg {
+    transform: rotate(90deg);
+  }
 }
 
 /* Status Section */
@@ -145,41 +223,99 @@
 .share-modal-actions {
   display: flex;
   gap: 12px;
-  padding: 16px 20px 20px;
-  border-top: 1px solid #f3f4f6;
+  padding: 20px 24px 24px; /* More padding */
+  border-top: 1px solid #e5e7eb;
 }
 
+/* WORLD-CLASS BUTTON STYLES */
 .share-modal-btn {
   flex: 1;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 14px 20px; /* Larger touch target */
+  min-height: 48px; /* iOS minimum */
+  border-radius: 10px; /* More rounded */
+  font-size: 15px;
+  font-weight: 600; /* Bolder */
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: -0.01em;
 }
 
+/* Button disabled state */
+.share-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Secondary Button */
 .share-btn-secondary {
   background-color: #f3f4f6;
   color: #374151;
+  border: 1.5px solid #e5e7eb;
 }
 
-.share-btn-secondary:hover {
-  background-color: #e5e7eb;
+@media (hover: hover) and (pointer: fine) {
+  .share-btn-secondary:not(:disabled):hover {
+    background-color: #e5e7eb;
+    border-color: #d1d5db;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  }
 }
 
+.share-btn-secondary:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.share-btn-secondary:focus-visible {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Primary Button - Gradient background */
 .share-btn-primary {
-  background-color: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.share-btn-primary:hover {
-  background-color: #2563eb;
+@media (hover: hover) and (pointer: fine) {
+  .share-btn-primary:not(:disabled):hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+  }
+}
+
+.share-btn-primary:not(:disabled):active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.share-btn-primary:focus-visible {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+/* Success state animation */
+.share-modal-btn svg {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.share-modal-btn:active svg {
+  transform: scale(1.2);
 }
 
 /* Mobile responsive */

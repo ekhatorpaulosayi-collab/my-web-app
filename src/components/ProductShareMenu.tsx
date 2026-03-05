@@ -170,13 +170,29 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
   };
 
   return (
-    <div className="share-menu-overlay">
+    <div
+      className="share-menu-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-menu-title"
+      onClick={(e) => {
+        // Close on backdrop click
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
       {!showInstructionsModal && (
-        <div ref={menuRef} className="share-menu-content">
+        <div ref={menuRef} className="share-menu-content" role="document">
           <div className="share-menu-header">
-            <h3>Share Product</h3>
-            <button onClick={onClose} className="share-menu-close" aria-label="Close">
-              <X size={20} />
+            <h3 id="share-menu-title">Share Product</h3>
+            <button
+              onClick={onClose}
+              className="share-menu-close"
+              aria-label="Close share dialog"
+              type="button"
+            >
+              <X size={20} aria-hidden="true" />
             </button>
           </div>
 
@@ -190,13 +206,16 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
           </div>
         </div>
 
-        <div className="share-menu-options">
+        <div className="share-menu-options" role="group" aria-label="Social media sharing options">
           <button
             className="share-option whatsapp"
             onClick={() => handleShare('whatsapp')}
             disabled={isSharing}
+            type="button"
+            aria-label="Share to WhatsApp - Send to your contacts"
+            aria-disabled={isSharing}
           >
-            <div className="share-option-icon">💬</div>
+            <div className="share-option-icon" role="img" aria-label="WhatsApp">💬</div>
             <div className="share-option-info">
               <div className="share-option-name">WhatsApp</div>
               <div className="share-option-desc">Send to Contacts</div>
@@ -207,8 +226,11 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
             className="share-option instagram"
             onClick={() => handleShare('instagram')}
             disabled={isSharing}
+            type="button"
+            aria-label="Share to Instagram - Post to stories and feed"
+            aria-disabled={isSharing}
           >
-            <div className="share-option-icon">📷</div>
+            <div className="share-option-icon" role="img" aria-label="Instagram">📷</div>
             <div className="share-option-info">
               <div className="share-option-name">Instagram</div>
               <div className="share-option-desc">Stories & Posts</div>
@@ -219,8 +241,11 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
             className="share-option facebook"
             onClick={() => handleShare('facebook')}
             disabled={isSharing}
+            type="button"
+            aria-label="Share to Facebook - Post to timeline and marketplace"
+            aria-disabled={isSharing}
           >
-            <div className="share-option-icon">📘</div>
+            <div className="share-option-icon" role="img" aria-label="Facebook">📘</div>
             <div className="share-option-info">
               <div className="share-option-name">Facebook</div>
               <div className="share-option-desc">Posts & Marketplace</div>
@@ -229,8 +254,25 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
         </div>
 
         {message && (
-          <div className="share-menu-message">
+          <div
+            className="share-menu-message"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {message}
+          </div>
+        )}
+
+        {isSharing && (
+          <div
+            className="share-menu-loading"
+            role="status"
+            aria-live="polite"
+            aria-label="Preparing to share product"
+          >
+            <div className="share-loading-spinner" aria-hidden="true"></div>
+            <span>Preparing to share...</span>
           </div>
         )}
       </div>

@@ -145,17 +145,57 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
     return parts;
   };
 
+  // Handle ESC key to close modal
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  // Trap focus within modal (basic implementation)
+  React.useEffect(() => {
+    const modalContent = document.querySelector('.share-modal-content');
+    const focusableElements = modalContent?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+
+    if (focusableElements && focusableElements.length > 0) {
+      // Focus first element
+      focusableElements[0]?.focus();
+    }
+  }, []);
+
   return (
-    <div className="share-modal-overlay" onClick={onClose}>
-      <div className="share-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="share-modal-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-modal-title"
+    >
+      <div
+        className="share-modal-content"
+        onClick={(e) => e.stopPropagation()}
+        role="document"
+      >
         {/* Header */}
         <div className="share-modal-header">
-          <div className="share-modal-title">
-            <span className="share-modal-emoji">{getPlatformEmoji()}</span>
+          <div className="share-modal-title" id="share-modal-title">
+            <span className="share-modal-emoji" aria-hidden="true">{getPlatformEmoji()}</span>
             <span>{getPlatformName()} Ready!</span>
           </div>
-          <button className="share-modal-close" onClick={onClose} aria-label="Close">
-            <X size={20} />
+          <button
+            className="share-modal-close"
+            onClick={onClose}
+            aria-label={`Close ${getPlatformName()} sharing dialog`}
+            type="button"
+          >
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
@@ -186,15 +226,19 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
               className="share-modal-btn share-btn-primary"
               onClick={handleDownloadImage}
               disabled={imageDownloaded}
+              type="button"
+              aria-label={imageDownloaded ? 'Image downloaded successfully' : 'Download product image'}
+              aria-disabled={imageDownloaded}
             >
               {imageDownloaded ? (
                 <>
-                  <Check size={16} />
+                  <Check size={16} aria-hidden="true" />
                   <span>Downloaded!</span>
                 </>
               ) : (
                 <>
-                  <span>📥 Download Image</span>
+                  <span role="img" aria-label="Download">📥</span>
+                  <span>Download Image</span>
                 </>
               )}
             </button>
@@ -202,20 +246,27 @@ export const ShareInstructionsModal: React.FC<ShareInstructionsModalProps> = ({
           <button
             className="share-modal-btn share-btn-secondary"
             onClick={handleViewCaption}
+            type="button"
+            aria-label={captionCopied ? 'Caption copied to clipboard' : 'Copy caption to clipboard'}
           >
             {captionCopied ? (
               <>
-                <Check size={16} />
+                <Check size={16} aria-hidden="true" />
                 <span>Copied!</span>
               </>
             ) : (
               <>
-                <Copy size={16} />
+                <Copy size={16} aria-hidden="true" />
                 <span>View Caption</span>
               </>
             )}
           </button>
-          <button className="share-modal-btn share-btn-secondary" onClick={onClose}>
+          <button
+            className="share-modal-btn share-btn-secondary"
+            onClick={onClose}
+            type="button"
+            aria-label="Close dialog and return to share menu"
+          >
             Done
           </button>
         </div>
