@@ -198,6 +198,22 @@
   letter-spacing: 0.025em;
 }
 
+.item-col-name {
+  text-align: left;
+}
+
+.item-col-qty {
+  text-align: right;
+}
+
+.item-col-price {
+  text-align: right;
+}
+
+.item-col-total {
+  text-align: right;
+}
+
 .item-row {
   display: grid;
   grid-template-columns: 2fr 100px 120px 120px 50px;
@@ -213,7 +229,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.item-col-name {
+.item-row .item-col-name {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -275,7 +291,7 @@
   background-color: #ffffff !important;
 }
 
-.item-col-total {
+.item-row .item-col-total {
   display: flex;
   align-items: center;
   justify-content: flex-end;
