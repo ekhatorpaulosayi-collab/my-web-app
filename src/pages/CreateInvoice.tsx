@@ -407,7 +407,12 @@ export default function CreateInvoice() {
                     type="checkbox"
                     checked={includeTax}
                     onChange={(e) => setIncludeTax(e.target.checked)}
-                    style={{ cursor: 'pointer' }}
+                    style={{
+                      cursor: 'pointer',
+                      width: '18px',
+                      height: '18px',
+                      accentColor: '#3b82f6'
+                    }}
                   />
                   <span>Add tax/VAT to invoice</span>
                 </label>
