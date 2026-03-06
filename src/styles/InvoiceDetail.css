@@ -97,6 +97,53 @@
   margin-bottom: 2rem;
 }
 
+/* Company Branding Section */
+.invoice-company-header {
+  padding-bottom: 2rem;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 2rem;
+}
+
+.company-info {
+  text-align: left;
+}
+
+.company-name {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.company-owner {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #64748b;
+  margin: 0 0 1rem;
+}
+
+.company-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.contact-item svg {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
 /* Invoice Header Section */
 .invoice-header-section {
   padding-bottom: 2rem;

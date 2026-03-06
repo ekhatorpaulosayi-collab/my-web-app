@@ -34,12 +34,14 @@ import {
   InvoiceStatus,
 } from '../services/invoiceService';
 import { useAuth } from '../contexts/AuthContext';
+import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
 import '../styles/InvoiceDetail.css';
 
 export default function InvoiceDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { currentUser } = useAuth();
+  const { profile } = useBusinessProfile();
   const userId = currentUser?.uid;
 
   // State
@@ -265,6 +267,40 @@ export default function InvoiceDetail() {
 
       {/* Invoice Container */}
       <div className="invoice-container">
+        {/* Company Branding Section */}
+        {(profile.businessName || profile.ownerName || profile.phone) && (
+          <div className="invoice-company-header">
+            <div className="company-info">
+              {profile.businessName && (
+                <h2 className="company-name">{profile.businessName}</h2>
+              )}
+              {profile.ownerName && (
+                <p className="company-owner">{profile.ownerName}</p>
+              )}
+              <div className="company-contact">
+                {profile.phone && (
+                  <p className="contact-item">
+                    <Phone size={14} />
+                    {profile.phone}
+                  </p>
+                )}
+                {profile.whatsappNumber && profile.whatsappNumber !== profile.phone && (
+                  <p className="contact-item">
+                    <MessageSquare size={14} />
+                    {profile.whatsappNumber}
+                  </p>
+                )}
+                {currentUser?.email && (
+                  <p className="contact-item">
+                    <Mail size={14} />
+                    {currentUser.email}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Invoice Header */}
         <div className="invoice-header-section">
           <div>

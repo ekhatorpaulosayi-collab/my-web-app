@@ -34,6 +34,7 @@ export default function CreateInvoice() {
   const [notes, setNotes] = useState('');
   const [termsConditions, setTermsConditions] = useState('Payment is due within the agreed terms. Late payments may incur additional charges.');
   const [discountKobo, setDiscountKobo] = useState(0);
+  const [includeTax, setIncludeTax] = useState(false);
   const [vatPercentage, setVatPercentage] = useState(7.5);
 
   // Line items
@@ -93,8 +94,8 @@ export default function CreateInvoice() {
     setItems(newItems);
   };
 
-  // Calculate totals
-  const totals = calculateInvoiceTotals(items, discountKobo, vatPercentage);
+  // Calculate totals (pass 0 for VAT if not included)
+  const totals = calculateInvoiceTotals(items, discountKobo, includeTax ? vatPercentage : 0);
 
   // Validate form
   const validateForm = (): boolean => {
@@ -399,20 +400,39 @@ export default function CreateInvoice() {
                 />
               </div>
 
+              {/* Tax/VAT - Optional */}
               <div className="form-group">
-                <label htmlFor="vat">VAT (%)</label>
-                <input
-                  id="vat"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={vatPercentage}
-                  onChange={(e) =>
-                    setVatPercentage(parseFloat(e.target.value || '0'))
-                  }
-                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={includeTax}
+                    onChange={(e) => setIncludeTax(e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>Add tax/VAT to invoice</span>
+                </label>
               </div>
+
+              {includeTax && (
+                <div className="form-group">
+                  <label htmlFor="vat">Tax Rate (%)</label>
+                  <input
+                    id="vat"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={vatPercentage}
+                    onChange={(e) =>
+                      setVatPercentage(parseFloat(e.target.value || '0'))
+                    }
+                    placeholder="7.5"
+                  />
+                  <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    Nigeria VAT standard rate is 7.5%
+                  </small>
+                </div>
+              )}
             </div>
 
             <div className="totals-col">
