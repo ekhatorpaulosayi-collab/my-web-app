@@ -3,8 +3,8 @@
  * Only 5 visible elements: Share banner, Actions, Today's Sales, Quick Sell, Search
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { PaymentStatusIndicator } from './PaymentStatusIndicator';
@@ -70,6 +70,10 @@ export function Dashboard({
   const [showChannelAnalytics, setShowChannelAnalytics] = useState(false);
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Three-dot menu state
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // 🎯 WORLD-CLASS SORTING STATE
   // Load sort preference from localStorage
@@ -156,6 +160,20 @@ export function Dashboard({
   useEffect(() => {
     localStorage.setItem('storehouse-items-table-expanded', String(itemsTableExpanded));
   }, [itemsTableExpanded]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [openMenuId]);
 
   // Check if hero is dismissed
   const heroKey = userId
@@ -1109,25 +1127,18 @@ export function Dashboard({
                         <td className="text-right">{currencyNGN(getItemPrice(item))}</td>
                         <td className="text-center">
                           <div style={{
-                            display: 'flex',
-                            gap: '8px',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            minWidth: '100px',
-                            padding: '4px'
+                            position: 'relative',
+                            display: 'inline-block'
                           }}>
-                            {/* EDIT BUTTON - Always visible */}
+                            {/* THREE-DOT MENU BUTTON */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                console.log('[Dashboard] Edit clicked for:', item.name);
-                                if (onEditItem) {
-                                  onEditItem(item);
-                                }
+                                setOpenMenuId(openMenuId === item.id ? null : item.id);
                               }}
-                              aria-label={`Edit ${item.name}`}
-                              title="Edit item"
+                              aria-label={`Actions for ${item.name}`}
+                              title="More actions"
                               style={{
                                 background: 'none',
                                 border: 'none',
@@ -1136,58 +1147,121 @@ export function Dashboard({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#3b82f6',
+                                color: '#6b7280',
                                 transition: 'all 0.2s',
                                 borderRadius: '4px',
                                 minWidth: '36px',
                                 minHeight: '36px'
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#2563eb';
-                                e.currentTarget.style.background = '#eff6ff';
+                                e.currentTarget.style.color = '#374151';
+                                e.currentTarget.style.background = '#f3f4f6';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#3b82f6';
+                                e.currentTarget.style.color = '#6b7280';
                                 e.currentTarget.style.background = 'none';
                               }}
                             >
-                              <Edit2 size={20} strokeWidth={2} />
+                              <MoreVertical size={20} strokeWidth={2} />
                             </button>
 
-                            {/* DELETE BUTTON - Always visible */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                handleDeleteItem(item, e);
-                              }}
-                              aria-label={`Delete ${item.name}`}
-                              title="Delete item"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ef4444',
-                                transition: 'all 0.2s',
-                                borderRadius: '4px',
-                                minWidth: '36px',
-                                minHeight: '36px'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#dc2626';
-                                e.currentTarget.style.background = '#fef2f2';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#ef4444';
-                                e.currentTarget.style.background = 'none';
-                              }}
-                            >
-                              <Trash2 size={20} strokeWidth={2} />
-                            </button>
+                            {/* DROPDOWN MENU */}
+                            {openMenuId === item.id && (
+                              <div
+                                ref={menuRef}
+                                className="item-actions-menu"
+                                style={{
+                                  position: 'absolute',
+                                  right: '0',
+                                  top: '100%',
+                                  marginTop: '4px',
+                                  background: 'white',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '8px',
+                                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                  zIndex: 1000,
+                                  minWidth: '150px',
+                                  overflow: 'hidden'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {/* EDIT OPTION */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setOpenMenuId(null);
+                                    console.log('[Dashboard] Edit clicked for:', item.name);
+                                    if (onEditItem) {
+                                      onEditItem(item);
+                                    }
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '12px 16px',
+                                    border: 'none',
+                                    background: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    color: '#374151',
+                                    textAlign: 'left',
+                                    transition: 'background 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = '#f9fafb';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'white';
+                                  }}
+                                >
+                                  <Edit2 size={16} strokeWidth={2} style={{ color: '#3b82f6' }} />
+                                  <span>Edit</span>
+                                </button>
+
+                                {/* DIVIDER */}
+                                <div style={{ height: '1px', background: '#e5e7eb' }} />
+
+                                {/* DELETE OPTION */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setOpenMenuId(null);
+                                    handleDeleteItem(item, e);
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '12px 16px',
+                                    border: 'none',
+                                    background: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    color: '#374151',
+                                    textAlign: 'left',
+                                    transition: 'background 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = '#fef2f2';
+                                    e.currentTarget.style.color = '#ef4444';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'white';
+                                    e.currentTarget.style.color = '#374151';
+                                  }}
+                                >
+                                  <Trash2 size={16} strokeWidth={2} style={{ color: '#ef4444' }} />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
