@@ -79,7 +79,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     {
       icon: Gift,
       label: '💰 Partner Program',
-      description: 'Invite friends → Earn ₦15,000 each (30% forever)',
+      description: 'Earn 30% recurring commission on every paid referral',
       action: () => navigate('/affiliate/signup'),
       highlight: true,
       badge: 'Earn Money'
@@ -87,7 +87,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     {
       icon: Receipt,
       label: 'Professional Invoices',
-      description: 'Send invoices in 30 seconds, get paid faster',
+      description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
       action: () => navigate('/invoices')
     },
 
@@ -95,37 +95,37 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     {
       icon: Share2,
       label: 'Online Store',
-      description: 'Manage storefront',
+      description: 'Share your online catalog - customers browse & order 24/7',
       action: onShowOnlineStore
     },
     {
       icon: Star,
       label: 'Customer Reviews',
-      description: 'Moderate & respond to reviews',
+      description: 'Collect & display customer testimonials',
       action: () => navigate('/reviews')
     },
     {
       icon: UserCircle2,
       label: 'Customers',
-      description: 'View customers & manage debts',
+      description: 'Track customer purchases, loyalty, and outstanding payments',
       action: onViewCustomers
     },
     {
       icon: BarChart3,
       label: 'Sales by Channel',
-      description: 'Instagram, WhatsApp, etc.',
+      description: 'See which channels drive the most sales (Instagram, WhatsApp, Walk-in)',
       action: onViewChannelAnalytics
     },
     {
       icon: Send,
       label: 'Daily Sales Summary',
-      description: 'Send today\'s report',
+      description: 'Get daily sales digest via email or WhatsApp',
       action: onSendDailySummary
     },
     {
       icon: Download,
       label: 'Export Data (CSV)',
-      description: 'Download all data',
+      description: 'Download your data for Excel or Google Sheets',
       action: onExportData
     },
 

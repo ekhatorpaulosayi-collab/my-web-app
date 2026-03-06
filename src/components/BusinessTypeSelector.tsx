@@ -117,20 +117,34 @@ export function BusinessTypeSelector({ onComplete }: BusinessTypeSelectorProps) 
           <div className="bts-actions">
             <button
               type="button"
-              className="bts-btn bts-btn-secondary"
-              onClick={handleSkipPIN}
-            >
-              Skip for Now
-            </button>
-            <button
-              type="button"
               className="bts-btn bts-btn-primary"
               onClick={handleSetPIN}
               disabled={!pin || !confirmPin}
             >
               Set PIN & Continue
             </button>
+            <button
+              type="button"
+              className="bts-btn bts-btn-secondary"
+              onClick={handleSkipPIN}
+              style={{
+                background: 'white',
+                border: '2px solid #e5e7eb',
+                color: '#374151',
+                fontWeight: '500'
+              }}
+            >
+              Skip for Now
+            </button>
           </div>
+          <p style={{
+            textAlign: 'center',
+            fontSize: '13px',
+            color: '#6b7280',
+            marginTop: '12px'
+          }}>
+            You can set this up later in Settings
+          </p>
         </div>
       </div>
     );

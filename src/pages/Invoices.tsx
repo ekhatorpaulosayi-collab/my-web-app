@@ -24,6 +24,7 @@ import {
   getInvoiceSummary,
   formatCurrency,
   InvoiceStatus,
+  sendInvoice,
 } from '../services/invoiceService';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Invoices.css';
@@ -90,6 +91,29 @@ export default function Invoices() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Send payment reminder
+  const handleSendReminder = async (e: React.MouseEvent, invoiceId: string) => {
+    e.stopPropagation();
+
+    if (!userId) return;
+
+    const confirmed = window.confirm('Send payment reminder to customer?');
+    if (!confirmed) return;
+
+    try {
+      const result = await sendInvoice(invoiceId, userId);
+      if (result.success) {
+        alert('✅ Payment reminder sent successfully!');
+        loadData(); // Reload to refresh status
+      } else {
+        alert(`Failed to send reminder: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Error sending reminder:', error);
+      alert('Failed to send reminder. Please try again.');
+    }
+  };
 
   // Get status badge
   const getStatusBadge = (status: InvoiceStatus) => {
@@ -363,6 +387,20 @@ export default function Invoices() {
                     </td>
                     <td data-label="Status">{getStatusBadge(invoice.status)}</td>
                     <td className="actions-cell">
+                      {invoice.status === 'overdue' && (
+                        <button
+                          className="action-btn reminder-btn"
+                          onClick={(e) => handleSendReminder(e, invoice.id)}
+                          title="Send Payment Reminder"
+                          style={{
+                            background: '#fef3c7',
+                            color: '#f59e0b',
+                            marginRight: '8px'
+                          }}
+                        >
+                          <Send size={16} />
+                        </button>
+                      )}
                       <button
                         className="action-btn"
                         onClick={(e) => {

@@ -37,6 +37,7 @@ export function GettingStartedChecklist({
   });
 
   const [showDetails, setShowDetails] = useState(true);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
 
   const handleDismiss = () => {
     localStorage.setItem('storehouse-getting-started-dismissed', 'true');
@@ -54,6 +55,22 @@ export function GettingStartedChecklist({
     window.addEventListener('show-getting-started', handler);
     return () => window.removeEventListener('show-getting-started', handler);
   }, []);
+
+  // Auto-collapse after 10 seconds if user doesn't interact
+  useEffect(() => {
+    if (!dismissed && !hasUserInteracted) {
+      const timer = setTimeout(() => {
+        setShowDetails(false);
+      }, 10000); // 10 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [dismissed, hasUserInteracted]);
+
+  // Track user interactions
+  const handleUserInteraction = () => {
+    setHasUserInteracted(true);
+  };
 
   const steps: ChecklistItem[] = [
     {
@@ -115,15 +132,25 @@ export function GettingStartedChecklist({
   if (allCompleted) return null;
 
   return (
-    <div className="getting-started-checklist">
+    <div className="getting-started-checklist" onClick={handleUserInteraction}>
       <div className="checklist-header">
-        <div>
+        <div
+          onClick={() => setShowDetails(!showDetails)}
+          style={{ cursor: 'pointer', flex: 1 }}
+        >
           <h3>🎉 Welcome to Storehouse!</h3>
           <p className="checklist-subtitle">
             Get started in 3 easy steps ({completedCount}/{steps.length} completed)
           </p>
         </div>
-        <button className="close-btn" onClick={handleDismiss} title="Hide this guide">
+        <button
+          className="close-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDismiss();
+          }}
+          title="Hide this guide"
+        >
           <X size={20} />
         </button>
       </div>
