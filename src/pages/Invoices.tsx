@@ -303,18 +303,136 @@ export default function Invoices() {
         </div>
       ) : invoices.length === 0 ? (
         <div className="empty-state">
-          <FileText size={64} style={{ color: '#cbd5e1' }} />
-          <h3>No invoices found</h3>
-          <p>
-            {searchQuery || statusFilter !== 'all'
-              ? 'Try adjusting your filters'
-              : 'Create your first invoice to get started'}
-          </p>
-          {!searchQuery && statusFilter === 'all' && (
-            <button onClick={() => navigate('/invoices/create')} className="create-btn">
-              <Plus size={20} />
-              Create Invoice
-            </button>
+          {searchQuery || statusFilter !== 'all' ? (
+            // Filtered empty state
+            <>
+              <FileText size={64} style={{ color: '#cbd5e1' }} />
+              <h3>No invoices found</h3>
+              <p>Try adjusting your filters</p>
+            </>
+          ) : (
+            // True empty state - no invoices at all
+            <>
+              <div style={{
+                background: '#dbeafe',
+                borderRadius: '50%',
+                padding: '24px',
+                display: 'inline-flex',
+                marginBottom: '16px'
+              }}>
+                <FileText size={48} style={{ color: '#3b82f6' }} />
+              </div>
+              <h2 style={{
+                margin: '0 0 8px 0',
+                fontSize: '24px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Send Professional Invoices in 30 Seconds
+              </h2>
+              <p style={{
+                margin: '0 0 24px 0',
+                fontSize: '15px',
+                color: '#6b7280',
+                maxWidth: '500px'
+              }}>
+                Get paid 3x faster with tracked, professional invoices that your customers will love
+              </p>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '16px',
+                maxWidth: '600px',
+                margin: '0 auto 32px auto',
+                textAlign: 'left'
+              }}>
+                <div style={{
+                  padding: '12px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>✅</div>
+                  <div style={{ fontWeight: '600', fontSize: '14px', color: '#111827', marginBottom: '4px' }}>
+                    Automatic Reminders
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                    Never chase payments manually again
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '12px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>👁️</div>
+                  <div style={{ fontWeight: '600', fontSize: '14px', color: '#111827', marginBottom: '4px' }}>
+                    Track Views
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                    See when customers open invoices
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '12px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>💳</div>
+                  <div style={{ fontWeight: '600', fontSize: '14px', color: '#111827', marginBottom: '4px' }}>
+                    Online Payments
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                    Let customers pay instantly
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => navigate('/invoices/create')}
+                style={{
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  padding: '14px 32px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#2563eb';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#3b82f6';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+                }}
+              >
+                <Plus size={20} />
+                Create Your First Invoice
+              </button>
+
+              <p style={{
+                margin: '24px 0 0 0',
+                fontSize: '13px',
+                color: '#9ca3af'
+              }}>
+                Free forever • No credit card required
+              </p>
+            </>
           )}
         </div>
       ) : (
