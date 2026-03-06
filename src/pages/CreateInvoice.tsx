@@ -402,19 +402,29 @@ export default function CreateInvoice() {
 
               {/* Tax/VAT - Optional */}
               <div className="form-group">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={includeTax}
-                    onChange={(e) => setIncludeTax(e.target.checked)}
-                    style={{
-                      cursor: 'pointer',
-                      width: '18px',
-                      height: '18px',
-                      accentColor: '#3b82f6'
-                    }}
-                  />
-                  <span>Add tax/VAT to invoice</span>
+                <label className="tax-toggle-label">
+                  <div className="custom-checkbox-wrapper">
+                    <input
+                      type="checkbox"
+                      checked={includeTax}
+                      onChange={(e) => setIncludeTax(e.target.checked)}
+                      className="tax-checkbox-input"
+                    />
+                    <div className="custom-checkbox">
+                      {includeTax && (
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                          <path
+                            d="M15 4.5L6.75 12.75L3 9"
+                            stroke="white"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <span className="tax-label-text">ADD TAX/VAT TO INVOICE</span>
                 </label>
               </div>
 

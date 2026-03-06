@@ -327,23 +327,98 @@
 }
 
 .remove-item-btn {
-  padding: 0.5rem;
-  background: none;
-  border: none;
-  color: #94a3b8;
+  padding: var(--space-2, 0.5rem);
+  background: var(--danger-100, #fee2e2);
+  border: 2px solid var(--danger-400, #f87171);
+  color: var(--danger-700, #b91c1c);
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s;
+  border-radius: var(--radius-sm, 4px);
+  transition: var(--transition-all, all 200ms ease-in-out);
 }
 
 .remove-item-btn:hover:not(:disabled) {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--danger-200, #fecaca);
+  color: var(--danger-800, #991b1b);
+  border-color: var(--danger-600, #dc2626);
+  transform: scale(1.15);
 }
 
 .remove-item-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* Tax Toggle Styling - Using Design Tokens */
+.tax-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  cursor: pointer;
+  padding: var(--space-4, 16px);
+  background: var(--color-background, #ffffff);
+  border: 2px solid var(--brand-blue, #0B63F6);
+  border-radius: var(--radius-md, 8px);
+  transition: var(--transition-all, all 200ms ease-in-out);
+  margin-bottom: var(--space-2, 8px);
+  box-shadow: var(--shadow-sm, 0 1px 3px 0 rgba(0, 0, 0, 0.1));
+}
+
+.tax-toggle-label:hover {
+  background: var(--primary-50, #eff6ff);
+  border-color: var(--brand-blue, #0B63F6);
+  box-shadow: var(--shadow-primary, 0 4px 14px 0 rgba(11, 99, 246, 0.25));
+  transform: translateY(-1px);
+}
+
+.tax-toggle-label:has(.tax-checkbox:checked) {
+  background: var(--primary-50, #eff6ff);
+  border-color: var(--brand-blue, #0B63F6);
+  box-shadow: var(--shadow-primary, 0 4px 14px 0 rgba(11, 99, 246, 0.3));
+  transform: translateY(-1px);
+}
+
+.custom-checkbox-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.tax-checkbox-input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+}
+
+.custom-checkbox {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--brand-blue, #0B63F6);
+  border-radius: 6px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tax-checkbox-input:checked + .custom-checkbox {
+  background: var(--brand-blue, #0B63F6);
+  border-color: var(--brand-blue, #0B63F6);
+}
+
+.tax-label-text {
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--brand-blue, #0B63F6);
+  letter-spacing: 0.05em;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+.tax-toggle-label:has(.tax-checkbox:checked) .tax-label-text {
+  color: var(--brand-blue, #0B63F6);
 }
 
 /* Totals Section */
