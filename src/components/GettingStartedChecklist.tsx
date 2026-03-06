@@ -56,12 +56,12 @@ export function GettingStartedChecklist({
     return () => window.removeEventListener('show-getting-started', handler);
   }, []);
 
-  // Auto-collapse after 10 seconds if user doesn't interact
+  // Auto-collapse after 30 seconds if user doesn't interact
   useEffect(() => {
     if (!dismissed && !hasUserInteracted) {
       const timer = setTimeout(() => {
         setShowDetails(false);
-      }, 10000); // 10 seconds
+      }, 30000); // 30 seconds
 
       return () => clearTimeout(timer);
     }
@@ -76,28 +76,40 @@ export function GettingStartedChecklist({
     {
       id: 'add-items',
       title: 'Add Your Products',
-      description: 'Add items you sell so you can track inventory and record sales',
-      action: 'Add Item',
+      description: 'Add items to your inventory to start tracking stock levels and prices',
+      action: 'Add First Product',
       completed: hasItems
     },
     {
       id: 'record-sale',
       title: 'Record Your First Sale',
-      description: 'Tap any item in Quick Sell to record when you make a sale',
-      action: 'Record Sale',
+      description: 'Click on any product below in your inventory to record a sale and update stock',
+      action: 'View Products',
       completed: hasSales
     },
     {
       id: 'setup-store',
-      title: 'Set Up Your Online Store',
-      description: 'Create a store URL so customers can order online',
-      action: 'Setup Store',
+      title: 'Create Your Online Store',
+      description: 'Get a custom store link where customers can browse and order 24/7',
+      action: 'Set Up Store',
       completed: hasStoreUrl
     }
   ];
 
   const completedCount = steps.filter(s => s.completed).length;
   const allCompleted = completedCount === steps.length;
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  // Show celebration when all completed
+  useEffect(() => {
+    if (allCompleted && !dismissed) {
+      setShowCelebration(true);
+      const timer = setTimeout(() => {
+        handleDismiss(); // Auto-dismiss after celebration
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [allCompleted, dismissed]);
 
   // Show permanently dismissed state
   if (dismissed && !allCompleted) {
@@ -129,6 +141,28 @@ export function GettingStartedChecklist({
     );
   }
 
+  // Show celebration screen
+  if (showCelebration) {
+    return (
+      <div className="getting-started-checklist celebration">
+        <div style={{ textAlign: 'center', padding: '32px 24px' }}>
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>🎉</div>
+          <h3 style={{ fontSize: '24px', fontWeight: 700, color: '#0c4a6e', margin: '0 0 8px 0' }}>
+            You're All Set!
+          </h3>
+          <p style={{ fontSize: '16px', color: '#0369a1', margin: '0 0 24px 0' }}>
+            Your store is ready to grow your business
+          </p>
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', fontSize: '14px', color: '#6b7280' }}>
+            <div>✅ Products added</div>
+            <div>✅ Sales tracked</div>
+            <div>✅ Store live</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (allCompleted) return null;
 
   return (
@@ -139,20 +173,35 @@ export function GettingStartedChecklist({
           style={{ cursor: 'pointer', flex: 1 }}
         >
           <h3>🎉 Welcome to Storehouse!</h3>
+          <p style={{ margin: '4px 0 8px 0', fontSize: '13px', color: '#0c4a6e', fontWeight: 400 }}>
+            Track inventory, record sales, and sell online in minutes
+          </p>
           <p className="checklist-subtitle">
-            Get started in 3 easy steps ({completedCount}/{steps.length} completed)
+            {completedCount === steps.length ? '✨ All set up!' : `${completedCount}/${steps.length} steps completed • ~${(steps.length - completedCount) * 2} min remaining`}
           </p>
         </div>
-        <button
-          className="close-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDismiss();
-          }}
-          title="Hide this guide"
-        >
-          <X size={20} />
-        </button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button
+            className="skip-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDetails(false);
+            }}
+            title="Minimize for now"
+          >
+            Skip
+          </button>
+          <button
+            className="close-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDismiss();
+            }}
+            title="Hide permanently"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       {showDetails && (
