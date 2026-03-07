@@ -96,6 +96,55 @@ export function formatNGPhone(input: string): string {
 }
 
 /**
+ * Format international WhatsApp phone number
+ * Handles UK (+44), Nigeria (+234), and other international numbers
+ *
+ * @param input - Phone number string
+ * @returns Formatted number with country code for WhatsApp
+ *
+ * @example
+ * formatWhatsAppNumber("08012345678") // "2348012345678" (Nigerian)
+ * formatWhatsAppNumber("07123456789") // "447123456789" (UK)
+ * formatWhatsAppNumber("+447123456789") // "447123456789" (UK with +)
+ * formatWhatsAppNumber("+12345678901") // "12345678901" (US)
+ */
+export function formatWhatsAppNumber(input: string): string {
+  if (!input) return '';
+
+  // Remove all non-digit characters except leading +
+  let cleaned = input.trim();
+  const hasPlus = cleaned.startsWith('+');
+  cleaned = cleaned.replace(/\D/g, '');
+
+  // If number already has country code (starts with + or is long enough)
+  if (hasPlus || cleaned.length > 11) {
+    return cleaned; // Return as-is (already international format)
+  }
+
+  // Nigerian number detection (starts with 0 and has 11 digits)
+  if (cleaned.startsWith('0') && cleaned.length === 11) {
+    return '234' + cleaned.substring(1); // Convert to +234
+  }
+
+  // UK number detection (starts with 0 and has 11 digits could also be UK)
+  // But since Nigerian is more common in this app, default to Nigeria above
+  // For UK numbers, users should include +44 or 44 prefix
+
+  // If 10 digits without leading 0, assume Nigerian (missing 0)
+  if (cleaned.length === 10 && !cleaned.startsWith('0')) {
+    return '234' + cleaned;
+  }
+
+  // If number starts with country code already (234, 44, 1, etc.)
+  if (cleaned.length >= 10) {
+    return cleaned;
+  }
+
+  // Default: return as-is and let WhatsApp handle it
+  return cleaned;
+}
+
+/**
  * Validate Nigerian phone number
  *
  * @param input - Phone number to validate

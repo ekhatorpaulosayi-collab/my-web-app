@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
+import { formatWhatsAppNumber } from '../utils/phone';
 import '../styles/cart.css';
 
 // Payment method provider configurations
@@ -300,12 +301,7 @@ export function Cart({ store }: CartProps) {
 
           // Send order confirmation via WhatsApp if number is available
           if (store.whatsappNumber) {
-            let phone = store.whatsappNumber.replace(/\D/g, '');
-            if (phone.startsWith('0')) {
-              phone = '234' + phone.substring(1);
-            } else if (!phone.startsWith('234')) {
-              phone = '234' + phone;
-            }
+            const phone = formatWhatsAppNumber(store.whatsappNumber);
 
             const orderItems = items.map(item =>
               `\n• ${item.name} (x${item.quantity}) - ${currencyNGN(item.price * item.quantity)}`
@@ -390,12 +386,7 @@ export function Cart({ store }: CartProps) {
     }
 
     // Format phone number
-    let phone = store.whatsappNumber.replace(/\D/g, '');
-    if (phone.startsWith('0')) {
-      phone = '234' + phone.substring(1);
-    } else if (!phone.startsWith('234')) {
-      phone = '234' + phone;
-    }
+    const phone = formatWhatsAppNumber(store.whatsappNumber);
 
     // Build order message
     const orderItems = items.map(item => {

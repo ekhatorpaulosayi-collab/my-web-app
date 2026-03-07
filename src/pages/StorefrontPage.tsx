@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check, Heart } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
+import { formatWhatsAppNumber } from '../utils/phone';
 import type { StoreProfile, PaymentMethod } from '../types';
 import type { ProductVariant } from '../types/variants';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -414,12 +415,7 @@ function StorefrontContent() {
       return;
     }
 
-    let phone = store.whatsappNumber.replace(/\D/g, '');
-    if (phone.startsWith('0')) {
-      phone = '234' + phone.substring(1);
-    } else if (!phone.startsWith('234')) {
-      phone = '234' + phone;
-    }
+    const phone = formatWhatsAppNumber(store.whatsappNumber);
 
     const message = `Hi ${store.businessName}, I'm interested in your products!`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -1015,12 +1011,7 @@ function StorefrontContent() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          let phone = store.whatsappNumber!.replace(/\D/g, '');
-                          if (phone.startsWith('0')) {
-                            phone = '234' + phone.substring(1);
-                          } else if (!phone.startsWith('234')) {
-                            phone = '234' + phone;
-                          }
+                          const phone = formatWhatsAppNumber(store.whatsappNumber!);
                           const message = `Hi, I'm interested in ordering *${product.name}* (${currencyNGN(product.selling_price)})`;
                           window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
                         }}
@@ -2430,12 +2421,7 @@ function StorefrontContent() {
               {store?.whatsappNumber && selectedProduct.quantity > 0 && (
                 <button
                   onClick={() => {
-                    let phone = store.whatsappNumber!.replace(/\D/g, '');
-                    if (phone.startsWith('0')) {
-                      phone = '234' + phone.substring(1);
-                    } else if (!phone.startsWith('234')) {
-                      phone = '234' + phone;
-                    }
+                    const phone = formatWhatsAppNumber(store.whatsappNumber!);
 
                     const variantInfo = selectedVariant ? ` - ${selectedVariant.variant_name}` : '';
                     const price = selectedVariant?.price_override || selectedProduct.selling_price;
