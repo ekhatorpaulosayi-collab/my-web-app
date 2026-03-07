@@ -528,11 +528,13 @@ export default function RecordSaleModalV2({
 
   // Handle phone input
   const handlePhoneChange = (value: string) => {
-    const digitsOnly = value.replace(/\D/g, '');
-    setPhone(digitsOnly);
+    // Keep + sign and digits only, remove other characters
+    const cleanValue = value.replace(/[^\d+]/g, '');
+    // Extract digits for validation (remove + for validation logic)
+    const digitsOnly = cleanValue.replace(/\+/g, '');
 
-    const formatted = formatNGPhone(digitsOnly);
-    setPhoneDisplay(formatted);
+    setPhone(digitsOnly);
+    setPhoneDisplay(cleanValue); // Show the + sign in the input
 
     const validation = validateInternationalPhone(digitsOnly);
     setPhoneValidation(validation);
@@ -1106,11 +1108,11 @@ Powered by Storehouse
                   </label>
                   <input
                     id="whatsapp-phone"
-                    type="tel"
+                    type="text"
                     className="combobox-input"
                     value={phoneDisplay}
                     onChange={e => handlePhoneChange(e.target.value)}
-                    placeholder="080 1234 5678"
+                    placeholder="+234 801 234 5678 or 080 1234 5678"
                   />
                   {phone && phoneValidation.message && (
                     <small className={phoneValidation.valid ? 'rs-help' : 'rs-error'}>
