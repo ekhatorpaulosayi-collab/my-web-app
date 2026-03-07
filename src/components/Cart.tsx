@@ -420,25 +420,7 @@ export function Cart({ store }: CartProps) {
     // Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 
-    // Show order confirmation with receipt
-    const orderData = {
-      reference: 'WA_' + Date.now().toString(36).toUpperCase(),
-      items: items,
-      customerName: customerName,
-      customerPhone: customerPhone,
-      customerAddress: customerAddress,
-      subtotal: totalPrice,
-      discount: discount,
-      finalTotal: finalTotal,
-      paymentMethod: 'whatsapp',
-      promoCode: appliedPromo?.code,
-      timestamp: new Date()
-    };
-
-    setOrderConfirmationData(orderData);
-    setShowOrderConfirmation(true);
-
-    // Clear cart and close - but DON'T close cart immediately so receipt can show
+    // Clear cart and close (NO receipt - merchant will confirm payment first)
     clearCart();
     setCustomerName('');
     setCustomerPhone('');
@@ -447,10 +429,10 @@ export function Cart({ store }: CartProps) {
     setPromoCode('');
     setPromoError('');
     setIsCheckingOut(false);
-    // Close cart after a delay to let the receipt modal appear
-    setTimeout(() => {
-      closeCart();
-    }, 300);
+    closeCart();
+
+    // Show simple confirmation message
+    alert('✅ Order sent!\n\nYour order has been sent to ' + store.businessName + '.\nThey will contact you to confirm payment and delivery.');
   };
 
   const handleCheckout = () => {
