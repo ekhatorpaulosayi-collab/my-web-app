@@ -1506,19 +1506,23 @@ Powered by Storehouse
                     )}
                   </div>
 
-                  {/* WhatsApp Checkbox */}
-                  {phone && phoneValidation.valid && (
-                    <div className="rs-field" style={{ marginTop: '12px' }}>
-                      <label className="rs-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={sendWhatsApp}
-                          onChange={e => setSendWhatsApp(e.target.checked)}
-                        />
-                        <span>Send WhatsApp receipt for entire order</span>
-                      </label>
-                    </div>
-                  )}
+                  {/* WhatsApp Checkbox - Always visible */}
+                  <div className="rs-field" style={{ marginTop: '12px' }}>
+                    <label className="rs-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={sendWhatsApp}
+                        onChange={e => setSendWhatsApp(e.target.checked)}
+                        disabled={!phone || !phoneValidation.valid}
+                      />
+                      <span>
+                        Send WhatsApp receipt for entire order
+                        {!phone && <span style={{ color: '#9ca3af', fontSize: '13px', display: 'block', marginTop: '4px' }}>
+                          (Enter phone number above to enable)
+                        </span>}
+                      </span>
+                    </label>
+                  </div>
 
                   {/* Consent for Credit Sales */}
                   {sendWhatsApp && isCredit && (
