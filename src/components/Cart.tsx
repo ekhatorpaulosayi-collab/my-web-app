@@ -102,7 +102,8 @@ export function Cart({ store }: CartProps) {
     }
   }, [isCheckingOut, paystackEnabled, paymentMethod]);
 
-  if (!isCartOpen) return null;
+  // Allow Cart to render if either cart is open OR receipt modal is showing
+  if (!isCartOpen && !showOrderConfirmation) return null;
 
   // Validate and apply promo code
   const handleApplyPromo = async () => {
@@ -462,11 +463,11 @@ export function Cart({ store }: CartProps) {
 
   return (
     <>
-      {/* Overlay */}
-      <div className="cart-overlay" onClick={closeCart} />
+      {/* Overlay - Only show when cart is actually open */}
+      {isCartOpen && <div className="cart-overlay" onClick={closeCart} />}
 
-      {/* Cart Sidebar */}
-      <div className="cart-sidebar">
+      {/* Cart Sidebar - Only show when cart is actually open */}
+      {isCartOpen && <div className="cart-sidebar">
         {/* Header */}
         <div className="cart-header">
           <div className="cart-header-title">
@@ -1122,7 +1123,7 @@ export function Cart({ store }: CartProps) {
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* Order Confirmation Modal */}
       {showOrderConfirmation && orderConfirmationData && (
