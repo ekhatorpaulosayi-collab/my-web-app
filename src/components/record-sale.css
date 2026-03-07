@@ -473,7 +473,10 @@
   cursor: pointer;
   flex-shrink: 0;
   margin-top: 2px;
-  accent-color: var(--rs-brand);
+  accent-color: var(--rs-brand, #0B63F6);
+  /* Better visibility on all backgrounds */
+  border: 2px solid var(--rs-brand, #0B63F6);
+  border-radius: 4px;
 }
 
 .rs-checkbox input[type='checkbox']:disabled {

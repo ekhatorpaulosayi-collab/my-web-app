@@ -1479,13 +1479,16 @@ Powered by Storehouse
                 {/* WhatsApp Receipt Section - Always visible for entire cart */}
                 <div className="rs-field" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
                   <label className="rs-label" style={{ marginBottom: '12px', display: 'block', fontWeight: 600 }}>
-                    📱 WhatsApp Receipt (Optional)
+                    📱 Send Receipt via WhatsApp
                   </label>
+                  <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px', lineHeight: '1.5' }}>
+                    Enter customer's phone number to send them a professional receipt instantly
+                  </p>
 
                   {/* Phone Input */}
                   <div className="rs-field">
                     <label htmlFor="rs-whatsapp-phone" className="rs-label" style={{ fontSize: '14px' }}>
-                      Customer Phone
+                      Customer Phone Number
                     </label>
                     <input
                       id="rs-whatsapp-phone"
