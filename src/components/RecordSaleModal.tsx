@@ -5,7 +5,7 @@ import { buildTextFromSale, waLink, shouldAutoSend, shouldShowSheet } from '../m
 import { useBusinessProfile } from '../contexts/BusinessProfile';
 import { getSettings } from '../utils/settings';
 import { RECEIPT_SETTINGS_ENABLED } from '../config';
-import { formatNGPhone, validateNGPhone } from '../utils/phone';
+import { formatNGPhone, validateInternationalPhone } from '../utils/phone';
 import { getStockIndicator } from '../utils/stockSettings';
 import {
   isPaystackEnabled,
@@ -409,7 +409,7 @@ export default function RecordSaleModal({
     setPhoneDisplay(formatted);
 
     // Validate
-    const validation = validateNGPhone(digitsOnly);
+    const validation = validateInternationalPhone(digitsOnly);
     setPhoneValidation(validation);
   };
 

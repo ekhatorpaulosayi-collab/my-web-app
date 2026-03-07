@@ -11,7 +11,7 @@ import { ensureQty, ensurePrice } from '../utils/validators';
 import { enqueueSale, getQueue, removeFromQueue } from '../utils/offlineQueue';
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import { formatNGPhone, validateNGPhone } from '../utils/phone';
+import { formatNGPhone, validateInternationalPhone } from '../utils/phone';
 import { openWhatsApp } from '../utils/whatsapp';
 import {
   isPaystackEnabled,
@@ -534,7 +534,7 @@ export default function RecordSaleModalV2({
     const formatted = formatNGPhone(digitsOnly);
     setPhoneDisplay(formatted);
 
-    const validation = validateNGPhone(digitsOnly);
+    const validation = validateInternationalPhone(digitsOnly);
     setPhoneValidation(validation);
   };
 

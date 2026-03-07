@@ -206,3 +206,79 @@ export function validateNGPhone(input: string): { valid: boolean; message: strin
 
   return { valid: false, message: 'Invalid format' };
 }
+
+/**
+ * Validate international phone number (supports all countries)
+ *
+ * @param input - Phone number to validate
+ * @returns Validation result with status and message
+ *
+ * @example
+ * validateInternationalPhone("08012345678") // { valid: true, message: "✓ Valid Nigerian" }
+ * validateInternationalPhone("+447123456789") // { valid: true, message: "✓ Valid UK" }
+ * validateInternationalPhone("+12345678901") // { valid: true, message: "✓ Valid US" }
+ */
+export function validateInternationalPhone(input: string): { valid: boolean; message: string } {
+  if (!input || input.trim() === '') {
+    return { valid: true, message: '' }; // Empty is valid (optional field)
+  }
+
+  const digits = input.replace(/\D/g, '');
+
+  // Too short for any international number
+  if (digits.length < 7) {
+    return { valid: false, message: `Need ${7 - digits.length} more digit${7 - digits.length > 1 ? 's' : ''}` };
+  }
+
+  // Nigerian numbers (234 or 0)
+  if (digits.startsWith('234')) {
+    if (digits.length === 13) {
+      return { valid: true, message: '✓ Valid Nigerian' };
+    } else if (digits.length > 13) {
+      return { valid: false, message: `Remove ${digits.length - 13} digit${digits.length - 13 > 1 ? 's' : ''}` };
+    } else if (digits.length >= 10) {
+      return { valid: true, message: '✓ Valid' };
+    } else {
+      return { valid: false, message: `Need ${13 - digits.length} more digit${13 - digits.length > 1 ? 's' : ''}` };
+    }
+  }
+
+  if (digits.startsWith('0') && digits.length === 11) {
+    // Nigerian local format
+    return { valid: true, message: '✓ Valid Nigerian' };
+  }
+
+  // UK numbers (44)
+  if (digits.startsWith('44')) {
+    if (digits.length >= 12 && digits.length <= 13) {
+      return { valid: true, message: '✓ Valid UK' };
+    } else if (digits.length < 12) {
+      return { valid: false, message: `Need ${12 - digits.length} more digit${12 - digits.length > 1 ? 's' : ''}` };
+    } else {
+      return { valid: false, message: 'Too many digits for UK' };
+    }
+  }
+
+  // US/Canada numbers (1)
+  if (digits.startsWith('1')) {
+    if (digits.length === 11) {
+      return { valid: true, message: '✓ Valid US/Canada' };
+    } else if (digits.length < 11) {
+      return { valid: false, message: `Need ${11 - digits.length} more digit${11 - digits.length > 1 ? 's' : ''}` };
+    } else {
+      return { valid: false, message: 'Too many digits for US/Canada' };
+    }
+  }
+
+  // Generic international validation for other countries
+  // Most international numbers are 7-15 digits
+  if (digits.length >= 7 && digits.length <= 15) {
+    return { valid: true, message: '✓ Valid' };
+  }
+
+  if (digits.length > 15) {
+    return { valid: false, message: 'Too many digits' };
+  }
+
+  return { valid: false, message: 'Invalid format' };
+}
