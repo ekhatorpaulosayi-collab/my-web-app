@@ -768,7 +768,10 @@ Thank you for your business! 🙏
 Powered by Storehouse
           `.trim();
 
-          await openWhatsApp(phone, receipt);
+          console.log('[RecordSale] Sending WhatsApp receipt to phone:', phone);
+          console.log('[RecordSale] Phone display value:', phoneDisplay);
+          const result = await openWhatsApp(phone, receipt);
+          console.log('[RecordSale] WhatsApp open result:', result);
         } catch (error) {
           console.error('[WhatsApp] Error sending cart receipt:', error);
         }
