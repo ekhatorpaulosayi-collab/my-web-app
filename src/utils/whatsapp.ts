@@ -2,26 +2,39 @@
 // WhatsApp deep-link utilities for sending reminders and receipts
 
 /**
- * Format Nigerian phone number for WhatsApp
- * Accepts: 08012345678, +2348012345678, 2348012345678
- * Returns: 2348012345678
+ * Format phone number for WhatsApp (supports international numbers)
+ * Accepts: 08012345678, +2348012345678, 2348012345678, +447459044, etc.
+ * Returns: Country code + number (e.g., 2348012345678 or 447459044)
  */
 export function formatPhoneForWhatsApp(phone: string): string {
   // Remove all non-digit characters
   const digits = phone.replace(/\D/g, '');
 
-  // If starts with 0, replace with 234
-  if (digits.startsWith('0')) {
+  // If starts with 0 and is 11 digits, it's a Nigerian local format
+  if (digits.startsWith('0') && digits.length === 11) {
     return '234' + digits.slice(1);
   }
 
-  // If starts with 234, keep as is
+  // If starts with 234 (Nigerian country code), keep as is
   if (digits.startsWith('234')) {
     return digits;
   }
 
-  // Otherwise assume it's missing country code
-  return '234' + digits;
+  // If starts with other common country codes, it's already international format
+  // UK (44), US/Canada (1), etc. - keep as is
+  if (digits.startsWith('44') || digits.startsWith('1') || digits.startsWith('61') ||
+      digits.startsWith('91') || digits.startsWith('86') || digits.startsWith('33') ||
+      digits.startsWith('49') || digits.startsWith('81')) {
+    return digits;
+  }
+
+  // If 10 digits without leading 0, assume Nigerian (missing 0)
+  if (digits.length === 10 && !digits.startsWith('0')) {
+    return '234' + digits;
+  }
+
+  // For any other format, return digits as-is (assume it's already properly formatted)
+  return digits;
 }
 
 /**
