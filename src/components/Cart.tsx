@@ -12,6 +12,7 @@ import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../con
 import { supabase } from '../lib/supabase';
 import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import { OptimizedImage } from './OptimizedImage';
+import { OrderConfirmation } from './OrderConfirmation';
 import '../styles/cart.css';
 
 // Payment method provider configurations
@@ -44,6 +45,10 @@ export function Cart({ store }: CartProps) {
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
   const [promoError, setPromoError] = useState('');
   const [checkingPromo, setCheckingPromo] = useState(false);
+
+  // Order confirmation state
+  const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
+  const [orderConfirmationData, setOrderConfirmationData] = useState<any>(null);
 
   // Check if Paystack is enabled
   const paystackEnabled = store.paystackEnabled && store.paystackPublicKey;
@@ -218,8 +223,24 @@ export function Cart({ store }: CartProps) {
         callback: async function(response: any) {
           setProcessingPayment(false);
 
-          // Payment successful
-          alert('✅ Payment successful! Reference: ' + response.reference);
+          // Payment successful - show confirmation with receipt
+          const orderData = {
+            reference: response.reference,
+            items: items,
+            customerName: customerName,
+            customerPhone: customerPhone,
+            customerAddress: customerAddress,
+            subtotal: totalPrice,
+            discount: discount,
+            finalTotal: finalTotal,
+            paymentMethod: 'paystack',
+            promoCode: appliedPromo?.code,
+            timestamp: new Date()
+          };
+
+          setOrderConfirmationData(orderData);
+          setShowOrderConfirmation(true);
+          closeCart();
 
           // Save order to sales database
           if (store.user_id) {
@@ -407,7 +428,25 @@ export function Cart({ store }: CartProps) {
     // Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 
-    // Clear cart and close
+    // Show order confirmation with receipt
+    const orderData = {
+      reference: 'WA_' + Date.now().toString(36).toUpperCase(),
+      items: items,
+      customerName: customerName,
+      customerPhone: customerPhone,
+      customerAddress: customerAddress,
+      subtotal: totalPrice,
+      discount: discount,
+      finalTotal: finalTotal,
+      paymentMethod: 'whatsapp',
+      promoCode: appliedPromo?.code,
+      timestamp: new Date()
+    };
+
+    setOrderConfirmationData(orderData);
+    setShowOrderConfirmation(true);
+
+    // Clear cart and close - but DON'T close cart immediately so receipt can show
     clearCart();
     setCustomerName('');
     setCustomerPhone('');
@@ -416,7 +455,10 @@ export function Cart({ store }: CartProps) {
     setPromoCode('');
     setPromoError('');
     setIsCheckingOut(false);
-    closeCart();
+    // Close cart after a delay to let the receipt modal appear
+    setTimeout(() => {
+      closeCart();
+    }, 300);
   };
 
   const handleCheckout = () => {
@@ -1090,6 +1132,19 @@ export function Cart({ store }: CartProps) {
           </>
         )}
       </div>
+
+      {/* Order Confirmation Modal */}
+      {showOrderConfirmation && orderConfirmationData && (
+        <OrderConfirmation
+          isOpen={showOrderConfirmation}
+          onClose={() => {
+            setShowOrderConfirmation(false);
+            setOrderConfirmationData(null);
+          }}
+          store={store}
+          orderData={orderConfirmationData}
+        />
+      )}
     </>
   );
 }

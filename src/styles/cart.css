@@ -402,6 +402,11 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  /* Improve mobile touch responsiveness */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cart-btn-primary {
@@ -415,6 +420,12 @@
   box-shadow: 0 6px 16px rgba(37, 211, 102, 0.35);
 }
 
+.cart-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+  background: linear-gradient(135deg, #20BA5A 0%, #1DA851 100%);
+}
+
 .cart-btn-secondary {
   background: white;
   color: #64748b;
@@ -424,6 +435,11 @@
 .cart-btn-secondary:hover {
   background: #f8fafc;
   border-color: #cbd5e1;
+}
+
+.cart-btn-secondary:active {
+  background: #e2e8f0;
+  border-color: #94a3b8;
 }
 
 /* Mobile Responsive */
