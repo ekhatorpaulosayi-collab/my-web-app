@@ -1091,11 +1091,18 @@ Powered by Storehouse
                 </div>
               )}
 
-              {/* WhatsApp Receipt */}
+              {/* WhatsApp Receipt Section - Always visible */}
               <div className="sales-section">
+                <label className="sales-label" style={{ marginBottom: '8px', display: 'block', fontWeight: 600 }}>
+                  📱 Send Receipt via WhatsApp
+                </label>
+                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px', lineHeight: '1.5' }}>
+                  Enter customer's phone number to send them a professional receipt instantly
+                </p>
+
                 <div className="rs-field">
-                  <label htmlFor="whatsapp-phone" className="sales-label">
-                    Customer Phone (Optional)
+                  <label htmlFor="whatsapp-phone" className="sales-label" style={{ fontSize: '14px' }}>
+                    Customer Phone Number
                   </label>
                   <input
                     id="whatsapp-phone"
@@ -1112,18 +1119,23 @@ Powered by Storehouse
                   )}
                 </div>
 
-                {phone && phoneValidation.valid && (
-                  <div className="rs-field">
-                    <label className="rs-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={sendWhatsApp}
-                        onChange={e => setSendWhatsApp(e.target.checked)}
-                      />
-                      <span>Send WhatsApp receipt</span>
-                    </label>
-                  </div>
-                )}
+                {/* WhatsApp Checkbox - Always visible */}
+                <div className="rs-field" style={{ marginTop: '12px' }}>
+                  <label className="rs-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={sendWhatsApp}
+                      onChange={e => setSendWhatsApp(e.target.checked)}
+                      disabled={!phone || !phoneValidation.valid}
+                    />
+                    <span>
+                      Send WhatsApp receipt for entire order
+                      {!phone && <span style={{ color: '#9ca3af', fontSize: '13px', display: 'block', marginTop: '4px' }}>
+                        (Enter phone number above to enable)
+                      </span>}
+                    </span>
+                  </label>
+                </div>
 
                 {sendWhatsApp && isCredit && (
                   <div className="rs-field">
