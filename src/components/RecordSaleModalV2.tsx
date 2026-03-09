@@ -731,6 +731,11 @@ export default function RecordSaleModalV2({
 
       // Prepare receipt data for modal
       const businessName = profile.businessName || 'Storehouse';
+      console.log('[RecordSale] Preparing receipt data');
+      console.log('[RecordSale] phone:', phone);
+      console.log('[RecordSale] phoneValidation:', phoneValidation);
+      console.log('[RecordSale] phone && phoneValidation.valid:', phone && phoneValidation.valid);
+
       const receipt = {
         items: cart.map(item => ({
           name: item.name,
@@ -747,6 +752,8 @@ export default function RecordSaleModalV2({
         timestamp: new Date()
       };
 
+      console.log('[RecordSale] Receipt data created:', receipt);
+
       // Success toast
       const itemCount = cart.length;
       const itemWord = itemCount === 1 ? 'item' : 'items';
@@ -761,16 +768,14 @@ export default function RecordSaleModalV2({
 
       onShowToast?.(toastMessage, 4500);
 
-      // Clear form and show receipt modal
+      // Clear form
       setCart([]);
       setCartDrawerOpen(false);
       setIsProcessing(false);
 
-      // Show receipt options modal
+      // Show receipt options modal (keep sale modal open in background)
       setReceiptData(receipt);
       setShowReceiptModal(true);
-
-      onClose();
 
     } catch (error) {
       console.error('[V2 Save] Error:', error);
@@ -1252,7 +1257,10 @@ export default function RecordSaleModalV2({
       {showReceiptModal && receiptData && (
         <ReceiptOptionsModal
           isOpen={showReceiptModal}
-          onClose={() => setShowReceiptModal(false)}
+          onClose={() => {
+            setShowReceiptModal(false);
+            onClose(); // Close parent sale modal too
+          }}
           receiptData={receiptData}
         />
       )}

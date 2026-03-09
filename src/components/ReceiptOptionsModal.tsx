@@ -75,11 +75,17 @@ Powered by Storehouse
     const receiptText = generateReceiptText();
     const phone = receiptData.customerPhone;
 
+    console.log('[ReceiptModal] WhatsApp share clicked');
+    console.log('[ReceiptModal] Customer phone:', phone);
+    console.log('[ReceiptModal] Receipt data:', receiptData);
+
     if (phone) {
       // Open WhatsApp with pre-filled message to customer
+      console.log('[ReceiptModal] Opening WhatsApp with customer phone:', phone);
       await openWhatsApp(phone, receiptText);
     } else {
       // Open WhatsApp without phone number (user can choose recipient)
+      console.log('[ReceiptModal] No customer phone, opening generic WhatsApp');
       const url = `https://wa.me/?text=${encodeURIComponent(receiptText)}`;
       window.open(url, '_blank');
     }
