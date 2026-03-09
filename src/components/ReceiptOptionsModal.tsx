@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatNGN } from '../utils/format';
+import { formatNGN } from '../utils/currency';
 import { openWhatsApp } from '../utils/whatsapp';
 import './ReceiptOptionsModal.css';
 
