@@ -212,18 +212,22 @@ export function openWhatsApp(phone: string, message: string): Promise<boolean> {
       const isMobile = isMobileDevice();
 
       console.log(`[WhatsApp] Opening on ${isMobile ? 'mobile' : 'desktop'}`);
-      console.log(`[WhatsApp] URL:`, url.substring(0, 100) + '...');
+      console.log(`[WhatsApp] Phone:`, formattedPhone);
+      console.log(`[WhatsApp] Message length:`, message.length);
+      console.log(`[WhatsApp] Full URL:`, url);
 
-      if (isMobile) {
-        // On mobile, use location.href to trigger the app
-        window.location.href = url;
+      // Always use window.open with _blank to avoid navigating away from page
+      // This works on both mobile and desktop
+      const opened = window.open(url, '_blank');
 
-        // Give it a moment to open
-        setTimeout(() => resolve(true), 500);
+      if (opened) {
+        console.log('[WhatsApp] ✅ Window opened successfully');
+        resolve(true);
       } else {
-        // On desktop, open in new tab
-        const opened = window.open(url, '_blank');
-        resolve(!!opened);
+        console.log('[WhatsApp] ⚠️ Window.open failed, trying location.href fallback');
+        // Fallback: try location.href (mainly for mobile deep links)
+        window.location.href = url;
+        setTimeout(() => resolve(true), 500);
       }
     } catch (error) {
       console.error('[WhatsApp] Error opening:', error);
