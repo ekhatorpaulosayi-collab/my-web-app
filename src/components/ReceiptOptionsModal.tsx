@@ -76,6 +76,8 @@ Powered by Storehouse
     const phone = receiptData.customerPhone;
 
     console.log('[ReceiptModal] WhatsApp share clicked');
+    console.log('[ReceiptModal] Receipt text:', receiptText);
+    console.log('[ReceiptModal] Receipt text length:', receiptText?.length);
     console.log('[ReceiptModal] Customer phone:', phone);
     console.log('[ReceiptModal] Receipt data:', receiptData);
 
