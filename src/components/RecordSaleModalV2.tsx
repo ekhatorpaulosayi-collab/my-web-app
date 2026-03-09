@@ -774,8 +774,11 @@ export default function RecordSaleModalV2({
       setIsProcessing(false);
 
       // Show receipt options modal (keep sale modal open in background)
+      console.log('[RecordSale] ✅ Sale saved, showing receipt modal');
+      console.log('[RecordSale] Receipt data:', receipt);
       setReceiptData(receipt);
       setShowReceiptModal(true);
+      console.log('[RecordSale] showReceiptModal set to TRUE');
 
     } catch (error) {
       console.error('[V2 Save] Error:', error);
@@ -1256,16 +1259,21 @@ export default function RecordSaleModalV2({
       )}
 
       {/* Receipt Options Modal */}
-      {showReceiptModal && receiptData && (
-        <ReceiptOptionsModal
-          isOpen={showReceiptModal}
-          onClose={() => {
-            setShowReceiptModal(false);
-            onClose(); // Close parent sale modal too
-          }}
-          receiptData={receiptData}
-        />
-      )}
+      {(() => {
+        console.log('[RecordSale] Render - showReceiptModal:', showReceiptModal);
+        console.log('[RecordSale] Render - receiptData:', receiptData);
+        return showReceiptModal && receiptData && (
+          <ReceiptOptionsModal
+            isOpen={showReceiptModal}
+            onClose={() => {
+              console.log('[RecordSale] Receipt modal closing');
+              setShowReceiptModal(false);
+              onClose(); // Close parent sale modal too
+            }}
+            receiptData={receiptData}
+          />
+        );
+      })()}
     </>
   );
 }
