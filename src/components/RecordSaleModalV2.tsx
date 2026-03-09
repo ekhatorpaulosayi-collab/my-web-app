@@ -1093,17 +1093,19 @@ export default function RecordSaleModalV2({
 
           {/* Sticky Cart Bar */}
           <div
-            className="sticky-cart-bar"
+            className={`rs-cart-bar ${cart.length > 0 ? 'clickable' : ''}`}
             onClick={() => cart.length > 0 && setCartDrawerOpen(true)}
             role={cart.length > 0 ? "button" : undefined}
             tabIndex={cart.length > 0 ? 0 : undefined}
           >
-            <div className="cart-bar-icon">🛒</div>
-            <div className="cart-bar-info">
-              <div className="cart-bar-count">
-                {cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}
+            <div className="rs-cart-summary">
+              <div className="rs-cart-icon">🛒</div>
+              <div className="rs-cart-info">
+                <div className="rs-cart-count">
+                  {cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}
+                </div>
+                <div className="rs-cart-total">{formatNGN(cartTotals.totalAmount)}</div>
               </div>
-              <div className="cart-bar-total">{formatNGN(cartTotals.totalAmount)}</div>
             </div>
             {cart.length > 0 && <div style={{ opacity: 0.8, fontSize: '12px' }}>View →</div>}
           </div>
