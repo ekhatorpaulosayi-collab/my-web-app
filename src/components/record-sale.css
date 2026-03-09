@@ -146,6 +146,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  padding-bottom: 140px; /* Space for cart bar + footer on desktop */
 }
 
 /* Grid Layout */
