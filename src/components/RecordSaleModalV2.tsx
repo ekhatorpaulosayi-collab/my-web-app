@@ -13,6 +13,7 @@ import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { formatNGPhone, validateInternationalPhone } from '../utils/phone';
 import { openWhatsApp } from '../utils/whatsapp';
+import { ReceiptOptionsModal } from './ReceiptOptionsModal';
 import {
   isPaystackEnabled,
   getActivePublicKey,
@@ -100,10 +101,12 @@ export default function RecordSaleModalV2({
   const [phoneValidation, setPhoneValidation] = useState({ valid: true, message: '' });
   const [dueDate, setDueDate] = useState('');
   const [message, setMessage] = useState('');
-  const [sendWhatsApp, setSendWhatsApp] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
   const [customerEmail, setCustomerEmail] = useState('');
   const [showMorePayments, setShowMorePayments] = useState(false);
+
+  // Receipt modal state
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -246,8 +249,6 @@ export default function RecordSaleModalV2({
       today.setDate(today.getDate() + 7);
       setDueDate(today.toISOString().split('T')[0]);
       setMessage('');
-      setSendWhatsApp(false);
-      setHasConsent(false);
       setCustomerEmail('');
       setShowMorePayments(false);
       setPaymentData(null);
@@ -657,8 +658,6 @@ export default function RecordSaleModalV2({
             phone: phone,
             dueDate: isCredit ? new Date(dueDate).toISOString() : '',
             note: isCredit ? message : '',
-            sendWhatsApp: false,
-            hasConsent: isCredit ? hasConsent : false,
             paymentMethod: paymentMethod,
             paymentReference: paymentData?.reference || undefined,
             paymentEmail: paymentData?.email || undefined,
@@ -695,8 +694,6 @@ export default function RecordSaleModalV2({
           phone: phone,
           dueDate: isCredit ? new Date(dueDate).toISOString() : '',
           note: isCredit ? message : '',
-          sendWhatsApp: false,
-          hasConsent: isCredit ? hasConsent : false,
           paymentMethod: paymentMethod,
           paymentReference: paymentData?.reference || undefined,
           paymentEmail: paymentData?.email || undefined,
@@ -724,59 +721,6 @@ export default function RecordSaleModalV2({
         }
       }
 
-      // Send WhatsApp receipt for entire cart
-      if (sendWhatsApp && phone && phoneValidation.valid) {
-        try {
-          const businessName = profile.businessName || 'Storehouse';
-          const customerDisplayName = isCredit ? customerName : 'Customer';
-
-          const formattedDate = new Date().toLocaleDateString('en-NG', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-
-          const itemsSection = cart.map((item, index) => {
-            const itemNum = cart.length > 1 ? `${index + 1}. ` : '• ';
-            const itemTotal = item.price * item.quantity;
-            return `${itemNum}${item.name}\n   ${item.quantity} × ₦${item.price.toLocaleString()} = ₦${itemTotal.toLocaleString()}`;
-          }).join('\n\n');
-
-          const receipt = `
-━━━━━━━━━━━━━━━━━━━
-🧾 SALES RECEIPT
-━━━━━━━━━━━━━━━━━━━
-
-📍 ${businessName}
-👤 ${customerDisplayName}
-
-📦 ITEMS
-${itemsSection}
-
-━━━━━━━━━━━━━━━━━━━
-💰 TOTAL: ₦${cartTotals.totalAmount.toLocaleString()}
-${isCredit ? '💳 Payment: CREDIT (Due ' + new Date(dueDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }) + ')' : '✅ Payment: PAID'}
-━━━━━━━━━━━━━━━━━━━
-
-📅 ${formattedDate}
-
-Thank you for your business! 🙏
-
-━━━━━━━━━━━━━━━━━━━
-Powered by Storehouse
-          `.trim();
-
-          console.log('[RecordSale] Sending WhatsApp receipt to phone:', phone);
-          console.log('[RecordSale] Phone display value:', phoneDisplay);
-          const result = await openWhatsApp(phone, receipt);
-          console.log('[RecordSale] WhatsApp open result:', result);
-        } catch (error) {
-          console.error('[WhatsApp] Error sending cart receipt:', error);
-        }
-      }
-
       // Log analytics
       logSaleEvent('sale_completed', {
         item_count: cart.length,
@@ -785,6 +729,24 @@ Powered by Storehouse
         is_credit: isCredit
       });
 
+      // Prepare receipt data for modal
+      const businessName = profile.businessName || 'Storehouse';
+      const receipt = {
+        items: cart.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        total: cartTotals.totalAmount,
+        paymentMethod: isCredit ? 'Credit' : paymentMethod,
+        isCredit,
+        dueDate: isCredit ? dueDate : undefined,
+        customerName: isCredit ? customerName : customerEmail,
+        customerPhone: phone && phoneValidation.valid ? phone : undefined,
+        businessName,
+        timestamp: new Date()
+      };
+
       // Success toast
       const itemCount = cart.length;
       const itemWord = itemCount === 1 ? 'item' : 'items';
@@ -792,26 +754,22 @@ Powered by Storehouse
 
       let toastMessage = '';
       if (isCredit) {
-        if (sendWhatsApp && phone && phoneValidation.valid) {
-          const lastFour = phone.slice(-4);
-          toastMessage = `✅ Credit sale recorded for ${customerName}\n💳 ${itemCount} ${itemWord} • ${formattedTotal}\n📱 WhatsApp receipt sent to ...${lastFour}`;
-        } else {
-          toastMessage = `✅ Credit sale recorded for ${customerName}\n💳 ${itemCount} ${itemWord} • ${formattedTotal}`;
-        }
+        toastMessage = `✅ Sale recorded!\n💰 ${itemCount} ${itemWord} sold for ${formattedTotal}`;
       } else {
-        if (sendWhatsApp && phone && phoneValidation.valid) {
-          const lastFour = phone.slice(-4);
-          toastMessage = `✅ Sale recorded! WhatsApp receipt sent to ...${lastFour}\n💰 ${itemCount} ${itemWord} sold for ${formattedTotal}`;
-        } else {
-          toastMessage = `✅ Sale recorded! ${itemCount} ${itemWord} sold for ${formattedTotal}`;
-        }
+        toastMessage = `✅ Sale recorded!\n💰 ${itemCount} ${itemWord} sold for ${formattedTotal}`;
       }
 
       onShowToast?.(toastMessage, 4500);
 
+      // Clear form and show receipt modal
       setCart([]);
       setCartDrawerOpen(false);
       setIsProcessing(false);
+
+      // Show receipt options modal
+      setReceiptData(receipt);
+      setShowReceiptModal(true);
+
       onClose();
 
     } catch (error) {
@@ -842,8 +800,6 @@ Powered by Storehouse
             phone: phone,
             dueDate: isCredit ? new Date(dueDate).toISOString() : '',
             note: isCredit ? message : '',
-            sendWhatsApp: false,
-            hasConsent: isCredit ? hasConsent : false,
             paymentMethod: paymentMethod,
             salesChannel: salesChannel
           };
@@ -1096,21 +1052,14 @@ Powered by Storehouse
                 </div>
               )}
 
-              {/* WhatsApp Receipt Section - Always visible */}
+              {/* Customer Contact Info */}
               <div className="sales-section">
-                <label className="sales-label" style={{ marginBottom: '8px', display: 'block', fontWeight: 600 }}>
-                  📱 Send Receipt via WhatsApp
-                </label>
-                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px', lineHeight: '1.5' }}>
-                  Enter customer's phone number to send them a professional receipt instantly
-                </p>
-
                 <div className="rs-field">
-                  <label htmlFor="whatsapp-phone" className="sales-label" style={{ fontSize: '14px' }}>
-                    Customer Phone Number
+                  <label htmlFor="customer-phone" className="sales-label">
+                    Customer Phone Number (optional)
                   </label>
                   <input
-                    id="whatsapp-phone"
+                    id="customer-phone"
                     type="text"
                     className="combobox-input"
                     value={phoneDisplay}
@@ -1122,41 +1071,10 @@ Powered by Storehouse
                       {phoneValidation.message}
                     </small>
                   )}
+                  <small className="rs-help" style={{ display: 'block', marginTop: '4px' }}>
+                    You'll be able to send a receipt after completing the sale
+                  </small>
                 </div>
-
-                {/* WhatsApp Checkbox - Always visible */}
-                <div className="rs-field" style={{ marginTop: '12px' }}>
-                  <label className="rs-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={sendWhatsApp}
-                      onChange={e => setSendWhatsApp(e.target.checked)}
-                      disabled={!phone || !phoneValidation.valid}
-                    />
-                    <span>
-                      Send WhatsApp receipt for entire order
-                      {!phone && <span style={{ color: '#9ca3af', fontSize: '13px', display: 'block', marginTop: '4px' }}>
-                        (Enter phone number above to enable)
-                      </span>}
-                    </span>
-                  </label>
-                </div>
-
-                {sendWhatsApp && isCredit && (
-                  <div className="rs-field">
-                    <label className="rs-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={hasConsent}
-                        onChange={e => setHasConsent(e.target.checked)}
-                        required
-                      />
-                      <span style={{ fontSize: '13px' }}>
-                        I have customer's consent to receive WhatsApp messages *
-                      </span>
-                    </label>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1328,6 +1246,15 @@ Powered by Storehouse
             </button>
           </div>
         </div>
+      )}
+
+      {/* Receipt Options Modal */}
+      {showReceiptModal && receiptData && (
+        <ReceiptOptionsModal
+          isOpen={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+          receiptData={receiptData}
+        />
       )}
     </>
   );
