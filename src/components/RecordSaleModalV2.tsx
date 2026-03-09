@@ -1259,21 +1259,18 @@ export default function RecordSaleModalV2({
       )}
 
       {/* Receipt Options Modal */}
-      {(() => {
-        console.log('[RecordSale] Render - showReceiptModal:', showReceiptModal);
-        console.log('[RecordSale] Render - receiptData:', receiptData);
-        return showReceiptModal && receiptData && (
-          <ReceiptOptionsModal
-            isOpen={showReceiptModal}
-            onClose={() => {
-              console.log('[RecordSale] Receipt modal closing');
-              setShowReceiptModal(false);
-              onClose(); // Close parent sale modal too
-            }}
-            receiptData={receiptData}
-          />
-        );
-      })()}
+      {showReceiptModal && receiptData && (
+        <ReceiptOptionsModal
+          isOpen={showReceiptModal}
+          onClose={() => {
+            console.log('[RecordSale] Receipt modal closing');
+            setShowReceiptModal(false);
+            // DON'T close parent modal - let user reopen receipt or close manually
+            // onClose(); // REMOVED - this was causing the issue
+          }}
+          receiptData={receiptData}
+        />
+      )}
     </>
   );
 }
