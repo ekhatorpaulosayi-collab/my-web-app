@@ -8,6 +8,7 @@
 import { Documentation } from '../types/documentation';
 import { invoiceMicroChunks } from './invoiceMicroChunks';
 import { debtCreditMicroChunks } from './debtCreditMicroChunks';
+import { staffMicroChunks } from './staffMicroChunks';
 
 export const DOCUMENTATION: Documentation[] = [
 
@@ -5706,6 +5707,7 @@ Storehouse tracks progress and cheers you on! 🎯`,
   //
   // Old documentation here described features that don't exist (phone number login,
   // activity logs, staff targets, etc.). Only the micro-chunks should be used.
+  ...staffMicroChunks,
 
   // ============================================
   // ONLINE STORE (3 guides)
