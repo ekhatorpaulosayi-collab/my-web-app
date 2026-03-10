@@ -6,6 +6,7 @@
  */
 
 import { Documentation } from '../types/documentation';
+import { invoiceMicroChunks } from './invoiceMicroChunks';
 
 export const DOCUMENTATION: Documentation[] = [
 
@@ -2352,11 +2353,20 @@ Instead of "+ Add Item", use **"📥 Import" button** (next to search bar on Das
   },
 
   // ============================================
-  // INVOICES - COMPREHENSIVE GUIDE
+  // INVOICES - MICRO-CHUNKS (17 focused guides)
   // ============================================
+  // Replaced monolithic 1000+ line guide with 17 focused chunks (50-150 lines each)
+  // for better RAG retrieval and precise answers
+  ...invoiceMicroChunks,
 
+  // ============================================
+  // LEGACY COMPREHENSIVE INVOICE GUIDE (ARCHIVED - DO NOT USE)
+  // ============================================
+  // This monolithic guide has been replaced by 17 micro-chunks above
+  // Kept for reference only - RAG should never retrieve this
+  /*
   {
-    id: 'invoices-comprehensive',
+    id: 'invoices-comprehensive-ARCHIVED',
     category: 'invoices',
     title: 'How to Create & Manage Invoices - Complete Guide',
     subtitle: 'Master B2B invoicing, payments, and customer billing',
@@ -3370,6 +3380,7 @@ VAT (7.5%): ₦78,750
     ],
     lastUpdated: '2025-12-10',
   },
+  */
 
   {
     id: 'edit-product',
