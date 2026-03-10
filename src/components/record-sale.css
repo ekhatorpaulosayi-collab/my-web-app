@@ -1044,7 +1044,7 @@
 /* Responsive: Tablet and Desktop */
 @media (min-width: 640px) {
   .rs-cart-bar {
-    display: none; /* Hide cart bar on desktop - footer with Complete Sale button is always visible */
+    padding: 16px 24px;
   }
 
   .rs-cart-expanded {
