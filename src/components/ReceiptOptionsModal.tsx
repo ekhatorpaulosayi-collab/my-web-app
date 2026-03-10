@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatNGN } from '../utils/currency';
-import { openWhatsApp } from '../utils/whatsapp';
+import { openWhatsApp } from '../utils/whatsapp.ts';
 import './ReceiptOptionsModal.css';
 
 interface ReceiptData {
@@ -80,11 +80,30 @@ Powered by Storehouse
     console.log('[ReceiptModal] Receipt text length:', receiptText?.length);
     console.log('[ReceiptModal] Customer phone:', phone);
     console.log('[ReceiptModal] Receipt data:', receiptData);
+    console.log('[ReceiptModal] openWhatsApp function type:', typeof openWhatsApp);
+    console.log('[ReceiptModal] openWhatsApp function:', openWhatsApp);
 
     if (phone) {
       // Open WhatsApp with pre-filled message to customer
       console.log('[ReceiptModal] Opening WhatsApp with customer phone:', phone);
-      await openWhatsApp(phone, receiptText);
+
+      try {
+        console.log('[ReceiptModal] About to call openWhatsApp...');
+        const result = await openWhatsApp(phone, receiptText);
+        console.log('[ReceiptModal] ✅ openWhatsApp completed, result:', result);
+      } catch (error) {
+        console.error('[ReceiptModal] ❌ Error calling openWhatsApp:', error);
+        console.error('[ReceiptModal] Error details:', {
+          message: error?.message,
+          stack: error?.stack,
+          name: error?.name
+        });
+
+        // Fallback: try direct WhatsApp link
+        console.log('[ReceiptModal] Trying fallback WhatsApp link...');
+        const fallbackUrl = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(receiptText)}`;
+        window.open(fallbackUrl, '_blank');
+      }
     } else {
       // Open WhatsApp without phone number (user can choose recipient)
       console.log('[ReceiptModal] No customer phone, opening generic WhatsApp');
