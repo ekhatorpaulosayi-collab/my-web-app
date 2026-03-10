@@ -999,6 +999,19 @@ When customer pays money they owe, record it in Storehouse.
 
 ---
 
+## ⚠️ IMPORTANT: Debt vs Invoice Payments
+
+This guide is for recording **CUSTOMER DEBT payments** (from credit sales where customer bought goods and pays later).
+
+**If you're looking for INVOICE payments:**
+- See "How to Record Invoice Payments" guide instead
+- Invoices are formal payment requests (INV-001, INV-002, etc.)
+- Customer debts are from recording sales with "Credit Sale" toggle ON
+
+**This guide covers:** Recording when customers pay back money from credit sales.
+
+---
+
 ## When to Use This
 
 Customer says:
@@ -1281,6 +1294,19 @@ Total Paid: ₦60,000
     content: `## Recording Partial Debt Payments
 
 When customers pay their debt in installments (parts).
+
+---
+
+## ⚠️ IMPORTANT: Debt vs Invoice Payments
+
+This guide is for recording **CUSTOMER DEBT payments** (when customers bought goods on credit).
+
+**If you're looking for INVOICE payments:**
+- See "How to Record Invoice Payments" guide instead
+- Invoices are formal payment requests sent to customers
+- Customer debts are from credit sales (customer took goods, pays later)
+
+**This guide covers:** Recording payments from customers who bought goods on credit (credit sales).
 
 ---
 
