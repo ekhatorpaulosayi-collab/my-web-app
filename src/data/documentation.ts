@@ -7,6 +7,7 @@
 
 import { Documentation } from '../types/documentation';
 import { invoiceMicroChunks } from './invoiceMicroChunks';
+import { debtCreditMicroChunks } from './debtCreditMicroChunks';
 
 export const DOCUMENTATION: Documentation[] = [
 
@@ -3880,8 +3881,21 @@ Categories appear as navigation menu:
   // SALES & REVENUE (6 guides)
   // ============================================
 
+  // ============================================
+  // DEBT/CREDIT SALES - MICRO-CHUNKS (10 focused guides)
+  // ============================================
+  // Replaced 3 scattered debt/credit guides with 10 focused chunks
+  // for better RAG retrieval and precise answers
+  ...debtCreditMicroChunks,
+
+  // ============================================
+  // LEGACY DEBT/CREDIT GUIDES (ARCHIVED - DO NOT USE)
+  // ============================================
+  // These have been replaced by 10 micro-chunks above
+  // Kept for reference only - RAG should never retrieve these
+  /*
   {
-    id: 'cash-vs-credit-sales',
+    id: 'cash-vs-credit-sales-ARCHIVED',
     category: 'sales',
     title: 'Cash vs Credit Sales',
     subtitle: 'Understand the difference and track both',
@@ -4656,6 +4670,7 @@ Remember: Most customers want to pay. A polite reminder helps!`,
     keywords: ['debt reminder', 'payment reminder', 'whatsapp reminder', 'remind customer'],
     lastUpdated: '2025-11-30',
   },
+  */
 
   // ============================================
   // INVOICING (3 guides)
