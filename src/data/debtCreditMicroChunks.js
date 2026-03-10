@@ -1258,7 +1258,8 @@ Total Paid: ₦60,000
       'record debt payment', 'customer paid debt', 'pay back debt', 'debt repayment',
       'how to record payment', 'customer pays', 'receive debt payment', 'partial payment',
       'full payment', 'debt balance', 'payment method', 'payment history',
-      'mark debt paid', 'customer settled debt'
+      'mark debt paid', 'customer settled debt', 'record installment', 'installment payment debt',
+      'customer paying debt', 'record credit payment', 'debt payment from customer'
     ],
     lastUpdated: '2026-03-10',
   },
@@ -1509,7 +1510,10 @@ Useful for:
     keywords: [
       'partial payment', 'installment', 'pay in parts', 'small payments',
       'debt installment', 'multiple payments', 'customer pays small', 'partial debt',
-      'paying small small', 'remaining balance', 'payment history', 'incomplete payment'
+      'paying small small', 'remaining balance', 'payment history', 'incomplete payment',
+      'record installment payment', 'installment payment', 'how to record installment',
+      'customer pays installments', 'record partial debt payment', 'payment in installments',
+      'installment from debt', 'credit payment installment', 'record debt installment'
     ],
     lastUpdated: '2026-03-10',
   },
