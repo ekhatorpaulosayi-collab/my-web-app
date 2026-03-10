@@ -126,66 +126,745 @@ Storehouse works perfectly on phones, tablets, and computers!
   {
     id: 'record-first-sale',
     category: 'getting-started',
-    title: 'Record Your First Sale',
-    subtitle: 'Track sales and update inventory automatically',
+    title: 'Complete Guide: How to Record Sales',
+    subtitle: 'Step-by-step walkthrough with real Nigerian business examples',
     difficulty: 'beginner',
-    estimatedTime: '2 minutes',
+    estimatedTime: '5 minutes',
     priority: 90,
-    description: 'Learn how to record sales in Storehouse. Stock is automatically updated!',
+    description: 'Master sales recording in Storehouse with practical examples from Nigerian businesses. Learn every field, payment method, and pro tips from experienced sellers.',
+
+    content: `
+## Quick Start (10 seconds)
+
+1. Click "Record Sale" on Dashboard
+2. Search & select product
+3. Click "Complete Sale"
+
+Done! For detailed walkthrough with examples, keep reading.
+
+---
+
+## Real Nigerian Business Example
+
+**Scenario:** Beauty shop owner (@beautybyade) selling products via WhatsApp
+
+**Customer:** Blessing Okonkwo
+**Order:** Glow Vitamin C Serum (₦12,500) + Face Moisturizer (₦12,800)
+**Payment:** Already paid via Moniepoint transfer
+**Channel:** WhatsApp
+
+Let's record this sale step-by-step:
+
+---
+
+## Step 1: Open Record Sale Modal
+
+**Location:** Dashboard → Click green "Record Sale" button (top section)
+
+**Keyboard Shortcut:** Press **Ctrl+S** (Windows) or **Cmd+S** (Mac)
+
+**Alternative:** Click directly on any product in your inventory list
+
+**What you'll see:** Record Sale modal opens with search bar at top
+
+---
+
+## Step 2: Search & Select Products
+
+**How to add first item:**
+
+1. Click the search box (or it auto-focuses)
+2. Type product name: "glow serum"
+3. Results appear instantly as you type
+4. Click "Glow Vitamin C Serum - ₦12,500"
+5. Product added to cart! See toast: "🛒 Added Glow Vitamin C Serum to cart"
+
+**Search tips:**
+- Search by product name (fastest)
+- Search by SKU if you have one
+- Search by barcode if product has barcode
+- Searches work with partial matches (typing "glow" finds "Glow Vitamin C Serum")
+
+**Adding second item:**
+
+6. Search bar clears automatically (for fast workflow)
+7. Type "moisturizer"
+8. Click "Face Moisturizer - ₦12,800"
+9. Cart now shows 2 items, Total: ₦25,300
+
+**Stock warnings:**
+- If product out of stock, you'll see: "⚠️ Product Name is out of stock"
+- If trying to sell more than available: "⚠️ Only 3 units available"
+- Enable "Allow Negative Inventory" in Settings to sell beyond stock
+
+---
+
+## Step 3: Review Cart (Optional)
+
+**What you'll see:**
+
+    Cart (2 items)
+    ━━━━━━━━━━━━━━━━━━━
+    Glow Vitamin C Serum
+    Qty: 1 × ₦12,500 = ₦12,500
+
+    Face Moisturizer
+    Qty: 1 × ₦12,800 = ₦12,800
+
+    ━━━━━━━━━━━━━━━━━━━
+    Total: ₦25,300
+
+**Adjusting quantities:**
+- Click + or - buttons next to each item
+- Or type quantity directly
+- Remove item: Click trash icon
+
+---
+
+## Step 4: Enter Customer Information
+
+**Customer Name** (Optional but highly recommended)
+
+- Field: "Customer Name"
+- Enter: "Blessing Okonkwo"
+- Why: Track repeat customers, purchase history, analytics
+- Pro tip: For walk-ins without names, use: "Walk-in customer - pink dress"
+
+**Customer Phone** (Optional)
+
+- Field: "Customer Phone"
+- Enter: "080 1234 5678" (Nigerian format)
+- Also accepts: "+44 7459 044" (International)
+- Auto-formats as you type: "080 1234 5678" → "0801 234 5678"
+- Shows validation: "✓ Valid Nigerian number"
+- Why: Enables WhatsApp receipt sending
+
+**Email** (Only required for Card payments)
+
+- Only appears if you select "Card" payment method
+- Required for Paystack card payments
+- Enter customer's email for receipt
+
+---
+
+## Step 5: Choose Payment Method
+
+**Toggle:** Cash or Credit?
+
+- **Cash Sale** (default): Customer paid now
+- **Credit Sale**: Customer owes money (will pay later)
+
+**For our example:** Select **Cash** (customer already paid)
+
+**Then select payment method:**
+
+**Available payment methods:**
+1. **Cash** - Physical cash payment
+2. **Transfer** - Bank transfer (any bank: Zenith, GTBank, UBA, etc.)
+3. **Card** - Debit/credit card via Paystack (requires setup)
+4. **POS** - Card payment via POS terminal
+
+**For our example:** Select **Transfer**
+
+**Note:** OPay, Moniepoint, Kuda are NOT separate payment options. Use "Transfer" for these and mention in notes if needed.
+
+**Payment method tips:**
+- Last used method is remembered (saves time)
+- Click "More payment methods..." to see all 4 options
+- Storehouse tracks which methods customers prefer (see reports)
+
+---
+
+## Step 6: Select Sales Channel
+
+**Field:** "Sales Channel"
+
+**Available channels:**
+1. 🏪 **In-Store / Walk-in** - Physical store customers
+2. 💬 **WhatsApp** - Orders via WhatsApp chat/status
+3. 📷 **Instagram** - Sales from Instagram DM/posts
+4. 📘 **Facebook** - Facebook Marketplace/page sales
+5. 🌐 **Online Store** - Your Storehouse public storefront
+6. 🎵 **TikTok** - TikTok Shop/DM orders
+7. 👥 **Referral** - Customer referrals
+8. 📦 **Other** - Any other channel
+
+**For our example:** Select **WhatsApp**
+
+**Why track sales channels?**
+- Know where most customers come from
+- Focus marketing on best-performing channels
+- Example: "@beautybyade discovered 70% of sales from Instagram, 20% WhatsApp, 10% walk-ins"
+
+---
+
+## Step 7: WhatsApp Receipt (Optional)
+
+**Checkbox:** "Send receipt via WhatsApp"
+
+- Automatically enabled if phone number valid
+- Preview: "Send to ...5678" (last 4 digits)
+- Receipt will open in WhatsApp with pre-filled message
+
+**For our example:** ✓ Check this box
+
+**What happens:**
+- After completing sale, WhatsApp opens automatically
+- Receipt text already formatted and ready
+- Just click Send in WhatsApp
+
+---
+
+## Step 8: Complete Sale
+
+**Button:** "Complete Sale" (green button, bottom right)
+
+**Click it!**
+
+**What happens next:**
+
+1. Sale saves to database ✅
+2. Stock automatically reduces:
+   - Glow Vitamin C Serum: 10 → 9 units
+   - Face Moisturizer: 15 → 14 units
+3. Success toast appears: "✅ Sale recorded! ₦25,300"
+4. Receipt modal opens automatically
+5. Cart clears, ready for next sale
+
+---
+
+## Step 9: Share Receipt
+
+**Receipt Modal** opens with 5 sharing options:
+
+1. **📱 Share via WhatsApp**
+   - Opens WhatsApp to Blessing's number
+   - Receipt already formatted
+   - Shows: Items, prices, total, payment method, date
+   - Click Send in WhatsApp
+
+2. **📧 Email Receipt**
+   - Opens email app
+   - Subject: "Receipt from [Your Business Name]"
+   - Body: Formatted receipt
+
+3. **📋 Copy to Clipboard**
+   - Copies receipt text
+   - Paste anywhere (Notes, WhatsApp Web, etc.)
+
+4. **💾 Download Receipt**
+   - Downloads as .txt file
+   - Filename: receipt-[timestamp].txt
+
+5. **🖨️ Print Receipt**
+   - Opens print dialog
+   - Print on thermal printer or regular printer
+
+**For our example:** Click "Share via WhatsApp"
+
+**Result:** WhatsApp opens with this message:
+
+    ━━━━━━━━━━━━━━━━━━━
+    🧾 SALES RECEIPT
+    ━━━━━━━━━━━━━━━━━━━
+
+    📍 Beauty By Ade
+
+    👤 Blessing Okonkwo
+
+    📦 ITEMS
+    1. Glow Vitamin C Serum
+       1 × ₦12,500 = ₦12,500
+
+    2. Face Moisturizer
+       1 × ₦12,800 = ₦12,800
+
+    ━━━━━━━━━━━━━━━━━━━
+    💰 TOTAL: ₦25,300
+    ✅ Payment: Transfer
+    ━━━━━━━━━━━━━━━━━━━
+
+    📅 10 Mar 2026, 2:30 PM
+
+    Thank you for your business!
+
+    ━━━━━━━━━━━━━━━━━━━
+    Powered by Storehouse
+
+---
+
+## Understanding Credit Sales
+
+**When to use Credit Sale:**
+
+- Customer wants to pay later
+- Corporate clients with payment terms (e.g., "Pay in 30 days")
+- Regular customers you trust
+- Installment payments
+
+**Example:** Electronics store selling 5 laptops to company
+
+**How to record credit sale:**
+
+1. Follow Steps 1-4 (add products, enter customer info)
+2. **Step 5:** Toggle "Credit Sale" ON
+3. **Required fields appear:**
+   - Customer Name (required): "ABC Company"
+   - Due Date (required): "April 10, 2026"
+   - Message/Note (optional): "Invoice #12345"
+4. Complete sale
+
+**What happens:**
+- Sale recorded immediately
+- Stock reduces (laptops already given to customer)
+- Debt created in Credit Management
+- Revenue shows as "Unpaid"
+- Due date tracked
+- Customer can pay later (mark as paid in Credit Management)
+
+**Credit sale tips:**
+- Always get customer phone number (for follow-up)
+- Set realistic due dates
+- Add invoice/agreement number in Message field
+- Check Credit Management regularly for overdue debts
+
+---
+
+## Common Mistakes & Solutions
+
+### MISTAKE #1: "I can't find the Record Sale button"
+
+**Possible causes:**
+
+1. **Button scrolled out of view**
+   - Solution: Scroll to top of Dashboard
+
+2. **Looking in wrong place**
+   - Solution: Button is on Dashboard, NOT in Settings or Reports
+   - Location: Top section, green button with "Record Sale" text
+
+3. **Mobile vs Desktop view difference**
+   - Solution: On mobile, button may be at bottom floating bar
+   - On desktop, button at top right
+
+**Note:** ALL users (Owner, Manager, Cashier) can ALWAYS see and use Record Sale button. There are NO permission restrictions.
+
+---
+
+### MISTAKE #2: "Product shows negative stock after sale"
+
+**Cause:** You sold more than available stock
+
+**Example:**
+- Stock: 5 units
+- Trying to sell: 8 units
+- Result: Stock becomes -3 (negative)
+
+**Solution Option 1:** Restock first
+- Go to Inventory → Find product → Click Restock
+- Add more units before recording sale
+
+**Solution Option 2:** Enable "Allow Negative Inventory"
+- Go to Settings → Business Settings
+- Toggle "Allow Negative Inventory" ON
+- Useful for: Pre-orders, consignment, services
+
+**Warning:** Track negative inventory carefully to avoid overselling
+
+---
+
+### MISTAKE #3: "Sale not appearing in Today's Sales report"
+
+**Possible causes:**
+
+1. **Didn't click "Complete Sale" button**
+   - Cart was filled but sale not saved
+   - Solution: Make sure to click "Complete Sale" every time
+
+2. **Internet connection issue (sale stuck in queue)**
+   - Check for spinning sync icon
+   - Solution: Wait for internet connection to restore, sale will sync automatically
+
+3. **Viewing wrong date in reports**
+   - Sale recorded yesterday but viewing today's report
+   - Solution: Check date filter in Sales Report, select correct date
+
+---
+
+### MISTAKE #4: "WhatsApp receipt not sending"
+
+**Possible causes:**
+
+1. **Invalid phone number format**
+   - Wrong format: "080-1234-5678" or "080.1234.5678"
+   - Correct format: "080 1234 5678" or "08012345678" or "+2348012345678"
+   - Solution: Re-enter phone number, wait for "✓ Valid" message
+
+2. **WhatsApp not installed**
+   - Solution: Use "Copy to Clipboard" instead, paste in WhatsApp Web
+
+3. **Pop-up blocker**
+   - WhatsApp window blocked by browser
+   - Solution: Allow pop-ups for Storehouse website in browser settings
+
+---
+
+### MISTAKE #5: "Customer name not saving"
+
+**Cause:** Field left blank (it's optional but recommended)
+
+**Solution:** Make it a habit to always enter customer names
+
+**Benefits of entering names:**
+- Track repeat customers
+- See purchase history: "Mrs. Adebayo bought 2 dresses last month"
+- Customer analytics: "Top 10 customers this month"
+- Better customer service
+
+**For walk-ins without names:**
+- Use descriptive tags: "Walk-in customer - pink dress"
+- Or: "Regular - comes every Friday"
+- Or: "Young lady - lives nearby"
+
+---
+
+### MISTAKE #6: "Can't change quantity after adding to cart"
+
+**Cause:** Clicking too fast before modal loads
+
+**Solution:**
+- Wait for product to appear in cart
+- Then click + or - buttons to adjust quantity
+
+**Alternative:** Remove item (trash icon) and re-add with correct quantity
+
+---
+
+### MISTAKE #7: "Receipt modal disappeared before I could share"
+
+**Old behavior:** Modal closed automatically (this was a bug, now fixed!)
+
+**Current behavior:** Modal stays open until you close it manually
+
+**How to reopen if accidentally closed:**
+- Look for "Share Receipt" button
+- Or: Find sale in Sales Report → Click to view → Click "Share Receipt"
+
+**Pro tip:** Share to multiple channels before closing (WhatsApp + Email)
+
+---
+
+### MISTAKE #8: "Recorded sale to wrong customer"
+
+**Problem:** Can't edit completed sales
+
+**Solution Option 1:** Delete and re-record (if just recorded)
+- Find sale in Today's Sales
+- Owner can delete recent sales
+- Re-record correctly
+
+**Solution Option 2:** Contact support to void/adjust
+
+**Prevention:** Double-check customer name before clicking "Complete Sale"
+
+---
+
+## Advanced Scenarios
+
+### SCENARIO A: Recording Bulk Sales (50 bags of rice)
+
+**Challenge:** Large quantity, tedious to adjust
+
+**Solution:**
+
+1. Add product once: "Rice - 50kg bag"
+2. Click + button 49 times OR
+3. Click quantity number, type "50" directly
+4. Total auto-calculates: ₦35,000 × 50 = ₦1,750,000
+5. Complete sale normally
+
+**Pro tip:** For 100+ items, consider creating a CSV import (advanced feature)
+
+---
+
+### SCENARIO B: Credit Sale with Due Date
+
+**Example:** Corporate buyer, 30-day payment terms
+
+**Steps:**
+
+1. Add products (e.g., 5 laptops × ₦450,000 = ₦2,250,000)
+2. Enter customer: "ABC Company Ltd"
+3. Enter phone: "070 1234 5678"
+4. Toggle "Credit Sale" ON
+5. Due date: April 10, 2026 (30 days from now)
+6. Message: "Invoice #INV-2026-001, PO #12345"
+7. Complete sale
+
+**What happens:**
+- Sale recorded: ₦2,250,000
+- Stock reduces: 5 laptops given to customer
+- Debt created: ₦2,250,000 (unpaid)
+- Due date tracked: April 10, 2026
+- Appears in Credit Management as "Outstanding"
+
+**When customer pays:**
+- Go to Credit Management
+- Find "ABC Company Ltd - ₦2,250,000"
+- Click "Mark as Paid"
+- Debt moves to "Paid Debts"
+
+---
+
+### SCENARIO C: Undoing the Last Sale (Mistakes Only)
+
+**Important:** Can ONLY undo the most recent sale
+
+**When to use:**
+- Immediately after recording wrong sale
+- Accidentally clicked Complete Sale
+- Entered wrong customer/amount
+
+**How to undo:**
+
+1. Look for "Undo" button in success toast (appears for ~5 seconds)
+2. Click "Undo" quickly
+3. Sale removed
+4. Stock restored automatically
+5. Debt cancelled (if credit sale)
+
+**What happens:**
+- Sale disappears from Today's Sales
+- Stock quantity increases back
+- If credit sale: Debt removed
+- Cannot undo old sales (data integrity protection)
+
+**Alternative for old sales:**
+- Owner can delete from Sales Report (use carefully!)
+- Cannot undo sales from previous days
+
+---
+
+### SCENARIO D: Recording Services (Not Physical Products)
+
+**Examples:** Hair braiding, laundry service, phone repair
+
+**Challenge:** Services don't have stock quantity
+
+**Solution:**
+
+1. Create service as "product" with unlimited stock
+2. Set stock to 9999 OR enable "Allow Negative Inventory"
+3. Example product: "Hair Braiding Service - ₦8,000"
+4. Record sale normally
+5. Stock stays at 9999 (unlimited)
+
+**Pro tip:** Use product variants for different service types
+- "Hair Braiding - Short Hair" - ₦5,000
+- "Hair Braiding - Long Hair" - ₦8,000
+- "Hair Braiding - Children" - ₦3,000
+
+---
+
+## Pro Tips from Nigerian Business Owners
+
+### TIP #1: Speed is Everything (Computer Village Vendors)
+
+> "At Computer Village, customers don't wait. I trained my workflow to:
+> 1. Click 'Record Sale'
+> 2. Type product name
+> 3. Press Enter
+> 4. Click 'Complete Sale'
+>
+> Under 10 seconds per sale! Storehouse remembers my payment method (Transfer)
+> and channel (In-Store), so I don't re-select every time."
+>
+> — **Chidi, Phone Accessories Vendor, Computer Village**
+
+**Keyboard shortcuts:**
+- Ctrl+S: Open Record Sale
+- Enter: Select highlighted product
+- Esc: Close modal
+
+---
+
+### TIP #2: Always Get Customer Phone Numbers (Online Sellers)
+
+> "I send WhatsApp receipts to EVERY customer. Now 70% are repeat buyers!
+> They trust me because I'm professional. When they reorder, I check their
+> purchase history: 'Oh, you bought the face cream last month. Want to try
+> the serum?' Personalized service wins customers."
+>
+> — **@beautybyade, Instagram Beauty Products Vendor**
+
+---
+
+### TIP #3: Track Sales Channels Religiously (Fashion Boutique)
+
+> "I was spending ₦50,000/month on Facebook ads thinking that's where
+> sales come from. After 3 months of tracking channels in Storehouse,
+> I discovered 60% of sales came from Instagram, 30% from WhatsApp status,
+> only 10% from Facebook! I stopped Facebook ads, focused on Instagram.
+> Revenue increased 40%! Data don't lie!"
+>
+> — **Funmi, Lekki Boutique Owner**
+
+---
+
+### TIP #4: Use Credit Sales for Corporate Clients (Electronics Store)
+
+> "Corporate clients don't pay immediately. Before Storehouse, I tracked
+> debts in notebook - total mess! Now I use Credit Sales feature:
+>
+> - Record sale immediately (stock reduces, I know what I gave)
+> - Set due date (30 days)
+> - Add invoice number in message
+> - Storehouse reminds me when payment is due
+> - Mark as paid when money arrives
+>
+> I recovered ₦2.5 million in overdue debts by following up systematically!"
+>
+> — **Emeka, Port Harcourt Electronics**
+
+---
+
+### TIP #5: Send Receipts for Accountability (Provisions Store)
+
+> "Customers trust you more when they receive receipts. Even for small
+> sales (₦2,000 bread and milk), I send WhatsApp receipt. Professional
+> image = repeat customers. One customer even showed my receipt to her
+> friend saying 'This shop is organized, go buy from them!'"
+>
+> — **Mama Ngozi, Surulere Provisions Store**
+
+---
+
+## Keywords for Search
+
+record sale, sell product, make sale, complete sale, record transaction, how to sell, sell item, track sales, sales process, record revenue, whatsapp receipt, send receipt, customer receipt, sale receipt, payment method, cash sale, credit sale, debt tracking, sales channel, instagram sales, whatsapp sales, online sales, customer name, customer phone, customer information, negative stock, overselling, stock reduction, inventory update, bulk sales, multiple items, cart, shopping cart, corporate sales, invoice, due date, payment terms, undo sale, delete sale, cancel sale, nigeria sales, nigerian business, lekki, computer village, surulere, boutique, phone shop, beauty business, provisions store, electronics, moniepoint, bank transfer, pos payment, zenith bank, gtbank, walk-in customer, retail customer, online customer
+`,
+
     steps: [
       {
         step: 1,
-        instruction: 'Tap "Record Sale" button on the dashboard',
-        tip: 'You can also click any product directly to record a sale',
+        instruction: 'Click "Record Sale" button on Dashboard',
+        tip: 'Keyboard shortcut: Ctrl+S (Windows) or Cmd+S (Mac). Button is always visible to all users.',
       },
       {
         step: 2,
-        instruction: 'Select product and enter quantity sold',
-        tip: 'Search for products by name or scan barcode if available',
+        instruction: 'Search and select product(s) - search bar auto-focuses',
+        tip: 'Type product name, SKU, or barcode. Search bar clears automatically after each selection for fast workflow.',
       },
       {
         step: 3,
-        instruction: 'Enter customer name (optional but recommended)',
-        tip: 'Helps track who buys what and enables customer analytics',
+        instruction: 'Review cart - adjust quantities if needed using + or - buttons',
+        tip: 'Cart shows: Item name, quantity, price, total. Click trash icon to remove items.',
       },
       {
         step: 4,
-        instruction: 'Choose payment method: Cash, Transfer, Card, POS, etc.',
-        tip: 'This helps you track which payment methods customers prefer',
+        instruction: 'Enter customer name (optional but recommended for tracking repeat customers)',
+        tip: 'Customer name helps you build purchase history and track who buys what. For walk-ins: use descriptive tags like "Walk-in customer - pink dress".',
       },
       {
         step: 5,
-        instruction: 'Select Cash or Credit sale',
-        tip: 'Cash = paid now. Credit = customer owes money (tracked as debt)',
+        instruction: 'Enter customer phone (optional - enables WhatsApp receipts)',
+        tip: 'Nigerian format: 080 1234 5678. International: +44 7459 044. Shows "✓ Valid" when correct.',
       },
       {
         step: 6,
-        instruction: 'Choose sales channel (Online, WhatsApp, Retail, etc.)',
-        tip: 'Track which channels bring the most sales',
+        instruction: 'Toggle Cash or Credit: Cash = paid now, Credit = pay later with due date',
+        tip: 'Credit sales create debt in Credit Management. Use for corporate clients, installments, trusted customers.',
       },
       {
         step: 7,
-        instruction: 'Tap "Record Sale" to save',
-        tip: 'Stock quantity automatically reduces. Sale appears in Today\'s Sales!',
+        instruction: 'Choose payment method: Cash, Transfer, Card, or POS',
+        tip: 'Last used method is remembered. Transfer = bank transfer (Zenith, GTBank, UBA, etc.). Card requires Paystack setup.',
+      },
+      {
+        step: 8,
+        instruction: 'Select sales channel: In-Store, WhatsApp, Instagram, Facebook, Online Store, TikTok, Referral, Other',
+        tip: 'Track where customers come from. Example: Discover 70% sales from Instagram, 20% WhatsApp, 10% walk-ins.',
+      },
+      {
+        step: 9,
+        instruction: 'Check "Send receipt via WhatsApp" if customer phone is valid',
+        tip: 'Receipt opens in WhatsApp with pre-filled message. Professional receipts build customer trust and drive repeat business.',
+      },
+      {
+        step: 10,
+        instruction: 'Click "Complete Sale" button - stock automatically reduces',
+        tip: 'Sale saves to database, stock updates, receipt modal opens. Cart clears ready for next sale.',
       },
     ],
+
     commonIssues: [
       {
-        issue: 'Product quantity shows negative after sale',
-        solution: 'You sold more than you have in stock. Add more stock first or enable negative inventory in Settings.',
+        issue: 'Product shows negative stock after sale',
+        solution: 'You sold more than available stock. Two options: (1) Restock first via Inventory → Restock, or (2) Enable "Allow Negative Inventory" in Settings → Business Settings. Useful for pre-orders, consignment, services.',
       },
       {
-        issue: 'Sale not appearing in reports',
-        solution: 'Make sure you tapped "Record Sale" button. Check internet connection for sync.',
+        issue: 'Sale not appearing in Today\'s Sales report',
+        solution: 'Three possible causes: (1) Didn\'t click "Complete Sale" button - make sure to complete every sale. (2) Internet connection issue - wait for sync icon to stop spinning. (3) Viewing wrong date - check date filter in Sales Report.',
+      },
+      {
+        issue: 'WhatsApp receipt not sending',
+        solution: 'Check phone number format: Nigerian (080 1234 5678) or International (+44 7459 044). If WhatsApp not installed, use "Copy to Clipboard" instead. If pop-up blocked, allow pop-ups for Storehouse website.',
+      },
+      {
+        issue: 'Can\'t find Record Sale button',
+        solution: 'Button is on Dashboard at top section (green button). On mobile, may be at bottom floating bar. Button is ALWAYS visible to all users - no permission restrictions. If still not visible, scroll to top of Dashboard or refresh page.',
+      },
+      {
+        issue: 'Receipt modal disappeared before I could share',
+        solution: 'Modal now stays open until you close it manually (bug fixed!). If accidentally closed, find sale in Sales Report → Click sale → Click "Share Receipt" button. Pro tip: Share to multiple channels before closing.',
+      },
+      {
+        issue: 'Recorded sale to wrong customer',
+        solution: 'Cannot edit completed sales. If just recorded: Owner can delete from Today\'s Sales and re-record correctly. If old sale: Contact support. Prevention: Double-check customer name before clicking "Complete Sale".',
       },
       {
         issue: 'Customer name not saving',
-        solution: 'Customer name is optional but very useful. Make sure to type it before recording sale.',
+        solution: 'Customer name is optional but highly recommended. Make it a habit to always enter names. Benefits: Track repeat customers, see purchase history, customer analytics. For walk-ins: use descriptive tags like "Walk-in customer - pink dress".',
+      },
+      {
+        issue: 'Need to undo a sale I just recorded',
+        solution: 'Can ONLY undo the most recent sale. Look for "Undo" button in success toast (appears for ~5 seconds). Click quickly. Sale removed, stock restored, debt cancelled if credit sale. Cannot undo old sales.',
       },
     ],
-    relatedDocs: ['cash-vs-credit', 'payment-methods', 'sales-channels', 'customer-management'],
-    keywords: ['record sale', 'sell product', 'make sale', 'first sale', 'how to sell'],
-    lastUpdated: '2025-11-30',
+
+    relatedDocs: ['cash-vs-credit', 'payment-methods', 'sales-channels', 'customer-management', 'whatsapp-receipts', 'credit-management'],
+    keywords: [
+      // Core sales actions
+      'record sale', 'sell product', 'make sale', 'complete sale', 'record transaction', 'how to sell', 'sell item', 'track sales', 'sales process',
+
+      // Receipt actions (CRITICAL for RAG search)
+      'send receipt', 'email receipt', 'share receipt', 'receipt modal', 'receipt options', 'copy receipt', 'download receipt', 'print receipt',
+      'receipt after sale', 'how to send receipt', 'receipt sharing', 'receipt not sending', 'receipt disappeared', 'find receipt',
+      'whatsapp receipt', 'email customer receipt', 'sms receipt', 'receipt via email', 'receipt to customer',
+
+      // Business name & branding
+      'company name on receipt', 'business name on receipt', 'receipt branding', 'customize receipt', 'change business name', 'business settings',
+
+      // Cart & shopping
+      'cart visibility', 'see cart', 'view cart', 'cart items', 'items in cart', 'shopping cart', 'check cart', 'cart icon',
+      'negative stock', 'overselling', 'bulk sales', 'shopping cart',
+
+      // Payment & sales types
+      'payment method', 'cash sale', 'credit sale', 'debt tracking', 'corporate sales', 'invoice', 'due date', 'moniepoint', 'bank transfer', 'pos payment',
+
+      // Sales channels
+      'sales channel', 'instagram sales', 'whatsapp sales', 'online sales', 'walk-in customer', 'retail customer',
+
+      // Customer info
+      'customer name', 'customer phone', 'customer receipt',
+
+      // Actions & management
+      'undo sale', 'delete sale',
+
+      // Location context (Nigerian businesses)
+      'nigeria sales', 'nigerian business', 'lekki', 'computer village', 'surulere', 'boutique', 'beauty business', 'provisions store'
+    ],
+    lastUpdated: '2026-03-10',
   },
 
   {
@@ -1051,8 +1730,626 @@ A: You control permissions. Cashiers can't export data. Audit logs track everyth
   },
 
   // ============================================
-  // PRODUCT MANAGEMENT (8 guides)
+  // PRODUCT MANAGEMENT (9 guides)
   // ============================================
+
+  {
+    id: 'add-product-comprehensive',
+    category: 'products',
+    title: 'How to Add Products - Complete Guide',
+    subtitle: 'Master every feature of the Add Product modal',
+    difficulty: 'intermediate',
+    estimatedTime: '15 minutes',
+    priority: 90,
+    description: 'Complete walkthrough of adding products with all fields, variants, images, categories, and specifications explained with Nigerian business examples.',
+    content: `## Complete Guide to Adding Products in Storehouse
+
+This comprehensive guide covers EVERY field and feature available when adding products to your inventory.
+
+---
+
+## Opening the Add Product Modal
+
+**Click "+ Add Item"** button on your Dashboard (next to "Record Sale" button).
+
+The "Add New Item" modal opens with 10+ field sections.
+
+---
+
+## SECTION 1: Required Fields
+
+### 1. ITEM NAME (Required)
+- Type the product name exactly as you want it to appear
+- Examples: "Nike Air Force 1 White", "Indomie Chicken Flavor", "Samsung Galaxy A54"
+- **Auto-Detection**: If you type an existing product name, Storehouse loads it for editing instead of creating a duplicate
+- Must not be empty
+
+### 2. SELLING PRICE (Required)
+- Large, prominent field with ₦ symbol
+- Label: "💰 Selling Price (Customer Pays)"
+- This is what customers pay
+- Format: Enter as decimal (e.g., 5000 or 5000.00)
+- Must be ≥ ₦0
+- **Nigerian Example**: Indomie pack costs you ₦120, you sell for ₦150
+
+### 3. PURCHASE PRICE / COST PRICE (Required)
+- Also called "Cost Price"
+- This is what YOU paid your supplier
+- Format: Enter as decimal (e.g., 3000.00)
+- Must be ≥ ₦0
+- **Used for**: Profit calculation and inventory valuation
+- **Nigerian Example**: You bought Indomie carton for ₦5,000 (40 packs), so cost per pack = ₦125
+
+### 4. QUANTITY (Required if no variants)
+- Number of units in stock
+- For new products: must be > 0
+- **When editing existing items**, you'll see two modes:
+  - **Add Units**: Adds to existing stock (e.g., 50 existing + 20 new = 70 total)
+  - **Replace Total**: Sets absolute stock (e.g., replace 50 with 30)
+  - Shows preview: "Current: 50 → New: 70"
+- **Note**: Hidden if you enable variants (variants manage their own stock)
+
+### 5. CATEGORY (Required)
+- Dropdown with 9 options:
+  - Fashion
+  - Electronics
+  - Food & Beverages
+  - Beauty & Cosmetics
+  - Furniture
+  - Books
+  - Phones & Accessories
+  - Shoes
+  - Other
+- **Default**: Fashion
+- **IMPORTANT**: Selecting a category shows category-specific fields (see Section 3 below)
+
+---
+
+## SECTION 2: Optional Core Fields
+
+### 6. BARCODE / SKU (Optional)
+- Text input for product codes
+- Label: "Barcode / SKU (Optional)"
+- Placeholder: "Scan or enter barcode/SKU"
+- Help text: "Product barcode, SKU, or unique identifier for inventory tracking"
+- **Nigerian Example**: "INDO-CHK-001" for Indomie Chicken, or scan actual barcode with phone
+- **Benefit**: Fast item lookup during sales using barcode scanner
+
+### 7. LOW STOCK ALERT LEVEL (Optional)
+- Number input
+- Label: "🔔 Low Stock Alert Level"
+- Default: 10
+- **Purpose**: System notifies you when stock drops below this threshold
+- Help text: "You'll be notified when stock reaches this level"
+- **Nigerian Example**: Set to 20 for fast-moving items like soft drinks, 5 for slow movers like designer shoes
+
+### 8. DESCRIPTION (Optional)
+- Textarea (3 rows, resizable)
+- Label: "📝 Description (Optional)"
+- Placeholder: "Additional details about this product (e.g., brand, size, color, material, condition...)"
+- **Nigerian Example**: "Original UK used iPhone, excellent battery health, comes with charger"
+
+### 9. PUBLIC VISIBILITY (Optional, checked by default)
+- Checkbox: "📢 Show on Public Storefront"
+- **When checked**: Item appears on your online store for customers to see
+- **When unchecked**: Item is internal-only (not visible to public)
+- Help text: "When checked, this item will be visible to customers on your store"
+- **Nigerian Example**: Uncheck for wholesale items you don't want retail customers to see
+
+---
+
+## SECTION 3: Category-Specific Attributes (Dynamic Fields)
+
+**These fields appear automatically based on the category you selected.** All are optional unless marked Required.
+
+### For FASHION Category:
+- **Size**: Dropdown (XXS, XS, S, M, L, XL, XXL, 3XL, 4XL, One Size)
+- **Color**: Text (e.g., "Navy Blue", "Red")
+- **Brand**: Text (e.g., "Zara", "Gucci")
+- **Material**: Text (e.g., "100% Cotton", "Polyester blend")
+- **Gender**: Dropdown (Male, Female, Unisex, Kids)
+- **Fit**: Dropdown (Slim, Regular, Loose, Oversized)
+
+**Nigerian Fashion Example**:
+- Name: "Senator Style Kaftan"
+- Size: XL
+- Color: "White with Gold Embroidery"
+- Material: "100% Cotton"
+- Gender: Male
+- Fit: Regular
+
+### For ELECTRONICS Category:
+- **Brand**: Text (e.g., "Samsung", "LG") **Required**
+- **Model**: Text (e.g., "Galaxy A54 5G")
+- **Warranty**: Dropdown (No Warranty, 3 Months, 6 Months, 1 Year, 2 Years, 3 Years)
+- **Condition**: Dropdown (Brand New, Refurbished, Used)
+- **Key Specifications**: Textarea (e.g., "6.4\" display, 128GB storage, 5000mAh battery")
+
+**Nigerian Electronics Example**:
+- Name: "Samsung 55\" Smart TV"
+- Brand: Samsung (required)
+- Model: "UA55CU7000"
+- Warranty: 1 Year
+- Condition: Brand New
+- Specifications: "55-inch 4K UHD, Crystal Processor, Smart Hub"
+
+### For FOOD & BEVERAGES Category:
+- **Weight/Volume**: Text (e.g., "500g", "1L", "330ml")
+- **Expiry Date**: Date picker
+- **Ingredients**: Textarea
+- **Dietary Information**: Dropdown (None, Vegetarian, Vegan, Halal, Kosher, Gluten-Free, Nut-Free)
+- **Storage Instructions**: Text (e.g., "Keep refrigerated")
+
+**Nigerian Food Example**:
+- Name: "Indomie Chicken Flavor"
+- Weight/Volume: "70g per pack"
+- Expiry Date: 2025-12-31
+- Dietary Information: Halal
+- Storage: "Store in cool, dry place"
+
+### For BEAUTY & COSMETICS Category:
+- **Brand**: Text (e.g., "MAC", "Fenty Beauty")
+- **Shade/Color**: Text (e.g., "Mocha", "#420")
+- **Skin Type**: Dropdown (All Skin Types, Oily, Dry, Combination, Sensitive)
+- **Key Ingredients**: Textarea (e.g., "Hyaluronic Acid, Vitamin C")
+- **Volume/Size**: Text (e.g., "50ml", "15g")
+- **Expiry Date**: Date picker
+
+**Nigerian Beauty Example**:
+- Name: "Shea Butter Body Cream"
+- Brand: "Ori by Nneoma"
+- Skin Type: All Skin Types
+- Volume: "250ml"
+- Ingredients: "100% raw shea butter, coconut oil"
+
+### For FURNITURE Category:
+- **Dimensions (L × W × H)**: Text (e.g., "200cm × 180cm × 45cm")
+- **Material**: Text (e.g., "Solid Oak Wood")
+- **Color/Finish**: Text (e.g., "Walnut Brown")
+- **Weight**: Text (e.g., "35kg")
+- **Assembly Required**: Dropdown (No, Yes - Easy, Yes - Moderate, Yes - Complex, Professional Installation Required)
+
+**Nigerian Furniture Example**:
+- Name: "6-Seater Dining Table"
+- Dimensions: "180cm × 90cm × 75cm"
+- Material: "Mahogany Wood with Glass Top"
+- Color: "Dark Brown"
+- Assembly: Yes - Easy
+
+### For BOOKS Category:
+- **Author**: Text (e.g., "Chimamanda Adichie")
+- **Publisher**: Text (e.g., "Penguin Random House")
+- **ISBN**: Text (e.g., "978-0-307-26557-1")
+- **Number of Pages**: Number (e.g., 477)
+- **Language**: Text (e.g., "English", "Yoruba")
+- **Format**: Dropdown (Hardcover, Paperback, eBook, Audiobook)
+
+**Nigerian Books Example**:
+- Name: "Americanah"
+- Author: "Chimamanda Ngozi Adichie"
+- Publisher: "Fourth Estate"
+- Pages: 477
+- Language: English
+- Format: Paperback
+
+### For PHONES & ACCESSORIES Category:
+- **Brand**: Text (e.g., "Apple", "Tecno") **Required**
+- **Model**: Text (e.g., "iPhone 15 Pro", "Spark 10")
+- **Storage**: Dropdown (16GB, 32GB, 64GB, 128GB, 256GB, 512GB, 1TB)
+- **RAM**: Dropdown (2GB, 3GB, 4GB, 6GB, 8GB, 12GB, 16GB)
+- **Color**: Text (e.g., "Midnight Black")
+- **Condition**: Dropdown (Brand New, UK Used, US Used, Refurbished, Nigerian Used)
+
+**Nigerian Phones Example**:
+- Name: "Tecno Phantom X2 Pro"
+- Brand: Tecno (required)
+- Model: "Phantom X2 Pro"
+- Storage: 256GB
+- RAM: 12GB
+- Color: "Stardust Grey"
+- Condition: Brand New
+
+### For SHOES Category:
+- **Shoe Size**: Dropdown (35 to 47)
+- **Brand**: Text (e.g., "Nike", "Adidas")
+- **Color**: Text (e.g., "Triple White")
+- **Material**: Text (e.g., "Leather", "Canvas")
+- **Gender**: Dropdown (Men, Women, Unisex, Kids)
+
+**Nigerian Shoes Example**:
+- Name: "Nike Air Force 1"
+- Shoe Size: 42
+- Brand: Nike
+- Color: "Triple White"
+- Material: "Leather"
+- Gender: Men
+
+---
+
+## SECTION 4: Product Images (Optional but Recommended)
+
+### Image Limits by Subscription Plan:
+- **Free Plan**: 1 image per product
+- **Starter Plan**: 3 images per product
+- **Pro Plan**: 5 images per product
+- **Business Plan**: 10 images per product
+
+### How to Upload Images:
+1. Click "Upload Images" or "Add Images" button
+2. Select images from your device
+3. Wait for upload (progress bar shows status)
+4. **Set Primary Image**: Click star icon on the image you want as main photo
+5. **Reorder Images**: Drag and drop to change order
+6. **Delete Image**: Click X icon on unwanted images
+
+### Image Requirements:
+- **Formats**: JPG, PNG, WebP (all image types supported)
+- **Automatic Features**:
+  - Compression (max 1200px width) for fast loading
+  - ImageKit CDN integration for optimized delivery
+  - Thumbnail generation
+- **Best Practices**:
+  - Use square images (1:1 ratio) for consistent display
+  - Min resolution: 500×500px
+  - Show product from multiple angles
+  - Include product in use (lifestyle shots)
+
+### IMPORTANT: Must Complete Upload Before Saving
+- "Save Item" button shows "Uploading images..." and is disabled while images upload
+- Wait for all images to finish uploading before clicking Save
+
+**Nigerian Example**: For a fashion boutique selling Ankara dresses, upload:
+1. Front view (set as primary)
+2. Back view
+3. Side view
+4. Close-up of fabric pattern
+5. Model wearing the dress
+
+---
+
+## SECTION 5: Product Variants (Optional but Powerful)
+
+**What are variants?** Sell the same product in different sizes, colors, or other options, each with its own stock and optional price.
+
+### When to Use Variants:
+- Clothing in different sizes (S, M, L, XL)
+- Shoes in different sizes (38, 39, 40, 41)
+- Products in different colors (Red, Blue, Green)
+- Any product with multiple options
+
+### How to Create Variants:
+1. Check the box: **"This product has variants (size, color, etc.)"**
+2. **Add Option Types**: Click "+ Add Option" and enter type (e.g., "Size", "Color")
+3. **Add Values**: For each option type, add values (e.g., Small, Medium, Large)
+4. **Auto-Generation**: System creates all combinations automatically
+   - Example: 3 sizes × 3 colors = 9 variants
+5. **Variant Table Shows**:
+   - Variant Name (auto-generated like "Red - Large")
+   - SKU (optional, unique per variant)
+   - Quantity (stock for this specific variant)
+   - Price Override (optional, uses base selling price if empty)
+6. **Bulk Actions**:
+   - "Set All Quantities" button: Apply same stock to all variants
+   - "Set All Prices" button: Apply same price to all variants
+
+**Nigerian Fashion Store Example**:
+Product: "Ankara Maxi Dress"
+Base Price: ₦15,000
+
+Variants:
+- Small (Stock: 10, Price: ₦15,000)
+- Medium (Stock: 15, Price: ₦15,000)
+- Large (Stock: 12, Price: ₦16,000) ← Price override
+- XL (Stock: 8, Price: ₦17,000) ← Price override
+
+**When Variants Are Enabled**:
+- Main quantity field is hidden (each variant tracks its own stock)
+- During sales, cashier selects product then chooses variant
+- Stock decreases for the specific variant sold
+
+---
+
+## SECTION 6: Product Specifications for AI (Optional but Powerful)
+
+**Label**: "📋 Product Specifications (Optional - AI will use these)"
+
+These structured fields enable the AI chatbot to accurately answer customer questions about your products.
+
+### Why Use Specifications?
+- **AI chatbot** can answer technical questions about products
+- **Online store** can display detailed specs
+- **Customer confidence** increases with detailed information
+
+### Common Specification Fields (varies by category):
+
+**For Electronics**:
+- Battery Life (e.g., "Up to 22 hours video playback")
+- Screen Size (e.g., "6.1 inches")
+- Camera (e.g., "12MP triple camera system")
+- RAM (e.g., "6GB")
+- Storage (e.g., "256GB")
+- Processor (e.g., "A15 Bionic chip")
+- Operating System (e.g., "iOS 17")
+
+**For Fashion**:
+- Fabric/Material (e.g., "100% cotton")
+- Fit (e.g., "True to size")
+- Care Instructions (e.g., "Machine washable, tumble dry low")
+- Country of Origin (e.g., "Made in Nigeria")
+
+**For Food**:
+- Ingredients (e.g., "Tomatoes, onions, peppers, palm oil")
+- Spice Level (e.g., "Medium (7/10)")
+- Allergens (e.g., "Contains nuts, gluten")
+- Nutritional Info (e.g., "250 kcal per serving")
+
+**Nigerian Electronics Example**:
+Product: "Samsung Galaxy A54"
+Specifications:
+- Screen Size: 6.4 inches
+- Camera: 50MP main + 12MP ultrawide + 5MP macro
+- RAM: 8GB
+- Storage: 256GB
+- Battery: 5000mAh
+- Operating System: Android 13 with One UI 5.1
+
+**Result**: When customer asks chatbot "how long does the battery last?", AI can answer "The Samsung Galaxy A54 has a 5000mAh battery" using these specs.
+
+---
+
+## SECTION 7: Profit Calculator (Auto-Display)
+
+**Automatically appears** when you enter both Purchase Price and Selling Price.
+
+### What It Shows:
+- **Profit per Unit**: ₦X,XXX (Y% markup)
+- **Total Potential Profit**: Profit × Quantity
+- **Warning if Loss**: Red alert if Selling Price < Purchase Price
+
+**Nigerian Example**:
+- Purchase Price: ₦120
+- Selling Price: ₦150
+- Quantity: 100
+
+**Calculator Shows**:
+- Profit per unit: ₦30 (25% markup)
+- Total potential profit: ₦3,000 (30 × 100)
+
+---
+
+## SECTION 8: Validation Rules
+
+### What You MUST Fill to Save:
+1. ✅ Item Name (cannot be empty)
+2. ✅ Quantity > 0 (OR variants if variants enabled)
+3. ✅ Purchase Price ≥ ₦0
+4. ✅ Selling Price ≥ ₦0
+5. ✅ Category (default: Fashion)
+
+### Optional Fields (No Error if Left Empty):
+- All category-specific attributes
+- Product images
+- Barcode/SKU
+- Description
+- Low stock threshold (defaults to 10)
+- Product specifications
+- Public visibility (defaults to checked)
+- Variants
+
+### Special Behaviors:
+- **Duplicate Detection**: If you type an existing product name, Storehouse loads it for editing
+- **Weighted Average Costing**: When adding stock to existing items, purchase price recalculates using weighted average formula
+- **Upload Blocking**: Cannot save while images are uploading
+
+---
+
+## SECTION 9: Save and Success
+
+### Save Button States:
+- **Normal**: "Save Item" (green, clickable)
+- **Uploading**: "Uploading images..." (grey, disabled)
+- **After Save**: Modal closes, success toast appears
+
+### Success Messages:
+- **New Product**: "✅ Product added successfully!"
+- **Edit (Add Mode)**: "✅ Added 20 units to iPhone 15!"
+- **Edit (Replace Mode)**: "✅ Stock updated to 50 units"
+
+---
+
+## SECTION 10: Bulk Import Alternative
+
+### For Adding Many Products at Once:
+
+Instead of "+ Add Item", use **"📥 Import" button** (next to search bar on Dashboard).
+
+**CSV Import Process**:
+1. Download template CSV
+2. Fill Excel/Google Sheets with:
+   - Item Name / Product / Name
+   - Price / Selling Price
+   - Cost / Cost Price
+   - Quantity / Stock
+   - Category
+   - Barcode
+   - Low Stock Alert
+3. Upload CSV file
+4. Preview first 10 items
+5. Confirm import
+
+**Sample CSV**:
+    Item Name,Selling Price,Cost Price,Quantity,Category,Barcode,Low Stock Alert
+    Nike Air Force 1,45000,35000,20,Shoes,NIKE-AF1-W,5
+    Indomie Chicken,150,120,500,Food & Beverages,IND-CHK,50
+    Samsung A54,285000,270000,10,Phones & Accessories,SAM-A54-256,3
+
+---
+
+## SECTION 11: Real-World Nigerian Business Examples
+
+### Example 1: Fashion Boutique (Lekki, Lagos)
+**Product**: Ankara Maxi Dress
+- **Name**: "Ankara Sunset Maxi Dress"
+- **Category**: Fashion
+- **Purchase Price**: ₦8,000 (from Balogun Market)
+- **Selling Price**: ₦18,000
+- **Quantity**: 15
+- **Size**: Create variants (S, M, L, XL)
+- **Color**: "Orange & Yellow Pattern"
+- **Material**: "100% Cotton Ankara"
+- **Gender**: Female
+- **Images**: 5 photos (front, back, side, pattern close-up, model shot)
+- **Public Visibility**: ✅ Checked (show on online store)
+- **Profit**: ₦10,000 per dress (125% markup)
+
+### Example 2: Electronics Shop (Ikeja Computer Village)
+**Product**: UK Used iPhone 13
+- **Name**: "iPhone 13 128GB (UK Used)"
+- **Category**: Phones & Accessories
+- **Brand**: Apple (required)
+- **Model**: "iPhone 13"
+- **Purchase Price**: ₦420,000
+- **Selling Price**: ₦485,000
+- **Quantity**: 3
+- **Storage**: 128GB
+- **RAM**: 4GB
+- **Color**: "Midnight Black"
+- **Condition**: UK Used
+- **Specifications**:
+  - Screen: 6.1" Super Retina XDR
+  - Camera: 12MP dual
+  - Battery: 3,227mAh
+  - Chip: A15 Bionic
+- **Warranty**: 3 Months
+- **Description**: "Excellent condition, 95% battery health, original box included"
+- **Profit**: ₦65,000 per unit (15.5% markup)
+
+### Example 3: Supermarket (Surulere, Lagos)
+**Product**: Indomie Carton
+- **Name**: "Indomie Chicken Flavor (Carton of 40)"
+- **Category**: Food & Beverages
+- **Purchase Price**: ₦5,000 (from distributor)
+- **Selling Price**: ₦6,000
+- **Quantity**: 50 cartons
+- **Weight/Volume**: "40 packs × 70g"
+- **Expiry Date**: 2025-12-31
+- **Dietary**: Halal
+- **Storage**: "Store in cool, dry place"
+- **Low Stock Alert**: 10 cartons
+- **Public Visibility**: ✅ Checked
+- **Profit**: ₦1,000 per carton (20% markup)
+
+### Example 4: Furniture Store (Abuja)
+**Product**: Executive Office Chair
+- **Name**: "Ergonomic Executive Office Chair"
+- **Category**: Furniture
+- **Purchase Price**: ₦65,000
+- **Selling Price**: ₦95,000
+- **Quantity**: 8
+- **Dimensions**: "65cm × 70cm × 120cm"
+- **Material**: "Genuine Leather with Chrome Base"
+- **Color**: "Black"
+- **Weight**: "18kg"
+- **Assembly**: Yes - Easy
+- **Description**: "360° swivel, adjustable height, lumbar support"
+- **Images**: 4 photos
+- **Profit**: ₦30,000 per chair (46% markup)
+
+### Example 5: Beauty Supply Store (Port Harcourt)
+**Product**: Shea Butter Cream
+- **Name**: "Ori Natural Shea Butter Body Cream"
+- **Category**: Beauty & Cosmetics
+- **Brand**: "Ori by Nneoma"
+- **Purchase Price**: ₦1,500
+- **Selling Price**: ₦3,500
+- **Quantity**: 100
+- **Skin Type**: All Skin Types
+- **Volume**: "250ml"
+- **Ingredients**: "100% raw shea butter, coconut oil, vitamin E"
+- **Expiry Date**: 2026-06-30
+- **Description**: "Locally made, no chemicals, perfect for Nigerian weather"
+- **Low Stock Alert**: 20
+- **Profit**: ₦2,000 per jar (133% markup)
+
+---
+
+## Troubleshooting
+
+### "I can't see the Add Item button"
+**Solution**: Only Owners and Managers can add products. If you're logged in as Staff (Cashier role), you don't have permission. Check Settings → Team & Permissions to see your role.
+
+### "Validation error: Please enter valid prices"
+**Solution**: Purchase Price and Selling Price must be positive numbers (≥ 0). Check for:
+- Negative numbers
+- Letters or symbols (except decimal point)
+- Empty fields
+
+### "Product not showing after saving"
+**Solution**:
+- Check internet connection (product saves locally and syncs when online)
+- Refresh the page
+- Check if "Show on Public Storefront" is unchecked (would hide from store)
+
+### "Image upload failed"
+**Solution**:
+- Check internet connection
+- Ensure image is under 2MB
+- Try different image format (JPG/PNG)
+- Check subscription plan (Free plan = 1 image only)
+
+### "Variants not appearing during sale"
+**Solution**:
+- Ensure "This product has variants" checkbox is checked
+- Each variant must have quantity > 0
+- Save the product after adding variants
+- Refresh page and try recording sale again
+
+---
+
+**Related Guides**: Add First Product (Basic), Edit Products, Product Variants, Product Images, CSV Import, Online Store Setup, Profit Calculator`,
+    relatedDocs: ['add-first-product', 'product-variants', 'product-images', 'csv-import', 'edit-product'],
+    keywords: [
+      // Core actions
+      'add product', 'add item', 'add inventory', 'create product', 'new product',
+      'add products', 'how to add', 'add items', 'add stock', 'product creation',
+
+      // Detailed queries
+      'product fields', 'required fields', 'product form', 'product modal',
+      'all product fields', 'product details', 'product information',
+
+      // Images
+      'product images', 'upload image', 'multiple images', 'product photos',
+      'image upload', 'add pictures', 'product pictures',
+
+      // Variants
+      'product variants', 'sizes', 'colors', 'product options', 'variant creation',
+      'size options', 'color options', 'different sizes', 'multiple options',
+
+      // Categories
+      'product category', 'fashion category', 'electronics category',
+      'category fields', 'category attributes', 'category-specific',
+
+      // Specifications
+      'product specifications', 'product specs', 'technical details', 'ai specifications',
+
+      // Pricing
+      'profit calculator', 'purchase price', 'cost price', 'selling price',
+      'markup', 'profit margin',
+
+      // Stock
+      'quantity', 'stock quantity', 'inventory quantity', 'add stock',
+      'low stock alert', 'stock threshold',
+
+      // Other features
+      'barcode', 'sku', 'product code', 'public visibility', 'storefront visibility',
+      'bulk import', 'csv import', 'import products',
+
+      // Nigerian context
+      'nigerian products', 'naira pricing', 'lagos business', 'ankara products',
+      'indomie', 'computer village',
+    ],
+    lastUpdated: '2025-12-03',
+  },
 
   {
     id: 'edit-product',
