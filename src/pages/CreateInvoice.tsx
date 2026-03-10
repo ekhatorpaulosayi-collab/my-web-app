@@ -391,12 +391,13 @@ export default function CreateInvoice() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={discountKobo / 100}
+                  value={discountKobo === 0 ? '' : (discountKobo / 100).toString()}
                   onChange={(e) =>
                     setDiscountKobo(
                       Math.round(parseFloat(e.target.value || '0') * 100)
                     )
                   }
+                  placeholder="0"
                 />
               </div>
 
