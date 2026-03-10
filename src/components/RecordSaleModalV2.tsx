@@ -107,6 +107,7 @@ export default function RecordSaleModalV2({
   // Receipt modal state
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
+  const showingReceiptRef = useRef(false); // Track receipt state to prevent race condition
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -235,8 +236,19 @@ export default function RecordSaleModalV2({
   };
 
   // Reset form on close
+  // IMPORTANT: Don't reset if we just completed a sale and are showing receipt
   useEffect(() => {
+    console.log('[RecordSale] useEffect triggered - isOpen:', isOpen, 'showReceiptModal:', showReceiptModal, 'receiptData:', !!receiptData, 'showingReceiptRef:', showingReceiptRef.current);
     if (!isOpen) {
+      // If receipt modal is showing or has data, DON'T reset yet
+      // User is still interacting with the receipt
+      // Check ref first (prevents race condition), then state
+      if (showingReceiptRef.current || showReceiptModal || receiptData) {
+        console.log('[RecordSale] Modal closed but receipt is showing - NOT resetting state');
+        return;
+      }
+
+      console.log('[RecordSale] Modal is CLOSED, resetting ALL state including receipt modal');
       setCart([]);
       setCartDrawerOpen(false);
       setIsCredit(false);
@@ -255,8 +267,13 @@ export default function RecordSaleModalV2({
       setCollectingPayment(false);
       setIsProcessing(false);
       setError('');
+      setReceiptData(null);
+      showingReceiptRef.current = false;
+      console.log('[RecordSale] All state reset');
+    } else {
+      console.log('[RecordSale] Modal is OPEN');
     }
-  }, [isOpen]);
+  }, [isOpen, showReceiptModal, receiptData]);
 
   // Pre-fill cart with calculator items
   useEffect(() => {
@@ -776,9 +793,25 @@ export default function RecordSaleModalV2({
       // Show receipt options modal (keep sale modal open in background)
       console.log('[RecordSale] ✅ Sale saved, showing receipt modal');
       console.log('[RecordSale] Receipt data:', receipt);
+      console.log('[RecordSale] About to set receipt state...');
+
+      // Set ref FIRST to prevent race condition with useEffect
+      showingReceiptRef.current = true;
+      console.log('[RecordSale] showingReceiptRef set to TRUE');
+
       setReceiptData(receipt);
+      console.log('[RecordSale] receiptData state set');
       setShowReceiptModal(true);
       console.log('[RecordSale] showReceiptModal set to TRUE');
+
+      // Log state in next tick to verify it was set
+      setTimeout(() => {
+        console.log('[RecordSale] State after 100ms:');
+        console.log('[RecordSale] - isOpen:', isOpen);
+        console.log('[RecordSale] - showReceiptModal should be true');
+        console.log('[RecordSale] - receiptData should exist');
+        console.log('[RecordSale] - showingReceiptRef:', showingReceiptRef.current);
+      }, 100);
 
     } catch (error) {
       console.error('[V2 Save] Error:', error);
@@ -827,10 +860,13 @@ export default function RecordSaleModalV2({
     }
   };
 
-  if (!isOpen) return null;
+  // Don't return null if showing receipt modal - we need to keep component mounted
+  if (!isOpen && !showReceiptModal && !receiptData) return null;
 
   return (
     <>
+      {/* Show sales modal only when parent says isOpen */}
+      {isOpen && (
       <div className="rs-overlay" onClick={onClose}>
         <div
           ref={modalRef}
@@ -1257,19 +1293,28 @@ export default function RecordSaleModalV2({
           </div>
         </div>
       )}
+      )}
 
-      {/* Receipt Options Modal */}
-      {showReceiptModal && receiptData && (
-        <ReceiptOptionsModal
-          isOpen={showReceiptModal}
-          onClose={() => {
-            console.log('[RecordSale] Receipt modal closing');
-            setShowReceiptModal(false);
-            // DON'T close parent modal - let user reopen receipt or close manually
-            // onClose(); // REMOVED - this was causing the issue
-          }}
-          receiptData={receiptData}
-        />
+      {/* Receipt Options Modal - Always render if we have receipt data, regardless of parent isOpen */}
+      {console.log('[RecordSale] RENDER - showReceiptModal:', showReceiptModal, 'receiptData:', !!receiptData)}
+      {showReceiptModal && receiptData ? (
+        <>
+          {console.log('[RecordSale] RENDERING ReceiptOptionsModal')}
+          <ReceiptOptionsModal
+            isOpen={showReceiptModal}
+            onClose={() => {
+              console.log('[RecordSale] Receipt modal closing');
+              showingReceiptRef.current = false; // Clear ref when receipt closes
+              setShowReceiptModal(false);
+              setReceiptData(null);
+              // Now close the parent sales modal too
+              onClose();
+            }}
+            receiptData={receiptData}
+          />
+        </>
+      ) : (
+        console.log('[RecordSale] NOT rendering receipt modal - showReceiptModal:', showReceiptModal, 'receiptData:', !!receiptData)
       )}
     </>
   );
