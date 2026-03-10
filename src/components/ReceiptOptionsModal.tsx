@@ -46,13 +46,14 @@ export function ReceiptOptionsModal({ isOpen, onClose, receiptData }: ReceiptOpt
     }).join('\n\n');
 
     const customerSection = customerName ? `👤 ${customerName}\n` : '';
+    const businessSection = businessName && businessName !== 'Storehouse' ? `📍 ${businessName}\n` : '';
 
     return `
 ━━━━━━━━━━━━━━━━━━━
 🧾 SALES RECEIPT
 ━━━━━━━━━━━━━━━━━━━
 
-📍 ${businessName}
+${businessSection}
 ${customerSection}
 📦 ITEMS
 ${itemsSection}
