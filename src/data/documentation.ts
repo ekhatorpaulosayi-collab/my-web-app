@@ -2351,6 +2351,1026 @@ Instead of "+ Add Item", use **"📥 Import" button** (next to search bar on Das
     lastUpdated: '2025-12-03',
   },
 
+  // ============================================
+  // INVOICES - COMPREHENSIVE GUIDE
+  // ============================================
+
+  {
+    id: 'invoices-comprehensive',
+    category: 'invoices',
+    title: 'How to Create & Manage Invoices - Complete Guide',
+    subtitle: 'Master B2B invoicing, payments, and customer billing',
+    difficulty: 'intermediate',
+    estimatedTime: '20 minutes',
+    priority: 85,
+    description: 'Complete walkthrough of creating professional invoices, tracking payments, sharing with customers, and managing B2B sales with Nigerian business examples.',
+    content: `## Complete Guide to Invoices in Storehouse
+
+This comprehensive guide covers EVERY feature of the invoice system from creation to payment confirmation.
+
+---
+
+## What Are Invoices?
+
+**Invoices** are for B2B (business-to-business) sales where you need to:
+- Track payment over time (not instant payment)
+- Send professional documents to customers
+- Manage multiple line items with details
+- Monitor which invoices are paid/unpaid/overdue
+- Accept online payments via Paystack
+
+**Difference from Regular Sales:**
+- **Sales** = Instant POS transactions (cash, transfer, credit)
+- **Invoices** = Formal billing with payment tracking over time
+
+---
+
+## SECTION 1: Accessing Invoices
+
+### Navigate to Invoices Page
+
+1. Click **"Invoices"** in the sidebar (left menu)
+2. You'll see the Invoices Dashboard with:
+   - Summary cards (Total Invoices, Paid Amount, Pending Payment)
+   - Filter tabs (All, Draft, Sent, Partial, Overdue, Paid)
+   - Search bar
+   - Invoice table
+   - **"+ Create Invoice"** button (top right)
+
+---
+
+## SECTION 2: Creating a New Invoice
+
+### Step 1: Click "Create Invoice"
+
+Click the **"+ Create Invoice"** button on the Invoices page.
+
+The **Create Invoice** form opens with 4 sections:
+1. Customer Information
+2. Invoice Details
+3. Line Items
+4. Totals & Adjustments
+
+---
+
+### Step 2: Fill Customer Information
+
+**Required Fields:**
+- **Customer Name** (required): Full business or person name
+
+**At Least One Contact Required:**
+- **Email**: For emailing invoice
+- **Phone**: For WhatsApp/SMS sharing
+- You MUST provide email OR phone (or both)
+
+**Optional Fields:**
+- **Address**: Business address
+
+**Nigerian Example - Wholesaler Invoice:**
+Customer Name: Chioma Electronics Ltd
+Email: orders@chiomaelectronics.ng
+Phone: +234 803 456 7890
+Address: Shop 45, Computer Village, Ikeja, Lagos
+
+---
+
+### Step 3: Set Invoice Details
+
+**Issue Date:**
+- Defaults to today
+- Change if invoice was created earlier
+
+**Payment Terms:**
+- **Due on Receipt**: Payment required immediately
+- **Net 7 days**: Payment due in 7 days
+- **Net 15 days**: Payment due in 15 days (most common)
+- **Net 30 days**: Payment due in 30 days
+- **Net 60 days**: Payment due in 60 days
+- **Custom**: Set your own due date manually
+
+**Due Date:**
+- Auto-calculated based on Payment Terms
+- Can be changed manually
+- Shows red "Overdue" badge if payment is late
+
+**Nigerian Example:**
+Issue Date: 20 Nov 2025
+Payment Terms: Net 15 days
+Due Date: 5 Dec 2025 (auto-calculated)
+
+---
+
+### Step 4: Add Line Items
+
+**Each line item has:**
+1. **Item name** (required): Product/service sold
+2. **Description** (optional): Additional details
+3. **Quantity** (required): Number of units
+4. **Price** (required): Unit price in Naira
+5. **Total**: Auto-calculated (Quantity × Price)
+
+**Add More Items:**
+- Click **"+ Add Item"** to add another row
+- Minimum 1 item required
+- No maximum limit
+
+**Remove Items:**
+- Click trash icon to delete item
+- Cannot delete if only 1 item remains
+
+**Nigerian Example - Electronics Wholesale:**
+Item 1:
+  Name: Samsung 55" Smart TV
+  Description: Model UN55AU7000, 4K UHD
+  Quantity: 10
+  Price: ₦250,000
+  Total: ₦2,500,000
+
+Item 2:
+  Name: LG Inverter AC 1.5HP
+  Description: 1 year warranty included
+  Quantity: 5
+  Price: ₦180,000
+  Total: ₦900,000
+
+---
+
+### Step 5: Adjustments & Totals
+
+**Discount:**
+- Enter discount amount in Naira
+- Subtracted from subtotal before VAT
+
+**Tax/VAT:**
+- Toggle **"Include Tax"** checkbox
+- Default VAT rate: 7.5% (Nigeria standard)
+- Can change VAT percentage
+- VAT calculated AFTER discount
+
+**Totals Calculation:**
+1. **Subtotal** = Sum of all line items
+2. **After Discount** = Subtotal - Discount
+3. **VAT** = After Discount × VAT%
+4. **Total** = After Discount + VAT
+
+**Nigerian Example - Full Calculation:**
+Subtotal: ₦3,400,000
+Discount: ₦100,000
+After Discount: ₦3,300,000
+VAT (7.5%): ₦247,500
+**TOTAL: ₦3,547,500**
+
+---
+
+### Step 6: Notes & Terms (Optional)
+
+**Notes:**
+- Internal notes visible on invoice
+- Example: "Bulk order discount applied"
+
+**Terms & Conditions:**
+- Default: "Payment is due within the agreed terms..."
+- Customize with your policies:
+  - Late payment fees
+  - Return policy
+  - Warranty terms
+
+**Nigerian Example:**
+Notes: "10% discount for orders above ₦3M"
+
+Terms: "Payment due within 15 days. Late payments subject to 5% monthly interest. All sales final after delivery. 1-year manufacturer warranty applies."
+
+---
+
+### Step 7: Save as Draft or Send
+
+**Two Options:**
+
+**1. Save as Draft**
+- Invoice saved with status **"Draft"**
+- NOT sent to customer yet
+- You can edit before sending
+- Use for: preparing invoices, getting approvals
+
+**2. Mark as Sent**
+- Invoice saved with status **"Sent"**
+- Marks invoice as shared with customer
+- Customer should receive it
+- Due date tracking starts
+
+**Success:**
+- Redirects to Invoices page
+- Invoice appears in table
+- Auto-generated invoice number (e.g., **INV-001**)
+
+---
+
+## SECTION 3: Invoice Status System
+
+**Storehouse tracks 6 invoice statuses:**
+
+**1. Draft** (Gray)
+- Invoice created but not sent yet
+- No payment tracking
+- Can edit freely
+
+**2. Sent** (Blue)
+- Invoice shared with customer
+- Waiting for payment
+- Due date countdown active
+
+**3. Viewed** (Purple)
+- Customer opened the invoice link
+- They've seen it (coming soon feature)
+
+**4. Partial** (Orange)
+- Customer paid some amount
+- Balance still due
+- Shows: Paid ₦X, Balance ₦Y
+
+**5. Paid** (Green)
+- Fully paid
+- No balance due
+- Archive-ready
+
+**6. Overdue** (Red)
+- Due date passed
+- Payment not received
+- Auto-marked by system daily
+- Send payment reminders!
+
+---
+
+## SECTION 4: Viewing & Managing Invoices
+
+### Invoice List Dashboard
+
+**Summary Cards:**
+- **Total Invoices**: Count of all invoices
+- **Paid Amount**: Total money received
+- **Pending Payment**: Outstanding balance
+- **Overdue** (if any): Late payments
+
+**Filters:**
+- Click tabs: All | Draft | Sent | Partial | Overdue | Paid
+- Shows matching invoices only
+
+**Search:**
+- Type invoice number: "INV-001"
+- Type customer name: "Chioma"
+- Type email: "orders@"
+
+**Table Columns:**
+- Invoice #
+- Customer (name + email)
+- Issue Date
+- Due Date (with countdown/overdue days)
+- Amount (total)
+- Paid (amount paid)
+- Balance (remaining)
+- Status badge
+- Actions (View icon)
+
+---
+
+### Viewing Invoice Detail
+
+**Click any invoice row** to view full details.
+
+**Invoice Detail Page Shows:**
+
+**1. Company Branding** (top)
+- Your business name
+- Your phone, email
+- Professional header
+
+**2. Invoice Header**
+- Invoice number (INV-001)
+- Status badge
+- Issue date & Due date
+
+**3. Bill To Section**
+- Customer name
+- Email, phone, address
+
+**4. Line Items Table**
+- All products/services
+- Quantities, prices, totals
+
+**5. Totals Section**
+- Subtotal
+- Discount (if any)
+- VAT (if any)
+- **Grand Total**
+- **Amount Paid**
+- **Balance Due**
+
+**6. Payment History** (if payments recorded)
+- Date of each payment
+- Amount paid
+- Payment method
+- Reference number
+
+**7. Notes & Terms**
+- Your notes
+- Terms & conditions
+
+---
+
+## SECTION 5: Sharing Invoices with Customers
+
+**From Invoice Detail page:**
+
+**Share Invoice Section** (bottom left) offers 4 options:
+
+### 1. WhatsApp
+
+**Requirements:** Customer phone number must be set
+
+**Click "WhatsApp" button** → Opens WhatsApp with pre-filled message:
+
+📄 INVOICE INV-001
+
+Hello [Customer Name],
+
+Here's your invoice for recent purchase:
+
+💰 Amount: ₦3,547,500
+📅 Due Date: 5 December 2025
+
+View full invoice: [link]
+
+Thank you for your business! 🙏
+
+**If customer phone exists:**
+- Opens chat with that customer
+- Message pre-filled
+- Just click Send
+
+**If no phone:**
+- Opens WhatsApp contact picker
+- Choose recipient manually
+
+---
+
+### 2. Email
+
+**Requirements:** Customer email must be set
+
+**Click "Email" button** → Opens your email app with:
+
+**Subject:** Invoice INV-001 from [Your Name]
+
+**Body:** Formatted invoice details with link
+
+**You can:**
+- Edit message before sending
+- Add attachments
+- CC others
+
+---
+
+### 3. SMS
+
+**Requirements:** Customer phone must be set
+
+**Click "SMS" button** → Opens SMS app with:
+
+"Invoice INV-001: ₦3,547,500 due 5 Dec 2025. View: [link]"
+
+**Best for:**
+- Quick reminders
+- No internet customers
+- Follow-ups
+
+---
+
+### 4. Copy Link
+
+**Click "Copy Link"** → Invoice URL copied to clipboard
+
+**Share via:**
+- Paste in any chat app
+- Email manually
+- Social media
+- Anywhere you want
+
+**Link format:**
+https://storehouse.com/invoice/abc123
+
+**Customer can:**
+- View full invoice
+- See payment history
+- Pay online (if Paystack enabled)
+
+---
+
+## SECTION 6: Recording Payments
+
+### When Customer Pays
+
+**From Invoice Detail page:**
+
+1. Click **"Record Payment"** button (bottom right)
+
+**Payment Modal Opens** with fields:
+
+---
+
+### Payment Form Fields
+
+**1. Amount (₦)** (required)
+- Enter payment received
+- Can be partial (less than balance)
+- Cannot exceed balance due
+- Shows balance reminder below
+
+**Example:** Balance ₦3,547,500
+Enter: ₦2,000,000 (partial payment)
+
+**2. Payment Method** (required)
+- Cash
+- Bank Transfer
+- Card
+- Paystack (online payment)
+- POS
+- Cheque
+- Other
+
+**3. Reference** (optional)
+- Transaction ID
+- Cheque number
+- Transfer reference
+
+**Example:** TRF/2025/11/001234
+
+**4. Notes** (optional)
+- Additional info
+- Payment conditions
+
+**Example:** "First installment, balance in 7 days"
+
+---
+
+### Save Payment
+
+Click **"Record Payment"** button
+
+**What Happens:**
+1. Payment saved to invoice
+2. Amount Paid updated
+3. Balance Due recalculated
+4. Status updated automatically:
+   - If full payment → **Paid**
+   - If partial → **Partial**
+5. Payment appears in Payment History
+6. Invoice refreshes
+
+---
+
+### Multiple Payments Example
+
+**Nigerian Scenario - Installment Payments:**
+
+**Invoice Total:** ₦3,547,500
+**Due Date:** 5 Dec 2025
+
+**Payment 1 (25 Nov):**
+Amount: ₦1,500,000
+Method: Bank Transfer
+Reference: TRF/001
+Status: **Partial**
+
+**Payment 2 (2 Dec):**
+Amount: ₦2,047,500
+Method: Cash
+Reference: -
+Status: **Paid** ✅
+
+**Payment History Shows:**
+1. 2 Dec 2025 - Cash - ₦2,047,500
+2. 25 Nov 2025 - Transfer (TRF/001) - ₦1,500,000
+
+**Total Paid:** ₦3,547,500
+**Balance:** ₦0
+
+---
+
+## SECTION 7: Invoice Actions
+
+### Edit Invoice
+
+**Click "Edit" button** (top right on invoice detail)
+
+**You can change:**
+- Customer details
+- Due date
+- Payment terms
+- Notes
+- Terms & conditions
+
+**You CANNOT change:**
+- Invoice number (auto-generated)
+- Line items (after sent)
+- Issue date
+
+**Best Practice:**
+- Only edit Draft invoices freely
+- Edit Sent invoices carefully (customer may have original)
+
+---
+
+### Delete Invoice
+
+**Click "Delete" button** (top right)
+
+**Confirmation:** "Are you sure you want to delete invoice INV-001?"
+
+**When deleted:**
+- Invoice removed permanently
+- Cannot be recovered
+- Invoice number not reused
+
+**Warning:** Only delete by mistake. For cancelled invoices, mark as Cancelled instead.
+
+---
+
+### Mark as Sent
+
+**For Draft invoices:**
+
+**Click "Mark as Sent"** button
+
+**What happens:**
+- Status changes: Draft → Sent
+- Due date tracking starts
+- Overdue monitoring active
+
+---
+
+### Send Payment Reminder
+
+**For Overdue invoices:**
+
+**From Invoices List page:**
+- Overdue invoices show **Send** button
+- Click to send reminder
+
+**Reminder sent via:**
+- WhatsApp (if phone exists)
+- Email (if email exists)
+- SMS
+
+**Message:** "Payment reminder: Invoice INV-001 for ₦3,547,500 is X days overdue. Please settle."
+
+---
+
+## SECTION 8: Paystack Online Payments (Advanced)
+
+**Enable customers to pay online via card/transfer**
+
+**Requirements:**
+1. Paystack account
+2. Paystack secret key configured in Storehouse
+3. Customer email must be set
+
+**How It Works:**
+
+1. When creating invoice, **Generate Payment Link** option appears
+2. Click to create Paystack payment link
+3. Link added to invoice automatically
+4. When you share invoice (WhatsApp/Email), link included
+5. Customer clicks link → Paystack payment page
+6. Customer pays online
+7. Paystack notifies Storehouse
+8. Payment auto-recorded
+9. Invoice auto-marked as Paid
+
+**Benefits:**
+- Faster payments
+- No manual recording
+- Card payments accepted
+- Customer convenience
+- Payment confirmation automatic
+
+---
+
+## SECTION 9: Invoice Statuses Explained
+
+### Auto Status Updates
+
+Storehouse automatically updates invoice status based on:
+
+**1. Payment Amount:**
+- 0% paid → Sent/Draft
+- 1-99% paid → **Partial**
+- 100% paid → **Paid**
+
+**2. Due Date:**
+- If Sent/Partial and past due date → **Overdue**
+
+**3. Manual Actions:**
+- Mark as Sent → **Sent**
+- Record payment → **Partial** or **Paid**
+- Delete → Removed
+
+**Daily Cron Job:**
+- Runs at midnight
+- Checks all invoices
+- Marks overdue automatically
+
+---
+
+## SECTION 10: Real Nigerian Business Examples
+
+### Example 1: Construction Supplies B2B
+
+**Business:** Dangote Building Materials Dealer (Abuja)
+**Customer:** Metro Construction Ltd
+
+**Invoice:**
+Customer: Metro Construction Ltd
+Email: procurement@metroconstruction.ng
+Phone: +234 809 123 4567
+Address: Plot 234, Central Business District, Abuja
+
+Issue Date: 1 Dec 2025
+Payment Terms: Net 30
+Due Date: 31 Dec 2025
+
+**Items:**
+1. Dangote Cement (50kg) - 500 bags × ₦5,200 = ₦2,600,000
+2. Iron Rods (16mm) - 200 pieces × ₦3,500 = ₦700,000
+3. Binding Wire - 50 rolls × ₦2,800 = ₦140,000
+
+Subtotal: ₦3,440,000
+Discount: ₦40,000 (bulk discount)
+VAT (7.5%): ₦255,000
+**Total: ₦3,655,000**
+
+Terms: "Delivery within 3 days. Payment via transfer. 2% late fee after 30 days."
+
+**Payment Timeline:**
+- 15 Dec: ₦2,000,000 (Partial)
+- 28 Dec: ₦1,655,000 (Paid)
+
+---
+
+### Example 2: Fashion Wholesale
+
+**Business:** Balogun Market Fabrics (Lagos)
+**Customer:** Abuja Fashion Boutique
+
+**Invoice:**
+Customer: Treasure's Fashion Hub
+Email: treasurefashion@gmail.com
+Phone: +234 803 456 7890
+
+Issue Date: 10 Nov 2025
+Payment Terms: Net 15
+Due Date: 25 Nov 2025
+
+**Items:**
+1. Ankara Fabric (6 yards) - 50 pieces × ₦12,000 = ₦600,000
+2. Swiss Lace (5 yards) - 20 pieces × ₦25,000 = ₦500,000
+3. Senator Material - 30 pieces × ₦8,000 = ₦240,000
+
+Subtotal: ₦1,340,000
+No discount
+No VAT (not registered)
+**Total: ₦1,340,000**
+
+**Payment:**
+- 24 Nov: ₦1,340,000 via Bank Transfer (Paid on time!)
+
+---
+
+### Example 3: Food Supplies
+
+**Business:** Mama Cass Provisions (Ibadan)
+**Customer:** University Cafeteria
+
+**Invoice:**
+Customer: UI Student Cafeteria
+Email: cafeteria@ui.edu.ng
+Phone: +234 805 111 2222
+
+Issue Date: 5 Dec 2025
+Payment Terms: Net 7
+Due Date: 12 Dec 2025
+
+**Items:**
+1. Rice (50kg) - 10 bags × ₦45,000 = ₦450,000
+2. Vegetable Oil (25L) - 5 jerry cans × ₦32,000 = ₦160,000
+3. Tomato Paste (carton) - 20 cartons × ₦18,000 = ₦360,000
+4. Indomie (carton) - 30 cartons × ₦4,500 = ₦135,000
+
+Subtotal: ₦1,105,000
+Discount: ₦55,000
+VAT (7.5%): ₦78,750
+**Total: ₦1,128,750**
+
+**Payment:**
+- Not paid by 12 Dec → Status: **Overdue**
+- Send WhatsApp reminder
+- Paid 15 Dec: ₦1,128,750 (3 days late)
+
+---
+
+## SECTION 11: Troubleshooting & FAQs
+
+### "I can't find the Create Invoice button"
+
+**Solution:** Click **"Invoices"** in sidebar first. Button is top-right on Invoices page.
+
+---
+
+### "Invoice number keeps incrementing"
+
+**Expected behavior:** Each new invoice gets next number automatically (INV-001, INV-002, etc.). Cannot be changed.
+
+---
+
+### "Customer didn't receive invoice"
+
+**Check:**
+1. Customer email/phone correct?
+2. Did you click Share button?
+3. Check spam folder (for emails)
+4. WhatsApp message sent successfully?
+5. Try Copy Link and share manually
+
+---
+
+### "Can I edit invoice after sending?"
+
+**Yes, but be careful:**
+- Click Edit button on invoice detail
+- Changes won't update customer's copy
+- Best practice: Send updated invoice again
+
+---
+
+### "How do I cancel an invoice?"
+
+**Option 1:** Delete invoice (if never sent)
+**Option 2:** Keep invoice, add note "CANCELLED" in Notes field
+
+---
+
+### "Invoice shows wrong due date"
+
+**Fix:**
+1. Click Edit
+2. Change Payment Terms to "Custom"
+3. Set Due Date manually
+4. Save
+
+---
+
+### "Payment recorded but status still Overdue"
+
+**Reason:** Status checks:
+1. Payment amount
+2. Due date
+
+**If partial payment + past due → Still Overdue**
+**Only when fully paid → Paid**
+
+---
+
+### "Can I send invoice without email/phone?"
+
+**No.** You must provide:
+- Customer Email, OR
+- Customer Phone, OR
+- Both
+
+**Workaround:** Use Copy Link button, share link manually anywhere.
+
+---
+
+### "VAT not calculating"
+
+**Check:**
+1. Is "Include Tax" checkbox enabled?
+2. VAT percentage set? (default 7.5%)
+3. VAT calculated on: (Subtotal - Discount)
+
+---
+
+### "Where are my invoices stored?"
+
+**All invoices saved in:**
+- Invoices page → Table
+- Filter by status to find
+- Search by customer name/invoice number
+
+---
+
+## SECTION 12: Best Practices
+
+**1. Always Set Clear Payment Terms**
+- Net 15 is standard for most Nigerian businesses
+- Net 7 for regular customers
+- Net 30 for large corporate clients
+
+**2. Send Invoices Immediately**
+- Don't save as Draft unless reviewing
+- Faster invoices = faster payments
+
+**3. Follow Up on Overdue Invoices**
+- Check Overdue tab daily
+- Send WhatsApp reminders
+- Call customer if >7 days overdue
+
+**4. Record Payments Same Day**
+- Don't delay payment recording
+- Accurate balance tracking important
+- Builds customer trust
+
+**5. Use Professional Details**
+- Set your business name in Settings
+- Include contact info
+- Customize Terms & Conditions
+
+**6. Keep Notes for Records**
+- Document discount reasons
+- Note payment plans
+- Track special agreements
+
+**7. Review Payment History**
+- Check which customers pay on time
+- Identify slow payers
+- Adjust terms accordingly
+
+**8. Enable Paystack for Big Customers**
+- Corporate clients prefer card payment
+- Reduces collection time
+- Professional image
+
+---
+
+## Summary
+
+**Invoices in Storehouse help you:**
+✅ Create professional B2B invoices in 2 minutes
+✅ Track payments over time (partial, full)
+✅ Share via WhatsApp, Email, SMS, Link
+✅ Monitor due dates and overdue invoices
+✅ Accept online payments via Paystack
+✅ Auto-generate invoice numbers
+✅ Calculate VAT and discounts automatically
+✅ Maintain payment history
+✅ Send automated reminders
+
+**Next Steps:**
+1. Go to Invoices page
+2. Click "+ Create Invoice"
+3. Fill customer details
+4. Add line items
+5. Save as Sent
+6. Share invoice
+7. Record payment when received
+
+**Need Help?**
+- Review examples above
+- Check Troubleshooting section
+- Contact Storehouse support`,
+    steps: [
+      {
+        title: 'Access Invoices Page',
+        description: 'Click "Invoices" in sidebar',
+      },
+      {
+        title: 'Click Create Invoice',
+        description: 'Click "+ Create Invoice" button (top right)',
+      },
+      {
+        title: 'Fill Customer Information',
+        description: 'Enter customer name, email/phone, address',
+      },
+      {
+        title: 'Set Invoice Details',
+        description: 'Choose payment terms, issue date, due date',
+      },
+      {
+        title: 'Add Line Items',
+        description: 'Add products/services with quantities and prices',
+      },
+      {
+        title: 'Adjust Totals',
+        description: 'Add discount, enable VAT if needed',
+      },
+      {
+        title: 'Add Notes & Terms',
+        description: 'Optional notes and terms & conditions',
+      },
+      {
+        title: 'Save as Draft or Send',
+        description: 'Save Draft to edit later, or Mark as Sent',
+      },
+      {
+        title: 'Share Invoice',
+        description: 'Share via WhatsApp, Email, SMS, or Copy Link',
+      },
+      {
+        title: 'Record Payment',
+        description: 'Click Record Payment when customer pays',
+      },
+      {
+        title: 'Monitor Status',
+        description: 'Track Draft, Sent, Partial, Paid, Overdue statuses',
+      },
+      {
+        title: 'Send Reminders',
+        description: 'Send payment reminders for overdue invoices',
+      },
+    ],
+    relatedDocs: ['record-sale-comprehensive', 'manage-customers', 'payment-methods', 'business-settings'],
+    keywords: [
+      // Core invoice actions
+      'create invoice', 'new invoice', 'make invoice', 'invoice creation', 'how to invoice',
+      'send invoice', 'share invoice', 'invoice customer', 'b2b invoice', 'business invoice',
+
+      // Invoice fields & details
+      'invoice fields', 'invoice form', 'invoice number', 'invoice details',
+      'customer information', 'customer details', 'bill to', 'customer name', 'customer email',
+      'customer phone', 'customer address',
+
+      // Payment terms & dates
+      'payment terms', 'due date', 'issue date', 'net 15', 'net 30', 'net 7', 'due on receipt',
+      'when is payment due', 'payment deadline', 'invoice due date', 'change due date',
+
+      // Line items
+      'line items', 'invoice items', 'add items', 'add products to invoice', 'item description',
+      'quantity', 'unit price', 'item total', 'add more items', 'multiple items',
+
+      // Calculations & adjustments
+      'invoice total', 'calculate invoice', 'subtotal', 'discount', 'vat', 'tax',
+      'vat calculation', 'include tax', 'vat percentage', 'invoice discount',
+      'how total calculated', 'invoice math',
+
+      // Payment recording
+      'record payment', 'receive payment', 'customer paid', 'mark as paid', 'payment received',
+      'partial payment', 'installment', 'payment method', 'payment reference',
+      'payment history', 'payment tracking', 'confirm payment',
+
+      // Invoice status
+      'invoice status', 'draft invoice', 'sent invoice', 'paid invoice', 'overdue invoice',
+      'partial payment status', 'invoice paid', 'invoice unpaid', 'pending payment',
+      'overdue', 'late payment', 'past due',
+
+      // Sharing & sending
+      'send invoice whatsapp', 'email invoice', 'share invoice', 'sms invoice',
+      'copy invoice link', 'invoice link', 'send to customer', 'how to share invoice',
+      'invoice url', 'whatsapp invoice', 'email customer', 'invoice receipt',
+
+      // Viewing & managing
+      'view invoices', 'invoice list', 'find invoice', 'search invoice', 'invoice dashboard',
+      'filter invoices', 'all invoices', 'invoice table', 'invoice summary',
+      'paid amount', 'pending payment', 'total invoices',
+
+      // Editing & deleting
+      'edit invoice', 'update invoice', 'change invoice', 'modify invoice',
+      'delete invoice', 'remove invoice', 'cancel invoice',
+
+      // Reminders & follow-up
+      'payment reminder', 'send reminder', 'follow up', 'overdue reminder',
+      'chase payment', 'remind customer',
+
+      // Online payments
+      'paystack', 'online payment', 'payment link', 'card payment', 'pay online',
+      'accept cards', 'payment gateway', 'online invoice payment',
+
+      // Invoice numbers & formatting
+      'invoice number', 'inv number', 'auto invoice number', 'invoice format',
+      'invoice template', 'professional invoice', 'business name on invoice',
+
+      // Customer management
+      'customer invoice', 'customer history', 'customer payments', 'customer account',
+      'repeat customer', 'customer balance',
+
+      // B2B & wholesale
+      'b2b sales', 'wholesale invoice', 'bulk order', 'corporate invoice',
+      'business to business', 'supplier invoice', 'distributor invoice',
+
+      // Terms & conditions
+      'invoice terms', 'terms and conditions', 'payment terms', 'late fee',
+      'invoice notes', 'invoice terms', 'payment conditions',
+
+      // Troubleshooting
+      'invoice not sending', 'invoice not found', 'cant create invoice',
+      'invoice error', 'invoice wont save', 'customer didnt receive',
+      'vat not calculating', 'wrong due date', 'cant delete invoice',
+
+      // Nigerian context
+      'nigerian invoice', 'naira invoice', 'lagos invoice', 'abuja business',
+      'wholesale nigeria', 'b2b nigeria', 'vat nigeria', 'payment terms nigeria',
+    ],
+    lastUpdated: '2025-12-10',
+  },
+
   {
     id: 'edit-product',
     category: 'products',
