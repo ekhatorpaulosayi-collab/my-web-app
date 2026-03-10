@@ -1170,6 +1170,7 @@ export default function RecordSaleModalV2({
           </div>
         </div>
       </div>
+      )}
 
       {/* Cart Drawer Overlay */}
       {cartDrawerOpen && (
@@ -1292,7 +1293,6 @@ export default function RecordSaleModalV2({
             </button>
           </div>
         </div>
-      )}
       )}
 
       {/* Receipt Options Modal - Always render if we have receipt data, regardless of parent isOpen */}
