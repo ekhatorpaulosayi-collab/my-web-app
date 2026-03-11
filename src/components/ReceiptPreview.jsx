@@ -110,18 +110,6 @@ const ReceiptPreview = ({ sale, business = {} }) => {
   const [charCount, setCharCount] = useState(0);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Calculate totals BEFORE using them in callbacks
-  const items = sale.items || [{
-    name: sale.itemName,
-    qty: sale.qty,
-    unitKobo: sale.sellKobo
-  }];
-
-  const subtotal = (sale.sellKobo || 0) * (sale.qty || 0);
-  const discount = sale.discountKobo || 0;
-  const vat = sale.vatKobo || 0;
-  const total = subtotal - discount + vat;
-
   // Load note from localStorage on mount
   useEffect(() => {
     const savedNote = localStorage.getItem(noteKey) || '';
