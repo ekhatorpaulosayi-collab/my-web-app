@@ -1136,21 +1136,49 @@ export default function RecordSaleModalV2({
             onClick={() => cart.length > 0 && setCartDrawerOpen(true)}
             role={cart.length > 0 ? "button" : undefined}
             tabIndex={cart.length > 0 ? 0 : undefined}
+            style={{
+              position: 'sticky',
+              bottom: '70px',
+              left: 0,
+              right: 0,
+              zIndex: 50,
+              backgroundColor: '#f9fafb',
+              padding: '12px 16px',
+              borderTop: '1px solid #e5e7eb',
+              cursor: cart.length > 0 ? 'pointer' : 'default'
+            }}
           >
-            <div className="rs-cart-summary">
-              <div className="rs-cart-icon">🛒</div>
-              <div className="rs-cart-info">
-                <div className="rs-cart-count">
-                  {cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}
+            <div className="rs-cart-summary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="rs-cart-icon">🛒</div>
+                <div className="rs-cart-info">
+                  <div className="rs-cart-count" style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+                    {cartTotals.itemCount} {cartTotals.itemCount === 1 ? 'item' : 'items'}
+                  </div>
+                  <div className="rs-cart-total" style={{ fontSize: '12px', color: '#6b7280' }}>{formatNGN(cartTotals.totalAmount)}</div>
                 </div>
-                <div className="rs-cart-total">{formatNGN(cartTotals.totalAmount)}</div>
               </div>
+              {cart.length > 0 && <div style={{ opacity: 0.8, fontSize: '12px' }}>View →</div>}
             </div>
-            {cart.length > 0 && <div style={{ opacity: 0.8, fontSize: '12px' }}>View →</div>}
           </div>
 
           {/* Footer */}
-          <div className="rs-footer">
+          <div
+            className="rs-footer"
+            style={{
+              position: 'sticky',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 100,
+              backgroundColor: '#ffffff',
+              padding: '16px',
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center'
+            }}
+          >
             <button
               type="button"
               className="rs-primary"
@@ -1161,10 +1189,34 @@ export default function RecordSaleModalV2({
                 cart.length === 0 ||
                 (isCredit && (!customerName.trim() || !dueDate))
               }
+              style={{
+                flex: 1,
+                padding: '14px 24px',
+                backgroundColor: cart.length > 0 && !isProcessing && !collectingPayment ? '#2563eb' : '#9ca3af',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: 600,
+                cursor: cart.length > 0 && !isProcessing && !collectingPayment ? 'pointer' : 'not-allowed'
+              }}
             >
               {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cart.length})`}
             </button>
-            <button type="button" className="rs-link" onClick={onClose} disabled={isProcessing}>
+            <button
+              type="button"
+              className="rs-link"
+              onClick={onClose}
+              disabled={isProcessing}
+              style={{
+                padding: '14px 24px',
+                backgroundColor: 'transparent',
+                color: '#6b7280',
+                border: 'none',
+                fontSize: '16px',
+                cursor: isProcessing ? 'not-allowed' : 'pointer'
+              }}
+            >
               Cancel
             </button>
           </div>
