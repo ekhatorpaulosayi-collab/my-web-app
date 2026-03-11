@@ -479,7 +479,9 @@ function StaffCard({
             alignItems: 'center',
             gap: '6px',
             fontSize: '13px',
-            color: member.is_active ? '#991B1B' : '#065F46'
+            color: member.is_active ? '#991B1B' : '#065F46',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent'
           }}
         >
           {member.is_active ? (
