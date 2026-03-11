@@ -1,53 +1,23 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 // MIGRATION: Using Supabase auth
 import { signUp } from '../lib/authService-supabase';
-import { validateReferralCode, claimReferralCode } from '../services/referralService';
 import { checkSignupRateLimit, recordSignupAttempt, getRateLimitMessage } from '../utils/rateLimiter';
-import { setAffiliateCookie, getAffiliateCookie, trackAffiliateClick, recordAffiliateSignup } from '../services/affiliateService';
 import '../styles/Auth.css';
 
 export default function Signup() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
-    storeName: '',
     email: '',
-    password: '',
-    confirmPassword: '',
-    referralCode: ''
+    password: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
-  const [referralCodeValid, setReferralCodeValid] = useState(null);
-  const [validatingReferral, setValidatingReferral] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Check for referral code in URL on mount
-  useEffect(() => {
-    const refCode = searchParams.get('ref');
-    if (refCode) {
-      setFormData(prev => ({ ...prev, referralCode: refCode.toUpperCase() }));
-      // Validate the code from URL
-      validateReferralCodeAsync(refCode);
-
-      // Track affiliate click and set cookie (30-day attribution)
-      const affiliateCode = refCode.toUpperCase();
-      setAffiliateCookie(affiliateCode);
-
-      // Track the click asynchronously
-      trackAffiliateClick(affiliateCode, {
-        referrer: document.referrer,
-        device: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop'
-      }).catch(err => {
-        console.error('[Signup] Failed to track affiliate click:', err);
-        // Don't block user experience
-      });
-    }
-  }, [searchParams]);
+  // Referral/affiliate tracking removed for simplified signup
 
   const handleChange = (e) => {
     setFormData(prev => ({
@@ -58,74 +28,31 @@ export default function Signup() {
     if (error) setError('');
   };
 
-  // Validate referral code with debounce
-  const validateReferralCodeAsync = async (code) => {
-    if (!code || code.trim().length < 3) {
-      setReferralCodeValid(null);
-      return;
-    }
-
-    setValidatingReferral(true);
-    try {
-      const isValid = await validateReferralCode(code);
-      setReferralCodeValid(isValid);
-    } catch (error) {
-      console.error('Error validating referral code:', error);
-      setReferralCodeValid(false);
-    } finally {
-      setValidatingReferral(false);
-    }
-  };
-
-  const handleReferralCodeChange = (e) => {
-    const value = e.target.value.toUpperCase();
-    setFormData(prev => ({ ...prev, referralCode: value }));
-    setReferralCodeValid(null);
-
-    // Debounce validation
-    if (value.trim().length >= 3) {
-      const timer = setTimeout(() => {
-        validateReferralCodeAsync(value);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  };
+  // Referral code functions removed for simplified signup
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     // Trim and normalize inputs
-    const storeName = formData.storeName.trim();
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
 
     // Validation
-    if (!storeName) {
-      setError('Please enter your store name');
-      return;
-    }
-
     if (!email) {
       setError('Please enter your email');
       return;
     }
 
-    // Basic email validation (more lenient than HTML5)
+    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address (e.g., you@example.com)');
+      setError('Please enter a valid email address');
       return;
     }
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
-      return;
-    }
-
-    // Check if passwords match
-    if (password !== formData.confirmPassword) {
-      setError('Passwords do not match');
       return;
     }
 
@@ -141,40 +68,13 @@ export default function Signup() {
       console.debug('[Signup] Attempting signup:', email);
       console.debug('[Signup] Rate limit remaining:', rateLimit.remaining - 1);
 
-      const result = await signUp(email, password, storeName);
+      // No storeName or storeType - authService will generate defaults
+      const result = await signUp(email, password);
 
       // Record successful signup attempt for rate limiting
       recordSignupAttempt(email);
 
       console.debug('[Signup] Signup successful');
-
-      // If referral code provided, claim it
-      if (formData.referralCode && referralCodeValid && result.user) {
-        try {
-          await claimReferralCode(
-            formData.referralCode,
-            result.user.uid,
-            email,
-            storeName
-          );
-          console.debug('[Signup] Referral code claimed successfully');
-        } catch (refError) {
-          console.error('[Signup] Failed to claim referral code:', refError);
-          // Don't block signup if referral fails
-        }
-      }
-
-      // Track affiliate signup (check cookie for 30-day attribution)
-      const affiliateCookie = getAffiliateCookie();
-      if (affiliateCookie && result.user) {
-        try {
-          await recordAffiliateSignup(result.user.uid, affiliateCookie);
-          console.debug('[Signup] Affiliate signup recorded:', affiliateCookie);
-        } catch (affError) {
-          console.error('[Signup] Failed to record affiliate signup:', affError);
-          // Don't block signup if affiliate tracking fails
-        }
-      }
 
       // Check if email confirmation is needed
       if (result.needsEmailConfirmation) {
@@ -305,38 +205,21 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label htmlFor="storeName" className="form-label">
-              Store Name *
-            </label>
-            <input
-              id="storeName"
-              name="storeName"
-              type="text"
-              value={formData.storeName}
-              onChange={handleChange}
-              className="form-input"
-              placeholder="My Amazing Store"
-              required
-              maxLength={50}
-              disabled={loading}
-              autoFocus
-            />
-          </div>
-
-          <div className="form-group">
             <label htmlFor="email" className="form-label">
               Email Address *
             </label>
             <input
               id="email"
               name="email"
-              type="text"
+              type="email"
               autoComplete="email"
               value={formData.email}
               onChange={handleChange}
               className="form-input"
               placeholder="you@example.com"
+              required
               disabled={loading}
+              autoFocus
             />
           </div>
 
@@ -383,145 +266,6 @@ export default function Signup() {
               </button>
             </div>
             <p className="form-hint">Minimum 6 characters</p>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="confirmPassword" className="form-label">
-              Confirm Password *
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type={showConfirmPassword ? "text" : "password"}
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="form-input"
-                placeholder="••••••••"
-                required
-                minLength={6}
-                disabled={loading}
-                style={{
-                  paddingRight: '45px',
-                  ...(formData.confirmPassword && formData.password !== formData.confirmPassword && {
-                    borderColor: '#ef4444',
-                    background: '#fef2f2'
-                  }),
-                  ...(formData.confirmPassword && formData.password === formData.confirmPassword && formData.confirmPassword.length >= 6 && {
-                    borderColor: '#10b981',
-                    background: '#f0fdf4'
-                  })
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  fontSize: '18px',
-                  color: '#64748b',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                tabIndex={-1}
-              >
-                {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
-              </button>
-            </div>
-            {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-              <p className="form-hint" style={{ color: '#ef4444', marginTop: '6px' }}>
-                Passwords do not match
-              </p>
-            )}
-            {formData.confirmPassword && formData.password === formData.confirmPassword && formData.confirmPassword.length >= 6 && (
-              <p className="form-hint" style={{ color: '#10b981', marginTop: '6px' }}>
-                ✓ Passwords match
-              </p>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="referralCode" className="form-label">
-              Referral Code (Optional)
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                id="referralCode"
-                name="referralCode"
-                type="text"
-                value={formData.referralCode}
-                onChange={handleReferralCodeChange}
-                className="form-input"
-                placeholder="Enter code from a friend"
-                disabled={loading}
-                maxLength={20}
-                style={{
-                  paddingRight: '40px',
-                  ...(referralCodeValid === true && {
-                    borderColor: '#10b981',
-                    background: '#f0fdf4'
-                  }),
-                  ...(referralCodeValid === false && {
-                    borderColor: '#ef4444',
-                    background: '#fef2f2'
-                  })
-                }}
-              />
-              {validatingReferral && (
-                <span style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  fontSize: '14px'
-                }}>
-                  ⏳
-                </span>
-              )}
-              {!validatingReferral && referralCodeValid === true && (
-                <span style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  fontSize: '18px',
-                  color: '#10b981'
-                }}>
-                  ✓
-                </span>
-              )}
-              {!validatingReferral && referralCodeValid === false && formData.referralCode.length >= 3 && (
-                <span style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  fontSize: '18px',
-                  color: '#ef4444'
-                }}>
-                  ✗
-                </span>
-              )}
-            </div>
-            {referralCodeValid === true && (
-              <p className="form-hint" style={{ color: '#10b981', marginTop: '6px' }}>
-                ✓ Valid code! You'll both earn rewards
-              </p>
-            )}
-            {referralCodeValid === false && formData.referralCode.length >= 3 && (
-              <p className="form-hint" style={{ color: '#ef4444', marginTop: '6px' }}>
-                Invalid referral code
-              </p>
-            )}
           </div>
 
           <button

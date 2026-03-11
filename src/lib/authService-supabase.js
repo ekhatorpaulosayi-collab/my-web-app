@@ -10,9 +10,16 @@ import { logError } from '../utils/errorMonitoring';
  * Sign up a new user with email and password
  * Creates user profile in stores table
  */
-export async function signUp(email, password, storeName) {
+export async function signUp(email, password, storeName = null, storeType = null) {
   try {
     console.debug('[Auth] Signing up user:', email);
+
+    // Generate default store name from email if not provided
+    const emailPrefix = email.split('@')[0];
+    const defaultStoreName = storeName || (emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) + "'s Store");
+    const defaultStoreType = storeType || 'general';
+
+    console.debug('[Auth] Using store name:', defaultStoreName, 'type:', defaultStoreType);
 
     // Create user in Supabase Auth
     const { data, error } = await supabase.auth.signUp({
@@ -53,7 +60,8 @@ export async function signUp(email, password, storeName) {
           id: user.id, // Use same ID as auth.users
           email: user.email,
           phone_number: user.phone || user.email, // Use email as fallback if phone not provided
-          business_name: storeName,
+          business_name: defaultStoreName,
+          store_type: defaultStoreType,
           device_type: 'web',
           is_active: true,
           created_at: new Date().toISOString(),
@@ -80,8 +88,8 @@ export async function signUp(email, password, storeName) {
         // Step 2: Create store profile in stores table
         const storeProfile = {
           user_id: user.id,
-          business_name: storeName,
-          store_slug: generateSlug(storeName, user.id),
+          business_name: defaultStoreName,
+          store_slug: generateSlug(defaultStoreName, user.id),
           whatsapp_number: user.phone || user.email || 'pending', // Required field
           is_public: false, // Default to private
           created_at: new Date().toISOString(),
@@ -185,9 +193,21 @@ export async function signIn(email, password) {
       });
     }
 
+    // Fetch user record to get store_type
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('store_type')
+      .eq('id', user.id)
+      .single();
+
+    if (userError) {
+      console.debug('[Auth] User record not found:', userError);
+    }
+
     const profile = storeData ? {
       storeName: storeData.business_name,
       email: user.email,
+      storeType: userData?.store_type || null,
     } : null;
 
     console.debug('[Auth] User profile loaded');
@@ -271,25 +291,38 @@ export async function logOut() {
 }
 
 /**
- * Get current user profile from stores table
+ * Get current user profile from stores table and users table
  */
 export async function getUserProfile(uid) {
   try {
-    const { data, error } = await supabase
+    // Fetch from stores table
+    const { data: storeData, error: storeError } = await supabase
       .from('stores')
       .select('*')
       .eq('user_id', uid)
       .single();
 
-    if (error) {
+    if (storeError) {
       console.debug('[Auth] No store profile found for user:', uid);
-      return null;
     }
 
+    // Fetch from users table to get store_type
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('store_type')
+      .eq('id', uid)
+      .single();
+
+    if (userError) {
+      console.debug('[Auth] No user record found for user:', uid);
+    }
+
+    // Return combined profile
     return {
-      storeName: data.business_name,
-      slug: data.store_slug,
-      isPublic: data.is_public,
+      storeName: storeData?.business_name || null,
+      slug: storeData?.store_slug || null,
+      isPublic: storeData?.is_public || false,
+      storeType: userData?.store_type || null,
     };
   } catch (error) {
     console.error('[Auth] Error fetching user profile:', error);
