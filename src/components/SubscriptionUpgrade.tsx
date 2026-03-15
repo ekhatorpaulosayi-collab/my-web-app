@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Check, X, Loader2, CreditCard } from 'lucide-react';
+import { Check, X, Loader2, CreditCard, XCircle } from 'lucide-react';
 
 interface SubscriptionTier {
   id: string;
@@ -30,6 +30,8 @@ interface UserSubscription {
   tier_name: string;
   status: string;
   billing_cycle: string;
+  payment_reference: string | null;
+  payment_provider: string | null;
 }
 
 declare global {
@@ -45,6 +47,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [paystackPublicKey, setPaystackPublicKey] = useState<string>('');
 
   useEffect(() => {
@@ -52,15 +55,41 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
     loadPaystackScript();
   }, [currentUser]);
 
-  const loadPaystackScript = () => {
-    // Load Paystack inline script
-    if (!document.getElementById('paystack-script')) {
+  const loadPaystackScript = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      // Check if script already loaded and PaystackPop is available
+      if (window.PaystackPop) {
+        resolve();
+        return;
+      }
+
+      // Check if script tag exists
+      const existingScript = document.getElementById('paystack-script');
+      if (existingScript) {
+        // Script exists but PaystackPop not ready yet, wait for it
+        existingScript.addEventListener('load', () => resolve());
+        existingScript.addEventListener('error', () => reject(new Error('Failed to load Paystack script')));
+        return;
+      }
+
+      // Create new script
       const script = document.createElement('script');
       script.id = 'paystack-script';
       script.src = 'https://js.paystack.co/v1/inline.js';
       script.async = true;
+
+      script.onload = () => {
+        console.log('[SubscriptionUpgrade] Paystack script loaded successfully');
+        resolve();
+      };
+
+      script.onerror = () => {
+        console.error('[SubscriptionUpgrade] Failed to load Paystack script');
+        reject(new Error('Failed to load Paystack script'));
+      };
+
       document.body.appendChild(script);
-    }
+    });
   };
 
   const loadData = async () => {
@@ -94,23 +123,134 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           tier_id,
           status,
           billing_cycle,
+          payment_reference,
+          payment_provider,
           subscription_tiers (name)
         `)
         .eq('user_id', currentUser.uid)
         .single();
 
-      if (!subError && subData) {
-        setCurrentSubscription({
-          tier_id: subData.tier_id,
-          tier_name: (subData.subscription_tiers as any)?.name || '',
-          status: subData.status,
-          billing_cycle: subData.billing_cycle
-        });
+      if (subError) {
+        // Log the error but don't block - user might not have subscription yet
+        console.warn('[SubscriptionUpgrade] Could not load current subscription:', subError);
+        console.warn('[SubscriptionUpgrade] User may not have a subscription record yet');
+        setCurrentSubscription(null);
+      } else if (subData) {
+        // Only set current subscription if it's active
+        if (subData.status === 'active') {
+          setCurrentSubscription({
+            tier_id: subData.tier_id,
+            tier_name: (subData.subscription_tiers as any)?.name || '',
+            status: subData.status,
+            billing_cycle: subData.billing_cycle,
+            payment_reference: subData.payment_reference,
+            payment_provider: subData.payment_provider
+          });
+          console.log('[SubscriptionUpgrade] Active subscription loaded:', subData);
+        } else {
+          // Subscription exists but is not active (cancelled, expired, etc.)
+          console.log('[SubscriptionUpgrade] Found subscription with status:', subData.status);
+          setCurrentSubscription(null);
+        }
+      } else {
+        // No subscription data
+        setCurrentSubscription(null);
       }
     } catch (error) {
       console.error('[SubscriptionUpgrade] Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!currentSubscription) {
+      alert('No active subscription to cancel');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to cancel your ${currentSubscription.tier_name} subscription? You will lose access to premium features.`)) {
+      return;
+    }
+
+    setCancelling(true);
+
+    try {
+      console.log('[SubscriptionUpgrade] Cancelling subscription...');
+      console.log('[SubscriptionUpgrade] Provider:', currentSubscription.payment_provider);
+      console.log('[SubscriptionUpgrade] Reference:', currentSubscription.payment_reference);
+
+      // Check if this is a Paystack subscription
+      if (currentSubscription.payment_provider === 'paystack' && currentSubscription.payment_reference) {
+        // Paystack subscription - try to cancel via API, but if it fails (already cancelled), just update database
+        console.log('[SubscriptionUpgrade] Cancelling Paystack subscription via API');
+
+        try {
+          // Get auth session
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            throw new Error('Not authenticated');
+          }
+
+          // Call Edge Function to cancel subscription
+          const response = await fetch(
+            `${supabase.supabaseUrl}/functions/v1/manage-subscription`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                action: 'cancel',
+                subscriptionCode: currentSubscription.payment_reference
+              })
+            }
+          );
+
+          const result = await response.json();
+
+          if (result.success) {
+            console.log('[SubscriptionUpgrade] Paystack subscription cancelled:', result);
+          } else {
+            console.log('[SubscriptionUpgrade] Paystack cancel failed (might be already cancelled):', result.error);
+          }
+        } catch (paystackError) {
+          console.log('[SubscriptionUpgrade] Paystack API error (might be already cancelled):', paystackError);
+        }
+      }
+
+      // Always update database regardless of Paystack result
+      console.log('[SubscriptionUpgrade] Updating database to mark as cancelled');
+
+      const { error: updateError } = await supabase
+        .from('user_subscriptions')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', currentUser!.uid);
+
+      if (updateError) {
+        throw new Error(`Failed to update subscription: ${updateError.message}`);
+      }
+
+      console.log('[SubscriptionUpgrade] Subscription marked as cancelled in database');
+
+      // Immediately clear current subscription state
+      setCurrentSubscription(null);
+
+      alert('✅ Subscription cancelled successfully. You can now subscribe to a different plan.');
+
+      // Reload subscription data to get updated status
+      await loadData();
+    } catch (error) {
+      console.error('[SubscriptionUpgrade] Cancel error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to cancel subscription: ${errorMessage}`);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -132,6 +272,78 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
     setUpgrading(tier.id);
 
     try {
+      // Get session for API calls
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+      const accessToken = session.access_token;
+      // Check if user has a cancelled subscription - need to create fresh
+      if (currentSubscription && currentSubscription.status === 'cancelled') {
+        console.log('[SubscriptionUpgrade] User has cancelled subscription, creating fresh subscription');
+
+        // Delete the old cancelled subscription record so we can create a new one
+        const { error: deleteError } = await supabase
+          .from('user_subscriptions')
+          .delete()
+          .eq('user_id', currentUser.uid);
+
+        if (deleteError) {
+          console.error('[SubscriptionUpgrade] Failed to delete old subscription:', deleteError);
+        } else {
+          console.log('[SubscriptionUpgrade] Deleted old cancelled subscription');
+          // Clear local state
+          setCurrentSubscription(null);
+        }
+      }
+
+      // Check if user already has an active subscription (excluding Free tier)
+      if (currentSubscription && currentSubscription.status === 'active') {
+        console.log('[SubscriptionUpgrade] User has active subscription');
+        console.log('[SubscriptionUpgrade] Current:', currentSubscription.tier_name, currentSubscription.billing_cycle);
+        console.log('[SubscriptionUpgrade] New:', tier.name, billingCycle);
+
+        // Allow upgrades FROM Free tier
+        if (currentSubscription.tier_name.toLowerCase() === 'free') {
+          console.log('[SubscriptionUpgrade] Upgrading from FREE tier - allowed');
+          // Delete the free tier subscription before continuing
+          await supabase
+            .from('user_subscriptions')
+            .delete()
+            .eq('user_id', currentUser.uid)
+            .eq('tier_id', currentSubscription.tier_id);
+
+          console.log('[SubscriptionUpgrade] Deleted FREE tier subscription');
+        } else if (currentSubscription.tier_name.toLowerCase() === tier.name.toLowerCase()) {
+          // Same tier - don't allow
+          alert('⚠️ You are already subscribed to this plan.');
+          setUpgrading(null);
+          return;
+        } else {
+          // Different paid plan - require cancellation first
+          alert('⚠️ You already have an active subscription. Please cancel it first before subscribing to a new plan.');
+          setUpgrading(null);
+          return;
+        }
+      }
+
+      // Ensure Paystack script is loaded
+      console.log('[SubscriptionUpgrade] Ensuring Paystack script is loaded...');
+      await loadPaystackScript();
+
+      // Double-check PaystackPop is available
+      if (!window.PaystackPop) {
+        throw new Error('Paystack script loaded but PaystackPop is not available');
+      }
+
+      console.log('[SubscriptionUpgrade] Initializing payment for tier:', tier.name);
+      console.log('[SubscriptionUpgrade] Plan code:', planCode);
+      console.log('[SubscriptionUpgrade] User email:', currentUser.email);
+
+      // Store the tier info for later use in onClose
+      const paymentTier = tier;
+      const paymentBillingCycle = billingCycle;
+
       // Initialize Paystack subscription
       const handler = window.PaystackPop.setup({
         key: paystackPublicKey,
@@ -144,32 +356,165 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           tier_name: tier.name,
           billing_cycle: billingCycle
         },
-        onSuccess: (response: any) => {
-          console.log('[SubscriptionUpgrade] Payment successful:', response);
-          alert(`🎉 Welcome to ${tier.name}! Your subscription is now active.`);
+        onSuccess: async function(reference: any) {
+          console.log('[SubscriptionUpgrade] ========================================');
+          console.log('[SubscriptionUpgrade] ✅ PAYMENT SUCCESS CALLBACK FIRED');
+          console.log('[SubscriptionUpgrade] Transaction reference:', reference);
+          console.log('[SubscriptionUpgrade] Full reference object:', JSON.stringify(reference, null, 2));
+          console.log('[SubscriptionUpgrade] ========================================');
 
-          // Refresh subscription data
-          loadData();
+          try {
+            // Clear the backup polling since payment succeeded
+            if (backupCheckInterval) {
+              clearInterval(backupCheckInterval);
+            }
 
-          if (onClose) {
-            onClose();
+            // Step 1: Verify the transaction and create subscription
+            console.log('[SubscriptionUpgrade] 🔄 Verifying transaction with Paystack...');
+
+            // Extract the actual reference string
+            const transactionRef = reference.reference || reference.trxref || reference;
+
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+              'verify-transaction',
+              {
+                body: {
+                  reference: transactionRef,
+                  planCode
+                },
+                headers: {
+                  Authorization: `Bearer ${accessToken}`
+                }
+              }
+            );
+
+            if (verifyError) {
+              console.error('[SubscriptionUpgrade] ❌ Transaction verification failed:', verifyError);
+              throw new Error('Failed to verify transaction');
+            }
+
+            if (!verifyData?.success) {
+              console.error('[SubscriptionUpgrade] ❌ Transaction verification failed:', verifyData?.error);
+              throw new Error(verifyData?.error || 'Failed to verify transaction');
+            }
+
+            console.log('[SubscriptionUpgrade] ✅ Transaction verified and subscription created!');
+            console.log('[SubscriptionUpgrade] Subscription data:', verifyData.data);
+
+            // Step 2: Show success and reload
+            setUpgrading(null);
+            alert(`🎉 Welcome to ${verifyData.data.tier_name}! Your subscription is now active.`);
+
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          } catch (error) {
+            console.error('[SubscriptionUpgrade] ❌ Error in onSuccess:', error);
+            setUpgrading(null);
+            alert(`⚠️ Payment received but activation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please refresh the page.`);
           }
-
-          // Reload page to apply new tier
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
         },
-        onClose: () => {
-          console.log('[SubscriptionUpgrade] Payment cancelled');
-          setUpgrading(null);
+        onClose: function() {
+          console.log('[SubscriptionUpgrade] ========================================');
+          console.log('[SubscriptionUpgrade] 🚪 POPUP CLOSED');
+          console.log('[SubscriptionUpgrade] Note: onSuccess callback did not fire yet');
+          console.log('[SubscriptionUpgrade] This could mean:');
+          console.log('[SubscriptionUpgrade] 1. User cancelled the payment');
+          console.log('[SubscriptionUpgrade] 2. Payment is still processing');
+          console.log('[SubscriptionUpgrade] 3. Test mode issue with callbacks');
+          console.log('[SubscriptionUpgrade] ========================================');
+
+          // DO NOT automatically verify/activate subscription here!
+          // onClose fires even when user cancels payment
+          // Only the backup polling should check for actual payment completion
+
+          console.log('[SubscriptionUpgrade] Backup polling will continue checking for payment...');
+
+          // Clear the upgrading state after a delay if payment wasn't completed
+          setTimeout(() => {
+            // Check if still upgrading (backup polling hasn't found a payment)
+            if (upgrading === tier.id) {
+              console.log('[SubscriptionUpgrade] No payment detected after popup close, clearing state');
+              setUpgrading(null);
+            }
+          }, 30000); // Wait 30 seconds before giving up
         }
       });
 
-      handler.openIframe();
+      console.log('[SubscriptionUpgrade] Handler created, opening iframe...');
+
+      // Declare backupCheckInterval before using it
+      let backupCheckInterval: any = null;
+
+      // Set a backup check that tries subscription verification first, then transaction verification
+      let checkCount = 0;
+      const maxChecks = 24; // Check for 2 minutes (every 5 seconds)
+      let lastTransactionRef: string | null = null;
+
+      backupCheckInterval = setInterval(async () => {
+        checkCount++;
+        console.log(`[SubscriptionUpgrade] Backup check ${checkCount}/${maxChecks} - Checking for payment...`);
+
+        try {
+          // First try subscription verification (for recurring payments)
+          const response = await fetch(`${supabase.supabaseUrl}/functions/v1/verify-subscription`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              customerEmail: currentUser.email,
+              planCode: planCode
+            })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            console.log('[SubscriptionUpgrade] ✅ BACKUP CHECK: Subscription verified and synced!', result.data);
+            clearInterval(backupCheckInterval);
+            setUpgrading(null);
+            alert(`🎉 Welcome to ${result.data.tier_name}! Your subscription is now active.`);
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          } else if (checkCount >= maxChecks) {
+            console.log('[SubscriptionUpgrade] ❌ BACKUP CHECK: Timeout - no payment found after 2 minutes');
+            console.log('[SubscriptionUpgrade] Last error:', result.error);
+            clearInterval(backupCheckInterval);
+            setUpgrading(null);
+            alert('⚠️ No payment detected. If you completed payment, please refresh the page or contact support.');
+          } else {
+            console.log('[SubscriptionUpgrade] No subscription found yet, will retry...');
+          }
+        } catch (error) {
+          console.error('[SubscriptionUpgrade] Backup check error:', error);
+          if (checkCount >= maxChecks) {
+            clearInterval(backupCheckInterval);
+            setUpgrading(null);
+            alert('⚠️ Payment status unclear. Please refresh the page to check your subscription.');
+          }
+        }
+      }, 5000); // Check every 5 seconds
+
+      // Small delay to ensure handler is ready
+      setTimeout(() => {
+        try {
+          handler.openIframe();
+          console.log('[SubscriptionUpgrade] Iframe opened successfully');
+          console.log('[SubscriptionUpgrade] Backup check interval started - will check every 5 seconds');
+        } catch (iframeError) {
+          console.error('[SubscriptionUpgrade] Failed to open iframe:', iframeError);
+          clearInterval(backupCheckInterval);
+          setUpgrading(null);
+          alert('Failed to open payment window. Please disable any popup blockers and try again.');
+        }
+      }, 100);
     } catch (error) {
       console.error('[SubscriptionUpgrade] Error:', error);
-      alert('Failed to initialize payment. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to initialize payment: ${errorMessage}. Please try again.`);
       setUpgrading(null);
     }
   };
@@ -198,9 +543,17 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
   };
 
   const canUpgrade = (tier: SubscriptionTier) => {
+    // Free tier is always disabled (can't "upgrade" to free)
     if (tier.name === 'Free') return false;
+
+    // If no current subscription, allow all paid tiers
     if (!currentSubscription) return true;
-    return !isCurrentTier(tier.id);
+
+    // Allow changing to different tier OR different billing cycle
+    const isDifferentTier = tier.id !== currentSubscription.tier_id;
+    const isDifferentCycle = billingCycle !== currentSubscription.billing_cycle;
+
+    return isDifferentTier || isDifferentCycle;
   };
 
   if (loading) {
@@ -219,6 +572,77 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         <h2>Choose Your Plan</h2>
         <p>Unlock more features and grow your business</p>
       </div>
+
+      {/* Current Subscription Info */}
+      {currentSubscription && currentSubscription.status === 'active' && currentSubscription.tier_name !== 'Free' && (
+        <div className="current-subscription-banner">
+          <div className="banner-content">
+            <div className="banner-info">
+              <strong>Current Plan:</strong> {currentSubscription.tier_name} ({currentSubscription.billing_cycle})
+              {currentSubscription.payment_provider === 'paystack' ? (
+                <span className="provider-badge">via Paystack</span>
+              ) : (
+                <span className="provider-badge" style={{ background: 'rgba(255, 255, 255, 0.3)' }}>Manual</span>
+              )}
+            </div>
+            <button
+              className="cancel-subscription-btn"
+              onClick={handleCancelSubscription}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 size={16} className="spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <XCircle size={16} />
+                  Cancel Subscription
+                </>
+              )}
+            </button>
+          </div>
+          <p className="banner-note">
+            {currentSubscription.payment_provider === 'paystack' ? (
+              <>💡 To switch plans, cancel your current subscription first, then subscribe to a new plan.</>
+            ) : (
+              <>💡 This is a manual subscription. Click cancel to switch to a different plan or payment method.</>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Processing Message */}
+      {upgrading && (
+        <div style={{
+          background: '#fef3c7',
+          border: '2px solid #f59e0b',
+          borderRadius: '12px',
+          padding: '20px 24px',
+          marginBottom: '24px',
+          textAlign: 'center',
+          animation: 'pulse 2s ease-in-out infinite'
+        }}>
+          <p style={{ margin: 0, color: '#92400e', fontWeight: 700, fontSize: '1.1rem' }}>
+            ⏳ PAYMENT WINDOW IS OPEN
+          </p>
+          <p style={{ margin: '12px 0 8px 0', color: '#78350f', fontSize: '1rem', fontWeight: 600 }}>
+            👉 Look for the Paystack payment popup window
+          </p>
+          <p style={{ margin: '8px 0 0 0', color: '#78350f', fontSize: '0.875rem' }}>
+            It might be behind your browser window!<br/>
+            Try Alt+Tab (Windows) or Cmd+Tab (Mac) to find it
+          </p>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+      `}</style>
 
       {/* Billing Cycle Toggle */}
       <div className="billing-toggle">
@@ -337,16 +761,16 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
                 {upgrading === tier.id ? (
                   <>
                     <Loader2 size={16} className="spin" />
-                    Processing...
+                    <span>Processing payment...</span>
                   </>
-                ) : isCurrent ? (
+                ) : isCurrent && billingCycle === currentSubscription?.billing_cycle ? (
                   'Current Plan'
                 ) : tier.name === 'Free' ? (
                   'Free Forever'
                 ) : (
                   <>
                     <CreditCard size={16} />
-                    Upgrade Now
+                    {isCurrent ? `Switch to ${billingCycle}` : 'Subscribe Now'}
                   </>
                 )}
               </button>
@@ -374,6 +798,71 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         .upgrade-header {
           text-align: center;
           margin-bottom: 32px;
+        }
+
+        .current-subscription-banner {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-radius: 12px;
+          padding: 20px 24px;
+          margin-bottom: 32px;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .banner-content {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 12px;
+        }
+
+        .banner-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .provider-badge {
+          background: rgba(255, 255, 255, 0.2);
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+
+        .cancel-subscription-btn {
+          background: rgba(239, 68, 68, 0.9);
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .cancel-subscription-btn:hover:not(:disabled) {
+          background: rgba(220, 38, 38, 1);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .cancel-subscription-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .banner-note {
+          margin: 0;
+          font-size: 0.875rem;
+          opacity: 0.95;
+          line-height: 1.5;
         }
 
         .upgrade-header h2 {
@@ -624,6 +1113,16 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
           .amount {
             font-size: 2.5rem;
+          }
+
+          .banner-content {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .cancel-subscription-btn {
+            width: 100%;
+            justify-content: center;
           }
         }
       `}</style>
