@@ -11,7 +11,11 @@
     "functions:build": "cd functions && npm run build",
     "functions:deploy": "firebase deploy --only functions",
     "deploy:imaging": "npm run functions:build && npm run functions:deploy",
-    "generate-embeddings": "tsx scripts/generate-embeddings.ts"
+    "generate-embeddings": "tsx scripts/generate-embeddings.ts",
+    "analyze-ux": "node scripts/analyze-dashboard-ux.js",
+    "screenshot": "node ux-tools/screenshot.js",
+    "record-session": "node ux-tools/record-session.js",
+    "quick-test": "node ux-tools/quick-test.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
@@ -30,6 +34,7 @@
     "jspdf": "^3.0.4",
     "lucide-react": "^0.552.0",
     "papaparse": "^5.5.3",
+    "pg": "^8.20.0",
     "react": "^19.1.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.1",

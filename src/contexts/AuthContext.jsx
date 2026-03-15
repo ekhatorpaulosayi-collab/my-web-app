@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 // MIGRATION: Using Supabase auth instead of Firebase
 import { subscribeToAuthChanges, getUserProfile } from '../lib/authService-supabase';
+import { usePreferences } from './PreferencesContext';
+import { migrateStoreTypeToDatabase, needsStoreTypeMigration } from '../utils/migrateStoreType';
 
 const AuthContext = createContext(null);
 
@@ -9,6 +11,7 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { setBusinessType } = usePreferences();
 
   useEffect(() => {
     console.debug('[AuthContext] Initializing Supabase auth listener');
@@ -27,9 +30,25 @@ export function AuthProvider({ children }) {
 
         // Fetch user profile (only if not already loaded or if user changed)
         try {
+          // Check if existing user needs migration from localStorage to database
+          const needsMigration = await needsStoreTypeMigration(user.uid);
+          if (needsMigration) {
+            console.debug('[AuthContext] Migrating store_type from localStorage to database');
+            const migrationResult = await migrateStoreTypeToDatabase(user.uid);
+            if (migrationResult.success) {
+              console.debug('[AuthContext] Migration successful:', migrationResult.storeType);
+            }
+          }
+
           const profile = await getUserProfile(user.uid);
           setUserProfile(profile);
           console.debug('[AuthContext] User profile loaded:', profile?.storeName);
+
+          // Sync store type from database to PreferencesContext
+          if (profile?.storeType) {
+            console.debug('[AuthContext] Syncing store type from database:', profile.storeType);
+            setBusinessType(profile.storeType);
+          }
         } catch (error) {
           console.error('[AuthContext] Error loading user profile:', error);
           setUserProfile(null);

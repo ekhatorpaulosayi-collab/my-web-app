@@ -56,8 +56,12 @@ export const ItemCombobox: React.FC<ItemComboboxProps> = ({
 
   const handleSelect = (item: ItemOption) => {
     console.log('[ItemCombobox handleSelect] Item clicked:', item);
+
+    // Call the parent's onSelect handler (adds to cart, shows toast)
     onSelect(item);
     console.log('[ItemCombobox handleSelect] onSelect called');
+
+    // Clear immediately for fast workflow - toast + cart provide feedback
     setQuery('');
     setIsOpen(false);
     inputRef.current?.focus();

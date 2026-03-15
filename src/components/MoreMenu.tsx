@@ -5,7 +5,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp, CreditCard } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
 import './MoreMenu.css';
 
@@ -73,6 +73,16 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       action: () => {
         window.dispatchEvent(new Event('show-getting-started'));
       }
+    },
+
+    // 💳 SUBSCRIPTION & BILLING
+    {
+      icon: CreditCard,
+      label: 'Subscription & Billing',
+      description: 'Upgrade plan, manage subscription, cancel or switch billing',
+      action: () => navigate('/upgrade'),
+      highlight: true,
+      badge: 'Manage Plan'
     },
 
     // 💰 GROWTH & REVENUE

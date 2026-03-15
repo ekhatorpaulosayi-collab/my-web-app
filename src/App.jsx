@@ -112,7 +112,7 @@ function App() {
   const { user: supabaseUser } = useUser(currentUser);
 
   // Preferences context - dashboard widgets and customization
-  const { isFirstTimeSetup, completeSetup } = usePreferences();
+  const { isFirstTimeSetup, completeSetup, businessType } = usePreferences();
 
   // Staff context - track who records sales
   const { currentStaff } = useStaff();
@@ -6432,7 +6432,8 @@ Low Stock: ${lowStockItems.length}
       )}
 
       {/* Business Type Selector - First Time Setup */}
-      {isFirstTimeSetup && (
+      {/* Only show if user hasn't selected business type yet (new users or existing users without store_type) */}
+      {isFirstTimeSetup && !businessType && (
         <BusinessTypeSelector onComplete={completeSetup} />
       )}
 

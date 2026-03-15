@@ -115,15 +115,15 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <RootBoundary>
       <BrowserRouter>
-        <AuthProvider>
-          <StaffProvider>
-            <BusinessProvider>
-              <PreferencesProvider>
+        <PreferencesProvider>
+          <AuthProvider>
+            <StaffProvider>
+              <BusinessProvider>
                 <AppRoutes />
-              </PreferencesProvider>
-            </BusinessProvider>
-          </StaffProvider>
-        </AuthProvider>
+              </BusinessProvider>
+            </StaffProvider>
+          </AuthProvider>
+        </PreferencesProvider>
       </BrowserRouter>
     </RootBoundary>
   </StrictMode>,

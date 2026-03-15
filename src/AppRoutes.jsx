@@ -38,6 +38,7 @@ const SubmitTestimonial = lazy(() => import('./pages/SubmitTestimonial.tsx'));
 const AffiliateSignup = lazy(() => import('./pages/AffiliateSignup.tsx'));
 const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard.tsx'));
 const AffiliateAdmin = lazy(() => import('./pages/AffiliateAdmin.tsx'));
+const SubscriptionUpgrade = lazy(() => import('./components/SubscriptionUpgrade.tsx'));
 
 /**
  * App Routes
@@ -179,6 +180,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <ReferralDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Subscription Upgrade - Test subscription payments */}
+        <Route
+          path="/upgrade"
+          element={
+            <ProtectedRoute>
+              <SubscriptionUpgrade />
             </ProtectedRoute>
           }
         />

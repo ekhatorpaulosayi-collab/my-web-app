@@ -31,6 +31,7 @@ export interface StoreProfile {
   user_id?: string;
   businessName: string;
   storeSlug: string;
+  storeType?: 'fashion' | 'electronics' | 'food' | 'pharmacy' | 'general';
   logoUrl?: string;
   whatsappNumber: string;
   address?: string;

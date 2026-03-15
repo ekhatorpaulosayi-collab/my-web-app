@@ -188,12 +188,19 @@ export function buildImageKitSrcSet(
     .map(width => {
       const url = getImageKitUrl(path, { ...options, width });
 
+      // CRITICAL: Validate URL is complete before including in srcset
+      // An incomplete URL (just the endpoint without path) will cause browser srcset parsing errors
+      const isValidUrl = url &&
+        url !== '' &&
+        url !== IMAGEKIT_URL_ENDPOINT && // Not just the base endpoint
+        url.length > IMAGEKIT_URL_ENDPOINT.length + 10; // Has actual path content
+
       // Debug logging to identify incomplete URLs
-      if (import.meta.env.DEV && url && !url.includes('/products/') && !url.includes('/stores/')) {
-        console.warn('[ImageKit] Potentially incomplete URL generated:', { url, path, width });
+      if (import.meta.env.DEV && url && !isValidUrl) {
+        console.warn('[ImageKit] Incomplete URL detected, skipping from srcset:', { url, path, width });
       }
 
-      return url ? `${url} ${width}w` : ''; // Only include if URL is valid
+      return isValidUrl ? `${url} ${width}w` : ''; // Only include if URL is valid and complete
     })
     .filter(entry => entry !== ''); // Filter out empty entries
 

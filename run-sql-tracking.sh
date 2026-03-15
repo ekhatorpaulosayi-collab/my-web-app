@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Run AI Chat Tracking SQL in Supabase
+
+SUPABASE_URL="https://yzlniqwzqlsftxrtapdl.supabase.co"
+SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A"
+
+echo "🚀 Creating AI Chat Tracking Tables..."
+echo ""
+echo "Since we need direct database access, please follow these steps:"
+echo ""
+echo "1. Open this link in your browser:"
+echo "   https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new"
+echo ""
+echo "2. Copy and paste the SQL from this file:"
+echo "   /home/ekhator1/smartstock-v2/supabase/migrations/create_ai_chat_tracking_tables.sql"
+echo ""
+echo "3. Click 'Run' to execute the SQL"
+echo ""
+echo "The SQL will create these tables:"
+echo "  ✅ ai_chat_usage - Monthly usage tracking"
+echo "  ✅ ai_chat_messages - Chat history"
+echo "  ✅ ai_response_cache - Response caching"
+echo "  ✅ ai_chat_analytics - Event tracking"
+echo "  ✅ ai_chat_rate_limits - Visitor limits"
+echo ""
+echo "After running, verify with this query:"
+echo ""
+echo "SELECT table_name FROM information_schema.tables"
+echo "WHERE table_schema = 'public' AND table_name LIKE 'ai_chat%';"
+echo ""

@@ -1115,6 +1115,27 @@ export default function BusinessSettings({
 
                   <button
                     type="button"
+                    className="bs-btn-primary"
+                    onClick={() => {
+                      window.location.href = '/upgrade';
+                    }}
+                    style={{
+                      width: '100%',
+                      marginBottom: '12px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <span>💳</span>
+                    <span>Manage Subscription</span>
+                  </button>
+
+                  <button
+                    type="button"
                     className="bs-btn-danger"
                     onClick={handleLogout}
                     style={{ width: '100%' }}
