@@ -207,6 +207,7 @@ export default function AIChatWidget({
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
   const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
+  const [shouldPulse, setShouldPulse] = useState(false); // For first-visit animation
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -258,6 +259,55 @@ export default function AIChatWidget({
 
     checkAuth();
   }, [user, storeSlug]);
+
+  // Fetch initial quota info for authenticated users
+  useEffect(() => {
+    const fetchQuotaInfo = async () => {
+      if (userType === 'user' && user?.id) {
+        try {
+          // Call the check_chat_quota function to get current usage
+          const { data, error } = await supabase.rpc('check_chat_quota', {
+            p_user_id: user.id,
+            p_context_type: contextType || 'help'
+          });
+
+          if (data && !error) {
+            setQuotaInfo({
+              chatsUsed: data.chats_used,
+              chatLimit: data.chat_limit,
+              remaining: data.remaining,
+              isGrandfathered: data.is_grandfathered
+            });
+
+            console.log('[AIChatWidget] Quota info fetched:', {
+              used: data.chats_used,
+              limit: data.chat_limit,
+              remaining: data.remaining
+            });
+          }
+        } catch (err) {
+          console.error('[AIChatWidget] Error fetching quota:', err);
+        }
+      }
+    };
+
+    fetchQuotaInfo();
+  }, [userType, user?.id, contextType]);
+
+  // Trigger gentle pulse for first-time visitors
+  useEffect(() => {
+    const hasUsedChat = localStorage.getItem('storehouse_chat_used');
+    if (!hasUsedChat && !isOpen) {
+      // Wait 5 seconds then pulse 3 times
+      const timer = setTimeout(() => {
+        setShouldPulse(true);
+        // Stop pulsing after animation completes (3 pulses = 6 seconds)
+        setTimeout(() => setShouldPulse(false), 6000);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   // Auto-open with context-aware welcome messages
   useEffect(() => {
@@ -572,6 +622,29 @@ export default function AIChatWidget({
           error: data.error,
           data
         });
+
+        // Check if it's a quota exceeded error (429 status)
+        if (response.status === 429) {
+          // Store quota info if provided
+          if (data.chatsUsed !== undefined && data.chatLimit !== undefined) {
+            setQuotaInfo({
+              chatsUsed: data.chatsUsed,
+              chatLimit: data.chatLimit,
+              remaining: data.remaining || 0
+            });
+          }
+
+          // Create a detailed quota error with the data
+          const quotaError = {
+            isQuotaError: true,
+            chatsUsed: data.chatsUsed,
+            chatLimit: data.chatLimit,
+            remaining: data.remaining || 0,
+            upgradeRequired: data.upgradeRequired
+          };
+          throw quotaError;
+        }
+
         throw new Error(data.error || 'Failed to get response');
       }
 
@@ -609,16 +682,59 @@ export default function AIChatWidget({
       // Increment failed attempts
       setFailedAttempts(prev => prev + 1);
 
-      // Show error message
+      let errorContent = 'Sorry, something went wrong. Please try again.';
+      let quickActions: QuickAction[] | undefined;
+
+      // Check if it's a quota error
+      if (error.isQuotaError) {
+        const { chatsUsed, chatLimit, remaining } = error;
+
+        if (chatLimit > 0) {
+          errorContent = `📊 **Monthly Chat Limit Reached!**\n\nYou've used ${chatsUsed}/${chatLimit} AI chats this month.\n\n`;
+
+          // Add tier-specific messages
+          if (chatLimit === 30) {
+            errorContent += `You're on the **Free** plan. Upgrade to get more AI assistance!\n\n`;
+            errorContent += `• **Starter**: 500 chats/month - ₦5,000\n`;
+            errorContent += `• **Pro**: 1,500 chats/month - ₦10,000\n`;
+            errorContent += `• **Business**: 10,000 chats/month - ₦15,000`;
+          } else if (chatLimit === 500) {
+            errorContent += `You're on the **Starter** plan. Need more chats?\n\n`;
+            errorContent += `• **Pro**: 1,500 chats/month - ₦10,000\n`;
+            errorContent += `• **Business**: 10,000 chats/month - ₦15,000`;
+          } else if (chatLimit === 1500) {
+            errorContent += `You're on the **Pro** plan. Need more chats?\n\n`;
+            errorContent += `• **Business**: 10,000 chats/month - ₦15,000`;
+          } else {
+            errorContent += `Upgrade your plan for more AI assistance!`;
+          }
+        } else {
+          errorContent = `📊 **Chat Limit Reached!**\n\nYou've reached your monthly AI chat limit. Upgrade your plan to continue!`;
+        }
+
+        // Add upgrade button
+        quickActions = [{
+          label: '🚀 Upgrade Now',
+          action: () => {
+            // Navigate to subscription page
+            window.location.href = '/subscription';
+          }
+        }];
+      } else if (error.message) {
+        errorContent = error.message;
+      }
+
+      // Show error message with quick actions
       const errorMessage: Message = {
         role: 'assistant',
-        content: error.message || 'Sorry, something went wrong. Please try again.',
+        content: errorContent,
         timestamp: new Date(),
+        quickActions
       };
       setMessages(prev => [...prev, errorMessage]);
 
-      // Auto-escalate after 2 failures
-      if (failedAttempts >= 1) {
+      // Auto-escalate after 2 failures (but not for quota errors)
+      if (failedAttempts >= 1 && !error.isQuotaError) {
         setTimeout(() => {
           setShowSupport(true);
         }, 1000);
@@ -699,6 +815,17 @@ export default function AIChatWidget({
                    contextType === 'business-advisory' ? '💡 Nigerian Business Consultant' :
                    contextType === 'onboarding' ? 'Your Setup Guide' :
                    contextType === 'help' ? 'Here to Help' : 'Product Inquiries'}
+                  {/* Show quota info for authenticated users */}
+                  {userType === 'user' && quotaInfo && quotaInfo.chatLimit > 0 && (
+                    <div style={{
+                      marginTop: '2px',
+                      fontSize: '0.65rem',
+                      opacity: 0.85,
+                      fontWeight: 400
+                    }}>
+                      💬 {Math.max(0, quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0))} chats remaining this month
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -984,11 +1111,16 @@ export default function AIChatWidget({
           )}
 
           <button
-            onClick={() => setIsOpen(true)}
+            onClick={() => {
+              setIsOpen(true);
+              // Mark that user has used chat
+              localStorage.setItem('storehouse_chat_used', 'true');
+            }}
+            className={shouldPulse ? 'first-visit-pulse' : ''}
             style={{
-              width: '64px', // Increased from 56px
-              height: '64px', // Increased from 56px
-              borderRadius: '50%',
+              // Changed from circle to pill shape for text
+              borderRadius: '50px',
+              padding: '14px 24px',
               background: contextType === 'storefront'
                 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' // Green for shopping
                 : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple for admin
@@ -1000,14 +1132,18 @@ export default function AIChatWidget({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '2rem', // Increased from 1.75rem
+              gap: '10px',
+              fontSize: '1rem',
+              color: 'white',
+              fontWeight: '600',
               transition: 'all 0.3s ease',
               pointerEvents: 'auto',
               position: 'relative',
               zIndex: 1,
+              minWidth: 'fit-content',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.15)';
+              e.currentTarget.style.transform = 'scale(1.08)';
               e.currentTarget.style.boxShadow = contextType === 'storefront'
                 ? '0 8px 32px rgba(16, 185, 129, 0.6)'
                 : '0 6px 24px rgba(102, 126, 234, 0.5)';
@@ -1020,10 +1156,56 @@ export default function AIChatWidget({
             }}
             aria-label={contextType === 'storefront' ? 'Shop with AI Assistant' : 'Open AI Chat Assistant'}
           >
-            {contextType === 'storefront' ? (
-              <MessageCircle size={32} color="white" fill="white" />
-            ) : (
-              '💬'
+            <span style={{ fontSize: '1.5rem' }}>
+              {contextType === 'storefront' ? '🛍️' : '🤖'}
+            </span>
+            <span style={{
+              fontSize: '0.95rem',
+              fontWeight: '600',
+              letterSpacing: '0.3px',
+            }}>
+              {/* Smart text that shows quota when low */}
+              {(() => {
+                // Check quota for logged-in users
+                if (userType === 'user' && quotaInfo) {
+                  const remaining = quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0);
+                  if (remaining <= 10 && remaining > 0) {
+                    return `${remaining} chats left`;
+                  }
+                }
+
+                // Context-specific help text
+                if (contextType === 'storefront') {
+                  return 'Ask about products';
+                } else if (!localStorage.getItem('storehouse_chat_used')) {
+                  return 'Need Help?';
+                } else {
+                  // Page-specific help after first use
+                  const pathname = window.location.pathname;
+                  if (pathname.includes('/products')) return 'Help with products?';
+                  if (pathname.includes('/sales')) return 'Record a sale?';
+                  if (pathname.includes('/inventory')) return 'Track inventory?';
+                  if (pathname.includes('/reports')) return 'View reports?';
+                  if (pathname.includes('/customers')) return 'Manage customers?';
+                  return 'Ask AI';
+                }
+              })()}
+            </span>
+
+            {/* Red notification dot for very low quota */}
+            {userType === 'user' && quotaInfo &&
+             quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0) <= 5 &&
+             quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0) > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-6px',
+                right: '-6px',
+                background: '#ef4444',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                border: '2px solid white',
+              }} />
             )}
           </button>
 
@@ -1127,6 +1309,21 @@ export default function AIChatWidget({
             transform: scale(1.3);
             opacity: 0;
           }
+        }
+
+        @keyframes gentle-pulse {
+          0%, 100% {
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+            transform: scale(1.05);
+          }
+        }
+
+        .first-visit-pulse {
+          animation: gentle-pulse 2s ease-in-out 3;
         }
 
         @keyframes bounce-tooltip {
