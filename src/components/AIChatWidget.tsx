@@ -208,8 +208,19 @@ export default function AIChatWidget({
   const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
   const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
   const [shouldPulse, setShouldPulse] = useState(false); // For first-visit animation
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Handle desktop detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Detect user type (visitor, shopper, or authenticated user)
   // IMPORTANT: Wait for auth to load before setting userType
@@ -762,26 +773,39 @@ export default function AIChatWidget({
   return (
     <div className="ai-chat-container" style={{
       position: 'fixed',
-      bottom: isOpen ? '20px' : '20px',
-      right: contextType === 'storefront' ? '120px' : '20px', // Move left on storefront to avoid WhatsApp button
-      zIndex: 9998, // Below modals (10000+) but above content
+      bottom: isOpen && !isDesktop ? '0' : '20px', // Full bottom on mobile when open
+      right: contextType === 'storefront' && isDesktop ? '120px' : isDesktop ? '20px' : '0', // Full width on mobile
+      left: isOpen && !isDesktop ? '0' : 'auto', // Full width on mobile when open
+      zIndex: 99999, // High z-index to appear above everything
       pointerEvents: 'none', // Allow clicks to pass through container
+      // Force fixed width container on desktop
+      ...(isDesktop ? {
+        width: '400px',
+        maxWidth: '400px',
+      } : {}),
     }}>
       {/* Chat Window */}
       {isOpen && (
         <div className="ai-chat-window" style={{
-          width: '380px',
-          maxWidth: '90vw',
-          height: '600px',
-          maxHeight: '80vh',
+          position: !isDesktop ? 'fixed' : 'relative',
+          top: !isDesktop ? '0' : 'auto',
+          left: !isDesktop ? '0' : 'auto',
+          right: !isDesktop ? '0' : 'auto',
+          bottom: !isDesktop ? '0' : 'auto',
+          width: isDesktop ? '400px' : '100vw',
+          maxWidth: isDesktop ? '400px' : '100vw',
+          minWidth: isDesktop ? '400px' : '100vw',
+          height: isDesktop ? '600px' : '100vh',
+          maxHeight: isDesktop ? '600px' : '100vh',
           background: 'white',
-          borderRadius: '16px',
+          borderRadius: isDesktop ? '16px' : '0',
           boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
           display: 'flex',
           flexDirection: 'column',
-          marginBottom: '16px',
+          marginBottom: isDesktop ? '16px' : '0',
           overflow: 'hidden',
           pointerEvents: 'auto', // Re-enable clicks for chat window
+          zIndex: 99999, // Ensure it's above everything
         }}>
           {/* Header */}
           <div style={{
@@ -1091,7 +1115,12 @@ export default function AIChatWidget({
 
       {/* Chat Bubble - Enhanced Visibility for Storefront */}
       {!isOpen && (
-        <div style={{ position: 'relative' }}>
+        <div style={{
+          position: 'fixed',
+          bottom: !isDesktop && contextType === 'storefront' ? '80px' : '20px', // Higher on mobile storefront to avoid bottom nav
+          right: !isDesktop && contextType === 'storefront' ? '20px' : contextType === 'storefront' && isDesktop ? '120px' : '20px',
+          zIndex: 99999,
+        }}>
           {/* Pulsing ring animation for storefront */}
           {contextType === 'storefront' && (
             <div
@@ -1217,53 +1246,34 @@ export default function AIChatWidget({
           {contextType === 'storefront' && (
             <>
               {/* Tooltip above button (desktop) */}
-              <div
-                className="chat-tooltip"
-                style={{
-                  position: 'absolute',
-                  bottom: '75px',
-                  right: 'auto',
-                  left: '50%',
-                  transform: 'translateX(-50%)', // Center it above the button
-                  background: 'white',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  color: '#059669',
-                  whiteSpace: 'nowrap',
-                  animation: 'bounce-tooltip 2s ease-in-out infinite',
-                  pointerEvents: 'none',
-                }}
-              >
-                💬 Need help?
-              </div>
+              {isDesktop && (
+                <div
+                  className="chat-tooltip"
+                  style={{
+                    position: 'absolute',
+                    bottom: '75px',
+                    right: 'auto',
+                    left: '50%',
+                    transform: 'translateX(-50%)', // Center it above the button
+                    background: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: '#059669',
+                    whiteSpace: 'nowrap',
+                    animation: 'bounce-tooltip 2s ease-in-out infinite',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  💬 Need help?
+                </div>
+              )}
 
               {/* Label above button (mobile - more visible) */}
-              <div
-                className="chat-label-mobile"
-                style={{
-                  position: 'absolute',
-                  bottom: '72px', // Above the 64px button (button height + 8px gap)
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  background: 'rgba(255, 255, 255, 0.95)',
-                  padding: '6px 12px',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  color: '#059669',
-                  whiteSpace: 'nowrap',
-                  pointerEvents: 'none',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  border: '1.5px solid #10b981',
-                }}
-              >
-                💬 Chat Here
-              </div>
+              {/* REMOVED: "Chat Here" label was misleading users on storefront pages */}
+              {/* The button itself already says "Ask about products" which is clear enough */}
             </>
           )}
         </div>
@@ -1297,7 +1307,7 @@ export default function AIChatWidget({
         </div>
       )}
 
-      {/* Pulse Animation & Mobile Positioning */}
+      {/* Minimal Pulse Animations Only */}
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 0.4; }
@@ -1340,63 +1350,9 @@ export default function AIChatWidget({
         }
 
         .chat-tooltip {
-          animation: bounce-tooltip 2s ease-in-out infinite; /* Continuous bounce for visibility */
+          animation: bounce-tooltip 2s ease-in-out infinite;
         }
 
-        /* Desktop: Show tooltip, hide label */
-        .chat-label-mobile {
-          display: none;
-        }
-
-        /* Smart mobile positioning to avoid blocking key buttons */
-        @media (max-width: 768px) {
-          /* Mobile: Hide tooltip, show label below button */
-          .chat-tooltip {
-            display: none !important;
-          }
-
-          .chat-label-mobile {
-            display: block !important;
-            animation: pulse-label 2s ease-in-out infinite !important;
-            bottom: 64px !important; /* 56px button + 8px gap on mobile - positioned ABOVE button */
-          }
-          /* When closed, position above mobile nav and WhatsApp buttons */
-          .ai-chat-container:not(:has(.ai-chat-window)) {
-            bottom: 90px !important; /* Above WhatsApp buttons */
-            right: 90px !important; /* Left of WhatsApp button (20px + 56px width + 14px gap = 90px) */
-          }
-
-          /* When open, stack from bottom with safe spacing */
-          .ai-chat-container:has(.ai-chat-window) {
-            bottom: 16px !important;
-            right: 16px !important;
-            left: 16px !important;
-            max-width: calc(100vw - 32px);
-          }
-
-          /* Make chat window responsive on mobile */
-          .ai-chat-window {
-            width: 100% !important;
-            max-width: 100% !important;
-            height: 70vh !important;
-            max-height: 70vh !important;
-            margin-bottom: 0 !important;
-          }
-
-          /* Reduce bubble size slightly on mobile for less obstruction */
-          .ai-chat-container:not(:has(.ai-chat-window)) button {
-            width: 56px !important;
-            height: 56px !important;
-          }
-
-          /* Adjust button size on mobile */
-          .pulse-ring {
-            width: 56px !important;
-            height: 56px !important;
-          }
-        }
-
-        /* Pulse animation for mobile label */
         @keyframes pulse-label {
           0%, 100% {
             transform: translateX(-50%) scale(1);
@@ -1405,14 +1361,6 @@ export default function AIChatWidget({
           50% {
             transform: translateX(-50%) scale(1.05);
             opacity: 0.9;
-          }
-        }
-
-        /* Extra small screens - keep visible */
-        @media (max-width: 480px) {
-          .ai-chat-container:not(:has(.ai-chat-window)) {
-            bottom: 85px !important;
-            right: 16px !important; /* Keep on screen */
           }
         }
       `}</style>
