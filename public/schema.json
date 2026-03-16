@@ -1,0 +1,38 @@
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Storehouse",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web, iOS, Android",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "NGN",
+    "name": "Free Plan"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.8",
+    "ratingCount": "1000"
+  },
+  "description": "Inventory management software for Nigerian businesses. Track stock, sales, and credits. Works offline with WhatsApp integration.",
+  "screenshot": "https://www.storehouse.ng/screenshot.png",
+  "featureList": [
+    "Offline inventory tracking",
+    "WhatsApp receipt generation",
+    "Sales analytics",
+    "Multi-user support",
+    "Credit management",
+    "Barcode scanning"
+  ],
+  "publisher": {
+    "@type": "Organization",
+    "name": "Storehouse",
+    "url": "https://www.storehouse.ng",
+    "logo": "https://www.storehouse.ng/logo.png",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "NG"
+    }
+  }
+}
