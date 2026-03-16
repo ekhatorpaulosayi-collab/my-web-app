@@ -9,6 +9,7 @@ import { Documentation } from '../types/documentation';
 import { invoiceMicroChunks } from './invoiceMicroChunks';
 import { debtCreditMicroChunks } from './debtCreditMicroChunks';
 import { staffMicroChunks } from './staffMicroChunks';
+import { paystackDocumentation } from './paystackDocumentation';
 
 export const DOCUMENTATION: Documentation[] = [
 
@@ -8209,5 +8210,10 @@ Total: ₦125,000
     keywords: ['expenses', 'business costs', 'rent', 'salary', 'utilities', 'operating expenses'],
     lastUpdated: '2025-12-02',
   },
+
+  // ============================================
+  // PAYSTACK PAYMENTS DOCUMENTATION
+  // ============================================
+  ...paystackDocumentation,
 
 ];

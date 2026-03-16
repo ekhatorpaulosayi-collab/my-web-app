@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
+import { PaystackHelp } from './PaystackHelp';
 import { formatWhatsAppNumber } from '../utils/phone';
 import '../styles/cart.css';
 
@@ -985,6 +986,11 @@ export function Cart({ store }: CartProps) {
                       </p>
                     )}
                   </div>
+
+                  {/* Contextual Paystack Help for Checkout */}
+                  {paymentMethod === 'paystack' && (
+                    <PaystackHelp context="checkout" isVisible={true} />
+                  )}
 
                   <input
                     type="text"

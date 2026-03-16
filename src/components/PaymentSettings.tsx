@@ -5,6 +5,7 @@ import {
   validatePublicKey,
   type PaystackConfig
 } from '../utils/paystackSettings';
+import { PaystackHelp } from './PaystackHelp';
 import '../styles/PaymentSettings.css';
 
 interface PaymentSettingsProps {
@@ -305,6 +306,9 @@ export default function PaymentSettings({ onToast }: PaymentSettingsProps) {
           )}
         </div>
       )}
+
+      {/* Contextual Paystack Help */}
+      <PaystackHelp context="setup" isVisible={true} />
     </div>
   );
 }

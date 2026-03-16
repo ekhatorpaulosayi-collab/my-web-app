@@ -1187,7 +1187,8 @@ export default function AIChatWidget({
                   if (pathname.includes('/inventory')) return 'Track inventory?';
                   if (pathname.includes('/reports')) return 'View reports?';
                   if (pathname.includes('/customers')) return 'Manage customers?';
-                  return 'Ask AI';
+                  if (pathname.includes('/payment') || pathname.includes('/checkout')) return 'Payment Help?';
+                  return 'Need Help?';
                 }
               })()}
             </span>
