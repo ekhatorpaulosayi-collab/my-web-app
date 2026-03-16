@@ -1160,9 +1160,12 @@ export default function AIChatWidget({
               {contextType === 'storefront' ? '🛍️' : '🤖'}
             </span>
             <span style={{
-              fontSize: '0.95rem',
-              fontWeight: '600',
-              letterSpacing: '0.3px',
+              fontSize: '1rem',
+              fontWeight: '700',
+              letterSpacing: '0',
+              WebkitFontSmoothing: 'antialiased',
+              MozOsxFontSmoothing: 'grayscale',
+              textRendering: 'optimizeLegibility',
             }}>
               {/* Smart text that shows quota when low */}
               {(() => {
