@@ -1,0 +1,411 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2024-03-16",
+    "totalEntries": 50,
+    "language": "en-NG",
+    "currency": "NGN"
+  },
+  "categories": {
+    "getting-started": "Getting Started with Paystack",
+    "account-setup": "Account Setup & Verification",
+    "accepting-payments": "Accepting Payments",
+    "managing-money": "Settlements & Withdrawals",
+    "troubleshooting": "Fixing Common Issues",
+    "business-growth": "Growing Your Business"
+  },
+  "knowledge": [
+    {
+      "id": "what-is-paystack",
+      "category": "getting-started",
+      "priority": 1,
+      "questions": [
+        "What is Paystack?",
+        "Tell me about Paystack",
+        "Why do I need Paystack for my store?",
+        "How does Paystack work?",
+        "Is Paystack safe?"
+      ],
+      "answer": "Paystack is Nigeria's most trusted payment gateway that lets your customers pay you online instantly. Think of it as your 24/7 digital POS machine! 💳\n\nWith Paystack on your StoreFront store:\n✅ Customers pay with cards, bank transfer, or USSD\n✅ Money goes straight to your bank account\n✅ You get instant payment notifications\n✅ Works anywhere in Nigeria\n✅ Protected by bank-level security\n\nOver 60,000 Nigerian businesses trust Paystack, including Bolt, Domino's Pizza, and Lagos State Government.",
+      "followUp": "Would you like me to guide you through setting up Paystack for your store?",
+      "tags": ["basics", "introduction", "trust", "safety"]
+    },
+    {
+      "id": "paystack-charges",
+      "category": "getting-started",
+      "priority": 1,
+      "questions": [
+        "How much does Paystack charge?",
+        "What are Paystack fees?",
+        "Is Paystack free?",
+        "How much will Paystack deduct from my money?",
+        "Paystack pricing"
+      ],
+      "answer": "Paystack charges are simple and transparent:\n\n📊 **Local Payments (Nigerian cards/transfers):**\n• 1.5% + ₦100 per successful transaction\n• Example: Customer pays ₦10,000 → You receive ₦9,750\n\n💳 **International Payments:**\n• 3.9% + ₦100 per successful transaction\n\n✅ **NO charges for:**\n• Creating an account\n• Monthly subscription fees\n• Setting up your store\n• Failed transactions\n• Withdrawals to your bank\n\nYou only pay when you make money! 🎉",
+      "followUp": "Would you like to see how much you'll earn on different transaction amounts?",
+      "tags": ["fees", "pricing", "charges", "cost"]
+    },
+    {
+      "id": "create-paystack-account",
+      "category": "account-setup",
+      "priority": 1,
+      "questions": [
+        "How do I create a Paystack account?",
+        "How to sign up for Paystack?",
+        "I want to open Paystack account",
+        "Guide me to create Paystack account"
+      ],
+      "answer": "Creating your Paystack account is easy! Here's how:\n\n**Step 1️⃣: Sign Up (2 minutes)**\n• Go to https://paystack.com\n• Click 'Create free account'\n• Enter your email and password\n• Verify your email\n\n**Step 2️⃣: Business Information (3 minutes)**\n• Business name (can be your personal name)\n• Business type (Individual or Registered business)\n• Phone number\n• Business category (select 'Retail/E-commerce')\n\n**Step 3️⃣: Bank Account (2 minutes)**\n• Add your bank account for settlements\n• This is where your money will be sent\n• Must match your BVN name\n\n**Step 4️⃣: Verification**\n• Upload a valid ID (NIN, Driver's license, Passport, or Voter's card)\n• Takes 24-48 hours for approval\n\n💡 **Pro Tip**: Start with a personal account if you don't have CAC documents yet!",
+      "actionLinks": ["https://dashboard.paystack.com/#/signup"],
+      "followUp": "After creating your account, I'll help you connect it to your StoreFront store. Ready?",
+      "tags": ["signup", "registration", "account", "create"]
+    },
+    {
+      "id": "find-api-keys",
+      "category": "account-setup",
+      "priority": 1,
+      "questions": [
+        "Where do I find my Paystack API keys?",
+        "How to get Paystack secret key?",
+        "Where is my public key?",
+        "I can't find my API keys",
+        "Show me where API keys are"
+      ],
+      "answer": "Here's exactly where to find your Paystack API keys:\n\n**Steps to Get Your Keys:**\n1️⃣ Login to https://dashboard.paystack.com\n2️⃣ Click 'Settings' in the left menu (bottom)\n3️⃣ Click 'API Keys & Webhooks'\n4️⃣ You'll see two sets of keys:\n\n**Test Keys (Practice Mode)** 🧪\n• Public Key: starts with 'pk_test_'\n• Secret Key: starts with 'sk_test_'\n• Use these first to test everything works\n\n**Live Keys (Real Money)** 💰\n• Public Key: starts with 'pk_live_'\n• Secret Key: starts with 'sk_live_'\n• Use these when ready for real payments\n\n⚠️ **Important**: \n• NEVER share your Secret Key with anyone!\n• Start with Test Keys first\n• Copy keys carefully - one wrong character breaks everything\n\n📱 **On Mobile?** The keys might be hidden - scroll right to see the full key!",
+      "actionLinks": ["https://dashboard.paystack.com/#/settings/developer"],
+      "visualAid": "paystack-api-keys-location.png",
+      "followUp": "Found your keys? Let me help you add them to your StoreFront store!",
+      "tags": ["api", "keys", "secret", "public", "setup"]
+    },
+    {
+      "id": "connect-to-storefront",
+      "category": "account-setup",
+      "priority": 1,
+      "questions": [
+        "How do I connect Paystack to my store?",
+        "Add Paystack to StoreFront",
+        "Setup Paystack on my store",
+        "Connect payment to my store"
+      ],
+      "answer": "Let's connect Paystack to your StoreFront store! Super easy:\n\n**In Your StoreFront App:**\n1️⃣ Click the menu (☰) at top-left\n2️⃣ Go to 'Settings' → 'Business Settings'\n3️⃣ Find 'Payment Settings' section\n4️⃣ Click 'Connect Paystack'\n\n**Enter Your Keys:**\n• Toggle 'Test Mode' ON (for practice)\n• Paste your Test Public Key (pk_test_...)\n• Paste your Test Secret Key (sk_test_...)\n• Click 'Save'\n\n**Test It Works:**\n• Go to your store page\n• Add any product to cart\n• Click checkout\n• You should see Paystack payment option! ✅\n\n**Ready for Real Payments?**\n• Toggle 'Test Mode' OFF\n• Enter your Live keys instead\n• You're ready to receive real money! 💰\n\n⏱️ Total time: 3 minutes!",
+      "followUp": "Connected successfully? Let's do a test payment to make sure everything works!",
+      "tags": ["connect", "setup", "integration", "storefront"]
+    },
+    {
+      "id": "test-payment",
+      "category": "accepting-payments",
+      "priority": 1,
+      "questions": [
+        "How do I test Paystack payment?",
+        "Test card details for Paystack",
+        "How to do test transaction?",
+        "Practice payment on Paystack"
+      ],
+      "answer": "Let's test your Paystack setup with a practice payment!\n\n**Paystack Test Card Details:**\n💳 Card Number: `4084 0840 8408 4081`\n📅 Expiry: `12/25` (or any future date)\n🔐 CVV: `408`\n📍 PIN: `0000`\n📱 OTP: `123456`\n\n**How to Test:**\n1️⃣ Make sure 'Test Mode' is ON in your settings\n2️⃣ Go to your store page\n3️⃣ Add any product to cart\n4️⃣ Click 'Checkout'\n5️⃣ Select 'Pay with Card'\n6️⃣ Enter the test card details above\n7️⃣ Complete payment\n\n✅ **Success Signs:**\n• You see 'Payment Successful' message\n• You get email confirmation\n• Order shows in your dashboard\n• NO real money was charged!\n\n⚠️ **Common Issues:**\n• Wrong card number? Check spacing\n• Payment failed? Ensure Test Mode is ON\n• Can't see payment option? Check API keys\n\n🎉 If test works, you're ready for real payments!",
+      "followUp": "Test successful? Great! Let me show you how to switch to live mode!",
+      "tags": ["test", "card", "payment", "practice", "demo"]
+    },
+    {
+      "id": "receive-money",
+      "category": "managing-money",
+      "priority": 1,
+      "questions": [
+        "How do I receive money from Paystack?",
+        "When will I get my money?",
+        "How does Paystack pay me?",
+        "Settlement time for Paystack",
+        "Withdrawal from Paystack"
+      ],
+      "answer": "Paystack automatically sends your money to your bank account! Here's how it works:\n\n**⏰ Settlement Schedule:**\n• **T+1 Settlement**: Money arrives next working day!\n• Customer pays Monday → You receive Tuesday\n• Customer pays Friday → You receive Monday\n• Automatic - no need to request withdrawal\n\n**💰 How Much You Receive:**\nCustomer pays ₦10,000\n➖ Paystack fee (1.5% + ₦100) = ₦250\n✅ You receive: ₦9,750\n\n**🏦 Bank Account Setup:**\n• Must be a Nigerian bank account\n• Must match your BVN name\n• Can be savings or current account\n• All banks supported\n\n**📊 Track Your Money:**\n• Check 'Transactions' in Paystack dashboard\n• See 'Payouts' for settlement history\n• Get email for every settlement\n• Get bank alert when money arrives\n\n**🚀 Pro Tips:**\n• Settlements are automatic - no action needed!\n• Money comes as one bulk payment daily\n• Bank alerts show as 'Paystack/YourBusinessName'\n• Public holidays may delay by 1 day",
+      "actionLinks": ["https://dashboard.paystack.com/#/transactions"],
+      "followUp": "Want to know how to track all your payments and settlements?",
+      "tags": ["settlement", "payout", "withdrawal", "money", "bank"]
+    },
+    {
+      "id": "payment-not-working",
+      "category": "troubleshooting",
+      "priority": 1,
+      "questions": [
+        "Payment is not working",
+        "Customer can't pay",
+        "Paystack not showing",
+        "Payment failed",
+        "Transaction declined"
+      ],
+      "answer": "Let's fix your payment issue quickly! Check these in order:\n\n**1️⃣ Check Your Mode:**\n❓ Are you in Test or Live mode?\n• Test mode = Only test cards work\n• Live mode = Only real cards work\n• Solution: Match your mode with card type\n\n**2️⃣ Check API Keys:**\n• Go to Settings → Payment Settings\n• Ensure keys are correctly pasted\n• No extra spaces before/after keys\n• Test keys for test mode, Live keys for live mode\n\n**3️⃣ Customer Card Issues:**\n• Insufficient funds\n• Card not enabled for online payments\n• Daily transaction limit exceeded\n• Wrong PIN or OTP\n• Solution: Try different card or payment method\n\n**4️⃣ Check Your Paystack Dashboard:**\n• Login to dashboard.paystack.com\n• Check 'Transactions' tab\n• Look for error messages\n• Common: 'Card not authorized' = customer issue\n\n**5️⃣ Quick Fixes:**\n✅ Clear browser cache\n✅ Try incognito/private mode\n✅ Check internet connection\n✅ Try on different device\n\n**Still not working?**\n• Screenshot the error message\n• Check Paystack status: https://status.paystack.com\n• Contact support with transaction reference",
+      "actionLinks": ["https://dashboard.paystack.com/#/transactions", "https://status.paystack.com"],
+      "followUp": "Found the issue? Let me know what error you're seeing and I'll help fix it!",
+      "tags": ["error", "failed", "not working", "declined", "issue"]
+    },
+    {
+      "id": "go-live",
+      "category": "account-setup",
+      "priority": 2,
+      "questions": [
+        "How do I go live with Paystack?",
+        "Switch from test to live",
+        "Start accepting real payments",
+        "Enable live mode"
+      ],
+      "answer": "Ready to accept real payments? Let's go LIVE! 🚀\n\n**Before Going Live - Checklist:**\n☑️ Paystack account verified (check email)\n☑️ Bank account added and confirmed\n☑️ Test payment successful\n☑️ Business information complete\n\n**Steps to Go Live:**\n1️⃣ Get your LIVE keys:\n• Go to dashboard.paystack.com\n• Settings → API Keys & Webhooks\n• Copy Live Public Key (pk_live_...)\n• Copy Live Secret Key (sk_live_...)\n\n2️⃣ Update StoreFront:\n• Open Settings → Payment Settings\n• Toggle 'Test Mode' OFF\n• Replace test keys with live keys\n• Click 'Save'\n\n3️⃣ Verify it works:\n• Visit your store\n• Try checkout process\n• Should show 'Pay with Paystack' (no test label)\n\n**⚠️ IMPORTANT:**\n• Live mode = REAL MONEY\n• All transactions are real\n• Customers will be charged\n• You'll receive actual payments\n\n**🎉 Congratulations! You're now live!**\nShare your payment link and start selling!",
+      "followUp": "Gone live? Awesome! Let me show you how to track your sales and earnings!",
+      "tags": ["live", "production", "real", "activate"]
+    },
+    {
+      "id": "payment-methods",
+      "category": "accepting-payments",
+      "priority": 2,
+      "questions": [
+        "What payment methods does Paystack accept?",
+        "Can customers pay with transfer?",
+        "Does Paystack accept USSD?",
+        "Payment options on Paystack"
+      ],
+      "answer": "Paystack accepts ALL popular Nigerian payment methods! Your customers can pay however they prefer:\n\n**💳 Card Payments:**\n• Mastercard, Visa, Verve\n• Nigerian and international cards\n• Debit and credit cards\n• Saved cards for repeat customers\n\n**🏦 Bank Transfer:**\n• Instant transfer from any Nigerian bank\n• Customer gets unique account number\n• Payment confirms automatically\n• Works 24/7\n\n**📱 USSD:**\n• Works without internet!\n• Customer dials code from their phone\n• All major banks supported\n• Great for customers without smartphones\n\n**💼 Bank Account (Direct Debit):**\n• Customer enters account details\n• One-time authorization\n• For recurring payments\n\n**📱 Mobile Money:**\n• Visa QR\n• mCash\n• Mobile wallets\n\n**🌍 International:**\n• Apple Pay\n• Google Pay (coming soon)\n• International cards (higher fee: 3.9%)\n\n**✅ All methods are:**\n• Secure and encrypted\n• Instant confirmation\n• Automatic receipt generation\n• PCI-DSS compliant",
+      "followUp": "Want to know which payment method is most popular with Nigerian customers?",
+      "tags": ["methods", "transfer", "card", "ussd", "payment options"]
+    },
+    {
+      "id": "refunds",
+      "category": "managing-money",
+      "priority": 2,
+      "questions": [
+        "How do I refund a customer?",
+        "Can I reverse a payment?",
+        "Customer wants refund",
+        "How to return money"
+      ],
+      "answer": "Refunding customers through Paystack is straightforward:\n\n**How to Process Refunds:**\n1️⃣ Login to dashboard.paystack.com\n2️⃣ Go to 'Transactions'\n3️⃣ Find the payment to refund\n4️⃣ Click on the transaction\n5️⃣ Click 'Refund' button\n6️⃣ Enter refund amount (partial or full)\n7️⃣ Add reason for records\n8️⃣ Confirm refund\n\n**⏱️ Refund Timeline:**\n• Card payments: 7-14 business days\n• Bank transfers: 24-48 hours\n• Customer gets email notification\n• You get confirmation email\n\n**💰 Refund Costs:**\n• Paystack returns their fee to you!\n• You get back the 1.5% + ₦100\n• No additional charges for refunds\n• Your account must have sufficient balance\n\n**📋 Important Notes:**\n• Refunds are irreversible\n• Can do partial refunds\n• Maximum refund period: 90 days\n• Keep communication with customer\n• Document reason for your records\n\n**🤝 Best Practice:**\nAlways communicate with customer first and agree on refund before processing!",
+      "actionLinks": ["https://dashboard.paystack.com/#/transactions"],
+      "followUp": "Need help finding a specific transaction to refund?",
+      "tags": ["refund", "reverse", "return", "money back"]
+    },
+    {
+      "id": "business-name",
+      "category": "account-setup",
+      "priority": 2,
+      "questions": [
+        "How do I change my business name?",
+        "Update business name on Paystack",
+        "Wrong name showing to customers",
+        "Edit business details"
+      ],
+      "answer": "Your business name is what customers see during payment. Here's how to update it:\n\n**To Change Business Name:**\n1️⃣ Login to dashboard.paystack.com\n2️⃣ Click 'Settings' → 'Business Profile'\n3️⃣ Edit 'Business Name'\n4️⃣ Add 'Display Name' (what customers see)\n5️⃣ Upload logo (optional but recommended)\n6️⃣ Save changes\n\n**What Customers See:**\n• Payment page: Your display name\n• Bank statement: 'Paystack/YourBusinessName'\n• Email receipts: Your business name\n• SMS alerts: Your business name\n\n**📝 For Registered Businesses:**\nIf you have CAC registration:\n• Business name must match CAC exactly\n• Upload CAC certificate\n• Verification takes 24-48 hours\n• Builds more customer trust\n\n**💡 Tips:**\n• Use a name customers recognize\n• Keep it short and clear\n• Add logo for professional look\n• Test with a small payment to see how it appears\n\n**Note:** Some changes require re-verification",
+      "actionLinks": ["https://dashboard.paystack.com/#/settings/business"],
+      "followUp": "Want help choosing a good display name for your business?",
+      "tags": ["business name", "display name", "edit", "update"]
+    },
+    {
+      "id": "payment-link",
+      "category": "accepting-payments",
+      "priority": 2,
+      "questions": [
+        "How do I create payment link?",
+        "Share payment link on WhatsApp",
+        "Generate payment link",
+        "Payment page setup"
+      ],
+      "answer": "Payment links let you collect payments anywhere - WhatsApp, Instagram, SMS! Here's how:\n\n**Create Payment Link:**\n1️⃣ Login to dashboard.paystack.com\n2️⃣ Click 'Payment Pages' (left menu)\n3️⃣ Click 'Create Payment Page'\n4️⃣ Choose type:\n   • Product: Fixed price item\n   • Donation: Customer chooses amount\n   • Subscription: Recurring payments\n\n**Setup Your Link:**\n• Add product name\n• Set price (or let customer choose)\n• Add description\n• Upload product image\n• Set stock quantity (optional)\n• Click 'Create Page'\n\n**📱 Share Everywhere:**\n• Copy your link (looks like: paystack.com/pay/yourlink)\n• Share on WhatsApp status\n• Add to Instagram bio\n• Send via SMS\n• Post on Facebook\n• Email to customers\n\n**✨ Link Features:**\n• Works without website\n• Tracks inventory\n• Sends automatic receipts\n• Shows payment history\n• Mobile-friendly\n• Shareable unlimited times\n\n**💡 Pro Tip:**\nCreate different links for different products - track which sells best!",
+      "actionLinks": ["https://dashboard.paystack.com/#/payment-pages"],
+      "followUp": "Created your link? Let me show you how to track sales from it!",
+      "tags": ["payment link", "payment page", "share", "whatsapp"]
+    },
+    {
+      "id": "verify-bvn",
+      "category": "account-setup",
+      "priority": 3,
+      "questions": [
+        "Why does Paystack need my BVN?",
+        "Is it safe to give Paystack my BVN?",
+        "BVN verification failed",
+        "How to verify identity"
+      ],
+      "answer": "BVN verification is required by Nigerian law for all payment processors. Here's what you need to know:\n\n**Why BVN is Required:**\n• Central Bank of Nigeria (CBN) regulation\n• Prevents fraud and money laundering\n• Protects your business\n• One-time verification only\n\n**✅ It's 100% Safe:**\n• Paystack is CBN-licensed\n• Bank-level encryption\n• BVN only verifies identity\n• Cannot access your bank accounts\n• Cannot withdraw your money\n• Over 60,000 businesses verified safely\n\n**Verification Process:**\n1️⃣ Enter BVN in dashboard\n2️⃣ Enter phone number linked to BVN\n3️⃣ System confirms your identity\n4️⃣ Approved within minutes\n\n**Common Issues & Fixes:**\n❌ Name mismatch → Use exact name on BVN\n❌ Phone mismatch → Use number registered with BVN\n❌ BVN blocked → Contact your bank\n❌ Multiple attempts → Wait 24 hours and retry\n\n**Alternative Verification:**\nIf BVN fails, you can verify with:\n• International passport\n• CAC documents (for registered businesses)\n• Contact Paystack support",
+      "followUp": "Having trouble with BVN verification? Tell me the exact error message!",
+      "tags": ["bvn", "verification", "identity", "kyc"]
+    },
+    {
+      "id": "transaction-limits",
+      "category": "managing-money",
+      "priority": 3,
+      "questions": [
+        "What is the maximum payment on Paystack?",
+        "Transaction limits",
+        "How much can customers pay?",
+        "Maximum amount per transaction"
+      ],
+      "answer": "Here are Paystack's transaction limits:\n\n**💳 Per Transaction Limits:**\n• Minimum: ₦100\n• Maximum (Cards): ₦5,000,000\n• Maximum (Transfer): ₦10,000,000\n• No daily limit on number of transactions\n\n**🏦 Customer's Bank Limits:**\nNote: Customer's bank may have lower limits:\n• Daily online limit: Usually ₦200,000 - ₦1,000,000\n• Can be increased via bank app/USSD\n• Each bank different\n\n**📈 Business Account Limits:**\n• Starter accounts: ₦10,000,000/month\n• After 3 months: Unlimited\n• High volume? Contact Paystack for increase\n\n**💰 Settlement Limits:**\n• No maximum for settlements\n• All earned money sent to your bank\n• Large amounts may be split across days\n\n**🎯 For Large Transactions:**\n• Customer should notify their bank first\n• Use bank transfer option (higher limits)\n• Can split into multiple payments\n• Consider payment plans for big tickets\n\n**💡 Tip:** For amounts above ₦500,000, recommend bank transfer to avoid card limits!",
+      "followUp": "Expecting large payments? I can show you how to optimize for high-value transactions!",
+      "tags": ["limits", "maximum", "minimum", "amount"]
+    },
+    {
+      "id": "disputes-chargebacks",
+      "category": "troubleshooting",
+      "priority": 3,
+      "questions": [
+        "Customer disputed payment",
+        "What is chargeback?",
+        "Customer says they didn't buy",
+        "How to handle disputes"
+      ],
+      "answer": "Disputes happen when customers challenge a payment. Here's how to handle them:\n\n**What is a Dispute/Chargeback?**\n• Customer claims transaction unauthorized\n• Customer reports to their bank\n• Bank reverses the payment temporarily\n• You need to provide evidence\n\n**📧 When Dispute Happens:**\n1. Paystack emails you immediately\n2. You have 48 hours to respond\n3. Money temporarily held\n4. You provide evidence\n5. Bank reviews and decides\n\n**📋 Evidence to Provide:**\n• Order details & receipts\n• Delivery confirmation\n• Customer communication (WhatsApp chats)\n• Shipping/waybill numbers\n• Product photos\n• Terms and conditions accepted\n\n**✅ How to Win Disputes:**\n• Respond within 24 hours\n• Provide clear evidence\n• Show delivery proof\n• Include all customer interactions\n• Be factual, not emotional\n\n**🛡️ Prevent Disputes:**\n• Clear product descriptions\n• Send receipts immediately\n• Track deliveries\n• Respond to customers quickly\n• Clear refund policy\n• Use recognizable business name\n\n**If You Lose:**\n• Money returned to customer\n• ₦3,000 dispute fee charged\n• Too many losses = account review",
+      "actionLinks": ["https://dashboard.paystack.com/#/disputes"],
+      "followUp": "Have an active dispute? I'll help you prepare your evidence!",
+      "tags": ["dispute", "chargeback", "fraud", "challenge"]
+    },
+    {
+      "id": "multiple-stores",
+      "category": "business-growth",
+      "priority": 3,
+      "questions": [
+        "Can I use Paystack for multiple stores?",
+        "Multiple businesses one Paystack",
+        "Add another store",
+        "Separate payments for different stores"
+      ],
+      "answer": "Yes! You can manage multiple stores with Paystack. Here are your options:\n\n**Option 1: One Paystack, Multiple Stores (Easier)**\n• Use same Paystack account for all stores\n• All payments go to same bank account\n• Use 'metadata' to track which store\n• View combined reports\n• Single settlement\n\n**Option 2: Subaccounts (Recommended)**\n• Create subaccounts for each store\n• Split payments automatically\n• Separate reporting per store\n• Different settlement schedules\n• Perfect for multiple brands\n\n**How to Create Subaccounts:**\n1️⃣ Go to dashboard.paystack.com\n2️⃣ Click 'Subaccounts' → 'New Subaccount'\n3️⃣ Add store details & bank info\n4️⃣ Set percentage split\n5️⃣ Generate unique payment link\n\n**Option 3: Multiple Paystack Accounts**\n• Separate email for each\n• Completely independent\n• Different bank accounts\n• More setup work\n• Best for very different businesses\n\n**💡 Best Practice:**\n• Same business type? Use subaccounts\n• Different industries? Separate accounts\n• Testing new idea? Start with same account\n\nStoreFront supports all options!",
+      "actionLinks": ["https://dashboard.paystack.com/#/subaccounts"],
+      "followUp": "How many stores are you planning to manage?",
+      "tags": ["multiple", "stores", "subaccounts", "split"]
+    },
+    {
+      "id": "recurring-payments",
+      "category": "business-growth",
+      "priority": 4,
+      "questions": [
+        "How do I set up subscription payments?",
+        "Recurring payments",
+        "Automatic monthly payments",
+        "Subscription billing"
+      ],
+      "answer": "Set up automatic recurring payments for subscription services:\n\n**Create Subscription Plan:**\n1️⃣ Dashboard → 'Plans' → 'Create Plan'\n2️⃣ Set details:\n   • Plan name (e.g., 'Monthly Membership')\n   • Amount (e.g., ₦5,000)\n   • Interval (Daily/Weekly/Monthly/Yearly)\n   • Currency (NGN)\n\n**How It Works:**\n• Customer pays once\n• Card saved securely\n• Automatic charging on schedule\n• Customer gets receipt each time\n• Can cancel anytime\n\n**Perfect For:**\n• Gym memberships\n• Software subscriptions\n• Monthly product boxes\n• Service retainers\n• Course payments\n\n**Customer Benefits:**\n• No manual payments\n• Never miss payment\n• Easy cancellation\n• Payment history\n\n**Your Benefits:**\n• Predictable income\n• Automatic collection\n• Reduced chasing payments\n• Better cash flow\n\n**💡 Tips:**\n• Offer discount for annual plans\n• Send reminder before charging\n• Clear cancellation policy\n• First month free trials work well!",
+      "actionLinks": ["https://dashboard.paystack.com/#/plans"],
+      "followUp": "What type of subscription service are you planning?",
+      "tags": ["subscription", "recurring", "automatic", "monthly"]
+    },
+    {
+      "id": "export-transactions",
+      "category": "managing-money",
+      "priority": 4,
+      "questions": [
+        "How do I export transactions?",
+        "Download payment history",
+        "Get transaction report",
+        "Export to Excel"
+      ],
+      "answer": "Export your Paystack transactions for accounting and records:\n\n**Export Transactions:**\n1️⃣ Login to dashboard.paystack.com\n2️⃣ Go to 'Transactions'\n3️⃣ Filter by date range\n4️⃣ Click 'Export' button (top right)\n5️⃣ Choose format:\n   • CSV (for Excel)\n   • PDF (for printing)\n\n**What's Included:**\n• Transaction reference\n• Amount\n• Customer email\n• Payment date & time\n• Payment method\n• Status\n• Fees\n• Net amount\n\n**Filter Options:**\n• Date range\n• Payment status\n• Payment method\n• Customer email\n• Amount range\n\n**📊 For Accounting:**\n• Export monthly for bookkeeping\n• Matches bank statements\n• Shows fees separately\n• Calculate tax easily\n\n**💡 Pro Tips:**\n• Set monthly reminder to export\n• Keep backup of all exports\n• Use for tax filing\n• Track business growth\n• Analyze best selling periods",
+      "actionLinks": ["https://dashboard.paystack.com/#/transactions"],
+      "followUp": "Need help analyzing your transaction data?",
+      "tags": ["export", "download", "excel", "csv", "reports"]
+    },
+    {
+      "id": "security-tips",
+      "category": "account-setup",
+      "priority": 4,
+      "questions": [
+        "How do I secure my Paystack account?",
+        "Paystack security tips",
+        "Protect my account",
+        "Prevent fraud"
+      ],
+      "answer": "Keep your Paystack account and money safe with these security tips:\n\n**🔐 Account Security:**\n• Use strong password (mix of letters, numbers, symbols)\n• Enable 2FA (Two-Factor Authentication)\n• Never share login details\n• Logout from shared computers\n• Check login history regularly\n\n**🔑 API Key Safety:**\n• NEVER share secret keys\n• Don't post keys online/GitHub\n• Regenerate if compromised\n• Use test keys for testing only\n• Store securely in your app\n\n**📧 Recognize Paystack Emails:**\n• Only from @paystack.com\n• Never ask for password in email\n• Verify links before clicking\n• Check for spelling errors\n\n**🛡️ Prevent Fraud:**\n• Verify large orders via phone\n• Ship to verified addresses\n• Keep delivery proof\n• Document everything\n• Set transaction limits\n\n**🚨 Red Flags:**\n• Urgent payment requests\n• Unusual large orders\n• Multiple failed attempts\n• Request to use different account\n\n**If Compromised:**\n1. Change password immediately\n2. Regenerate API keys\n3. Check recent transactions\n4. Contact support@paystack.com\n5. Review account activity",
+      "followUp": "Want me to guide you through enabling 2FA?",
+      "tags": ["security", "safety", "fraud", "protect", "2fa"]
+    },
+    {
+      "id": "customer-receipt",
+      "category": "accepting-payments",
+      "priority": 4,
+      "questions": [
+        "How do customers get receipts?",
+        "Send payment receipt",
+        "Customer wants receipt",
+        "Receipt not received"
+      ],
+      "answer": "Paystack automatically sends receipts to customers:\n\n**Automatic Receipts:**\n• Sent immediately after payment\n• Goes to customer's email\n• Contains all payment details\n• PDF format for easy printing\n\n**Receipt Contains:**\n• Your business name & logo\n• Transaction reference\n• Amount paid\n• Payment date/time\n• Payment method\n• Customer details\n\n**Customer Didn't Get Receipt?**\n1. Check spam/junk folder\n2. Verify correct email used\n3. Resend from dashboard:\n   • Go to Transactions\n   • Find payment\n   • Click 'Resend Receipt'\n\n**📱 SMS Receipts:**\n• Enable in Settings\n• Costs ₦4 per SMS\n• Good for customers without email\n• Instant delivery\n\n**🎨 Customize Receipts:**\n• Add business logo\n• Include business address\n• Add thank you message\n• Include return policy\n• Settings → Business Profile\n\n**💡 Tip:** Always ask customers for correct email during checkout!",
+      "actionLinks": ["https://dashboard.paystack.com/#/transactions"],
+      "followUp": "Want to customize your receipt template?",
+      "tags": ["receipt", "invoice", "email", "proof"]
+    },
+    {
+      "id": "paystack-vs-others",
+      "category": "getting-started",
+      "priority": 5,
+      "questions": [
+        "Why Paystack instead of Flutterwave?",
+        "Paystack vs other payment gateways",
+        "Which payment gateway is best?",
+        "Paystack comparison"
+      ],
+      "answer": "Here's why StoreFront recommends Paystack:\n\n**Paystack Advantages:**\n✅ Easiest to set up (15 minutes)\n✅ Best for Nigerian businesses\n✅ Instant settlements (T+1)\n✅ Lowest disputes rate\n✅ Best customer support\n✅ Most reliable uptime (99.9%)\n✅ Trusted by biggest brands\n\n**Comparison:**\n\n**Paystack:**\n• Fees: 1.5% + ₦100\n• Settlement: Next day\n• Setup: 15 minutes\n• Support: Excellent\n\n**Flutterwave:**\n• Fees: 1.4% (but many hidden charges)\n• Settlement: T+3 days\n• Setup: Complex\n• More for international\n\n**Others (Monnify, Squadco):**\n• Newer, less tested\n• Varying fees\n• Longer settlements\n• Limited support\n\n**Why StoreFront + Paystack:**\n• Pre-integrated\n• Optimized for Nigeria\n• Proven combination\n• 60,000+ businesses trust it\n• Best for SMEs\n\n**💡 Bottom Line:**\nPaystack is the iPhone of payment gateways - it just works!",
+      "followUp": "Ready to start with Paystack?",
+      "tags": ["comparison", "versus", "flutterwave", "best", "choose"]
+    },
+    {
+      "id": "business-growth-tips",
+      "category": "business-growth",
+      "priority": 5,
+      "questions": [
+        "How to increase sales with Paystack?",
+        "Grow my business",
+        "Get more customers to pay",
+        "Increase conversions"
+      ],
+      "answer": "Use these Paystack features to boost your sales:\n\n**🎯 Increase Conversions:**\n• Enable all payment methods (cards, transfer, USSD)\n• Add 'Secured by Paystack' badge\n• Show accepted payment logos\n• Offer payment plans for big items\n• Enable one-click checkout\n\n**📱 Reach More Customers:**\n• Share payment links on WhatsApp\n• Add link to Instagram bio\n• Create product catalogs\n• Send payment requests via SMS\n• Enable USSD for non-internet users\n\n**💳 Build Trust:**\n• Use recognizable business name\n• Add business logo\n• Send instant receipts\n• Display customer testimonials\n• Show 'Money-back guarantee'\n\n**📊 Smart Pricing:**\n• Offer discounts for card payments\n• Create bundle deals\n• Set up subscription plans\n• Early bird discounts\n• Referral rewards\n\n**🚀 Advanced Features:**\n• Split payments (installments)\n• Recurring billing\n• International payments\n• Multi-currency (USD)\n• Bulk payment collection\n\n**📈 Track What Works:**\n• Check dashboard analytics\n• See payment method preferences\n• Track peak sales times\n• Monitor conversion rates",
+      "followUp": "Which growth strategy would work best for your business?",
+      "tags": ["growth", "sales", "conversion", "tips", "increase"]
+    },
+    {
+      "id": "integration-wordpress",
+      "category": "account-setup",
+      "priority": 5,
+      "questions": [
+        "How to add Paystack to WordPress?",
+        "Paystack plugin",
+        "WooCommerce Paystack",
+        "WordPress integration"
+      ],
+      "answer": "While you're using StoreFront (which already has Paystack integrated), here's how WordPress/WooCommerce users can add Paystack:\n\n**For WooCommerce:**\n1️⃣ Install Paystack plugin:\n• WordPress Dashboard → Plugins\n• Search 'Paystack WooCommerce'\n• Install & Activate\n\n2️⃣ Configure:\n• WooCommerce → Settings → Payments\n• Enable Paystack\n• Add your API keys\n• Save\n\n**For Other WordPress Sites:**\n• Paystack Forms plugin\n• Paystack Pay plugin\n• Custom integration\n\n**Why StoreFront is Better:**\n✅ Already integrated - no plugins needed\n✅ Mobile-first design\n✅ Faster checkout\n✅ No technical knowledge required\n✅ Automatic updates\n✅ Better for Nigerian market\n\n**Moving from WordPress?**\nStoreFront advantages:\n• 5-minute setup vs hours\n• No hosting costs\n• No plugin conflicts\n• Built-in inventory\n• WhatsApp integration\n• Free forever plan\n\n💡 **Tip:** StoreFront is designed specifically for Nigerian businesses!",
+      "followUp": "Are you currently using WordPress and thinking of switching?",
+      "tags": ["wordpress", "woocommerce", "plugin", "integration"]
+    },
+    {
+      "id": "paystack-status",
+      "category": "troubleshooting",
+      "priority": 5,
+      "questions": [
+        "Is Paystack down?",
+        "Paystack not working today",
+        "Check Paystack status",
+        "Paystack maintenance"
+      ],
+      "answer": "Check if Paystack is experiencing issues:\n\n**🟢 Check Status:**\n• Visit: https://status.paystack.com\n• Shows real-time status\n• See current incidents\n• Check maintenance schedule\n• Subscribe to updates\n\n**Status Indicators:**\n🟢 Operational - Everything working\n🟡 Degraded - Slow but working\n🔴 Outage - Service down\n🔧 Maintenance - Scheduled work\n\n**Common Issues:**\n• Bank network problems\n• Card network issues\n• Individual bank downtime\n• Internet connectivity\n• Browser issues\n\n**Quick Fixes to Try:**\n1. Clear browser cache\n2. Try different browser\n3. Check your internet\n4. Try different payment method\n5. Wait 5-10 minutes\n\n**If Paystack is Down:**\n• Use alternative payment method\n• Share bank details for transfer\n• Take orders, process later\n• Check their Twitter for updates\n• Usually resolved within hours\n\n**💡 Tip:** Paystack has 99.9% uptime - downtimes are rare and brief!",
+      "actionLinks": ["https://status.paystack.com", "https://twitter.com/paystack"],
+      "followUp": "Is Paystack working for you now?",
+      "tags": ["status", "down", "not working", "maintenance", "outage"]
+    },
+    {
+      "id": "contact-support",
+      "category": "troubleshooting",
+      "priority": 5,
+      "questions": [
+        "How do I contact Paystack support?",
+        "Paystack customer service",
+        "Talk to Paystack",
+        "Paystack help"
+      ],
+      "answer": "Multiple ways to get help from Paystack:\n\n**📧 Email Support (Fastest):**\n• Email: support@paystack.com\n• Response time: 24-48 hours\n• Best for: Complex issues\n• Include: Transaction reference\n\n**💬 Live Chat:**\n• In dashboard (bottom right)\n• Available: Monday-Friday, 9am-5pm\n• Best for: Quick questions\n• Real human support\n\n**📞 Phone Support:**\n• Call: +234 908 566 2909\n• Hours: Monday-Friday, 9am-5pm\n• Best for: Urgent issues\n\n**🐦 Twitter:**\n• @paystack\n• Quick responses\n• Public queries\n\n**📚 Help Center:**\n• https://paystack.com/help\n• FAQs and guides\n• Video tutorials\n• Self-service\n\n**What to Include:**\n• Business name\n• Transaction reference\n• Error message/screenshot\n• Steps you've tried\n• Your contact info\n\n**💡 Tip:** StoreFront support can also help with Paystack integration issues!",
+      "actionLinks": ["https://paystack.com/help"],
+      "followUp": "What specific issue do you need help with?",
+      "tags": ["support", "contact", "help", "customer service"]
+    }
+  ],
+  "contextualResponses": {
+    "newUser": "I see you're new to Paystack! It's Nigeria's most trusted payment gateway that lets your customers pay you online instantly. Would you like me to walk you through the setup process step by step?",
+    "setupInProgress": "Let's continue setting up your Paystack account. Where did you stop? I can help with: 1) Creating your account, 2) Finding your API keys, 3) Connecting to StoreFront, or 4) Testing your first payment.",
+    "testMode": "You're currently in Test Mode - perfect for practicing! You can make unlimited test payments without real money. Ready to go live? I'll show you how to switch to real payments.",
+    "liveMode": "Great! You're accepting real payments. Remember to track your transactions daily and settlements arrive the next business day. Need help with anything specific?",
+    "error": "I see you're having payment issues. Let me help troubleshoot. Can you tell me: 1) What error message you see, 2) Whether you're in test or live mode, and 3) What payment method was attempted?",
+    "success": "Congratulations on your successful payment setup! 🎉 Your customers can now pay you instantly. Don't forget to: 1) Test all payment methods, 2) Customize your receipts, and 3) Set up your settlement account."
+  }
+}

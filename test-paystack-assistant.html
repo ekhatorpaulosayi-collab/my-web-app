@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paystack Assistant Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .test-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+    .test-button {
+      background: #4F46E5;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .test-button:hover {
+      background: #4338CA;
+    }
+    .response {
+      margin-top: 20px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border-left: 4px solid #4F46E5;
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .confidence {
+      display: inline-block;
+      padding: 4px 8px;
+      background: #10B981;
+      color: white;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    .suggested-questions {
+      margin-top: 20px;
+      padding: 15px;
+      background: #EEF2FF;
+      border-radius: 8px;
+    }
+    .suggested-questions h3 {
+      margin: 0 0 10px 0;
+      color: #4F46E5;
+      font-size: 14px;
+    }
+    .question-chip {
+      display: inline-block;
+      padding: 6px 12px;
+      background: white;
+      border: 1px solid #C7D2FE;
+      border-radius: 20px;
+      margin: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .question-chip:hover {
+      background: #4F46E5;
+      color: white;
+      border-color: #4F46E5;
+    }
+    .test-scenarios {
+      margin-top: 30px;
+      padding: 20px;
+      background: #FEF3C7;
+      border-radius: 8px;
+    }
+    .test-scenarios h3 {
+      margin: 0 0 15px 0;
+      color: #92400E;
+    }
+    .scenario-button {
+      background: #F59E0B;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .scenario-button:hover {
+      background: #D97706;
+    }
+    .stats {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    .stat-card {
+      padding: 15px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #4F46E5;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>🤖 Paystack Assistant Test Console</h1>
+    <p class="subtitle">Test the Paystack knowledge base and assistant responses</p>
+
+    <input
+      type="text"
+      class="test-input"
+      id="queryInput"
+      placeholder="Ask a question about Paystack... (e.g., 'How do I create a Paystack account?')"
+    />
+
+    <button class="test-button" onclick="testQuery()">Test Query</button>
+    <button class="test-button" onclick="clearResponse()">Clear</button>
+    <button class="test-button" onclick="toggleDebugMode()">Toggle Debug</button>
+
+    <div id="responseArea"></div>
+
+    <div class="suggested-questions" id="suggestions">
+      <h3>💡 Suggested Questions</h3>
+      <div id="suggestionChips"></div>
+    </div>
+
+    <div class="test-scenarios">
+      <h3>🧪 Test Scenarios</h3>
+      <button class="scenario-button" onclick="testScenario('What is Paystack?')">New User</button>
+      <button class="scenario-button" onclick="testScenario('Where are my API keys?')">Setup</button>
+      <button class="scenario-button" onclick="testScenario('Payment not working')">Troubleshooting</button>
+      <button class="scenario-button" onclick="testScenario('How much does Paystack charge?')">Pricing</button>
+      <button class="scenario-button" onclick="testScenario('Test card details')">Testing</button>
+      <button class="scenario-button" onclick="testScenario('When will I get my money?')">Settlements</button>
+      <button class="scenario-button" onclick="testScenario('Customer wants refund')">Refunds</button>
+      <button class="scenario-button" onclick="testScenario('How to go live?')">Go Live</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="totalQueries">0</div>
+        <div class="stat-label">Total Queries</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="avgConfidence">0%</div>
+        <div class="stat-label">Avg Confidence</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="knowledgeEntries">50</div>
+        <div class="stat-label">Knowledge Entries</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import the Paystack knowledge base
+    import paystackKnowledge from './src/data/paystack-knowledge.json' assert { type: 'json' };
+
+    let debugMode = false;
+    let totalQueries = 0;
+    let totalConfidence = 0;
+
+    // Simple assistant logic for testing
+    class SimplePaystackAssistant {
+      constructor() {
+        this.knowledge = paystackKnowledge.knowledge;
+      }
+
+      findBestMatch(query) {
+        const lowerQuery = query.toLowerCase();
+        let bestMatch = null;
+        let bestScore = 0;
+
+        for (const entry of this.knowledge) {
+          // Check exact question match
+          for (const question of entry.questions) {
+            if (question.toLowerCase().includes(lowerQuery) ||
+                lowerQuery.includes(question.toLowerCase())) {
+              const score = this.calculateSimilarity(lowerQuery, question.toLowerCase());
+              if (score > bestScore) {
+                bestScore = score;
+                bestMatch = entry;
+              }
+            }
+          }
+
+          // Check tag matches
+          for (const tag of entry.tags) {
+            if (lowerQuery.includes(tag)) {
+              bestScore = Math.max(bestScore, 0.5);
+              if (!bestMatch) bestMatch = entry;
+            }
+          }
+        }
+
+        return { entry: bestMatch, confidence: bestScore };
+      }
+
+      calculateSimilarity(str1, str2) {
+        const words1 = str1.split(/\s+/);
+        const words2 = str2.split(/\s+/);
+        let matches = 0;
+
+        for (const word1 of words1) {
+          if (words2.some(word2 => word2.includes(word1) || word1.includes(word2))) {
+            matches++;
+          }
+        }
+
+        return matches / Math.max(words1.length, words2.length);
+      }
+
+      getSuggestions() {
+        // Return random 5 questions for testing
+        const allQuestions = [];
+        for (const entry of this.knowledge.slice(0, 10)) {
+          allQuestions.push(entry.questions[0]);
+        }
+        return allQuestions.slice(0, 5);
+      }
+    }
+
+    const assistant = new SimplePaystackAssistant();
+
+    window.testQuery = function() {
+      const input = document.getElementById('queryInput');
+      const query = input.value.trim();
+
+      if (!query) {
+        alert('Please enter a question!');
+        return;
+      }
+
+      const result = assistant.findBestMatch(query);
+      displayResponse(query, result);
+      updateStats(result.confidence);
+    };
+
+    window.testScenario = function(scenario) {
+      document.getElementById('queryInput').value = scenario;
+      testQuery();
+    };
+
+    function displayResponse(query, result) {
+      const responseArea = document.getElementById('responseArea');
+
+      if (!result.entry) {
+        responseArea.innerHTML = `
+          <div class="response">
+            <div class="confidence" style="background: #EF4444">No Match Found</div>
+            <div>Sorry, I couldn't find a good answer for: "${query}"</div>
+            <div style="margin-top: 10px; color: #666;">Try asking about:</div>
+            <ul style="margin: 10px 0; color: #666;">
+              <li>Creating a Paystack account</li>
+              <li>Finding API keys</li>
+              <li>Payment methods</li>
+              <li>Fees and charges</li>
+            </ul>
+          </div>
+        `;
+        return;
+      }
+
+      const confidence = Math.round(result.confidence * 100);
+      const confidenceColor = confidence > 70 ? '#10B981' :
+                              confidence > 40 ? '#F59E0B' : '#EF4444';
+
+      let html = `
+        <div class="response">
+          <div class="confidence" style="background: ${confidenceColor}">
+            Confidence: ${confidence}%
+          </div>
+          ${debugMode ? `<div style="margin-bottom: 10px; color: #666; font-size: 12px;">
+            Matched: ${result.entry.id} | Category: ${result.entry.category}
+          </div>` : ''}
+          <div>${formatResponse(result.entry.answer)}</div>
+      `;
+
+      if (result.entry.followUp) {
+        html += `<div style="margin-top: 15px; padding: 10px; background: #F0F9FF; border-radius: 6px;">
+          💡 ${result.entry.followUp}
+        </div>`;
+      }
+
+      if (result.entry.actionLinks) {
+        html += `<div style="margin-top: 15px;">
+          <strong>🔗 Helpful Links:</strong><br/>`;
+        result.entry.actionLinks.forEach(link => {
+          const text = link.includes('dashboard.paystack') ? 'Open Paystack Dashboard' : 'Learn More';
+          html += `<a href="${link}" target="_blank" style="color: #4F46E5; text-decoration: none;">
+            • ${text}</a><br/>`;
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+      responseArea.innerHTML = html;
+    }
+
+    function formatResponse(text) {
+      // Simple formatting for display
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br/>')
+        .replace(/•/g, '&bull;')
+        .replace(/✅/g, '✅')
+        .replace(/💳/g, '💳')
+        .replace(/📊/g, '📊');
+    }
+
+    window.clearResponse = function() {
+      document.getElementById('responseArea').innerHTML = '';
+      document.getElementById('queryInput').value = '';
+    };
+
+    window.toggleDebugMode = function() {
+      debugMode = !debugMode;
+      alert('Debug mode: ' + (debugMode ? 'ON' : 'OFF'));
+    };
+
+    function updateStats(confidence) {
+      totalQueries++;
+      totalConfidence += confidence;
+
+      document.getElementById('totalQueries').textContent = totalQueries;
+      document.getElementById('avgConfidence').textContent =
+        Math.round((totalConfidence / totalQueries) * 100) + '%';
+    }
+
+    function loadSuggestions() {
+      const suggestions = assistant.getSuggestions();
+      const container = document.getElementById('suggestionChips');
+
+      container.innerHTML = suggestions.map(q =>
+        `<span class="question-chip" onclick="testScenario('${q}')">${q}</span>`
+      ).join('');
+    }
+
+    // Initialize on load
+    loadSuggestions();
+
+    // Allow Enter key to submit
+    document.getElementById('queryInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        testQuery();
+      }
+    });
+  </script>
+</body>
+</html>

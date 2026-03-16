@@ -1079,7 +1079,7 @@ function StorefrontContent() {
       {/* Payment Methods Section - NEW Multi-Payment Support */}
       {(store.payment_methods?.filter(m => m.enabled).length || store.bankName || store.accountNumber) && (
         <section style={{
-          maxWidth: '800px',
+          maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
           background: 'white',
@@ -1403,7 +1403,7 @@ function StorefrontContent() {
       {/* Delivery Information Section */}
       {(store.deliveryAreas?.length || store.deliveryFee || store.deliveryTime) && (
         <section style={{
-          maxWidth: '800px',
+          maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
           background: 'white',
@@ -1508,7 +1508,7 @@ function StorefrontContent() {
       {/* Business Hours Section */}
       {(store.businessHours || store.daysOfOperation?.length) && (
         <section style={{
-          maxWidth: '800px',
+          maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
           background: 'white',
@@ -1608,7 +1608,7 @@ function StorefrontContent() {
       {/* Social Media Section */}
       {(store.instagramUrl || store.facebookUrl || store.tiktokUrl || store.twitterUrl) && (
         <section style={{
-          maxWidth: '800px',
+          maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
           background: 'white',
@@ -1819,7 +1819,7 @@ function StorefrontContent() {
       {/* About Us Section */}
       {store.aboutUs && (
         <section style={{
-          maxWidth: '800px',
+          maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
           background: 'white',
@@ -1890,7 +1890,7 @@ function StorefrontContent() {
       {/* Return Policy Section */}
       {store.returnPolicy && (
         <section style={{
-          maxWidth: '800px',
+          maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
           background: 'white',

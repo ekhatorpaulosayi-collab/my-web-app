@@ -177,10 +177,15 @@ export function buildImageKitSrcSet(
   options: Omit<ImageKitTransformOptions, 'width'> = {}
 ): string {
   // Early validation - if path is invalid, return empty string immediately
-  if (!path || typeof path !== 'string' || path.trim() === '' || path === 'undefined' || path === 'null') {
+  if (!path || typeof path !== 'string' || path.trim() === '' || path === 'undefined' || path === 'null' || path === 'null/null') {
     if (import.meta.env.DEV) {
       console.warn('[ImageKit] buildImageKitSrcSet received invalid path:', path);
     }
+    return '';
+  }
+
+  // Skip blob URLs - they can't be optimized
+  if (path.startsWith('blob:')) {
     return '';
   }
 
@@ -193,16 +198,16 @@ export function buildImageKitSrcSet(
       const isValidUrl = url &&
         url !== '' &&
         url !== IMAGEKIT_URL_ENDPOINT && // Not just the base endpoint
-        url.length > IMAGEKIT_URL_ENDPOINT.length + 10; // Has actual path content
+        url.includes('/products/') || url.includes('/stores/') || url.includes('/avatars/'); // Has actual path content
 
       // Debug logging to identify incomplete URLs
       if (import.meta.env.DEV && url && !isValidUrl) {
         console.warn('[ImageKit] Incomplete URL detected, skipping from srcset:', { url, path, width });
       }
 
-      return isValidUrl ? `${url} ${width}w` : ''; // Only include if URL is valid and complete
+      return isValidUrl ? `${url} ${width}w` : null; // Return null instead of empty string
     })
-    .filter(entry => entry !== ''); // Filter out empty entries
+    .filter(entry => entry !== null && entry !== ''); // Filter out null and empty entries
 
   // If all entries are empty, return empty string (don't set srcset at all)
   if (srcSetParts.length === 0) {
