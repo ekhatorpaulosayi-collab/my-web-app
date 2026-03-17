@@ -101,6 +101,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
   const loadData = async () => {
     if (!currentUser) return;
 
+    console.log('[SubscriptionUpgrade] Starting to load data...');
     setLoading(true);
 
     try {
@@ -177,6 +178,14 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       }
     } catch (error) {
       console.error('[SubscriptionUpgrade] Error loading data:', error);
+      if (error instanceof Error) {
+        console.error('[SubscriptionUpgrade] Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
+      // Try to show a user-friendly message
+      alert('Failed to load subscription plans. Please refresh the page and try again.');
     } finally {
       setLoading(false);
     }
