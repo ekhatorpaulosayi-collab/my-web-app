@@ -100,6 +100,11 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
     try {
       // Get Paystack public key from environment
       const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+      console.log('[SubscriptionUpgrade] Environment check:', {
+        hasPublicKey: !!publicKey,
+        keyLength: publicKey ? publicKey.length : 0,
+        keyPrefix: publicKey ? publicKey.substring(0, 7) : 'none'
+      });
       if (publicKey) {
         setPaystackPublicKey(publicKey);
       } else {
@@ -345,6 +350,18 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       const paymentBillingCycle = billingCycle;
 
       // Initialize Paystack subscription
+      console.log('[SubscriptionUpgrade] About to initialize Paystack with:', {
+        hasKey: !!paystackPublicKey,
+        keyLength: paystackPublicKey ? paystackPublicKey.length : 0,
+        keyPrefix: paystackPublicKey ? paystackPublicKey.substring(0, 7) : 'none',
+        email: currentUser.email,
+        planCode: planCode
+      });
+
+      if (!paystackPublicKey) {
+        throw new Error('Paystack public key is not configured. Please contact support.');
+      }
+
       const handler = window.PaystackPop.setup({
         key: paystackPublicKey,
         email: currentUser.email,
