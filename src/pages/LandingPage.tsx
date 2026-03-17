@@ -81,8 +81,12 @@ export default function LandingPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
 
-  // Auto-redirect logged-in users to dashboard
-  if (currentUser) {
+  // Check if this is a bot/crawler - they should ALWAYS see the landing page
+  const isBot = typeof window !== 'undefined' &&
+    /bot|googlebot|crawler|spider|robot|crawling/i.test(navigator.userAgent);
+
+  // Auto-redirect logged-in users to dashboard (but not bots)
+  if (currentUser && !isBot) {
     return <Navigate to="/dashboard" replace />;
   }
 
