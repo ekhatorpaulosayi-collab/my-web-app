@@ -22,7 +22,13 @@ interface SubscriptionTier {
   max_images_per_product: number;
   max_users: number;
   max_ai_chats_monthly: number;
-  features: Record<string, boolean>;
+  // Feature flags from database
+  has_product_variants?: boolean;
+  has_invoicing?: boolean;
+  has_whatsapp_ai?: boolean;
+  has_priority_support?: boolean;
+  // Legacy support for features object
+  features?: Record<string, boolean>;
 }
 
 interface UserSubscription {
@@ -752,25 +758,25 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
                   <span>{tier.max_ai_chats_monthly} AI chats/month</span>
                 </div>
 
-                {tier.features?.product_variants && (
+                {(tier.has_product_variants || tier.features?.product_variants) && (
                   <div className="feature">
                     <Check size={16} className="check-icon" />
                     <span>Product variants</span>
                   </div>
                 )}
-                {tier.features?.invoicing && (
+                {(tier.has_invoicing || tier.features?.invoicing) && (
                   <div className="feature">
                     <Check size={16} className="check-icon" />
                     <span>Invoicing</span>
                   </div>
                 )}
-                {tier.features?.whatsapp_ai_integration && (
+                {(tier.has_whatsapp_ai || tier.features?.whatsapp_ai_integration) && (
                   <div className="feature">
                     <Check size={16} className="check-icon" />
                     <span>WhatsApp AI</span>
                   </div>
                 )}
-                {tier.features?.priority_support && (
+                {(tier.has_priority_support || tier.features?.priority_support) && (
                   <div className="feature">
                     <Check size={16} className="check-icon" />
                     <span>Priority support</span>
