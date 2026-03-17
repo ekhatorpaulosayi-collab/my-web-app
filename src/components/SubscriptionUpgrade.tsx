@@ -112,16 +112,22 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       }
 
       // Fetch subscription tiers
+      console.log('[SubscriptionUpgrade] Fetching subscription tiers...');
       const { data: tiersData, error: tiersError } = await supabase
         .from('subscription_tiers')
         .select('*')
         .eq('is_active', true)
         .order('display_order');
 
-      if (tiersError) throw tiersError;
+      if (tiersError) {
+        console.error('[SubscriptionUpgrade] Error fetching tiers:', tiersError);
+        throw tiersError;
+      }
+      console.log('[SubscriptionUpgrade] Tiers loaded:', tiersData);
       setTiers(tiersData || []);
 
       // Fetch user's current subscription
+      console.log('[SubscriptionUpgrade] Fetching user subscription for:', currentUser.uid);
       const { data: subData, error: subError } = await supabase
         .from('user_subscriptions')
         .select(`
@@ -138,6 +144,8 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       if (subError) {
         // Log the error but don't block - user might not have subscription yet
         console.warn('[SubscriptionUpgrade] Could not load current subscription:', subError);
+        console.warn('[SubscriptionUpgrade] Error code:', subError.code);
+        console.warn('[SubscriptionUpgrade] Error message:', subError.message);
         console.warn('[SubscriptionUpgrade] User may not have a subscription record yet');
         setCurrentSubscription(null);
       } else if (subData) {
