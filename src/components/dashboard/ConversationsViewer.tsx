@@ -76,12 +76,13 @@ export function ConversationsViewer() {
         .eq('store_id', store.id)
         .order('last_message_at', { ascending: false });
 
-      // If view doesn't exist, return empty array instead of crashing
-      if (error && error.code === '42P01') {
-        console.log('store_conversations view not found, using empty state');
-        data = [];
-      } else if (error) {
-        console.error('Error fetching conversations:', error);
+      // If view doesn't exist or any error, return empty array instead of crashing
+      if (error) {
+        if (error.code === '42P01') {
+          console.log('store_conversations view not found, using empty state');
+        } else {
+          console.error('Error fetching conversations:', error);
+        }
         data = [];
       }
 
@@ -254,14 +255,16 @@ export function ConversationsViewer() {
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
                     <span className="font-medium text-sm">
-                      {conv.visitor_name || `Visitor ${conv.session_id.slice(0, 8)}`}
+                      {conv.visitor_name || `Visitor ${conv.session_id?.slice(0, 8) || 'Unknown'}`}
                     </span>
                     {conv.status === 'active' && (
                       <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
                     )}
                   </div>
                   <span className="text-xs text-gray-500">
-                    {formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })}
+                    {conv.last_message_at
+                      ? formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })
+                      : 'Just now'}
                   </span>
                 </div>
 
@@ -283,8 +286,8 @@ export function ConversationsViewer() {
 
                 {/* Stats */}
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                  <span>{conv.message_count} messages</span>
-                  <span>From: {conv.source_page}</span>
+                  <span>{conv.message_count || 0} messages</span>
+                  {conv.source_page && <span>From: {conv.source_page}</span>}
                 </div>
               </div>
             ))
@@ -301,7 +304,7 @@ export function ConversationsViewer() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold flex items-center gap-2">
-                    {selectedConversation.visitor_name || `Visitor ${selectedConversation.session_id.slice(0, 8)}`}
+                    {selectedConversation.visitor_name || `Visitor ${selectedConversation.session_id?.slice(0, 8) || 'Unknown'}`}
                     {selectedConversation.status === 'active' && (
                       <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">
                         Active Now

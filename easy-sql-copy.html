@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enable Customer Chat - One Click Copy</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+            font-size: 28px;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+        .sql-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        #sqlCode {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            border: 2px solid #e1e4e8;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            background: #f6f8fa;
+            resize: vertical;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #38a169;
+        }
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+        .highlight {
+            background: #fef5e7;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .emoji {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+        #timer {
+            display: none;
+            font-size: 14px;
+            color: #718096;
+            margin-left: 10px;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        .checklist input[type="checkbox"] {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1><span class="emoji">🚀</span>Enable Customer Chat Visibility</h1>
+            <p style="font-size: 18px; color: #718096;">Follow these 3 simple steps to see all customer conversations from your online store!</p>
+
+            <div class="alert alert-info" style="display: block;">
+                <strong>🎯 What this does:</strong> Allows you to see all chat conversations from customers visiting your online store.
+            </div>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div>
+                    <strong>Copy the SQL Code</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096;">Click the button below to copy all the SQL code to your clipboard</p>
+                </div>
+            </div>
+
+            <div class="sql-container">
+                <textarea id="sqlCode" readonly>-- CUSTOMER CHAT VISIBILITY SQL
+-- Run this entire script in Supabase SQL Editor
+-- It will enable you to see all customer conversations
+
+-- Step 1: Add tracking fields to conversations table
+ALTER TABLE ai_chat_conversations
+ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id),
+ADD COLUMN IF NOT EXISTS visitor_name TEXT,
+ADD COLUMN IF NOT EXISTS visitor_email TEXT,
+ADD COLUMN IF NOT EXISTS visitor_phone TEXT,
+ADD COLUMN IF NOT EXISTS source_page TEXT,
+ADD COLUMN IF NOT EXISTS is_storefront BOOLEAN DEFAULT FALSE;
+
+-- Step 2: Add tracking to messages
+ALTER TABLE ai_chat_messages
+ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id);
+
+-- Step 3: Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_conversations_store_id
+ON ai_chat_conversations(store_id)
+WHERE store_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_messages_store_id
+ON ai_chat_messages(store_id)
+WHERE store_id IS NOT NULL;
+
+-- Step 4: Create the view that shows conversations
+DROP VIEW IF EXISTS store_conversations CASCADE;
+CREATE VIEW store_conversations AS
+SELECT
+  c.id,
+  c.store_id,
+  c.session_id,
+  c.visitor_name,
+  c.visitor_email,
+  c.visitor_phone,
+  c.created_at,
+  c.updated_at,
+  c.context_type,
+  c.source_page,
+  s.business_name,
+  s.store_slug,
+  COUNT(m.id) as message_count,
+  MAX(m.created_at) as last_message_at,
+  CASE
+    WHEN MAX(m.created_at) > NOW() - INTERVAL '5 minutes' THEN 'active'
+    WHEN MAX(m.created_at) > NOW() - INTERVAL '1 hour' THEN 'recent'
+    ELSE 'inactive'
+  END as status
+FROM ai_chat_conversations c
+JOIN stores s ON c.store_id = s.id
+LEFT JOIN ai_chat_messages m ON c.id = m.conversation_id
+WHERE c.is_storefront = TRUE
+GROUP BY c.id, s.business_name, s.store_slug;
+
+-- Step 5: Create notifications table
+CREATE TABLE IF NOT EXISTS chat_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID REFERENCES stores(id),
+  conversation_id UUID REFERENCES ai_chat_conversations(id),
+  user_id UUID REFERENCES users(id),
+  type VARCHAR(50),
+  title TEXT,
+  message TEXT,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Step 6: Set permissions
+GRANT SELECT ON store_conversations TO authenticated;
+GRANT ALL ON chat_notifications TO authenticated;
+
+-- Step 7: Enable security
+ALTER TABLE ai_chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_notifications ENABLE ROW LEVEL SECURITY;
+
+-- Step 8: Create security policies
+DROP POLICY IF EXISTS "Store owners can view their conversations" ON ai_chat_conversations;
+CREATE POLICY "Store owners can view their conversations"
+ON ai_chat_conversations FOR SELECT
+USING (
+  store_id IN (
+    SELECT id FROM stores
+    WHERE user_id = auth.uid()
+  )
+);
+
+DROP POLICY IF EXISTS "Store owners can view their messages" ON ai_chat_messages;
+CREATE POLICY "Store owners can view their messages"
+ON ai_chat_messages FOR SELECT
+USING (
+  store_id IN (
+    SELECT id FROM stores
+    WHERE user_id = auth.uid()
+  )
+);
+
+DROP POLICY IF EXISTS "Users can view their notifications" ON chat_notifications;
+CREATE POLICY "Users can view their notifications"
+ON chat_notifications FOR ALL
+USING (user_id = auth.uid());
+
+-- Done! You should now be able to see customer conversations
+-- Test by sending a chat message from your storefront</textarea>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="copySQL()">
+                        <span>📋</span> Copy SQL Code
+                    </button>
+                    <button class="btn btn-secondary" onclick="selectAll()">
+                        Select All
+                    </button>
+                </div>
+            </div>
+
+            <div class="alert alert-success" id="copyAlert">
+                ✅ SQL code copied to clipboard! Now go to Step 2.
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div>
+                    <strong>Open Supabase SQL Editor</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096;">Click the button to open your Supabase SQL editor, then paste the code</p>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <a href="https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new" target="_blank" class="btn btn-success">
+                    <span>🔗</span> Open Supabase SQL Editor
+                </a>
+                <span id="timer">Opening in new tab...</span>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div>
+                    <strong>Run the SQL</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096;">
+                        1. Paste the code (Ctrl+V or Cmd+V)<br>
+                        2. Click the green <span class="highlight">RUN</span> button<br>
+                        3. Wait for "Success" message (3-5 seconds)
+                    </p>
+                </div>
+            </div>
+
+            <hr style="margin: 30px 0; border: none; border-top: 1px solid #e1e4e8;">
+
+            <h2>✅ Verification Checklist</h2>
+            <ul class="checklist">
+                <li>
+                    <input type="checkbox" id="check1">
+                    <label for="check1">Copied the SQL code</label>
+                </li>
+                <li>
+                    <input type="checkbox" id="check2">
+                    <label for="check2">Pasted in Supabase SQL Editor</label>
+                </li>
+                <li>
+                    <input type="checkbox" id="check3">
+                    <label for="check3">Clicked RUN and saw "Success"</label>
+                </li>
+                <li>
+                    <input type="checkbox" id="check4">
+                    <label for="check4">Tested with a chat message from incognito window</label>
+                </li>
+                <li>
+                    <input type="checkbox" id="check5">
+                    <label for="check5">Can see conversations in Customer Chats!</label>
+                </li>
+            </ul>
+
+            <div class="alert alert-info" style="display: block; margin-top: 30px;">
+                <strong>💡 Test it:</strong> Open an incognito window, visit your store, send a chat message, then check Customer Chats in your dashboard!
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copySQL() {
+            const textarea = document.getElementById('sqlCode');
+            textarea.select();
+            document.execCommand('copy');
+
+            const alert = document.getElementById('copyAlert');
+            alert.style.display = 'block';
+
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        function selectAll() {
+            const textarea = document.getElementById('sqlCode');
+            textarea.select();
+            textarea.focus();
+        }
+
+        // Track checkbox progress
+        const checkboxes = document.querySelectorAll('.checklist input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const checkedCount = document.querySelectorAll('.checklist input[type="checkbox"]:checked').length;
+                if (checkedCount === checkboxes.length) {
+                    alert('🎉 Congratulations! Customer Chat Visibility is fully enabled!');
+                }
+            });
+        });
+
+        // Auto-select SQL on click
+        document.getElementById('sqlCode').addEventListener('click', function() {
+            this.select();
+        });
+    </script>
+</body>
+</html>

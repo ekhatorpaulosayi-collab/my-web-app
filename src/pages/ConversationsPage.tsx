@@ -1,7 +1,7 @@
 // Conversations Page - View all customer chats from storefront
 import React from 'react';
-// Use the simple viewer that won't crash
-import { ConversationsViewerSimple } from '../components/dashboard/ConversationsViewerSimple';
+// Use the safe version that won't crash
+import { ConversationsViewerSafe } from '../components/dashboard/ConversationsViewerSafe';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,9 +30,9 @@ export function ConversationsPage() {
         </div>
       </div>
 
-      {/* Conversations Viewer - Using simple version that won't crash */}
+      {/* Conversations Viewer - Using safe version */}
       <div className="h-[calc(100vh-64px)]">
-        <ConversationsViewerSimple />
+        <ConversationsViewerSafe />
       </div>
     </div>
   );
