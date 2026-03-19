@@ -47,6 +47,13 @@
   line-height: 1.4;
 }
 
+.payment-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .payment-status-action {
   display: flex;
   align-items: center;
@@ -59,7 +66,40 @@
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
-  flex-shrink: 0;
+}
+
+.payment-status-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  opacity: 0.6;
+}
+
+.payment-status-dismiss:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Dismiss Animation */
+.payment-status-hiding {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
 }
 
 /* Color Variants */
@@ -133,16 +173,21 @@
 /* Mobile Responsive */
 @media (max-width: 640px) {
   .payment-status-indicator {
-    flex-direction: column;
-    align-items: stretch;
+    position: relative;
+    padding-right: 40px;
   }
 
   .payment-status-content {
     justify-content: flex-start;
   }
 
-  .payment-status-action {
-    width: 100%;
-    justify-content: center;
+  .payment-status-actions {
+    flex-direction: row;
+  }
+
+  .payment-status-dismiss {
+    position: absolute;
+    top: 8px;
+    right: 8px;
   }
 }

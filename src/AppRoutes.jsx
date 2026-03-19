@@ -39,6 +39,7 @@ const AffiliateSignup = lazy(() => import('./pages/AffiliateSignup.tsx'));
 const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard.tsx'));
 const AffiliateAdmin = lazy(() => import('./pages/AffiliateAdmin.tsx'));
 const SubscriptionUpgrade = lazy(() => import('./components/SubscriptionUpgrade.tsx'));
+const ConversationsPage = lazy(() => import('./pages/ConversationsPage.tsx'));
 
 /**
  * App Routes
@@ -160,6 +161,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <CustomersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Conversations page - View and manage customer chats */}
+        <Route
+          path="/conversations"
+          element={
+            <ProtectedRoute>
+              <ConversationsPage />
             </ProtectedRoute>
           }
         />

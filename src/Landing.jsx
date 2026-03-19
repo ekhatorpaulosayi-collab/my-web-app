@@ -86,42 +86,20 @@ function Landing({ onNavigateToApp }) {
             </div>
           </div>
           <div className="hero-image">
-            <div className="dashboard-mockup">
-              <div className="mockup-header">
-                <div className="mockup-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-                <div className="mockup-title">Storehouse Dashboard</div>
-              </div>
-              <div className="mockup-content">
-                <div className="mockup-kpi">
-                  <div className="mockup-card">
-                    <div className="mockup-label">Today's Sales</div>
-                    <div className="mockup-value">₦45,200</div>
-                  </div>
-                  <div className="mockup-card">
-                    <div className="mockup-label">Profit</div>
-                    <div className="mockup-value">₦12,300</div>
-                  </div>
-                </div>
-                <div className="mockup-table">
-                  <div className="mockup-row">
-                    <div className="mockup-cell">Rice (50kg)</div>
-                    <div className="mockup-cell green">₦5,000</div>
-                  </div>
-                  <div className="mockup-row">
-                    <div className="mockup-cell">Cooking Oil</div>
-                    <div className="mockup-cell green">₦2,100</div>
-                  </div>
-                  <div className="mockup-row">
-                    <div className="mockup-cell">Indomie Noodles</div>
-                    <div className="mockup-cell orange">Low Stock</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <img
+              src="/hero-professional-woman.jpg"
+              alt="Professional woman using Storehouse app on mobile phone"
+              loading="eager"
+              decoding="async"
+              className="hero-photo"
+              style={{
+                width: '100%',
+                height: 'auto',
+                borderRadius: '16px',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+                maxWidth: '600px'
+              }}
+            />
           </div>
         </div>
       </section>

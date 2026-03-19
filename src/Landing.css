@@ -128,6 +128,15 @@
   animation: fadeInRight 0.8s ease 0.2s both;
 }
 
+.hero-photo {
+  width: 100%;
+  height: auto;
+  max-width: 600px;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  object-fit: cover;
+}
+
 @keyframes fadeInRight {
   from {
     opacity: 0;

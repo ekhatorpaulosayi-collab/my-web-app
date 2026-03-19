@@ -28,6 +28,12 @@ export function AuthProvider({ children }) {
         // User is signed in or session refreshed
         setCurrentUser(user);
 
+        // Store email in localStorage for immediate identification
+        if (user.email) {
+          localStorage.setItem('storehouse-user-email', user.email);
+          console.debug('[AuthContext] Stored user email for mobile identification:', user.email);
+        }
+
         // Fetch user profile (only if not already loaded or if user changed)
         try {
           // Check if existing user needs migration from localStorage to database
@@ -58,6 +64,8 @@ export function AuthProvider({ children }) {
         console.debug('[AuthContext] User signed out, clearing state');
         setCurrentUser(null);
         setUserProfile(null);
+        localStorage.removeItem('storehouse-user-email');
+        localStorage.removeItem('storehouse-emergency-sales-loaded');
       }
 
       setLoading(false);

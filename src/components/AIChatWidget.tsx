@@ -209,6 +209,7 @@ export default function AIChatWidget({
   const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
   const [shouldPulse, setShouldPulse] = useState(false); // For first-visit animation
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [hasModalOpen, setHasModalOpen] = useState(false); // Track when modals are open
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -221,6 +222,54 @@ export default function AIChatWidget({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Detect when modals are open for smart positioning
+  useEffect(() => {
+    const checkForModals = () => {
+      // More comprehensive modal detection
+      const hasEODModal = document.querySelector('.eod-modal') !== null;
+      const hasModalOverlay = document.querySelector('.modal-overlay') !== null;
+      const hasSheetModal = document.querySelector('.sheet-overlay') !== null;
+      const hasBottomSheet = document.querySelector('.bottom-sheet') !== null;
+      const hasActionSheet = document.querySelector('.action-sheet') !== null;
+
+      // Check if any element has "Send EOD Report" or "Send via WhatsApp" text
+      const hasEODReportText = Array.from(document.querySelectorAll('h2, button')).some(el =>
+        el.textContent?.includes('Send EOD Report') ||
+        el.textContent?.includes('Send via WhatsApp')
+      );
+
+      const hasAnyModal = hasEODModal || hasModalOverlay || hasSheetModal ||
+                         hasBottomSheet || hasActionSheet || hasEODReportText;
+
+      if (hasAnyModal !== hasModalOpen) {
+        console.log('[AIChatWidget] Modal state changed:', hasAnyModal, {
+          hasEODModal, hasModalOverlay, hasSheetModal, hasEODReportText
+        });
+        setHasModalOpen(hasAnyModal);
+      }
+    };
+
+    // Check initially
+    checkForModals();
+
+    // Set up observer to detect DOM changes
+    const observer = new MutationObserver(checkForModals);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+
+    // Also listen for custom events if needed
+    const interval = setInterval(checkForModals, 250); // More frequent checks
+
+    return () => {
+      observer.disconnect();
+      clearInterval(interval);
+    };
+  }, [hasModalOpen]);
 
   // Detect user type (visitor, shopper, or authenticated user)
   // IMPORTANT: Wait for auth to load before setting userType
@@ -1120,6 +1169,12 @@ export default function AIChatWidget({
           bottom: !isDesktop && contextType === 'storefront' ? '80px' : '20px', // Higher on mobile storefront to avoid bottom nav
           right: !isDesktop && contextType === 'storefront' ? '20px' : contextType === 'storefront' && isDesktop ? '120px' : '20px',
           zIndex: 99999,
+          // Hide with animation when modal is open
+          opacity: hasModalOpen ? 0 : 1,
+          visibility: hasModalOpen ? 'hidden' : 'visible',
+          transform: hasModalOpen ? 'scale(0.8)' : 'scale(1)',
+          transition: 'opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease',
+          pointerEvents: hasModalOpen ? 'none' : 'auto', // Disable interactions when hidden
         }}>
           {/* Pulsing ring animation for storefront */}
           {contextType === 'storefront' && (

@@ -5,7 +5,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp, CreditCard } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp, CreditCard, MessageCircle, Bell } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
 import './MoreMenu.css';
 
@@ -65,43 +65,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
   }, [onClose]);
 
   const menuItems = [
-    // 📘 ONBOARDING & HELP
-    {
-      icon: HelpCircle,
-      label: 'Getting Started Guide',
-      description: 'Show setup checklist',
-      action: () => {
-        window.dispatchEvent(new Event('show-getting-started'));
-      }
-    },
-
-    // 💳 SUBSCRIPTION & BILLING
-    {
-      icon: CreditCard,
-      label: 'Subscription & Billing',
-      description: 'Upgrade plan, manage subscription, cancel or switch billing',
-      action: () => navigate('/upgrade'),
-      highlight: true,
-      badge: 'Manage Plan'
-    },
-
-    // 💰 GROWTH & REVENUE
-    {
-      icon: Gift,
-      label: '💰 Partner Program',
-      description: 'Earn 30% recurring commission on every paid referral',
-      action: () => navigate('/affiliate/signup'),
-      highlight: true,
-      badge: 'Earn Money'
-    },
-    {
-      icon: Receipt,
-      label: 'Professional Invoices',
-      description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
-      action: () => navigate('/invoices')
-    },
-
-    // 🔧 OPERATIONS & TOOLS
+    // 🏪 MOST USED - Daily Operations
     {
       icon: Share2,
       label: 'Online Store',
@@ -109,10 +73,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       action: onShowOnlineStore
     },
     {
-      icon: Star,
-      label: 'Customer Reviews',
-      description: 'Collect & display customer testimonials',
-      action: () => navigate('/reviews')
+      icon: MessageCircle,
+      label: 'Customer Chats',
+      description: 'View and manage conversations from your online store visitors',
+      action: () => navigate('/conversations'),
+      badge: 'NEW',
+      highlight: true
     },
     {
       icon: UserCircle2,
@@ -121,11 +87,13 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       action: onViewCustomers
     },
     {
-      icon: BarChart3,
-      label: 'Sales by Channel',
-      description: 'See which channels drive the most sales (Instagram, WhatsApp, Walk-in)',
-      action: onViewChannelAnalytics
+      icon: Receipt,
+      label: 'Professional Invoices',
+      description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
+      action: () => navigate('/invoices')
     },
+
+    // 📊 REPORTING & ANALYTICS
     {
       icon: Send,
       label: 'Daily Sales Summary',
@@ -133,13 +101,39 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       action: onSendDailySummary
     },
     {
-      icon: Download,
-      label: 'Export Data (CSV)',
-      description: 'Download your data for Excel or Google Sheets',
-      action: onExportData
+      icon: BarChart3,
+      label: 'Sales by Channel',
+      description: 'See which channels drive the most sales (Instagram, WhatsApp, Walk-in)',
+      action: onViewChannelAnalytics
     },
 
-    // 👥 ADMIN & TEAM (Owner only)
+    // 🌟 GROWTH & ENGAGEMENT
+    {
+      icon: Star,
+      label: 'Customer Reviews',
+      description: 'Collect & display customer testimonials',
+      action: () => navigate('/reviews')
+    },
+
+    // 💳 ACCOUNT MANAGEMENT
+    {
+      icon: CreditCard,
+      label: 'Subscription & Billing',
+      description: 'Upgrade plan, manage subscription, cancel or switch billing',
+      action: () => navigate('/upgrade'),
+      highlight: true,
+      badge: 'Manage Plan'
+    },
+    {
+      icon: Gift,
+      label: '💰 Partner Program',
+      description: 'Earn 30% recurring commission on every paid referral',
+      action: () => navigate('/affiliate/signup'),
+      highlight: true,
+      badge: 'Earn Money'
+    },
+
+    // 👥 TEAM MANAGEMENT
     // Staff Management (owner only)
     ...(canManageStaff() && !isStaffMode ? [{
       icon: UserCog,
@@ -165,7 +159,23 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
         exitStaffMode();
         alert('Exited staff mode');
       }
-    }] : [])
+    }] : []),
+
+    // 📥 DATA & HELP
+    {
+      icon: Download,
+      label: 'Export Data (CSV)',
+      description: 'Download your data for Excel or Google Sheets',
+      action: onExportData
+    },
+    {
+      icon: HelpCircle,
+      label: 'Getting Started Guide',
+      description: 'Show setup checklist',
+      action: () => {
+        window.dispatchEvent(new Event('show-getting-started'));
+      }
+    }
   ];
 
   const handleItemClick = (action?: () => void) => {

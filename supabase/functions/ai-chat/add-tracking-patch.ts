@@ -101,7 +101,8 @@ async function saveChatMessage(
   metadata: any = {}
 ): Promise<void> {
   try {
-    if (!userId) return; // Only save for authenticated users
+    // IMPORTANT: Save ALL messages, including visitor messages
+    // No longer checking for userId - we want to save visitor messages too!
 
     await supabase.from('ai_chat_messages').insert({
       user_id: userId,

@@ -262,8 +262,8 @@ export default function LandingPage() {
 
           <div className="hero-image fade-up">
             <img
-              src={getImageKitUrl('landing-young-professional.png', { width: 1200, quality: 90 })}
-              alt="Nigerian businesswoman in traditional ankara dress using Storehouse inventory management app on smartphone to track stock and sales"
+              src="/hero-professional-woman.jpg"
+              alt="Professional woman using Storehouse app on mobile phone"
               className="hero-real-image"
               loading="eager"
             />

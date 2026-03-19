@@ -385,17 +385,38 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         throw new Error('Paystack public key is not configured. Please contact support.');
       }
 
-      const handler = window.PaystackPop.setup({
-        key: paystackPublicKey,
-        email: currentUser.email,
-        plan: planCode,
-        currency: 'NGN',
-        metadata: {
-          user_id: currentUser.uid,
-          tier_id: tier.id,
-          tier_name: tier.name,
-          billing_cycle: billingCycle
-        },
+      // Trim the key to remove any whitespace
+      const cleanKey = paystackPublicKey.trim();
+
+      // Validate the key format
+      if (!cleanKey.startsWith('pk_live_') && !cleanKey.startsWith('pk_test_')) {
+        console.error('[SubscriptionUpgrade] Invalid Paystack key format:', cleanKey.substring(0, 10));
+        throw new Error('Invalid Paystack key format. Please contact support.');
+      }
+
+      console.log('[SubscriptionUpgrade] Creating Paystack handler with clean key:', cleanKey.substring(0, 10) + '...');
+
+      let handler: any = null;
+
+      try {
+        handler = window.PaystackPop.setup({
+          key: cleanKey,
+          email: currentUser.email || '',
+          plan: planCode,
+          currency: 'NGN',
+          metadata: {
+            user_id: currentUser.uid,
+            tier_id: tier.id,
+            tier_name: tier.name,
+            billing_cycle: billingCycle,
+            custom_fields: [
+              {
+                display_name: "User ID",
+                variable_name: "user_id",
+                value: currentUser.uid
+              }
+            ]
+          },
         onSuccess: async function(reference: any) {
           console.log('[SubscriptionUpgrade] ========================================');
           console.log('[SubscriptionUpgrade] ✅ PAYMENT SUCCESS CALLBACK FIRED');
@@ -480,8 +501,28 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           }, 30000); // Wait 30 seconds before giving up
         }
       });
+      } catch (setupError) {
+        console.error('[SubscriptionUpgrade] Failed to setup Paystack handler:', setupError);
+        console.error('[SubscriptionUpgrade] Error details:', {
+          message: setupError instanceof Error ? setupError.message : 'Unknown error',
+          stack: setupError instanceof Error ? setupError.stack : undefined
+        });
 
-      console.log('[SubscriptionUpgrade] Handler created, opening iframe...');
+        // More specific error messages
+        if (setupError instanceof Error && setupError.message.includes('key')) {
+          throw new Error('Invalid Paystack public key. Please contact support.');
+        } else if (setupError instanceof Error && setupError.message.includes('plan')) {
+          throw new Error('Invalid subscription plan code. Please contact support.');
+        } else {
+          throw new Error(`Failed to initialize payment: ${setupError instanceof Error ? setupError.message : 'Unknown error'}`);
+        }
+      }
+
+      if (!handler) {
+        throw new Error('Failed to create payment handler. Please try again.');
+      }
+
+      console.log('[SubscriptionUpgrade] Handler created successfully, opening iframe...');
 
       // Declare backupCheckInterval before using it
       let backupCheckInterval: any = null;
@@ -685,20 +726,27 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       `}</style>
 
       {/* Billing Cycle Toggle */}
-      <div className="billing-toggle">
-        <button
-          className={billingCycle === 'monthly' ? 'active' : ''}
-          onClick={() => setBillingCycle('monthly')}
-        >
-          Monthly
-        </button>
-        <button
-          className={billingCycle === 'annual' ? 'active' : ''}
-          onClick={() => setBillingCycle('annual')}
-        >
-          Annual
-          <span className="save-badge">Save 20%</span>
-        </button>
+      <div className="billing-toggle-wrapper">
+        <div className="billing-toggle">
+          <button
+            className={billingCycle === 'monthly' ? 'active' : ''}
+            onClick={() => setBillingCycle('monthly')}
+          >
+            Monthly
+          </button>
+          <button
+            className={billingCycle === 'annual' ? 'active' : ''}
+            onClick={() => setBillingCycle('annual')}
+          >
+            Annual
+            <span className="save-badge">Save 20%</span>
+          </button>
+        </div>
+        {billingCycle === 'annual' && (
+          <div className="annual-savings-message">
+            💰 Save up to <strong>₦{(12000).toLocaleString()}</strong> per year with annual billing!
+          </div>
+        )}
       </div>
 
       {/* Pricing Cards */}
@@ -917,17 +965,45 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           color: #6b7280;
         }
 
+        .billing-toggle-wrapper {
+          margin-bottom: 40px;
+        }
+
         .billing-toggle {
           display: flex;
           justify-content: center;
           gap: 8px;
-          margin-bottom: 40px;
           background: #f3f4f6;
           padding: 4px;
           border-radius: 12px;
           width: fit-content;
           margin-left: auto;
           margin-right: auto;
+        }
+
+        .annual-savings-message {
+          text-align: center;
+          margin-top: 12px;
+          padding: 8px 16px;
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border: 1px solid #f59e0b;
+          border-radius: 8px;
+          color: #92400e;
+          font-size: 0.875rem;
+          animation: fadeIn 0.3s ease;
+          max-width: 400px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .annual-savings-message strong {
+          color: #78350f;
+          font-weight: 700;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .billing-toggle button {
