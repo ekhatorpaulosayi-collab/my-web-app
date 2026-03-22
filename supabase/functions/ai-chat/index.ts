@@ -16,6 +16,7 @@ import {
   getRateLimitResponse,
   type StoreContext,
 } from './store-context.ts';
+import { cachedOpenAICall } from './cache-helper.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -695,34 +696,122 @@ serve(async (req) => {
     let conversation: any = null;
     let history: any[] = [];
 
-    if (userType !== 'visitor' && userId) {
-      // Get or create conversation (only for authenticated users)
-      const { data: conv } = await supabase
-        .from('ai_chat_conversations')
-        .upsert({
-          user_id: userId,
-          session_id: sessionId,
-          context_type: contextType,
-          user_type: userContext.business_type || 'unknown',
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id,session_id',
-          ignoreDuplicates: false,
-        })
-        .select()
+    // Get store ID if this is a storefront chat
+    let storeId: string | null = null;
+    if (contextType === 'storefront' && storeSlug) {
+      const { data: store } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('store_slug', storeSlug)
         .single();
 
-      if (!conv) {
-        throw new Error('Failed to create conversation');
+      if (store) {
+        storeId = store.id;
+        console.log('[ai-chat] Found store ID:', storeId, 'for slug:', storeSlug);
       }
-      conversation = conv;
+    }
 
-      // Save user message
-      await supabase.from('ai_chat_messages').insert({
+    // Create conversation for ALL users (including visitors) when on storefront
+    if ((userType !== 'visitor' && userId) || (contextType === 'storefront' && storeId)) {
+      // Build conversation data
+      const conversationData: any = {
+        session_id: sessionId,
+        context_type: contextType,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Add user_id for authenticated users
+      if (userId) {
+        conversationData.user_id = userId;
+        conversationData.user_type = userContext?.business_type || 'unknown';
+
+        // For authenticated users, get their primary store if not on storefront
+        if (!storeId && contextType !== 'storefront') {
+          try {
+            const { data: userStores, error: storeError } = await supabase
+              .from('stores')
+              .select('id')
+              .or(`user_id.eq.${userId},created_by.eq.${userId}`)
+              .limit(1);
+
+            if (!storeError && userStores && userStores.length > 0) {
+              conversationData.store_id = userStores[0].id;
+              console.log('[ai-chat] Linked conversation to user\'s store:', userStores[0].id);
+            } else {
+              console.log('[ai-chat] No store found for user:', userId, 'Error:', storeError?.message);
+            }
+          } catch (error) {
+            console.error('[ai-chat] Error fetching user store:', error);
+            // Continue without store_id rather than failing completely
+          }
+        }
+      }
+
+      // Add storefront-specific fields
+      if (contextType === 'storefront' && storeId) {
+        conversationData.store_id = storeId;
+        conversationData.is_storefront = true;
+        conversationData.source_page = storeSlug ? `/store/${storeSlug}` : null;
+      }
+
+      // Get or create conversation
+      // First, try to find existing conversation
+      console.log('[ai-chat] Looking for existing conversation with sessionId:', sessionId);
+      const { data: existingConv, error: selectError } = await supabase
+        .from('ai_chat_conversations')
+        .select()
+        .eq('session_id', sessionId)
+        .maybeSingle();
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('[ai-chat] Error finding conversation:', selectError);
+      }
+
+      if (existingConv) {
+        console.log('[ai-chat] Found existing conversation:', existingConv.id);
+        // Update existing conversation
+        const { data: updatedConv, error: updateError } = await supabase
+          .from('ai_chat_conversations')
+          .update({
+            ...conversationData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingConv.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('[ai-chat] Error updating conversation:', updateError);
+        }
+        conversation = updatedConv || existingConv;
+      } else {
+        console.log('[ai-chat] Creating new conversation with data:', JSON.stringify(conversationData));
+        // Insert new conversation
+        const { data: newConv, error: insertError } = await supabase
+          .from('ai_chat_conversations')
+          .insert(conversationData)
+          .select()
+          .single();
+
+        if (insertError || !newConv) {
+          console.error('[ai-chat] Failed to create conversation:', insertError);
+          throw new Error(`Failed to create conversation: ${insertError?.message || 'Unknown error'}`);
+        }
+        console.log('[ai-chat] Created new conversation:', newConv.id);
+        conversation = newConv;
+      }
+
+      // Save user message with store_id if available
+      const messageData: any = {
         conversation_id: conversation.id,
         role: 'user',
         content: message,
-      });
+      };
+      if (storeId) {
+        messageData.store_id = storeId;
+      }
+
+      await supabase.from('ai_chat_messages').insert(messageData);
 
       // Get conversation history (last 6 messages = 3 exchanges)
       // PHASE 2: Reduced from 10 to 6 to prevent context confusion from old topics
@@ -763,7 +852,9 @@ serve(async (req) => {
         userContext,
         contextType,
         relevantDocs,  // Pass documentation
-        userType
+        userType,
+        supabase,  // Pass for caching
+        storeId    // Pass store ID for store-specific cache
       );
       aiResponse = aiResult.response;
       confidence = aiResult.confidence;
@@ -801,18 +892,41 @@ serve(async (req) => {
       }
     }
 
-    // Save AI response (only for authenticated users, not visitors)
+    // Save AI response (including for storefront visitors)
     if (conversation) {
-      await supabase.from('ai_chat_messages').insert({
+      const responseData: any = {
         conversation_id: conversation.id,
         role: 'assistant',
         content: aiResponse,
-      });
+      };
+      // Add store_id if available
+      if (storeId) {
+        responseData.store_id = storeId;
+      }
+      await supabase.from('ai_chat_messages').insert(responseData);
     }
 
     // Update user preferences based on conversation (skip for visitors)
     if (userId && userType !== 'visitor') {
       await updateUserPreferences(supabase, userId, message, userContext);
+    }
+
+    // Save assistant response to conversation (for authenticated users)
+    if (conversation && aiResponse) {
+      try {
+        const assistantMessageData: any = {
+          conversation_id: conversation.id,
+          role: 'assistant',
+          content: aiResponse,
+        };
+        if (storeId) {
+          assistantMessageData.store_id = storeId;
+        }
+        await supabase.from('ai_chat_messages').insert(assistantMessageData);
+        console.log('[ai-chat] Saved assistant response to conversation');
+      } catch (error) {
+        console.error('[ai-chat] Error saving assistant response:', error);
+      }
     }
 
     console.log('[ai-chat] Returning response, length:', aiResponse?.length || 0);
@@ -1442,7 +1556,9 @@ async function generateAIResponse(
   userContext: any,
   contextType: string,
   relevantDocs: any[] = [],  // NEW: Documentation context
-  userType: string = 'user'   // NEW: Visitor/Shopper/User type
+  userType: string = 'user',   // NEW: Visitor/Shopper/User type
+  supabase?: any,  // For caching
+  storeId?: string  // For store-specific cache
 ): Promise<{ response: string; confidence: number }> {
   if (!OPENAI_API_KEY) {
     return {
@@ -1465,42 +1581,81 @@ async function generateAIResponse(
   ];
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        max_tokens: 250,  // PHASE 2: Enough for complete multi-step instructions without cutoff
-        temperature: 0.7,
-      }),
-    });
+    // Use caching if supabase is available
+    let aiResponseText: string;
 
-    const data = await response.json();
+    if (supabase) {
+      // Use cached wrapper for cost savings
+      aiResponseText = await cachedOpenAICall(
+        supabase,
+        userMessage,
+        async () => {
+          // The actual OpenAI API call
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: messages,
+              max_tokens: 250,  // PHASE 2: Enough for complete multi-step instructions without cutoff
+              temperature: 0.7,
+            }),
+          });
 
-    if (data.choices && data.choices[0]?.message?.content) {
-      // Calculate confidence based on documentation match
-      let confidence = 0.5; // Default medium confidence
-      if (relevantDocs.length > 0) {
-        const topScore = relevantDocs[0].score || 0;
-        if (topScore > 80) confidence = 0.9;
-        else if (topScore > 50) confidence = 0.7;
-        else if (topScore > 20) confidence = 0.5;
-        else confidence = 0.3;
-      } else {
-        confidence = 0.3; // Low confidence if no docs matched
-      }
+          const data = await response.json();
 
-      return {
-        response: data.choices[0].message.content.trim(),
-        confidence: confidence
-      };
+          if (data.choices && data.choices[0]?.message?.content) {
+            return data.choices[0].message.content.trim();
+          } else {
+            throw new Error('Invalid response from OpenAI');
+          }
+        },
+        { storeId }
+      );
     } else {
-      throw new Error('Invalid response from OpenAI');
+      // No caching available, make direct call
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          max_tokens: 250,
+          temperature: 0.7,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.choices && data.choices[0]?.message?.content) {
+        aiResponseText = data.choices[0].message.content.trim();
+      } else {
+        throw new Error('Invalid response from OpenAI');
+      }
     }
+
+    // Calculate confidence based on documentation match
+    let confidence = 0.5; // Default medium confidence
+    if (relevantDocs.length > 0) {
+      const topScore = relevantDocs[0].score || 0;
+      if (topScore > 80) confidence = 0.9;
+      else if (topScore > 50) confidence = 0.7;
+      else if (topScore > 20) confidence = 0.5;
+      else confidence = 0.3;
+    } else {
+      confidence = 0.3; // Low confidence if no docs matched
+    }
+
+    return {
+      response: aiResponseText,
+      confidence: confidence
+    };
   } catch (error) {
     console.error('OpenAI API error:', error);
     return {
@@ -2183,6 +2338,123 @@ async function handleStorefrontChat(
   }
 
   // ============================================================================
+  // TRACK CONVERSATION FOR VISIBILITY IN DASHBOARD
+  // ============================================================================
+  console.log('[StorefrontChat] Starting conversation tracking...');
+  console.log('[StorefrontChat] SessionId:', sessionId); // Debug log
+
+  // Debug: Add tracking info to response for debugging
+  let trackingDebug = { attempted: true, success: false, error: null };
+
+  try {
+    // Get store ID
+    console.log('[StorefrontChat] Looking up store:', storeSlug);
+    const { data: store, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('store_slug', storeSlug)
+      .single();
+
+    if (storeError) {
+      console.error('[StorefrontChat] Store lookup error:', storeError);
+      trackingDebug.error = `Store lookup failed: ${storeError.message}`;
+    }
+
+    if (store) {
+      console.log('[StorefrontChat] Found store ID:', store.id);
+      trackingDebug.storeFound = true;
+
+      // Create or update conversation
+      const conversationData = {
+        session_id: sessionId,
+        store_id: store.id,
+        context_type: 'storefront',
+        is_storefront: true,
+        source_page: `/store/${storeSlug}`,
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log('[StorefrontChat] Creating/updating conversation:', conversationData);
+
+      // First, try to find existing conversation by session_id
+      const { data: existingConversation } = await supabase
+        .from('ai_chat_conversations')
+        .select()
+        .eq('session_id', sessionId)
+        .maybeSingle();
+
+      let conversation;
+      let convError;
+
+      if (existingConversation) {
+        // Update existing conversation
+        const { data: updatedConv, error: updateError } = await supabase
+          .from('ai_chat_conversations')
+          .update({
+            ...conversationData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingConversation.id)
+          .select()
+          .single();
+
+        conversation = updatedConv || existingConversation;
+        convError = updateError;
+      } else {
+        // Insert new conversation
+        const { data: newConv, error: insertError } = await supabase
+          .from('ai_chat_conversations')
+          .insert(conversationData)
+          .select()
+          .single();
+
+        conversation = newConv;
+        convError = insertError;
+      }
+
+      if (convError) {
+        console.error('[StorefrontChat] Conversation save error:', convError);
+        trackingDebug.error = `Conversation save failed: ${convError.message}`;
+      }
+
+      if (conversation) {
+        console.log('[StorefrontChat] Conversation saved with ID:', conversation.id);
+        trackingDebug.success = true;
+        trackingDebug.conversationId = conversation.id;
+
+        // Save user message
+        const messageData = {
+          conversation_id: conversation.id,
+          store_id: store.id,
+          role: 'user',
+          content: message,
+        };
+
+        console.log('[StorefrontChat] Saving user message:', messageData);
+
+        const { error: msgError } = await supabase.from('ai_chat_messages').insert(messageData);
+
+        if (msgError) {
+          console.error('[StorefrontChat] Message save error:', msgError);
+        } else {
+          console.log('[StorefrontChat] User message saved successfully');
+        }
+
+        // Store conversation ID for later use
+        storeContext.conversationId = conversation.id;
+        storeContext.storeId = store.id;
+      } else {
+        console.log('[StorefrontChat] No conversation created/returned');
+      }
+    } else {
+      console.log('[StorefrontChat] No store found for slug:', storeSlug);
+    }
+  } catch (error) {
+    console.error('[StorefrontChat] Unexpected error tracking conversation:', error);
+    // Don't fail the chat if tracking fails
+  }
+
+  // ============================================================================
   // GUARDRAIL 3: OFF-TOPIC DETECTION (Keep this - focuses conversation)
   // ============================================================================
   console.log('[DEBUG] About to check off-topic for message:', message);
@@ -2391,11 +2663,26 @@ Now answer the customer's question using the store data above. Be helpful, accur
         });
       }
 
+      // Save AI response to database if we have a conversation
+      if (storeContext.conversationId && storeContext.storeId) {
+        try {
+          await supabase.from('ai_chat_messages').insert({
+            conversation_id: storeContext.conversationId,
+            store_id: storeContext.storeId,
+            role: 'assistant',
+            content: aiResponse,
+          });
+        } catch (error) {
+          console.error('[StorefrontChat] Error saving AI response:', error);
+        }
+      }
+
       return jsonResponse({
         response: aiResponse,
         confidence: 0.95,  // HIGH confidence for AI responses
         source: 'ai',
         language,
+        trackingDebug, // TEMPORARY: Debug info for tracking issue
       });
     }
   } catch (error) {

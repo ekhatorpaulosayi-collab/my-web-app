@@ -9,8 +9,17 @@ import { useAuth } from '../contexts/AuthContext';
 export default function ProtectedRoute({ children }) {
   const { currentUser, loading } = useAuth();
 
+  console.warn('🔐 [ProtectedRoute] Checking auth:', {
+    hasUser: !!currentUser,
+    userId: currentUser?.uid,
+    email: currentUser?.email,
+    loading: loading,
+    path: window.location.pathname
+  });
+
   // Show loading spinner while checking auth state
   if (loading) {
+    console.warn('🔐 [ProtectedRoute] Still loading auth...');
     return (
       <div style={{
         display: 'flex',
@@ -45,10 +54,11 @@ export default function ProtectedRoute({ children }) {
 
   // Redirect to login if not authenticated
   if (!currentUser) {
-    console.debug('[ProtectedRoute] User not authenticated, redirecting to /login');
+    console.warn('🔐 [ProtectedRoute] User NOT authenticated, redirecting to /login');
     return <Navigate to="/login" replace />;
   }
 
   // User is authenticated, render children
+  console.warn('🔐 [ProtectedRoute] User authenticated, rendering protected content');
   return children;
 }

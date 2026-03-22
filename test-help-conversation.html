@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Help Chat Conversation</title>
+</head>
+<body>
+  <h1>Test Help Chat Conversation</h1>
+  <button id="testBtn">Send Test Message to AI Chat</button>
+  <div id="result"></div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.getElementById('testBtn').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p>Testing...</p>';
+
+      try {
+        // Sign in first
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: 'olaniyiekhator@gmail.com',
+          password: 'Godisgood1.'
+        });
+
+        if (authError) throw authError;
+
+        resultDiv.innerHTML += '<p>✅ Signed in</p>';
+
+        // Generate a unique session ID for this test
+        const sessionId = `test-help-${Date.now()}`;
+
+        // Send a message with help context
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authData.session.access_token}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            message: 'TEST: How do I add a new product to my store?',
+            contextType: 'help', // This is the key - testing help context
+            sessionId: sessionId,
+            userType: 'user',
+            appContext: {
+              hasProducts: true,
+              hasSales: true,
+              hasOnlineStore: true
+            }
+          })
+        });
+
+        const result = await response.json();
+        resultDiv.innerHTML += '<p>✅ Got AI response</p>';
+
+        // Wait a moment for database to update
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Check if conversation was created
+        const { data: conv } = await supabase
+          .from('ai_chat_conversations')
+          .select('*')
+          .eq('session_id', sessionId)
+          .single();
+
+        if (conv) {
+          resultDiv.innerHTML += '<p style="color:green">✅ SUCCESS! Conversation was saved!</p>';
+          resultDiv.innerHTML += `<p>Conversation ID: ${conv.id}</p>`;
+          resultDiv.innerHTML += `<p>Context: ${conv.context_type}</p>`;
+          resultDiv.innerHTML += `<p>Store ID: ${conv.store_id || 'Not linked'}</p>`;
+        } else {
+          resultDiv.innerHTML += '<p style="color:red">❌ FAILED: Conversation was NOT saved</p>';
+        }
+
+      } catch (error) {
+        resultDiv.innerHTML += `<p style="color:red">Error: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

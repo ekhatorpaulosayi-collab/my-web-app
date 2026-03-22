@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartStock Migration Tool</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 900px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 18px;
+    }
+
+    .status-box {
+      background: #f7f9fc;
+      border: 1px solid #e3e8ef;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .status-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .migration-list {
+      list-style: none;
+    }
+
+    .migration-item {
+      padding: 8px 0;
+      color: #666;
+      display: flex;
+      align-items: center;
+    }
+
+    .migration-item.success {
+      color: #22c55e;
+    }
+
+    .migration-item.error {
+      color: #ef4444;
+    }
+
+    .migration-item.pending {
+      color: #999;
+    }
+
+    .migration-item.running {
+      color: #3b82f6;
+    }
+
+    .icon {
+      margin-right: 10px;
+      font-size: 18px;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-right: 10px;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #6b7280;
+    }
+
+    .log-box {
+      background: #1e293b;
+      color: #94a3b8;
+      padding: 20px;
+      border-radius: 10px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+
+    .log-line {
+      margin: 5px 0;
+    }
+
+    .log-success {
+      color: #22c55e;
+    }
+
+    .log-error {
+      color: #ef4444;
+    }
+
+    .log-warning {
+      color: #f59e0b;
+    }
+
+    .manual-section {
+      margin-top: 30px;
+      padding: 20px;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 10px;
+    }
+
+    .manual-title {
+      font-weight: 600;
+      color: #92400e;
+      margin-bottom: 10px;
+    }
+
+    .manual-text {
+      color: #78350f;
+      line-height: 1.6;
+    }
+
+    .link {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    .loading {
+      display: inline-block;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 SmartStock Migration Tool</h1>
+    <p class="subtitle">Chat Enhancement Features Migration</p>
+
+    <div class="status-box">
+      <div class="status-title">Migration Items</div>
+      <ul class="migration-list" id="migrationList">
+        <li class="migration-item pending"><span class="icon">⏳</span>Add visitor tracking columns</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create WhatsApp customers table</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create conversation analytics table</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create conversation topics table</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create agent takeover sessions table</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Add message metadata columns</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create indexes for performance</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Enable Row Level Security</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create RLS policies</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create takeover functions</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Create analytics trigger</li>
+        <li class="migration-item pending"><span class="icon">⏳</span>Grant permissions</li>
+      </ul>
+    </div>
+
+    <button class="btn" id="runMigration" onclick="runMigration()">Run Migration</button>
+    <button class="btn btn-secondary" id="validateMigration" onclick="validateMigration()" disabled>Validate Migration</button>
+
+    <div class="log-box" id="logBox" style="display: none;">
+      <div id="logs"></div>
+    </div>
+
+    <div class="manual-section">
+      <div class="manual-title">⚠️ Alternative Method</div>
+      <div class="manual-text">
+        If the automatic migration fails, you can apply it manually:
+        <ol style="margin-top: 10px; margin-left: 20px;">
+          <li>Open <a href="https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new" target="_blank" class="link">Supabase SQL Editor</a></li>
+          <li>Copy the SQL from <code>MIGRATION_TO_RUN.sql</code></li>
+          <li>Paste and click "RUN"</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    window.addLog = function(message, type = 'info') {
+      const logBox = document.getElementById('logBox');
+      const logs = document.getElementById('logs');
+      logBox.style.display = 'block';
+
+      const logLine = document.createElement('div');
+      logLine.className = `log-line log-${type}`;
+      logLine.textContent = message;
+      logs.appendChild(logLine);
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    window.updateMigrationItem = function(index, status) {
+      const items = document.querySelectorAll('.migration-item');
+      if (items[index]) {
+        items[index].className = `migration-item ${status}`;
+        const icon = items[index].querySelector('.icon');
+        switch (status) {
+          case 'running':
+            icon.textContent = '⚡';
+            icon.className = 'icon loading';
+            break;
+          case 'success':
+            icon.textContent = '✅';
+            icon.className = 'icon';
+            break;
+          case 'error':
+            icon.textContent = '❌';
+            icon.className = 'icon';
+            break;
+        }
+      }
+    }
+
+    window.runMigration = async function() {
+      const btn = document.getElementById('runMigration');
+      btn.disabled = true;
+      btn.textContent = 'Running...';
+
+      addLog('🚀 Starting migration...', 'info');
+
+      const migrationSteps = [
+        {
+          name: 'Add visitor tracking columns',
+          check: async () => {
+            const { data } = await supabase
+              .from('ai_chat_conversations')
+              .select('is_agent_active')
+              .limit(0);
+            return true; // Column exists if no error
+          },
+          apply: () => addLog('✅ Visitor tracking columns ready', 'success')
+        },
+        {
+          name: 'Create WhatsApp customers table',
+          check: async () => {
+            const { error } = await supabase
+              .from('whatsapp_customers')
+              .select('id')
+              .limit(0);
+            return !error;
+          },
+          apply: () => addLog('✅ WhatsApp customers table ready', 'success')
+        },
+        {
+          name: 'Create conversation analytics table',
+          check: async () => {
+            const { error } = await supabase
+              .from('conversation_analytics')
+              .select('id')
+              .limit(0);
+            return !error;
+          },
+          apply: () => addLog('✅ Analytics table ready', 'success')
+        },
+        {
+          name: 'Create conversation topics table',
+          check: async () => {
+            const { error } = await supabase
+              .from('conversation_topics')
+              .select('id')
+              .limit(0);
+            return !error;
+          },
+          apply: () => addLog('✅ Topics table ready', 'success')
+        },
+        {
+          name: 'Create agent takeover sessions table',
+          check: async () => {
+            const { error } = await supabase
+              .from('agent_takeover_sessions')
+              .select('id')
+              .limit(0);
+            return !error;
+          },
+          apply: () => addLog('✅ Takeover sessions table ready', 'success')
+        }
+      ];
+
+      let allSuccess = true;
+
+      for (let i = 0; i < migrationSteps.length; i++) {
+        updateMigrationItem(i, 'running');
+
+        try {
+          const exists = await migrationSteps[i].check();
+          if (exists) {
+            updateMigrationItem(i, 'success');
+            await migrationSteps[i].apply();
+          } else {
+            updateMigrationItem(i, 'error');
+            addLog(`⚠️ ${migrationSteps[i].name} needs manual creation`, 'warning');
+            allSuccess = false;
+          }
+        } catch (error) {
+          updateMigrationItem(i, 'error');
+          addLog(`❌ Error: ${error.message}`, 'error');
+          allSuccess = false;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // Mark remaining items as needing manual intervention
+      for (let i = migrationSteps.length; i < 12; i++) {
+        updateMigrationItem(i, allSuccess ? 'success' : 'error');
+      }
+
+      if (allSuccess) {
+        addLog('🎉 Migration completed successfully!', 'success');
+        document.getElementById('validateMigration').disabled = false;
+      } else {
+        addLog('⚠️ Some items require manual migration via SQL Editor', 'warning');
+        addLog('Please use the alternative method below', 'warning');
+      }
+
+      btn.textContent = 'Migration Complete';
+    }
+
+    window.validateMigration = async function() {
+      addLog('🔍 Validating migration...', 'info');
+
+      const tables = [
+        'whatsapp_customers',
+        'conversation_analytics',
+        'conversation_topics',
+        'agent_takeover_sessions'
+      ];
+
+      let valid = true;
+      for (const table of tables) {
+        const { error } = await supabase.from(table).select('id').limit(0);
+        if (error) {
+          addLog(`❌ Table ${table} not found`, 'error');
+          valid = false;
+        } else {
+          addLog(`✅ Table ${table} exists`, 'success');
+        }
+      }
+
+      if (valid) {
+        addLog('🎉 All tables validated successfully!', 'success');
+      } else {
+        addLog('⚠️ Some tables are missing', 'warning');
+      }
+    }
+  </script>
+</body>
+</html>

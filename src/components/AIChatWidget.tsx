@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 import { searchDocumentation, getSuggestedQuestions, getDocById } from '../utils/docSearch';
 import { useAppContext } from '../hooks/useAppContext';
+import { trackStorefrontChat } from '../services/chatTrackingService';
 import SupportEscalation from './SupportEscalation';
 import { BookOpen, Zap, MessageCircle } from 'lucide-react';
 import { Documentation } from '../types/documentation';
@@ -645,13 +646,21 @@ export default function AIChatWidget({
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
 
+      // Generate or get sessionId for tracking conversations
+      let sessionId = sessionStorage.getItem('chat_session_id');
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        sessionStorage.setItem('chat_session_id', sessionId);
+      }
+
       // DEBUG: Log what we're sending
       console.log('[AIChatWidget] Sending to AI:', {
         contextType,
         userType,
         hasUser: !!user,
         docsFound: relevantDocs.length,
-        message: userMessage
+        message: userMessage,
+        sessionId, // Log sessionId for debugging
       });
 
       // STEP 3: Call AI chat endpoint with RAG context
@@ -666,6 +675,7 @@ export default function AIChatWidget({
           message: userMessage,
           contextType,
           storeSlug,
+          sessionId, // IMPORTANT: Send sessionId to edge function for tracking
           userType, // NEW: Send visitor/shopper/user type
           appContext, // Send app state
           relevantDocs, // Send documentation context (RAG)
@@ -728,6 +738,27 @@ export default function AIChatWidget({
       };
       setMessages(prev => [...prev, aiMessage]);
 
+      // Track storefront conversations for visibility
+      if (contextType === 'storefront' && storeSlug) {
+        console.log('[AIChatWidget] Tracking storefront conversation...');
+        const sessionId = sessionStorage.getItem('chat_session_id') ||
+                         `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        sessionStorage.setItem('chat_session_id', sessionId);
+
+        trackStorefrontChat({
+          storeSlug,
+          sessionId,
+          message: userMessage,
+          response: data.response,
+        }).then(success => {
+          if (success) {
+            console.log('[AIChatWidget] Conversation tracked successfully!');
+          } else {
+            console.log('[AIChatWidget] Failed to track conversation');
+          }
+        });
+      }
+
       // Update quota info
       if (data.quotaInfo) {
         setQuotaInfo(data.quotaInfo);
@@ -755,16 +786,24 @@ export default function AIChatWidget({
           // Add tier-specific messages
           if (chatLimit === 30) {
             errorContent += `You're on the **Free** plan. Upgrade to get more AI assistance!\n\n`;
-            errorContent += `• **Starter**: 500 chats/month - ₦5,000\n`;
-            errorContent += `• **Pro**: 1,500 chats/month - ₦10,000\n`;
-            errorContent += `• **Business**: 10,000 chats/month - ₦15,000`;
-          } else if (chatLimit === 500) {
+            errorContent += `• **Starter**: 300 chats/month - ₦5,000\n`;
+            errorContent += `• **Pro**: 750 chats/month - ₦10,000\n`;
+            errorContent += `• **Business**: 1,500 chats/month - ₦20,000\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 300) {
             errorContent += `You're on the **Starter** plan. Need more chats?\n\n`;
-            errorContent += `• **Pro**: 1,500 chats/month - ₦10,000\n`;
-            errorContent += `• **Business**: 10,000 chats/month - ₦15,000`;
-          } else if (chatLimit === 1500) {
+            errorContent += `• **Pro**: 750 chats/month - ₦10,000\n`;
+            errorContent += `• **Business**: 1,500 chats/month - ₦20,000\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 750) {
             errorContent += `You're on the **Pro** plan. Need more chats?\n\n`;
-            errorContent += `• **Business**: 10,000 chats/month - ₦15,000`;
+            errorContent += `• **Business**: 1,500 chats/month - ₦20,000\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 1500) {
+            errorContent += `You're on the **Business** plan. Need more chats?\n\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 10000) {
+            errorContent += `You're on the **Enterprise** plan. For unlimited chats, contact sales!`;
           } else {
             errorContent += `Upgrade your plan for more AI assistance!`;
           }

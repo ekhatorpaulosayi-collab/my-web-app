@@ -1,0 +1,224 @@
+-- Agent Takeover System for AI Chat
+-- Allows human agents to take over AI conversations
+
+-- Add agent takeover columns to conversations
+ALTER TABLE ai_chat_conversations
+ADD COLUMN IF NOT EXISTS agent_id UUID REFERENCES auth.users(id),
+ADD COLUMN IF NOT EXISTS agent_takeover_at TIMESTAMP,
+ADD COLUMN IF NOT EXISTS takeover_status TEXT DEFAULT 'ai' CHECK (takeover_status IN ('ai', 'agent_requested', 'agent_active', 'agent_ended')),
+ADD COLUMN IF NOT EXISTS agent_notes TEXT;
+
+-- Add sender type to messages
+ALTER TABLE ai_chat_messages
+ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'customer' CHECK (sender_type IN ('customer', 'ai', 'agent', 'system'));
+
+-- Create index for agent conversations
+CREATE INDEX IF NOT EXISTS idx_agent_conversations ON ai_chat_conversations(agent_id, takeover_status);
+
+-- Create agent activity table
+CREATE TABLE IF NOT EXISTS agent_activities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    agent_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    conversation_id UUID REFERENCES ai_chat_conversations(id) ON DELETE CASCADE,
+    action TEXT NOT NULL, -- 'takeover', 'message', 'end_session', 'transfer'
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Function to request agent takeover
+CREATE OR REPLACE FUNCTION request_agent_takeover(
+    p_conversation_id UUID,
+    p_customer_message TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_result JSONB;
+BEGIN
+    -- Update conversation status
+    UPDATE ai_chat_conversations
+    SET
+        takeover_status = 'agent_requested',
+        updated_at = NOW()
+    WHERE id = p_conversation_id;
+
+    -- Add system message if provided
+    IF p_customer_message IS NOT NULL THEN
+        INSERT INTO ai_chat_messages (
+            conversation_id,
+            role,
+            content,
+            sender_type
+        ) VALUES (
+            p_conversation_id,
+            'system',
+            p_customer_message,
+            'system'
+        );
+    END IF;
+
+    -- Return result
+    SELECT jsonb_build_object(
+        'success', true,
+        'conversation_id', p_conversation_id,
+        'status', 'agent_requested',
+        'message', 'Agent has been notified and will join shortly'
+    ) INTO v_result;
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function for agent to take over conversation
+CREATE OR REPLACE FUNCTION agent_takeover_conversation(
+    p_conversation_id UUID,
+    p_agent_id UUID
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_result JSONB;
+    v_store_name TEXT;
+    v_customer_info JSONB;
+BEGIN
+    -- Get conversation details
+    SELECT
+        s.name,
+        jsonb_build_object(
+            'session_id', c.session_id,
+            'messages_count', COUNT(m.id),
+            'started_at', MIN(m.created_at)
+        )
+    INTO v_store_name, v_customer_info
+    FROM ai_chat_conversations c
+    LEFT JOIN stores s ON c.store_id = s.id
+    LEFT JOIN ai_chat_messages m ON c.id = m.conversation_id
+    WHERE c.id = p_conversation_id
+    GROUP BY s.name, c.session_id;
+
+    -- Update conversation
+    UPDATE ai_chat_conversations
+    SET
+        agent_id = p_agent_id,
+        agent_takeover_at = NOW(),
+        takeover_status = 'agent_active',
+        updated_at = NOW()
+    WHERE id = p_conversation_id;
+
+    -- Log activity
+    INSERT INTO agent_activities (
+        agent_id,
+        conversation_id,
+        action,
+        metadata
+    ) VALUES (
+        p_agent_id,
+        p_conversation_id,
+        'takeover',
+        jsonb_build_object('store_name', v_store_name)
+    );
+
+    -- Add system message
+    INSERT INTO ai_chat_messages (
+        conversation_id,
+        role,
+        content,
+        sender_type
+    ) VALUES (
+        p_conversation_id,
+        'system',
+        'An agent has joined the conversation and will assist you now.',
+        'system'
+    );
+
+    SELECT jsonb_build_object(
+        'success', true,
+        'conversation_id', p_conversation_id,
+        'store_name', v_store_name,
+        'customer_info', v_customer_info
+    ) INTO v_result;
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to send agent message
+CREATE OR REPLACE FUNCTION send_agent_message(
+    p_conversation_id UUID,
+    p_agent_id UUID,
+    p_message TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+    v_message_id UUID;
+BEGIN
+    -- Insert agent message
+    INSERT INTO ai_chat_messages (
+        conversation_id,
+        role,
+        content,
+        sender_type
+    ) VALUES (
+        p_conversation_id,
+        'assistant',
+        p_message,
+        'agent'
+    ) RETURNING id INTO v_message_id;
+
+    -- Log activity
+    INSERT INTO agent_activities (
+        agent_id,
+        conversation_id,
+        action,
+        metadata
+    ) VALUES (
+        p_agent_id,
+        p_conversation_id,
+        'message',
+        jsonb_build_object('message_id', v_message_id)
+    );
+
+    -- Update conversation timestamp
+    UPDATE ai_chat_conversations
+    SET updated_at = NOW()
+    WHERE id = p_conversation_id;
+
+    RETURN v_message_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- View for agent dashboard
+CREATE OR REPLACE VIEW agent_conversations_view AS
+SELECT
+    c.id,
+    c.session_id,
+    c.store_id,
+    s.name as store_name,
+    c.takeover_status,
+    c.agent_id,
+    au.email as agent_email,
+    c.agent_takeover_at,
+    c.created_at,
+    c.updated_at,
+    COUNT(m.id) as message_count,
+    MAX(m.created_at) as last_message_at,
+    COUNT(m.id) FILTER (WHERE m.sender_type = 'customer' AND m.created_at > c.agent_takeover_at) as unread_count
+FROM ai_chat_conversations c
+LEFT JOIN stores s ON c.store_id = s.id
+LEFT JOIN auth.users au ON c.agent_id = au.id
+LEFT JOIN ai_chat_messages m ON c.id = m.conversation_id
+WHERE c.takeover_status != 'ai'
+GROUP BY c.id, c.session_id, c.store_id, s.name, c.takeover_status,
+         c.agent_id, au.email, c.agent_takeover_at, c.created_at, c.updated_at
+ORDER BY
+    CASE c.takeover_status
+        WHEN 'agent_requested' THEN 1
+        WHEN 'agent_active' THEN 2
+        ELSE 3
+    END,
+    c.updated_at DESC;
+
+-- Permissions
+GRANT SELECT ON agent_conversations_view TO authenticated;
+GRANT EXECUTE ON FUNCTION request_agent_takeover TO authenticated;
+GRANT EXECUTE ON FUNCTION agent_takeover_conversation TO authenticated;
+GRANT EXECUTE ON FUNCTION send_agent_message TO authenticated;
+GRANT ALL ON agent_activities TO authenticated;

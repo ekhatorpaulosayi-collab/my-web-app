@@ -61,7 +61,7 @@ export async function signUp(email, password, storeName = null, storeType = null
           email: user.email,
           phone_number: user.phone || user.email, // Use email as fallback if phone not provided
           business_name: defaultStoreName,
-          store_type: defaultStoreType,
+          // store_type: defaultStoreType, // Column doesn't exist
           device_type: 'web',
           is_active: true,
           created_at: new Date().toISOString(),
@@ -193,21 +193,21 @@ export async function signIn(email, password) {
       });
     }
 
-    // Fetch user record to get store_type
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('store_type')
-      .eq('id', user.id)
-      .single();
+    // Skip fetching store_type - column doesn't exist
+    // const { data: userData, error: userError } = await supabase
+    //   .from('users')
+    //   .select('store_type')
+    //   .eq('id', user.id)
+    //   .single();
 
-    if (userError) {
-      console.debug('[Auth] User record not found:', userError);
-    }
+    // if (userError) {
+    //   console.debug('[Auth] User record not found:', userError);
+    // }
 
     const profile = storeData ? {
       storeName: storeData.business_name,
       email: user.email,
-      storeType: userData?.store_type || null,
+      storeType: null, // userData?.store_type || null,
     } : null;
 
     console.debug('[Auth] User profile loaded');
@@ -306,23 +306,23 @@ export async function getUserProfile(uid) {
       console.debug('[Auth] No store profile found for user:', uid);
     }
 
-    // Fetch from users table to get store_type
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('store_type')
-      .eq('id', uid)
-      .single();
+    // Skip fetching store_type - column doesn't exist
+    // const { data: userData, error: userError } = await supabase
+    //   .from('users')
+    //   .select('store_type')
+    //   .eq('id', uid)
+    //   .single();
 
-    if (userError) {
-      console.debug('[Auth] No user record found for user:', uid);
-    }
+    // if (userError) {
+    //   console.debug('[Auth] No user record found for user:', uid);
+    // }
 
     // Return combined profile
     return {
       storeName: storeData?.business_name || null,
       slug: storeData?.store_slug || null,
       isPublic: storeData?.is_public || false,
-      storeType: userData?.store_type || null,
+      storeType: null, // userData?.store_type || null,
     };
   } catch (error) {
     console.error('[Auth] Error fetching user profile:', error);

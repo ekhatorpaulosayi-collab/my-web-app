@@ -1,0 +1,204 @@
+-- WhatsApp Customer Verification System
+-- Links WhatsApp conversations to existing customer sessions
+
+-- Create verification codes table
+CREATE TABLE IF NOT EXISTS whatsapp_verifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    verification_code TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    store_id UUID REFERENCES stores(id) ON DELETE CASCADE,
+    phone_number TEXT,
+    verified BOOLEAN DEFAULT FALSE,
+    verified_at TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create index for quick lookups
+CREATE INDEX idx_whatsapp_verification_code ON whatsapp_verifications(verification_code);
+CREATE INDEX idx_whatsapp_verification_session ON whatsapp_verifications(session_id);
+CREATE INDEX idx_whatsapp_verification_phone ON whatsapp_verifications(phone_number);
+
+-- Create WhatsApp conversations table
+CREATE TABLE IF NOT EXISTS whatsapp_conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phone_number TEXT NOT NULL,
+    store_id UUID REFERENCES stores(id) ON DELETE CASCADE,
+    session_id TEXT, -- Linked after verification
+    customer_name TEXT,
+    verification_code TEXT,
+    verified BOOLEAN DEFAULT FALSE,
+    last_message_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    metadata JSONB
+);
+
+-- Create index for phone lookups
+CREATE INDEX idx_whatsapp_phone ON whatsapp_conversations(phone_number);
+CREATE INDEX idx_whatsapp_store ON whatsapp_conversations(store_id);
+
+-- Function to verify WhatsApp customer
+CREATE OR REPLACE FUNCTION verify_whatsapp_customer(
+    p_verification_code TEXT,
+    p_phone_number TEXT
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_verification RECORD;
+    v_result JSONB;
+BEGIN
+    -- Find valid verification code
+    SELECT * INTO v_verification
+    FROM whatsapp_verifications
+    WHERE verification_code = p_verification_code
+        AND verified = FALSE
+        AND expires_at > NOW()
+    LIMIT 1;
+
+    IF v_verification IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Invalid or expired verification code'
+        );
+    END IF;
+
+    -- Update verification record
+    UPDATE whatsapp_verifications
+    SET
+        verified = TRUE,
+        verified_at = NOW(),
+        phone_number = p_phone_number
+    WHERE id = v_verification.id;
+
+    -- Create or update WhatsApp conversation
+    INSERT INTO whatsapp_conversations (
+        phone_number,
+        store_id,
+        session_id,
+        verification_code,
+        verified,
+        last_message_at
+    ) VALUES (
+        p_phone_number,
+        v_verification.store_id,
+        v_verification.session_id,
+        p_verification_code,
+        TRUE,
+        NOW()
+    )
+    ON CONFLICT (phone_number, store_id) DO UPDATE
+    SET
+        session_id = v_verification.session_id,
+        verification_code = p_verification_code,
+        verified = TRUE,
+        last_message_at = NOW();
+
+    -- Link existing AI chat conversation if exists
+    UPDATE ai_chat_conversations
+    SET metadata = jsonb_set(
+        COALESCE(metadata, '{}'::jsonb),
+        '{whatsapp_phone}',
+        to_jsonb(p_phone_number)
+    )
+    WHERE session_id = v_verification.session_id
+        AND store_id = v_verification.store_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'session_id', v_verification.session_id,
+        'store_id', v_verification.store_id,
+        'message', 'Successfully linked WhatsApp to your chat session'
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get customer by phone number
+CREATE OR REPLACE FUNCTION get_whatsapp_customer(
+    p_phone_number TEXT,
+    p_store_id UUID
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_customer RECORD;
+    v_conversation RECORD;
+    v_message_count INTEGER;
+BEGIN
+    -- Find WhatsApp conversation
+    SELECT * INTO v_customer
+    FROM whatsapp_conversations
+    WHERE phone_number = p_phone_number
+        AND store_id = p_store_id
+    LIMIT 1;
+
+    IF v_customer IS NULL THEN
+        RETURN jsonb_build_object(
+            'found', false
+        );
+    END IF;
+
+    -- Get linked AI chat conversation if exists
+    SELECT * INTO v_conversation
+    FROM ai_chat_conversations
+    WHERE session_id = v_customer.session_id
+        AND store_id = p_store_id
+    LIMIT 1;
+
+    -- Count messages
+    SELECT COUNT(*) INTO v_message_count
+    FROM ai_chat_messages
+    WHERE conversation_id = v_conversation.id;
+
+    RETURN jsonb_build_object(
+        'found', true,
+        'phone_number', v_customer.phone_number,
+        'session_id', v_customer.session_id,
+        'customer_name', v_customer.customer_name,
+        'verified', v_customer.verified,
+        'conversation_id', v_conversation.id,
+        'message_count', v_message_count,
+        'last_message_at', v_customer.last_message_at
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Clean up expired verifications daily
+CREATE OR REPLACE FUNCTION cleanup_expired_verifications()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM whatsapp_verifications
+    WHERE expires_at < NOW() - INTERVAL '1 day';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant permissions
+GRANT ALL ON whatsapp_verifications TO authenticated;
+GRANT ALL ON whatsapp_conversations TO authenticated;
+GRANT EXECUTE ON FUNCTION verify_whatsapp_customer TO authenticated;
+GRANT EXECUTE ON FUNCTION get_whatsapp_customer TO authenticated;
+
+-- RLS Policies
+ALTER TABLE whatsapp_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_conversations ENABLE ROW LEVEL SECURITY;
+
+-- Store owners can manage their WhatsApp data
+CREATE POLICY "Store owners can manage WhatsApp verifications"
+ON whatsapp_verifications
+FOR ALL
+USING (
+    store_id IN (
+        SELECT id FROM stores
+        WHERE user_id = auth.uid()
+        OR created_by = auth.uid()
+    )
+);
+
+CREATE POLICY "Store owners can manage WhatsApp conversations"
+ON whatsapp_conversations
+FOR ALL
+USING (
+    store_id IN (
+        SELECT id FROM stores
+        WHERE user_id = auth.uid()
+        OR created_by = auth.uid()
+    )
+);
