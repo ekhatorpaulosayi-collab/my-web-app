@@ -949,36 +949,30 @@ function App() {
     }
 
     const initializeData = async () => {
-      try {
-        console.log('[App] Initializing data for user:', currentUser.uid);
+      console.log('[App] Initializing data for user:', currentUser.uid);
 
-        // Initialize IndexedDB for sales/credits (still using IndexedDB for these)
+      // Initialize IndexedDB for sales/credits (still using IndexedDB for these)
+      try {
         await initDB();
         await seedDemoItems();
+      } catch (dbError) {
+        console.error('[App] IndexedDB initialization error (non-critical):', dbError);
+      }
 
-        // Load products from Supabase FIRST (most critical for UI)
+      // Load products from Supabase FIRST (most critical for UI)
+      try {
         console.log('[App] Loading products from Supabase...');
         console.log('[App] Current User UID:', currentUser.uid);
         const products = await getProducts(currentUser.uid);
         console.log('[App] Loaded', products.length, 'products from Supabase');
         setItems(products);
-        // UI already showing, just update with data
+      } catch (productError) {
+        console.error('[App] Error loading products:', productError);
+        setItems([]); // Set empty array so UI doesn't break
+      }
 
-        // Migration check disabled - already using Supabase
-        // Keeping this commented out to avoid Firebase permission errors in console
-        // If you need to re-enable migration, uncomment the code below:
-        /*
-        setTimeout(async () => {
-          console.log('[App] Checking migration status in background...');
-          try {
-            const migrationResult = await migrateUserData(currentUser.uid);
-            console.log('[App] Migration result:', migrationResult);
-          } catch (error) {
-            console.error('[App] Migration failed:', error);
-          }
-        }, 100);
-        */
-
+      // CRITICAL: Load sales separately to ensure it always runs
+      try {
         // Check if migration to Supabase is needed
         console.log('[App] ========= LOADING SALES FROM CLOUD =========');
         console.log('[App] Current user for sales loading:', {
@@ -1089,15 +1083,21 @@ function App() {
           console.error('[App] Offline sync failed:', syncError);
         }
 
-        // Load credits from IndexedDB (not migrated yet)
+      } catch (salesError) {
+        console.error('[App] ❌ CRITICAL: Failed to load sales:', salesError);
+        // Don't let sales loading failure stop other operations
+      }
+
+      // Load credits from IndexedDB (not migrated yet)
+      try {
         const allCredits = await getCredits();
         setCredits(allCredits);
-
-        console.log('[App] Data loaded successfully');
-      } catch (error) {
-        console.error('[App] Failed to initialize data:', error);
-        // UI already showing, error handling will happen in components
+      } catch (creditsError) {
+        console.error('[App] Failed to load credits:', creditsError);
+        setCredits([]);
       }
+
+      console.log('[App] ✅ Data initialization complete');
     };
 
     // Set up real-time subscription to products
