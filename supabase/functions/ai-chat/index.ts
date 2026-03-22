@@ -2521,6 +2521,42 @@ async function handleStorefrontChat(
   }
 
   // ============================================================================
+  // CHECK FOR AGENT TAKEOVER - Skip AI if human agent is active
+  // ============================================================================
+  if (storeContext.conversationId) {
+    console.log('[StorefrontChat] Checking for active agent takeover...');
+
+    // Check if conversation has active agent takeover
+    const { data: conversation } = await supabase
+      .from('ai_chat_conversations')
+      .select('is_agent_active')
+      .eq('id', storeContext.conversationId)
+      .single();
+
+    if (conversation?.is_agent_active) {
+      console.log('[StorefrontChat] Agent takeover active - skipping AI response');
+
+      // Save user message but don't generate AI response
+      if (storeContext.storeId) {
+        await supabase.from('ai_chat_messages').insert({
+          conversation_id: storeContext.conversationId,
+          store_id: storeContext.storeId,
+          role: 'user',
+          content: message,
+        });
+      }
+
+      return jsonResponse({
+        response: '🧑‍💼 A human agent is currently handling your conversation. They will respond shortly.',
+        confidence: 1.0,
+        source: 'agent_takeover',
+        agentActive: true,
+        conversationId: storeContext.conversationId,
+      });
+    }
+  }
+
+  // ============================================================================
   // AI-FIRST: Route EVERYTHING else to AI for QUALITY responses
   // ============================================================================
   console.log('[AI] Routing to AI for quality response');
@@ -2683,6 +2719,7 @@ Now answer the customer's question using the store data above. Be helpful, accur
         source: 'ai',
         language,
         trackingDebug, // TEMPORARY: Debug info for tracking issue
+        conversationId: storeContext.conversationId, // Include conversation ID for real-time subscriptions
       });
     }
   } catch (error) {

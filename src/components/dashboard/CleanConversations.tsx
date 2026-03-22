@@ -384,6 +384,8 @@ export function CleanConversations() {
   useEffect(() => {
     if (!selectedConversation) return;
 
+    console.log('[Realtime] Setting up subscription for conversation:', selectedConversation.id);
+
     const channel = supabase
       .channel(`conversation-${selectedConversation.id}`)
       .on(
@@ -395,7 +397,10 @@ export function CleanConversations() {
           filter: `conversation_id=eq.${selectedConversation.id}`
         },
         (payload) => {
+          console.log('[Realtime] New message received:', payload);
           const newMessage = payload.new as Message;
+
+          // Update selected conversation
           setSelectedConversation(prev => {
             if (!prev) return prev;
             return {
@@ -403,14 +408,73 @@ export function CleanConversations() {
               messages: [...(prev.messages || []), newMessage]
             };
           });
+
+          // Also update conversations list
+          setConversations(prevConvs => {
+            return prevConvs.map(conv => {
+              if (conv.id === selectedConversation.id) {
+                return {
+                  ...conv,
+                  messages: [...(conv.messages || []), newMessage],
+                  updated_at: newMessage.created_at
+                };
+              }
+              return conv;
+            });
+          });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Successfully subscribed to messages');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime] Failed to subscribe to messages');
+        }
+      });
 
     return () => {
+      console.log('[Realtime] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [selectedConversation?.id]);
+
+  // Polling backup for messages (in case real-time fails)
+  useEffect(() => {
+    if (!selectedConversation || !isTakeoverActive) return;
+
+    console.log('[Polling] Starting message polling for takeover session');
+
+    const pollMessages = async () => {
+      try {
+        const { data: messages, error } = await supabase
+          .from('ai_chat_messages')
+          .select('*')
+          .eq('conversation_id', selectedConversation.id)
+          .order('created_at', { ascending: true });
+
+        if (!error && messages) {
+          setSelectedConversation(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              messages: messages
+            };
+          });
+        }
+      } catch (error) {
+        console.error('[Polling] Error fetching messages:', error);
+      }
+    };
+
+    // Poll every 2 seconds during takeover
+    const interval = setInterval(pollMessages, 2000);
+
+    return () => {
+      console.log('[Polling] Stopping message polling');
+      clearInterval(interval);
+    };
+  }, [selectedConversation?.id, isTakeoverActive]);
 
   const loadConversations = async () => {
     try {
@@ -556,7 +620,13 @@ export function CleanConversations() {
 
     setSendingMessage(true);
     try {
-      // Insert agent message
+      // First, update the conversation's updated_at to mark activity
+      await supabase
+        .from('ai_chat_conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', selectedConversation.id);
+
+      // Insert agent message - simplified without .single()
       const { data, error } = await supabase
         .from('ai_chat_messages')
         .insert({
@@ -564,17 +634,24 @@ export function CleanConversations() {
           role: 'assistant',
           content: messageText.trim(),
           is_agent_message: true,
-          agent_id: user?.uid
+          agent_id: user?.uid,
+          created_at: new Date().toISOString()
         })
-        .select()
-        .single();
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Message insert error:', error);
+        throw error;
+      }
 
       // Add message to local state
       const newMessage: Message = {
-        ...data,
-        role: 'agent'
+        id: data?.[0]?.id || crypto.randomUUID(),
+        role: 'agent',
+        content: messageText.trim(),
+        is_agent_message: true,
+        agent_id: user?.uid,
+        created_at: new Date().toISOString()
       };
 
       setSelectedConversation({
