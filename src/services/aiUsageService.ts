@@ -24,7 +24,7 @@ export interface AIUsageData {
 export async function getAIUsage(userId: string): Promise<AIUsageData | null> {
   try {
     // Get user's subscription data
-    const subscription = await getUserSubscriptionData(userId);
+    const subscription = await getUserTier(userId);
     if (!subscription) return null;
 
     const chatsUsed = subscription.ai_chats_used || 0;
@@ -143,7 +143,7 @@ export function getUpgradeBenefits(currentTier: string): string[] {
  */
 export function calculateUpgradeROI(currentTier: string, averageMonthlySales: number): {
   estimatedIncrease: number;
-  timeS saved: number;
+  timeSaved: number;
   roiMultiple: number;
 } {
   const roiData: Record<string, { salesIncrease: number; timeSaved: number }> = {
