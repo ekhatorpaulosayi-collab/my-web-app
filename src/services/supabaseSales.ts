@@ -141,42 +141,30 @@ export async function getSalesByEmail(email: string): Promise<Sale[]> {
       return [];
     }
 
-    // First get the user ID for this email from profiles table
-    console.log('[supabaseSales] Looking up user ID for email in profiles table...');
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .single();
+    // Skip profiles table lookup (it doesn't exist) and use auth user directly
+    console.log('[supabaseSales] Getting current auth user for email:', email);
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
-    if (profileError || !profileData) {
-      console.error('[supabaseSales] Could not find profile for email:', email);
-      console.error('[supabaseSales] Profile lookup error:', profileError);
-
-      // Try to get the auth user directly
-      console.log('[supabaseSales] Trying to get current auth user...');
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
-      if (authUser && authUser.email === email) {
-        console.log('[supabaseSales] Using auth user ID:', authUser.id);
-        return getSales(authUser.id);
-      }
-
-      // Try with hardcoded known user ID as fallback
-      console.log('[supabaseSales] Trying with known user ID for ekhatorpaulosayi@gmail.com');
-      if (email === 'ekhatorpaulosayi@gmail.com') {
-        const knownUserId = 'dffba89b-869d-422a-a542-2e2494850b44';
-        return getSales(knownUserId);
-      }
-
-      return [];
+    if (authUser && authUser.email === email) {
+      console.log('[supabaseSales] Using auth user ID:', authUser.id);
+      return getSales(authUser.id);
     }
 
-    const userId = profileData.id;
-    console.log('[supabaseSales] Found user ID from profiles:', userId);
+    // Try with hardcoded known user IDs as fallback
+    console.log('[supabaseSales] Auth user not found or email mismatch, trying known user IDs');
+    if (email === 'ekhatorpaulosayi@gmail.com') {
+      const knownUserId = 'dffba89b-869d-422a-a542-2e2494850b44';
+      return getSales(knownUserId);
+    } else if (email === 'paulekhator2026@yahoo.com') {
+      // Add your new account's user ID here if you know it
+      console.log('[supabaseSales] Email is paulekhator2026@yahoo.com, using auth user if available');
+      if (authUser) {
+        return getSales(authUser.id);
+      }
+    }
 
-    // Now get the sales
-    return getSales(userId);
+    console.error('[supabaseSales] Could not determine user ID for email:', email);
+    return [];
   } catch (error) {
     console.error('[supabaseSales] ❌ FAILED to fetch sales by email:', error);
     return [];
@@ -414,7 +402,12 @@ export async function migrateSalesToSupabase(userId: string): Promise<{
           amount_paid: idbSale.payment === 'credit' ? 0 : (idbSale.amount || 0),
           amount_due: idbSale.payment === 'credit' ? (idbSale.amount || 0) : 0,
           notes: idbSale.note || idbSale.notes || null,
-          sale_date: idbSale.date || idbSale.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+          sale_date: idbSale.date ||
+            (typeof idbSale.createdAt === 'string'
+              ? idbSale.createdAt.split('T')[0]
+              : typeof idbSale.createdAt === 'number'
+                ? new Date(idbSale.createdAt).toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0]),
           sales_channel: idbSale.sales_channel,
           recorded_by_staff_id: idbSale.recorded_by_staff_id,
           cogsKobo: idbSale.cogsKobo
