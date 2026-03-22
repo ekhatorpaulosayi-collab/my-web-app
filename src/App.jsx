@@ -1011,39 +1011,24 @@ function App() {
             // Use the SAME UID that we use when saving sales
             supabaseSales = await getSupabaseSales(currentUser.uid);
             console.log(`[App] ✅ Loaded ${supabaseSales.length} sales from Supabase cloud`);
-          } catch (emailError) {
-            console.error('[App] ❌ Email-based loading failed:', emailError);
-
-            // FALLBACK 1: Try with UID
-            try {
-              console.log('[App] Falling back to UID-based loading...');
-              supabaseSales = await getSupabaseSales(currentUser.uid);
-              console.log(`[App] ✅ UID FALLBACK: Loaded ${supabaseSales.length} sales`);
-            } catch (uidError) {
-              console.error('[App] ❌ UID fallback also failed:', uidError);
-
-              // FALLBACK 2: For known user, try hardcoded ID
-              if (currentUser.email === 'ekhatorpaulosayi@gmail.com') {
-                const KNOWN_USER_ID = 'dffba89b-869d-422a-a542-2e2494850b44';
-                console.log('[App] Final fallback with known user ID...');
-                try {
-                  supabaseSales = await getSupabaseSales(KNOWN_USER_ID);
-                  console.log(`[App] ✅ HARDCODED FALLBACK: Loaded ${supabaseSales.length} sales`);
-                } catch (finalError) {
-                  console.error('[App] ❌ All loading methods failed:', finalError);
-                }
-              }
-            }
-          }
-        } else {
-          // No email available, try UID directly
-          try {
-            console.log('[App] No email available, using UID directly');
-            supabaseSales = await getSupabaseSales(currentUser.uid);
-            console.log(`[App] ✅ Loaded ${supabaseSales.length} sales with UID`);
           } catch (error) {
             console.error('[App] ❌ Failed to load sales:', error);
+            // Try to reload once more after a delay
+            setTimeout(async () => {
+              try {
+                console.log('[App] Retrying sales load...');
+                const retrySales = await getSupabaseSales(currentUser.uid);
+                if (retrySales && retrySales.length > 0) {
+                  setSales(retrySales);
+                  console.log(`[App] ✅ Retry successful: Loaded ${retrySales.length} sales`);
+                }
+              } catch (retryError) {
+                console.error('[App] Retry also failed:', retryError);
+              }
+            }, 2000); // Retry after 2 seconds
           }
+        } else {
+          console.error('[App] ⚠️ No user UID available for loading sales');
         }
 
         if (supabaseSales.length === 0) {
@@ -3061,15 +3046,10 @@ Thank you for your business! 🙏
 
         console.log('[App] Supabase sale data prepared:', JSON.stringify(supabaseSale, null, 2));
 
-        // PERMANENT FIX: Always use the correct ID for your account
-        let userIdForSaving = currentUser.uid;
-        if (currentUser.email === 'ekhatorpaulosayi@gmail.com') {
-          userIdForSaving = 'dffba89b-869d-422a-a542-2e2494850b44';
-          console.log('[App] SPECIAL HANDLING: Using fixed ID for your account');
-        }
-        console.log('[App] Calling createSupabaseSale with user ID:', userIdForSaving);
+        // Use the same user ID as in the first save operation (lines 2970-3001)
+        console.log('[App] Calling createSupabaseSale with user ID:', currentUser.uid);
 
-        createSupabaseSale(supabaseSale, userIdForSaving)
+        createSupabaseSale(supabaseSale, currentUser.uid)
           .then(result => {
             if (result) {
               console.log('[App] ✅ Sale saved to cloud successfully!');
