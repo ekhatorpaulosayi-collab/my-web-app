@@ -997,50 +997,20 @@ function App() {
         }
 
         // Load sales from Supabase using EMAIL (more reliable than UID!)
-        console.log('[App] Loading sales using EMAIL-BASED approach for reliability');
+        console.log('[App] Loading sales from Supabase cloud...');
         console.log('[App] User email:', currentUser.email);
-        console.log('[App] User UID (for reference):', currentUser.uid);
+        console.log('[App] User UID:', currentUser.uid);
 
         let supabaseSales = [];
 
-        // ULTIMATE FIX FOR YOUR ACCOUNT - FORCE LOAD NO MATTER WHAT
-        if (currentUser.email === 'ekhatorpaulosayi@gmail.com' ||
-            currentUser.email?.toLowerCase() === 'ekhatorpaulosayi@gmail.com' ||
-            currentUser.displayName?.includes('ekhator')) {
-          console.log('[App] 🔴 EMERGENCY FORCE LOAD FOR YOUR ACCOUNT');
-          const FIXED_USER_ID = 'dffba89b-869d-422a-a542-2e2494850b44';
-
-          // Try multiple times if needed
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-              console.log(`[App] Force load attempt ${attempt}...`);
-              supabaseSales = await getSupabaseSales(FIXED_USER_ID);
-
-              if (supabaseSales && supabaseSales.length > 0) {
-                console.log(`[App] ✅ SUCCESS! Loaded ${supabaseSales.length} sales on attempt ${attempt}`);
-                break;
-              } else {
-                console.log(`[App] Attempt ${attempt} returned empty, retrying...`);
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-              }
-            } catch (error) {
-              console.error(`[App] Attempt ${attempt} failed:`, error);
-              if (attempt === 3) {
-                console.log('[App] All attempts failed, loading hardcoded fallback data');
-                // Last resort: return some cached data so you see something
-                supabaseSales = [
-                  { id: '1', product_name: 'Loading...', final_amount: 0, sale_date: new Date().toISOString() }
-                ];
-              }
-            }
-          }
-        }
-        // PRIMARY METHOD: Use email-based loading (most reliable)
-        else if (currentUser.email) {
+        // ALWAYS use the authenticated user's ID for consistency
+        // This ensures sales are loaded with the same ID they were saved with
+        if (currentUser && currentUser.uid) {
           try {
-            console.log('[App] Attempting to load sales by email:', currentUser.email);
-            supabaseSales = await getSupabaseSalesByEmail(currentUser.email);
-            console.log(`[App] ✅ EMAIL METHOD: Loaded ${supabaseSales.length} sales from Supabase cloud`);
+            console.log('[App] Loading sales using UID (same as saving):', currentUser.uid);
+            // Use the SAME UID that we use when saving sales
+            supabaseSales = await getSupabaseSales(currentUser.uid);
+            console.log(`[App] ✅ Loaded ${supabaseSales.length} sales from Supabase cloud`);
           } catch (emailError) {
             console.error('[App] ❌ Email-based loading failed:', emailError);
 
