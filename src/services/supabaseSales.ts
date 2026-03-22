@@ -40,12 +40,24 @@ export interface Sale {
 /**
  * Create a new sale in Supabase
  */
-export async function createSale(sale: Sale, userId: string): Promise<Sale | null> {
+export async function createSale(sale: Sale, userId?: string): Promise<Sale | null> {
   console.log('[supabaseSales] ========= CREATE SALE START =========');
-  console.log('[supabaseSales] User ID:', userId);
   console.log('[supabaseSales] Sale data received:', sale);
 
   try {
+    // ALWAYS get the authenticated user ID
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      console.error('[SALES_DEBUG] No authenticated user!', authError);
+      return null;
+    }
+
+    // Always use auth user ID, ignore passed parameter
+    const actualUserId = authUser.id;
+    console.log('[SALES_DEBUG] Using auth UID:', actualUserId);
+    console.log('[SALES_DEBUG] User email:', authUser.email);
+
     // Check if Supabase client is initialized
     if (!supabase) {
       console.error('[supabaseSales] ❌ CRITICAL: Supabase client not initialized!');
@@ -54,7 +66,7 @@ export async function createSale(sale: Sale, userId: string): Promise<Sale | nul
 
     // Ensure we have required fields
     const saleData = {
-      user_id: userId,
+      user_id: actualUserId,  // ALWAYS use auth user ID
       product_id: sale.product_id || sale.itemId || null,
       product_name: sale.product_name || sale.itemName || 'Unknown Product',
       quantity: sale.quantity || 1,
@@ -129,17 +141,26 @@ export async function getSalesByEmail(email: string): Promise<Sale[]> {
       return [];
     }
 
-    // First get the user ID for this email
-    console.log('[supabaseSales] Looking up user ID for email...');
-    const { data: userData, error: userError } = await supabase
-      .from('users')
+    // First get the user ID for this email from profiles table
+    console.log('[supabaseSales] Looking up user ID for email in profiles table...');
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
       .select('id')
       .eq('email', email)
       .single();
 
-    if (userError || !userData) {
-      console.error('[supabaseSales] Could not find user for email:', email);
-      console.error('[supabaseSales] User lookup error:', userError);
+    if (profileError || !profileData) {
+      console.error('[supabaseSales] Could not find profile for email:', email);
+      console.error('[supabaseSales] Profile lookup error:', profileError);
+
+      // Try to get the auth user directly
+      console.log('[supabaseSales] Trying to get current auth user...');
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+      if (authUser && authUser.email === email) {
+        console.log('[supabaseSales] Using auth user ID:', authUser.id);
+        return getSales(authUser.id);
+      }
 
       // Try with hardcoded known user ID as fallback
       console.log('[supabaseSales] Trying with known user ID for ekhatorpaulosayi@gmail.com');
@@ -151,8 +172,8 @@ export async function getSalesByEmail(email: string): Promise<Sale[]> {
       return [];
     }
 
-    const userId = userData.id;
-    console.log('[supabaseSales] Found user ID:', userId);
+    const userId = profileData.id;
+    console.log('[supabaseSales] Found user ID from profiles:', userId);
 
     // Now get the sales
     return getSales(userId);
@@ -168,6 +189,31 @@ export async function getSalesByEmail(email: string): Promise<Sale[]> {
 export async function getSales(userId: string): Promise<Sale[]> {
   console.log('[supabaseSales] ========= GET SALES START =========');
   console.log('[supabaseSales] Fetching sales for User ID:', userId);
+
+  // DEBUG: Check current auth user
+  try {
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    console.log('[SALES_DEBUG] Current auth user:', {
+      authUID: authUser?.id,
+      email: authUser?.email,
+      providedUserId: userId,
+      match: authUser?.id === userId
+    });
+
+    // DEBUG: Check what user_id values exist in sales table
+    const { data: sampleSales, error: sampleError } = await supabase
+      .from('sales')
+      .select('user_id, id')
+      .limit(5);
+
+    console.log('[SALES_DEBUG] Sample user_ids in sales table:', sampleSales?.map(s => s.user_id));
+
+    if (authError) {
+      console.error('[SALES_DEBUG] Auth error:', authError);
+    }
+  } catch (e) {
+    console.error('[SALES_DEBUG] Failed to get debug info:', e);
+  }
 
   try {
     // Check if Supabase client is initialized

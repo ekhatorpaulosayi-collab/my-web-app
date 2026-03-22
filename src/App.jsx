@@ -2997,6 +2997,39 @@ Thank you for your business! 🙏
         outboxStore.put(outboxData);
       });
 
+      // CRITICAL FIX: Also save to Supabase cloud for persistence
+      try {
+        console.log('[handleSaveSale] 🔄 Saving to Supabase cloud...');
+
+        // Convert IndexedDB format to Supabase format
+        const supabaseSaleData = {
+          product_id: selectedItem.id,
+          product_name: selectedItem.name,
+          quantity: qty,
+          unit_price: sellKobo / 100,  // Convert kobo to naira
+          total_amount: (qty * sellKobo) / 100,
+          final_amount: (qty * sellKobo) / 100,
+          discount_amount: 0,
+          customer_name: formData.customerName || null,
+          customer_phone: formData.phone || null,
+          payment_method: formData.isCreditSale ? 'credit' : (formData.paymentMethod || 'cash'),
+          payment_status: formData.isCreditSale ? 'pending' : 'paid',
+          amount_paid: formData.isCreditSale ? 0 : (qty * sellKobo) / 100,
+          amount_due: formData.isCreditSale ? (qty * sellKobo) / 100 : 0,
+          sale_date: new Date().toISOString().split('T')[0],
+          sale_time: new Date().toTimeString().split(' ')[0],
+          notes: formData.note || null
+        };
+
+        // Save to Supabase - pass the current user's ID
+        await createSupabaseSale(supabaseSaleData, currentUser.uid);
+        console.log('[handleSaveSale] ✅ Sale saved to Supabase cloud!');
+      } catch (cloudError) {
+        console.error('[handleSaveSale] ⚠️ Failed to save to cloud (will remain in local storage):', cloudError);
+        // Don't fail the sale - it's saved locally at least
+        // The syncOfflineSales function will retry later
+      }
+
       // Success! Close modal and show toast
       setShowRecordSale(false);
 
