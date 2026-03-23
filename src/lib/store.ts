@@ -30,7 +30,10 @@ export type Debt = {
 };
 
 export function loadSales(): SaleRow[] {
-  return safeParse<SaleRow[]>(localStorage.getItem("sales"), []);
+  // IMPORTANT: Sales are now stored in Supabase, not localStorage
+  // This function should not be used anymore - returning empty array for compatibility
+  console.warn('[store.ts] loadSales() called - this should use Supabase instead of localStorage');
+  return [];
 }
 export function saveSales(rows: SaleRow[]) {
   saveJson("sales", rows);

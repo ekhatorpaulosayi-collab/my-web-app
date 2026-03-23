@@ -355,61 +355,8 @@ function App() {
   // Sales tracking state (now from IndexedDB) - MOVED UP to fix initialization error
   const [sales, setSales] = useState([]);
 
-  // EMERGENCY FIX: Force-load sales for your account on mobile
-  useEffect(() => {
-    // Check every 2 seconds if we should force-load sales
-    const checkAndLoadSales = async () => {
-      // Multiple ways to detect if it's your account
-      const isYourAccount =
-        currentUser?.email === 'ekhatorpaulosayi@gmail.com' ||
-        currentUser?.email?.toLowerCase() === 'ekhatorpaulosayi@gmail.com' ||
-        localStorage.getItem('storehouse-user-email') === 'ekhatorpaulosayi@gmail.com' ||
-        (window.location.hostname === 'storehouse.ng' && sales.length === 0);
-
-      if (isYourAccount && sales.length === 0) {
-        console.log('[MOBILE FIX] Detected your account with no sales, force-loading...');
-        console.log('[MOBILE FIX] Detection criteria:', {
-          currentUserEmail: currentUser?.email,
-          localStorageEmail: localStorage.getItem('storehouse-user-email'),
-          hostname: window.location.hostname,
-          salesLength: sales.length
-        });
-
-        const FIXED_USER_ID = 'dffba89b-869d-422a-a542-2e2494850b44';
-        try {
-          const forcedSales = await getSupabaseSales(FIXED_USER_ID);
-          if (forcedSales && forcedSales.length > 0) {
-            console.log(`[MOBILE FIX] ✅ Force-loaded ${forcedSales.length} sales!`);
-            const formattedSales = forcedSales.map(sale => ({
-              ...sale,
-              dayKey: sale.sale_date || localDayKey(),
-              amount: (sale.final_amount || 0) / 100,
-              unitPrice: (sale.unit_price || 0) / 100
-            }));
-            setSales(formattedSales);
-
-            // Also update localStorage to help other parts of the app
-            localStorage.setItem('storehouse-emergency-sales-loaded', 'true');
-          } else {
-            console.log('[MOBILE FIX] No sales returned, will retry...');
-          }
-        } catch (error) {
-          console.error('[MOBILE FIX] Error force-loading:', error);
-        }
-      }
-    };
-
-    // Run immediately and then every 2 seconds
-    checkAndLoadSales();
-    const interval = setInterval(checkAndLoadSales, 2000);
-
-    // Also try after a delay to ensure auth is ready
-    setTimeout(checkAndLoadSales, 500);
-    setTimeout(checkAndLoadSales, 1500);
-    setTimeout(checkAndLoadSales, 3000);
-
-    return () => clearInterval(interval);
-  }, [currentUser, sales.length]);
+  // REMOVED: Emergency loading code that was causing console spam
+  // Sales are now loaded properly through the main useEffect
   const [salesSearchTerm, setSalesSearchTerm] = useState('');
   const [salesDateFilter, setSalesDateFilter] = useState('all');
   const [salesPaymentFilter, setSalesPaymentFilter] = useState('all');
@@ -1054,25 +1001,37 @@ function App() {
         }
 
         // Convert Supabase format to app format
-        const allSales = supabaseSales.map(sale => ({
-          id: sale.id,
-          date: sale.sale_date,
-          itemId: sale.product_id,
-          itemName: sale.product_name,
-          qty: sale.quantity,
-          unitPrice: sale.unit_price,
-          amount: sale.final_amount,
-          payment: sale.payment_method,
-          customerName: sale.customer_name,
-          phone: sale.customer_phone,
-          note: sale.notes,
-          createdAt: sale.created_at,
-          dayKey: sale.day_key || sale.sale_date,
-          cogsKobo: sale.cogsKobo
-        }));
+        const allSales = supabaseSales.map(sale => {
+          // Convert sale_date (YYYY-MM-DD) to timestamp for today's sales filtering
+          const saleTimestamp = sale.sale_date ? new Date(sale.sale_date).getTime() : Date.now();
+
+          return {
+            id: sale.id,
+            date: sale.sale_date,
+            itemId: sale.product_id,
+            itemName: sale.product_name,
+            qty: sale.quantity,
+            unitPrice: sale.unit_price,
+            amount: sale.final_amount,
+            payment: sale.payment_method,
+            customerName: sale.customer_name,
+            phone: sale.customer_phone,
+            note: sale.notes,
+            createdAt: saleTimestamp, // Use timestamp for filtering
+            dayKey: sale.sale_date, // Use sale_date directly as dayKey (already in YYYY-MM-DD format)
+            cogsKobo: sale.cogsKobo,
+            // Add sellKobo for Dashboard calculations
+            sellKobo: sale.unit_price * 100 // Convert to kobo for Dashboard
+          };
+        });
 
         // Set the sales data
+        console.log('[App] 🎯 Setting sales state with', allSales.length, 'sales');
+        console.log('[App] 📊 Sales data preview:', allSales.slice(0, 3)); // Show first 3 sales
+        console.log('[App] 📅 Today\'s date:', new Date().toISOString().split('T')[0]);
+        console.log('[App] 📅 Sales dates:', [...new Set(allSales.map(s => s.dayKey))].sort());
         setSales(allSales);
+        console.log('[App] ✅ Sales state updated successfully');
 
         // Sync any offline sales created while offline
         try {
@@ -1081,22 +1040,29 @@ function App() {
             console.log(`[App] Synced ${syncedCount} offline sales to cloud`);
             // Reload sales to include newly synced ones
             const refreshedSales = await getSupabaseSales(currentUser.uid);
-            const mappedSales = refreshedSales.map(sale => ({
-              id: sale.id,
-              date: sale.sale_date,
-              itemId: sale.product_id,
-              itemName: sale.product_name,
-              qty: sale.quantity,
-              unitPrice: sale.unit_price,
-              amount: sale.final_amount,
-              payment: sale.payment_method,
-              customerName: sale.customer_name,
-              phone: sale.customer_phone,
-              note: sale.notes,
-              createdAt: sale.created_at,
-              dayKey: sale.day_key || sale.sale_date,
-              cogsKobo: sale.cogsKobo
-            }));
+            const mappedSales = refreshedSales.map(sale => {
+              // Convert sale_date (YYYY-MM-DD) to timestamp for today's sales filtering
+              const saleTimestamp = sale.sale_date ? new Date(sale.sale_date).getTime() : Date.now();
+
+              return {
+                id: sale.id,
+                date: sale.sale_date,
+                itemId: sale.product_id,
+                itemName: sale.product_name,
+                qty: sale.quantity,
+                unitPrice: sale.unit_price,
+                amount: sale.final_amount,
+                payment: sale.payment_method,
+                customerName: sale.customer_name,
+                phone: sale.customer_phone,
+                note: sale.notes,
+                createdAt: saleTimestamp, // Use timestamp for filtering
+                dayKey: sale.day_key || sale.sale_date,
+                cogsKobo: sale.cogsKobo,
+                // Add sellKobo for Dashboard calculations
+                sellKobo: sale.unit_price * 100 // Convert to kobo for Dashboard
+              };
+            });
             setSales(mappedSales);
           }
         } catch (syncError) {
@@ -3240,7 +3206,7 @@ Thank you for your business! 🙏
     // Remove the sale from sales
     const updatedSales = sales.filter(sale => sale.id !== lastSale.id);
     setSales(updatedSales);
-    localStorage.setItem('storehouse-sales', JSON.stringify(updatedSales));
+    // REMOVED: localStorage.setItem - sales are now stored in Supabase only
 
     // Remove associated debt if it was a credit sale
     if (lastSale.paymentMethod === 'credit') {
@@ -3561,7 +3527,7 @@ Low Stock: ${lowStockItems.length}
         if (!exists) {
           const updatedSales = [...sales, sale];
           setSales(updatedSales);
-          localStorage.setItem('storehouse-sales', JSON.stringify(updatedSales));
+          // REMOVED: localStorage.setItem - sales are now stored in Supabase only
         }
       });
 

@@ -150,17 +150,11 @@ export async function getSalesByEmail(email: string): Promise<Sale[]> {
       return getSales(authUser.id);
     }
 
-    // Try with hardcoded known user IDs as fallback
-    console.log('[supabaseSales] Auth user not found or email mismatch, trying known user IDs');
-    if (email === 'ekhatorpaulosayi@gmail.com') {
-      const knownUserId = 'dffba89b-869d-422a-a542-2e2494850b44';
-      return getSales(knownUserId);
-    } else if (email === 'paulekhator2026@yahoo.com') {
-      // Add your new account's user ID here if you know it
-      console.log('[supabaseSales] Email is paulekhator2026@yahoo.com, using auth user if available');
-      if (authUser) {
-        return getSales(authUser.id);
-      }
+    // Use authenticated user ID if available
+    console.log('[supabaseSales] Auth user not found or email mismatch, checking auth state');
+    if (authUser) {
+      console.log('[supabaseSales] Using authenticated user ID for email:', email);
+      return getSales(authUser.id);
     }
 
     console.error('[supabaseSales] Could not determine user ID for email:', email);
