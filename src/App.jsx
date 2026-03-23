@@ -116,7 +116,7 @@ function App() {
   const { profile, isProfileComplete } = useBusinessProfile();
 
   // Auth context - get current user for Firebase operations
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
 
   // Get Supabase user (converts Firebase UID to Supabase UUID)
   // COMMENTED OUT - Not needed since we're using Supabase Auth directly
@@ -943,6 +943,12 @@ function App() {
 
   // Initialize Firebase and load data
   useEffect(() => {
+    // Wait for auth to finish loading before deciding
+    if (authLoading) {
+      console.log('[App] Auth still loading, waiting...');
+      return;
+    }
+
     if (!currentUser) {
       console.log('[App] No user logged in, skipping data load');
       return;
@@ -1128,7 +1134,7 @@ function App() {
         unsubscribe();
       }
     };
-  }, [currentUser]);
+  }, [currentUser, authLoading]);
 
   // Migrate PRO/TEAM users to STARTER (run once on mount)
   useEffect(() => {
