@@ -24,13 +24,14 @@ import { initializeSentry } from './lib/sentry';
 initializeSentry();
 
 // Suppress console logs in production to prevent performance issues
-if (import.meta.env.PROD) {
-  const noop = () => {};
-  console.log = noop;
-  console.debug = noop;
-  console.info = noop;
-  // Keep console.warn and console.error for critical issues
-}
+// TEMPORARILY DISABLED TO DEBUG SALES ISSUE
+// if (import.meta.env.PROD) {
+//   const noop = () => {};
+//   console.log = noop;
+//   console.debug = noop;
+//   console.info = noop;
+//   // Keep console.warn and console.error for critical issues
+// }
 
 // Bypass landing page - go directly to app for development
 localStorage.setItem('hasVisited', 'true');
