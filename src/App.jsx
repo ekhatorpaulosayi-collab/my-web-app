@@ -118,6 +118,14 @@ function App() {
   // Auth context - get current user for Firebase operations
   const { currentUser, loading: authLoading } = useAuth();
 
+  // CRITICAL DEBUG: Log auth state on every render
+  console.log('🚀 [App] Component render:', {
+    timestamp: new Date().toISOString(),
+    currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
+    authLoading,
+    hasUser: !!currentUser
+  });
+
   // Get Supabase user (converts Firebase UID to Supabase UUID)
   // COMMENTED OUT - Not needed since we're using Supabase Auth directly
   // const { user: supabaseUser } = useUser(currentUser);
@@ -943,6 +951,12 @@ function App() {
 
   // Initialize Firebase and load data
   useEffect(() => {
+    console.log('🔥 [App] useEffect triggered:', {
+      authLoading,
+      currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
+      timestamp: new Date().toISOString()
+    });
+
     // Wait for auth to finish loading before deciding
     if (authLoading) {
       console.log('[App] Auth still loading, waiting...');
