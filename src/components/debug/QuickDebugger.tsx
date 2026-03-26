@@ -175,13 +175,32 @@ export default function QuickDebugger() {
     const realtimeClient = (supabase as any).realtime;
     if (realtimeClient) {
       console.log('[QuickDebugger] Force-clearing realtime client...');
+
+      // Disconnect the websocket
       if (realtimeClient.disconnect) {
         await realtimeClient.disconnect();
       }
-      // Wait and reconnect
-      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Clear the connection state
+      if (realtimeClient.conn) {
+        realtimeClient.conn = null;
+      }
+
+      // Clear all channels from the client
+      if (realtimeClient.channels) {
+        realtimeClient.channels = [];
+      }
+
+      // Wait longer to ensure cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Reconnect with fresh state
       if (realtimeClient.connect) {
+        console.log('[QuickDebugger] Reconnecting realtime client...');
         await realtimeClient.connect();
+
+        // Wait for connection to establish
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
@@ -192,7 +211,7 @@ export default function QuickDebugger() {
       // Get user ID for proper channel subscription
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Create message subscription
+        // Create message subscription with proper error handling
         const messageChannel = supabase
           .channel(`dashboard-messages-${user.id}`)
           .on(
@@ -203,14 +222,24 @@ export default function QuickDebugger() {
               table: 'ai_chat_messages'
             },
             (payload) => {
-              console.log('[QuickDebugger] Message subscription active:', payload);
+              console.log('[QuickDebugger] Message received:', payload);
             }
-          )
-          .subscribe((status) => {
-            console.log('[QuickDebugger] Message channel status:', status);
-          });
+          );
 
-        // Create conversation subscription
+        // Subscribe and wait for confirmation
+        const messagePromise = new Promise((resolve) => {
+          messageChannel.subscribe((status) => {
+            console.log('[QuickDebugger] Message channel status:', status);
+            if (status === 'SUBSCRIBED') {
+              resolve(true);
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.error('[QuickDebugger] Message channel failed:', status);
+              resolve(false);
+            }
+          });
+        });
+
+        // Create conversation subscription with proper error handling
         const conversationChannel = supabase
           .channel(`dashboard-conversations-${user.id}`)
           .on(
@@ -221,17 +250,59 @@ export default function QuickDebugger() {
               table: 'ai_chat_conversations'
             },
             (payload) => {
-              console.log('[QuickDebugger] Conversation subscription active:', payload);
+              console.log('[QuickDebugger] Conversation update:', payload);
             }
-          )
-          .subscribe((status) => {
+          );
+
+        // Subscribe and wait for confirmation
+        const conversationPromise = new Promise((resolve) => {
+          conversationChannel.subscribe((status) => {
             console.log('[QuickDebugger] Conversation channel status:', status);
+            if (status === 'SUBSCRIBED') {
+              resolve(true);
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.error('[QuickDebugger] Conversation channel failed:', status);
+              resolve(false);
+            }
           });
+        });
 
-        // Wait for subscriptions to establish
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait for subscriptions with timeout
+        const subscriptionTimeout = new Promise((resolve) => {
+          setTimeout(() => resolve(false), 5000); // 5 second timeout
+        });
 
-        console.log('[QuickDebugger] Subscriptions created successfully!');
+        const [messageSuccess, conversationSuccess] = await Promise.race([
+          Promise.all([messagePromise, conversationPromise]),
+          subscriptionTimeout.then(() => [false, false])
+        ]);
+
+        if (messageSuccess && conversationSuccess) {
+          console.log('[QuickDebugger] Subscriptions created successfully!');
+        } else {
+          console.error('[QuickDebugger] Some subscriptions failed to establish');
+          // Try alternative connection method
+          console.log('[QuickDebugger] Attempting fallback subscription method...');
+
+          // Simple subscription without waiting for status
+          supabase
+            .channel(`fallback-messages-${Date.now()}`)
+            .on('postgres_changes', {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ai_chat_messages'
+            }, () => {})
+            .subscribe();
+
+          supabase
+            .channel(`fallback-conversations-${Date.now()}`)
+            .on('postgres_changes', {
+              event: '*',
+              schema: 'public',
+              table: 'ai_chat_conversations'
+            }, () => {})
+            .subscribe();
+        }
       }
     }
 

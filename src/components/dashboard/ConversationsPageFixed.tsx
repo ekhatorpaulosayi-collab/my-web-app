@@ -411,11 +411,17 @@ export default function ConversationsPageFixed() {
           }
 
           // Add system message manually (only once)
-          if (!selectedConversation.messages?.some(m =>
-            m.content?.includes('agent has joined') &&
-            new Date().getTime() - new Date(m.created_at).getTime() < 10000)) {
+          // First check if message already exists in the database
+          const { data: existingMessages } = await supabase
+            .from('ai_chat_messages')
+            .select('id, content, created_at')
+            .eq('conversation_id', selectedConversation.id)
+            .ilike('content', '%agent has joined%')
+            .gte('created_at', new Date(Date.now() - 30000).toISOString()) // Check last 30 seconds
+            .limit(1);
 
-            await supabase
+          if (!existingMessages || existingMessages.length === 0) {
+            const { data: insertedMessage } = await supabase
               .from('ai_chat_messages')
               .insert({
                 conversation_id: selectedConversation.id,
@@ -423,7 +429,16 @@ export default function ConversationsPageFixed() {
                 content: '👨‍💼 A human agent has joined the conversation. They will assist you from here.',
                 is_agent_message: true,
                 created_at: new Date().toISOString()
-              });
+              })
+              .select()
+              .single();
+
+            // Add the message ID to processed set immediately to prevent duplicates
+            if (insertedMessage?.id) {
+              processedMessageIds.current.add(insertedMessage.id);
+            }
+          } else {
+            console.log('[Takeover] Agent joined message already exists, skipping insert');
           }
         } else {
           throw funcError;
