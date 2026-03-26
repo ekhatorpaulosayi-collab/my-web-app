@@ -41,6 +41,7 @@ const AffiliateAdmin = lazy(() => import('./pages/AffiliateAdmin.tsx'));
 const SubscriptionUpgrade = lazy(() => import('./components/SubscriptionUpgrade.tsx'));
 const ConversationsPage = lazy(() => import('./pages/ConversationsPage.tsx'));
 const AgentTakeoverDebugger = lazy(() => import('./components/debug/AgentTakeoverDebugger.tsx'));
+const DebugCenter = lazy(() => import('./pages/DebugCenter.tsx'));
 
 /**
  * App Routes
@@ -282,6 +283,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <HelpCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Debug Center for Chat System Diagnostics */}
+        <Route
+          path="/debug-center"
+          element={
+            <ProtectedRoute>
+              <DebugCenter />
             </ProtectedRoute>
           }
         />
