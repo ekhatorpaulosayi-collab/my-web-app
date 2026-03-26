@@ -1,15 +1,18 @@
 /**
- * STOREHOUSE SERVICE WORKER - Phase 2
- * Smart caching with background sync
+ * STOREHOUSE SERVICE WORKER - Phase 3
+ * Smart caching with automatic cache invalidation
  *
  * Strategy:
+ * - Auto-increment version on deployment
  * - Cache static assets (JS, CSS, fonts, images)
  * - Network-first for API calls (Supabase, Firebase)
- * - Cache-first for assets
+ * - Cache-first for assets with auto-update
  * - Background sync for offline operations
  */
 
-const CACHE_VERSION = 'storehouse-v4.0'; // Force complete cache clear 2026-03-26
+// Auto-incrementing version based on deployment timestamp
+const BUILD_TIMESTAMP = '2026-03-26-' + Date.now();
+const CACHE_VERSION = `storehouse-v5-${BUILD_TIMESTAMP}`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
