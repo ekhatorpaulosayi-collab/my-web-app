@@ -65,7 +65,7 @@ export default function QuickDebugger() {
           }
         }
 
-        problems.push(`${failedChannels.length} realtime channels reconnecting...`);
+        problems.push(`${failedChannels.length} realtime channels failed`);
       }
 
       // Check if we have message channels
@@ -381,8 +381,12 @@ export default function QuickDebugger() {
                 </div>
               ))}
 
-              {/* Show detailed channel info if channels are failing */}
-              {issues.some(issue => issue.includes('realtime channels')) && (
+              {/* Show detailed channel info if channels are failing or missing */}
+              {issues.some(issue =>
+                issue.includes('realtime channels') ||
+                issue.includes('subscription active') ||
+                issue.includes('channel')
+              ) && (
                 <div style={{
                   marginTop: '8px',
                   padding: '8px',
