@@ -45,10 +45,27 @@ export default function QuickDebugger() {
 
       // Check realtime channels
       const channels = supabase.getChannels();
-      const channelStates = channels.map(ch => ch.state);
-      const failedChannels = channelStates.filter(state => state === 'closed' || state === 'errored');
+      const channelStates = channels.map(ch => ({ topic: ch.topic, state: ch.state }));
+      const failedChannels = channelStates.filter(ch => ch.state === 'closed' || ch.state === 'errored');
+
+      // Auto-fix failed channels
       if (failedChannels.length > 0) {
-        problems.push(`${failedChannels.length} realtime channels failed`);
+        console.log(`[QuickDebugger] Detected ${failedChannels.length} failed channels, attempting to reconnect...`);
+
+        for (const failedChannel of failedChannels) {
+          const channel = channels.find(ch => ch.topic === failedChannel.topic);
+          if (channel) {
+            console.log(`[QuickDebugger] Reconnecting channel: ${channel.topic}`);
+            // Unsubscribe and resubscribe to reset the channel
+            channel.unsubscribe();
+            // Small delay before resubscribing
+            setTimeout(() => {
+              channel.subscribe();
+            }, 100);
+          }
+        }
+
+        problems.push(`${failedChannels.length} realtime channels reconnecting...`);
       }
 
       // Check if we have message channels
@@ -82,14 +99,29 @@ export default function QuickDebugger() {
     const channels = supabase.getChannels();
     console.log(`[QuickDebugger] Found ${channels.length} active channels`);
 
+    // Store channel info before clearing
+    const channelInfo = channels.map(ch => ({
+      topic: ch.topic,
+      hasPresence: ch.presence !== undefined,
+      hasDb: ch.bindings?.db !== undefined
+    }));
+
     // Unsubscribe from all channels
     for (const channel of channels) {
       console.log(`[QuickDebugger] Unsubscribing from: ${channel.topic}`);
       await channel.unsubscribe();
     }
 
-    // Fix 3: Clear problematic localStorage and conversation cache
+    // Wait a bit to ensure cleanup
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Fix 3: Clear problematic localStorage but KEEP auth data
     Object.keys(localStorage).forEach(key => {
+      // Don't clear auth-related keys
+      if (key.includes('sb-') || key.includes('supabase.auth')) {
+        return; // Keep auth data
+      }
+
       if (key.includes('duplicate') ||
           key.includes('error') ||
           key.includes('conversation') ||
@@ -99,10 +131,26 @@ export default function QuickDebugger() {
       }
     });
 
-    // Fix 4: Clear session storage too
+    // Fix 4: Clear session storage except auth
     Object.keys(sessionStorage).forEach(key => {
-      sessionStorage.removeItem(key);
+      if (!key.includes('sb-') && !key.includes('supabase')) {
+        sessionStorage.removeItem(key);
+      }
     });
+
+    // Fix 5: Force remove all Supabase realtime subscriptions
+    const realtimeClient = (supabase as any).realtime;
+    if (realtimeClient) {
+      console.log('[QuickDebugger] Force-clearing realtime client...');
+      if (realtimeClient.disconnect) {
+        await realtimeClient.disconnect();
+      }
+      // Wait and reconnect
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (realtimeClient.connect) {
+        await realtimeClient.connect();
+      }
+    }
 
     setStatus('idle');
     setIssues([]);
@@ -110,8 +158,8 @@ export default function QuickDebugger() {
 
     console.log('[QuickDebugger] All fixes applied! Reloading page...');
 
-    // Reload page after 1 second
-    setTimeout(() => window.location.reload(), 1000);
+    // Reload page after a longer delay to ensure cleanup
+    setTimeout(() => window.location.reload(), 1500);
   };
 
   const runDiagnostics = async () => {
@@ -157,6 +205,18 @@ export default function QuickDebugger() {
     if (score < 50) {
       setTimeout(quickFix, 500);
     }
+  };
+
+  // Get detailed channel info
+  const getChannelDetails = () => {
+    const channels = supabase.getChannels();
+    return channels.map(ch => ({
+      topic: ch.topic.substring(0, 30) + (ch.topic.length > 30 ? '...' : ''),
+      state: ch.state,
+      type: ch.topic.includes('messages') ? 'Messages' :
+            ch.topic.includes('conversation') ? 'Conversation' :
+            ch.topic.includes('presence') ? 'Presence' : 'Other'
+    }));
   };
 
   // Health indicator color
@@ -313,12 +373,54 @@ export default function QuickDebugger() {
                   alignItems: 'center',
                   gap: '4px',
                   fontSize: '12px',
-                  color: '#dc2626'
+                  color: '#dc2626',
+                  marginBottom: '2px'
                 }}>
                   <AlertTriangle style={{ width: '12px', height: '12px' }} />
                   {issue}
                 </div>
               ))}
+
+              {/* Show detailed channel info if channels are failing */}
+              {issues.some(issue => issue.includes('realtime channels')) && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '8px',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  fontSize: '11px'
+                }}>
+                  <p style={{ fontWeight: '600', color: '#1f2937', marginBottom: '4px' }}>
+                    Channel Details:
+                  </p>
+                  {getChannelDetails().map((ch, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '2px 0',
+                      color: ch.state === 'joined' ? '#059669' :
+                             ch.state === 'joining' ? '#eab308' : '#dc2626'
+                    }}>
+                      <span>{ch.type}</span>
+                      <span style={{ fontWeight: '600' }}>
+                        {ch.state === 'joined' ? '✓ Connected' :
+                         ch.state === 'joining' ? '⟳ Connecting...' :
+                         ch.state === 'closed' ? '✗ Closed' :
+                         ch.state === 'errored' ? '✗ Error' : ch.state}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{
+                    marginTop: '6px',
+                    paddingTop: '6px',
+                    borderTop: '1px solid #e5e7eb',
+                    color: '#6b7280',
+                    fontSize: '10px'
+                  }}>
+                    Tip: Click "Fix Now" to reconnect all channels
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
