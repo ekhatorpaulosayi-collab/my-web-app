@@ -9,7 +9,7 @@
  * - Background sync for offline operations
  */
 
-const CACHE_VERSION = 'storehouse-v2.1';
+const CACHE_VERSION = 'storehouse-v3.0'; // Force cache update
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -73,8 +73,9 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames
             .filter((cacheName) => {
-              // Delete old versions
-              return cacheName.startsWith('storehouse-') && cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE && cacheName !== IMAGE_CACHE;
+              // Delete ALL old version caches aggressively
+              return cacheName.startsWith('storehouse-') &&
+                     !cacheName.startsWith(CACHE_VERSION);
             })
             .map((cacheName) => {
               console.log('[SW] Deleting old cache:', cacheName);
@@ -83,7 +84,19 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
-        console.log('[SW] Service worker activated');
+        console.log('[SW] Service worker activated, notifying all clients');
+        // Notify all clients that cache was updated
+        return self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'CACHE_UPDATED',
+              version: CACHE_VERSION,
+              message: 'New version available! Page will refresh.'
+            });
+          });
+        });
+      })
+      .then(() => {
         return self.clients.claim(); // Take control immediately
       })
   );

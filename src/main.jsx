@@ -88,6 +88,16 @@ if ('serviceWorker' in navigator) {
         // Trigger queue processing in your app
         window.dispatchEvent(new CustomEvent('processPendingQueue'));
       }
+
+      // Handle cache update notification
+      if (event.data && event.data.type === 'CACHE_UPDATED') {
+        console.log('[SW] Cache updated to version:', event.data.version);
+        console.log('[SW] Auto-refreshing page with new version...');
+        // Force reload to get latest version
+        setTimeout(() => {
+          window.location.reload(true);
+        }, 1000);
+      }
     });
   });
 
