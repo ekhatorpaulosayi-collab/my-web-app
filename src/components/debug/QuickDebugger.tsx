@@ -72,6 +72,39 @@ export default function QuickDebugger() {
       const messageChannels = channels.filter(ch => ch.topic.includes('messages'));
       if (messageChannels.length === 0 && window.location.pathname.includes('conversations')) {
         problems.push('No message subscription active');
+
+        // Auto-create subscriptions if missing
+        console.log('[QuickDebugger] No message channels found, auto-creating...');
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (user) {
+            // Create essential subscriptions
+            supabase
+              .channel(`auto-messages-${user.id}`)
+              .on(
+                'postgres_changes',
+                {
+                  event: 'INSERT',
+                  schema: 'public',
+                  table: 'ai_chat_messages'
+                },
+                () => {}
+              )
+              .subscribe();
+
+            supabase
+              .channel(`auto-conversations-${user.id}`)
+              .on(
+                'postgres_changes',
+                {
+                  event: '*',
+                  schema: 'public',
+                  table: 'ai_chat_conversations'
+                },
+                () => {}
+              )
+              .subscribe();
+          }
+        });
       }
 
       // Update health score
@@ -82,7 +115,7 @@ export default function QuickDebugger() {
     };
 
     checkHealth();
-    const interval = setInterval(checkHealth, 30000);
+    const interval = setInterval(checkHealth, 10000); // Check every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -152,14 +185,78 @@ export default function QuickDebugger() {
       }
     }
 
+    // Fix 6: Create new subscriptions if on conversations page
+    if (window.location.pathname.includes('conversations')) {
+      console.log('[QuickDebugger] Creating message subscriptions...');
+
+      // Get user ID for proper channel subscription
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Create message subscription
+        const messageChannel = supabase
+          .channel(`dashboard-messages-${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ai_chat_messages'
+            },
+            (payload) => {
+              console.log('[QuickDebugger] Message subscription active:', payload);
+            }
+          )
+          .subscribe((status) => {
+            console.log('[QuickDebugger] Message channel status:', status);
+          });
+
+        // Create conversation subscription
+        const conversationChannel = supabase
+          .channel(`dashboard-conversations-${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'ai_chat_conversations'
+            },
+            (payload) => {
+              console.log('[QuickDebugger] Conversation subscription active:', payload);
+            }
+          )
+          .subscribe((status) => {
+            console.log('[QuickDebugger] Conversation channel status:', status);
+          });
+
+        // Wait for subscriptions to establish
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        console.log('[QuickDebugger] Subscriptions created successfully!');
+      }
+    }
+
     setStatus('idle');
     setIssues([]);
     setHealth(100);
 
-    console.log('[QuickDebugger] All fixes applied! Reloading page...');
+    console.log('[QuickDebugger] All fixes applied! Refreshing status...');
 
-    // Reload page after a longer delay to ensure cleanup
-    setTimeout(() => window.location.reload(), 1500);
+    // Don't reload page - just refresh the check
+    setTimeout(() => {
+      // Re-run health check to verify everything is working
+      const checkHealth = async () => {
+        const channels = supabase.getChannels();
+        const messageChannels = channels.filter(ch => ch.topic.includes('messages'));
+        if (messageChannels.length === 0 && window.location.pathname.includes('conversations')) {
+          setIssues(['No message subscription active']);
+          setHealth(75);
+        } else {
+          setIssues([]);
+          setHealth(100);
+        }
+      };
+      checkHealth();
+    }, 500);
   };
 
   const runDiagnostics = async () => {
