@@ -43,6 +43,20 @@ export default function QuickDebugger() {
         problems.push(`${intervals.size} duplicate polling intervals detected`);
       }
 
+      // Check realtime channels
+      const channels = supabase.getChannels();
+      const channelStates = channels.map(ch => ch.state);
+      const failedChannels = channelStates.filter(state => state === 'closed' || state === 'errored');
+      if (failedChannels.length > 0) {
+        problems.push(`${failedChannels.length} realtime channels failed`);
+      }
+
+      // Check if we have message channels
+      const messageChannels = channels.filter(ch => ch.topic.includes('messages'));
+      if (messageChannels.length === 0 && window.location.pathname.includes('conversations')) {
+        problems.push('No message subscription active');
+      }
+
       // Update health score
       const score = Math.max(0, 100 - (problems.length * 25));
       setHealth(score);
@@ -63,19 +77,38 @@ export default function QuickDebugger() {
     intervals.forEach((id: number) => clearInterval(id));
     (window as any).__activeIntervals = new Set();
 
-    // Fix 2: Reset Supabase channels
-    supabase.getChannels().forEach(ch => ch.unsubscribe());
+    // Fix 2: PROPERLY Reset Supabase channels
+    console.log('[QuickDebugger] Resetting all Supabase channels...');
+    const channels = supabase.getChannels();
+    console.log(`[QuickDebugger] Found ${channels.length} active channels`);
 
-    // Fix 3: Clear problematic localStorage
+    // Unsubscribe from all channels
+    for (const channel of channels) {
+      console.log(`[QuickDebugger] Unsubscribing from: ${channel.topic}`);
+      await channel.unsubscribe();
+    }
+
+    // Fix 3: Clear problematic localStorage and conversation cache
     Object.keys(localStorage).forEach(key => {
-      if (key.includes('duplicate') || key.includes('error')) {
+      if (key.includes('duplicate') ||
+          key.includes('error') ||
+          key.includes('conversation') ||
+          key.includes('messages')) {
+        console.log(`[QuickDebugger] Clearing localStorage: ${key}`);
         localStorage.removeItem(key);
       }
+    });
+
+    // Fix 4: Clear session storage too
+    Object.keys(sessionStorage).forEach(key => {
+      sessionStorage.removeItem(key);
     });
 
     setStatus('idle');
     setIssues([]);
     setHealth(100);
+
+    console.log('[QuickDebugger] All fixes applied! Reloading page...');
 
     // Reload page after 1 second
     setTimeout(() => window.location.reload(), 1000);
