@@ -397,23 +397,36 @@ export default function QuickDebugger() {
                   <p style={{ fontWeight: '600', color: '#1f2937', marginBottom: '4px' }}>
                     Channel Details:
                   </p>
-                  {getChannelDetails().map((ch, i) => (
-                    <div key={i} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      padding: '2px 0',
-                      color: ch.state === 'joined' ? '#059669' :
-                             ch.state === 'joining' ? '#eab308' : '#dc2626'
+                  {getChannelDetails().length > 0 ? (
+                    getChannelDetails().map((ch, i) => (
+                      <div key={i} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: '2px 0',
+                        color: ch.state === 'joined' ? '#059669' :
+                               ch.state === 'joining' ? '#eab308' : '#dc2626'
+                      }}>
+                        <span>{ch.type}</span>
+                        <span style={{ fontWeight: '600' }}>
+                          {ch.state === 'joined' ? '✓ Connected' :
+                           ch.state === 'joining' ? '⟳ Connecting...' :
+                           ch.state === 'closed' ? '✗ Closed' :
+                           ch.state === 'errored' ? '✗ Error' : ch.state}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{
+                      padding: '8px',
+                      backgroundColor: '#fef2f2',
+                      borderRadius: '4px',
+                      color: '#dc2626',
+                      fontSize: '10px',
+                      textAlign: 'center'
                     }}>
-                      <span>{ch.type}</span>
-                      <span style={{ fontWeight: '600' }}>
-                        {ch.state === 'joined' ? '✓ Connected' :
-                         ch.state === 'joining' ? '⟳ Connecting...' :
-                         ch.state === 'closed' ? '✗ Closed' :
-                         ch.state === 'errored' ? '✗ Error' : ch.state}
-                      </span>
+                      ⚠️ No active channels found - Click "Fix Now" to establish connections
                     </div>
-                  ))}
+                  )}
                   <div style={{
                     marginTop: '6px',
                     paddingTop: '6px',
