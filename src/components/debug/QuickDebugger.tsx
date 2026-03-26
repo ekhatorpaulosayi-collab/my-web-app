@@ -12,13 +12,16 @@ export default function QuickDebugger() {
 
   const { currentUser } = useAuth();
 
-  // Only show for admin users
+  // Show for store owners on conversations page
   const isAdmin = currentUser?.email === 'ekhatorpaul57@gmail.com' ||
                   currentUser?.role === 'admin' ||
                   currentUser?.role === 'super_admin';
 
-  // Don't render for non-admin users
-  if (!isAdmin) {
+  // Show if user is authenticated and on conversations page
+  const shouldShow = currentUser && window.location.pathname.includes('conversations');
+
+  // Don't render if not authorized
+  if (!shouldShow) {
     return null;
   }
 
