@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset to Localhost Version - Storehouse</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        .status {
+            font-size: 1rem;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        .success {
+            color: #4CAF50;
+            font-size: 3rem;
+            margin: 1rem 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        ul {
+            text-align: left;
+            display: inline-block;
+            margin: 1rem 0;
+        }
+        li {
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Resetting to Localhost Version</h1>
+        <p>This will make storehouse.ng look and work exactly like your localhost:4000</p>
+
+        <div class="status" id="status">
+            <strong>What this will do:</strong>
+            <ul>
+                <li>✅ Show "Welcome to Storehouse!" banner</li>
+                <li>✅ Show "Share Your Store" section</li>
+                <li>✅ Show "Today's Sales" section</li>
+                <li>✅ Reset business profile to default</li>
+                <li>✅ Clear all dismissed banners</li>
+            </ul>
+        </div>
+
+        <button class="btn" onclick="resetEverything()" id="resetBtn">
+            Reset to Localhost Version
+        </button>
+    </div>
+
+    <script>
+        function resetEverything() {
+            const statusEl = document.getElementById('status');
+            const btnEl = document.getElementById('resetBtn');
+            const container = document.querySelector('.container');
+
+            btnEl.style.display = 'none';
+            statusEl.innerHTML = '<strong>Resetting...</strong>';
+
+            try {
+                // Clear EVERYTHING from localStorage except auth
+                const authData = localStorage.getItem('supabase.auth.token');
+
+                // Clear all localStorage
+                localStorage.clear();
+
+                // Restore auth if it existed
+                if (authData) {
+                    localStorage.setItem('supabase.auth.token', authData);
+                }
+
+                // Set specific flags to ensure all UI components show
+                localStorage.setItem('hasVisited', 'false');
+
+                // Clear the business profile to trigger welcome banner
+                localStorage.removeItem('sh:profile:v1');
+
+                // Clear all hero/banner dismissals
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (key.includes('hero') || key.includes('dismissed') || key.includes('banner'))) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach(key => localStorage.removeItem(key));
+
+                // Reset settings to default
+                const defaultSettings = {
+                    showOnlineStoreHero: true,
+                    showGettingStarted: true,
+                    showPaymentNudge: true,
+                    showReferralWidget: true,
+                    showStaffWidget: true
+                };
+                localStorage.setItem('storehouse:settings:v2', JSON.stringify(defaultSettings));
+
+                // Clear session storage too
+                sessionStorage.clear();
+
+                // Clear IndexedDB
+                if (window.indexedDB) {
+                    indexedDB.deleteDatabase('storehouse');
+                    indexedDB.deleteDatabase('storehouse-local');
+                }
+
+                // Clear all caches
+                if ('caches' in window) {
+                    caches.keys().then(names => {
+                        names.forEach(name => caches.delete(name));
+                    });
+                }
+
+                // Unregister service workers
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(reg => reg.unregister());
+                    });
+                }
+
+                // Show success
+                container.innerHTML = `
+                    <div class="success">✓</div>
+                    <h1>Reset Complete!</h1>
+                    <p>
+                        <strong>storehouse.ng will now look exactly like localhost:4000!</strong><br><br>
+                        You'll see:
+                    </p>
+                    <ul style="font-size: 1.1rem;">
+                        <li>👋 Welcome to Storehouse banner</li>
+                        <li>🔗 Share Your Store section</li>
+                        <li>💰 Today's Sales section</li>
+                        <li>🎯 All UI components from localhost</li>
+                    </ul>
+                    <a href="/" class="btn">Open Fresh Storehouse</a>
+                    <div style="margin-top: 1rem; opacity: 0.8;">Redirecting in 5 seconds...</div>
+                `;
+
+                // Auto-redirect
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 5000);
+
+            } catch (error) {
+                console.error('Reset error:', error);
+                statusEl.innerHTML = '<strong>Reset failed, but trying anyway...</strong>';
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
