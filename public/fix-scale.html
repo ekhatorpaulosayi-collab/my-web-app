@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fix Scale - Storehouse</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix Display Scale</h1>
+        <p>This will fix the page size to match localhost exactly</p>
+
+        <button class="btn" onclick="fixScale()">
+            Fix Page Scale Now
+        </button>
+    </div>
+
+    <script>
+        function fixScale() {
+            // Force reset browser zoom
+            document.body.style.zoom = "100%";
+
+            // Clear ALL localStorage
+            localStorage.clear();
+            sessionStorage.clear();
+
+            // Set flag to prevent GettingStartedChecklist
+            localStorage.setItem('storehouse-getting-started-dismissed', 'true');
+
+            // Clear business profile
+            localStorage.removeItem('sh:profile:v1');
+
+            // Clear all hero/banner dismissals
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('hero') || key.includes('dismissed') || key.includes('banner'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+
+            // Force CSS reset
+            const style = document.createElement('style');
+            style.innerHTML = `
+                * {
+                    zoom: 100% !important;
+                    transform: none !important;
+                }
+                html {
+                    font-size: 16px !important;
+                }
+                body {
+                    zoom: 100% !important;
+                    transform: scale(1) !important;
+                }
+                .dashboard-minimal {
+                    max-width: 1600px !important;
+                    transform: none !important;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Add permanent fix to localStorage
+            localStorage.setItem('storehouse-scale-fixed', 'true');
+
+            alert('Scale fixed! Redirecting to dashboard...');
+
+            // Force hard reload
+            window.location.href = '/?reset=' + Date.now();
+        }
+    </script>
+</body>
+</html>

@@ -506,15 +506,15 @@ export function Dashboard({
       {/* Date Display */}
       <div className="dashboard-date">{dateString}</div>
 
-      {/* Getting Started Checklist */}
-      <GettingStartedChecklist
+      {/* Getting Started Checklist - DISABLED to match localhost appearance */}
+      {/* <GettingStartedChecklist
         hasItems={items.length > 0}
         hasSales={sales.length > 0}
         hasStoreUrl={!!storeSlug}
         onAddItem={onAddItem}
         onRecordSale={onRecordSale}
         onSetupStore={onViewSettings || (() => {})}
-      />
+      /> */}
 
       {/* 1. Share Store Banner */}
       {!heroDismissed && (

@@ -3,6 +3,17 @@
  * Professional color grading, spacing, and performance
  */
 
+/* FORCE CONSISTENT SCALING - Match localhost exactly */
+html {
+  font-size: 16px !important;
+  zoom: 100% !important;
+}
+
+body {
+  zoom: 100% !important;
+  transform: none !important;
+}
+
 :root {
   /* Shopify-Inspired Professional Palette */
   --primary: #00894F;
