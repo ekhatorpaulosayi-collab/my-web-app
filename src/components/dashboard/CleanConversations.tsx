@@ -380,62 +380,206 @@ export function CleanConversations() {
     }
   }, [user]);
 
-  // Real-time subscription for new messages
+  // Enhanced real-time subscription with retry logic and database validation
   useEffect(() => {
     if (!selectedConversation) return;
 
-    console.log('[Realtime] Setting up subscription for conversation:', selectedConversation.id);
+    console.log('[Realtime] Setting up robust subscription for conversation:', selectedConversation.id);
 
-    const channel = supabase
-      .channel(`conversation-${selectedConversation.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'ai_chat_messages',
-          filter: `conversation_id=eq.${selectedConversation.id}`
-        },
-        (payload) => {
-          console.log('[Realtime] New message received:', payload);
-          const newMessage = payload.new as Message;
+    let channel: any = null;
+    let retryCount = 0;
+    let retryTimeout: NodeJS.Timeout | null = null;
+    let isSubscribed = false;
+    let pollInterval: NodeJS.Timeout | null = null;
 
-          // Update selected conversation
-          setSelectedConversation(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              messages: [...(prev.messages || []), newMessage]
-            };
-          });
+    const setupSubscription = async () => {
+      try {
+        // First validate that the conversation exists in the database
+        console.log('[Realtime] Validating conversation exists...');
+        const { data: convData, error: convError } = await supabase
+          .from('ai_chat_conversations')
+          .select('id')
+          .eq('id', selectedConversation.id)
+          .single();
 
-          // Also update conversations list
-          setConversations(prevConvs => {
-            return prevConvs.map(conv => {
-              if (conv.id === selectedConversation.id) {
+        if (convError || !convData) {
+          console.error('[Realtime] Conversation not found in database:', convError);
+          // Fallback to polling if conversation doesn't exist
+          startPolling();
+          return;
+        }
+
+        console.log('[Realtime] Conversation validated, setting up subscription...');
+
+        // Use unique channel name to prevent conflicts
+        const channelName = `conversation_${selectedConversation.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+        channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ai_chat_messages',
+              filter: `conversation_id=eq.${selectedConversation.id}`
+            },
+            (payload) => {
+              console.log('[Realtime] New message received:', payload);
+              const newMessage = payload.new as Message;
+
+              // Update selected conversation
+              setSelectedConversation(prev => {
+                if (!prev) return prev;
                 return {
-                  ...conv,
-                  messages: [...(conv.messages || []), newMessage],
-                  updated_at: newMessage.created_at
+                  ...prev,
+                  messages: [...(prev.messages || []), newMessage]
                 };
-              }
-              return conv;
-            });
-          });
-        }
-      )
-      .subscribe((status) => {
-        console.log('[Realtime] Subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('[Realtime] Successfully subscribed to messages');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Realtime] Failed to subscribe to messages');
-        }
-      });
+              });
 
+              // Also update conversations list
+              setConversations(prevConvs => {
+                return prevConvs.map(conv => {
+                  if (conv.id === selectedConversation.id) {
+                    return {
+                      ...conv,
+                      messages: [...(conv.messages || []), newMessage],
+                      updated_at: newMessage.created_at
+                    };
+                  }
+                  return conv;
+                });
+              });
+            }
+          )
+          .subscribe((status) => {
+            console.log('[Realtime] Subscription status:', status);
+
+            if (status === 'SUBSCRIBED') {
+              console.log('[Realtime] ✅ Successfully subscribed to messages');
+              isSubscribed = true;
+              retryCount = 0; // Reset retry count on success
+
+              // Stop polling if it was running as fallback
+              if (pollInterval) {
+                console.log('[Realtime] Stopping fallback polling');
+                clearInterval(pollInterval);
+                pollInterval = null;
+              }
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.error('[Realtime] ❌ Subscription failed:', status);
+              isSubscribed = false;
+
+              // Retry with exponential backoff
+              if (retryCount < 5) {
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Max 30 seconds
+                console.log(`[Realtime] Retrying in ${delay}ms (attempt ${retryCount + 1}/5)`);
+
+                retryTimeout = setTimeout(() => {
+                  retryCount++;
+                  if (channel) {
+                    supabase.removeChannel(channel);
+                  }
+                  setupSubscription();
+                }, delay);
+              } else {
+                console.error('[Realtime] Max retries reached, falling back to polling');
+                startPolling();
+              }
+            } else if (status === 'CLOSED') {
+              console.log('[Realtime] Channel closed, attempting reconnect...');
+              isSubscribed = false;
+
+              // Try to reconnect after a short delay
+              setTimeout(() => {
+                if (channel) {
+                  supabase.removeChannel(channel);
+                }
+                setupSubscription();
+              }, 2000);
+            }
+          });
+
+      } catch (error) {
+        console.error('[Realtime] Error setting up subscription:', error);
+        // Fallback to polling on any error
+        startPolling();
+      }
+    };
+
+    // Fallback polling mechanism
+    const startPolling = () => {
+      if (pollInterval) return; // Already polling
+
+      console.log('[Realtime] Starting fallback polling mechanism');
+
+      const pollMessages = async () => {
+        try {
+          const { data: messages, error } = await supabase
+            .from('ai_chat_messages')
+            .select('*')
+            .eq('conversation_id', selectedConversation.id)
+            .order('created_at', { ascending: true });
+
+          if (!error && messages) {
+            // Only update if there are new messages
+            const currentMessageCount = selectedConversation.messages?.length || 0;
+            if (messages.length > currentMessageCount) {
+              console.log('[Polling] Found new messages:', messages.length - currentMessageCount);
+
+              setSelectedConversation(prev => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  messages: messages
+                };
+              });
+
+              // Also update conversations list
+              setConversations(prevConvs => {
+                return prevConvs.map(conv => {
+                  if (conv.id === selectedConversation.id) {
+                    return {
+                      ...conv,
+                      messages: messages,
+                      updated_at: messages[messages.length - 1]?.created_at || conv.updated_at
+                    };
+                  }
+                  return conv;
+                });
+              });
+            }
+          }
+        } catch (error) {
+          console.error('[Polling] Error fetching messages:', error);
+        }
+      };
+
+      // Poll every 3 seconds
+      pollInterval = setInterval(pollMessages, 3000);
+
+      // Also poll immediately
+      pollMessages();
+    };
+
+    // Start the subscription setup
+    setupSubscription();
+
+    // Cleanup function
     return () => {
-      console.log('[Realtime] Cleaning up subscription');
-      supabase.removeChannel(channel);
+      console.log('[Realtime] Cleaning up subscription and polling');
+
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
   }, [selectedConversation?.id]);
 
@@ -556,49 +700,140 @@ export function CleanConversations() {
   };
 
   const handleTakeover = async () => {
-    if (!selectedConversation || !user?.uid) return;
+    console.log('[Takeover] Attempting to take over conversation...');
+    if (!selectedConversation || !user?.uid) {
+      console.error('[Takeover] Missing conversation or user ID');
+      return;
+    }
 
     try {
+      console.log('[Takeover] Conversation ID:', selectedConversation.id);
+      console.log('[Takeover] Agent ID:', user.uid);
+
       // Call the initiate_agent_takeover function
-      const { data, error } = await supabase.rpc('initiate_agent_takeover', {
-        p_conversation_id: selectedConversation.id,
-        p_agent_id: user.uid,
-        p_reason: 'Manual agent intervention'
-      });
+      const { data: funcResponse, error: funcError } = await supabase
+        .rpc('initiate_agent_takeover', {
+          p_conversation_id: selectedConversation.id,
+          p_agent_id: user.uid,
+          p_agent_name: 'Store Owner'
+        });
 
-      if (error) throw error;
+      console.log('[Takeover] RPC response:', { data: funcResponse, error: funcError });
 
-      setTakeoverSessionId(data);
-      setIsTakeoverActive(true);
+      if (funcError) {
+        console.error('[Takeover] RPC error:', funcError);
 
-      // Update local state
-      setSelectedConversation({
-        ...selectedConversation,
-        is_agent_active: true,
-        agent_id: user.uid
-      });
+        // If function doesn't exist, show helpful message
+        if (funcError.code === '42883') {
+          alert('Database functions need to be updated. Please run the AGENT_TAKEOVER_COMPLETE_FIX.sql file in Supabase SQL Editor.');
+          return;
+        }
+        throw funcError;
+      }
 
-      // Reload conversations to get updated status
-      loadConversations();
-    } catch (error) {
-      console.error('Error initiating takeover:', error);
-      alert('Failed to take over conversation. Please try again.');
+      // Check if the response indicates success
+      if (funcResponse && funcResponse.success) {
+        console.log('[Takeover] ✅ Takeover successful:', funcResponse);
+
+        // Use the takeover_session_id from response if available
+        setTakeoverSessionId(funcResponse.takeover_session_id || funcResponse.conversation_id || `session_${Date.now()}`);
+        setIsTakeoverActive(true);
+
+        // Update local state immediately
+        setSelectedConversation({
+          ...selectedConversation,
+          is_agent_active: true,
+          agent_id: user.uid,
+          takeover_status: 'agent'
+        });
+
+        // Force polling to start immediately for reliable message delivery
+        const pollMessages = async () => {
+          try {
+            const { data: messages, error } = await supabase
+              .from('ai_chat_messages')
+              .select('*')
+              .eq('conversation_id', selectedConversation.id)
+              .order('created_at', { ascending: true });
+
+            if (!error && messages) {
+              setSelectedConversation(prev => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  messages: messages
+                };
+              });
+            }
+          } catch (err) {
+            console.error('[Takeover] Polling error:', err);
+          }
+        };
+
+        // Start immediate polling with faster interval during takeover
+        const fastPollInterval = setInterval(pollMessages, 1000); // Poll every second
+
+        // Store interval reference for cleanup
+        setTimeout(() => {
+          clearInterval(fastPollInterval);
+          // After 30 seconds, switch to normal polling interval if needed
+        }, 30000);
+
+        // Reload conversations in background
+        setTimeout(() => loadConversations(), 500);
+
+      } else {
+        // Function returned but indicated failure
+        console.error('[Takeover] Function returned failure:', funcResponse);
+        alert(`Failed to take over conversation: ${funcResponse?.error || 'Unknown error'}`);
+      }
+
+    } catch (error: any) {
+      console.error('[Takeover] Error initiating takeover:', error);
+      alert(`Failed to take over conversation. Please check console for details and ensure the SQL fix has been applied.`);
     }
   };
 
   const handleEndTakeover = async () => {
-    if (!selectedConversation || !takeoverSessionId) return;
+    console.log('[EndTakeover] Attempting to end takeover...');
+    if (!selectedConversation) {
+      console.error('[EndTakeover] No conversation selected');
+      return;
+    }
 
     try {
-      const { error } = await supabase.rpc('end_agent_takeover', {
-        p_conversation_id: selectedConversation.id,
-        p_session_id: takeoverSessionId
-      });
+      // Try the RPC function first if we have a session ID
+      if (takeoverSessionId && !takeoverSessionId.startsWith('session_')) {
+        const { error } = await supabase.rpc('end_agent_takeover', {
+          p_conversation_id: selectedConversation.id,
+          p_session_id: takeoverSessionId
+        });
 
-      if (error) throw error;
+        if (error && error.code !== '42883') {
+          throw error;
+        }
+      }
+
+      // Always do direct update as well to ensure state is correct
+      console.log('[EndTakeover] Using direct update method');
+      const { error: updateError } = await supabase
+        .from('ai_chat_conversations')
+        .update({
+          is_agent_active: false,
+          agent_id: null,
+          takeover_status: 'none',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedConversation.id);
+
+      if (updateError) {
+        console.error('[EndTakeover] Update error:', updateError);
+        throw updateError;
+      }
 
       setIsTakeoverActive(false);
       setTakeoverSessionId(null);
+      console.log('[EndTakeover] ✅ Successfully ended takeover');
 
       // Update local state
       setSelectedConversation({
@@ -607,11 +842,12 @@ export function CleanConversations() {
         agent_id: null
       });
 
-      // Reload conversations
-      loadConversations();
-    } catch (error) {
-      console.error('Error ending takeover:', error);
-      alert('Failed to end takeover. Please try again.');
+      // Reload conversations in background
+      setTimeout(() => loadConversations(), 500);
+
+    } catch (error: any) {
+      console.error('[EndTakeover] Error ending takeover:', error);
+      alert(`Failed to end takeover. Error: ${error?.message || 'Unknown error'}`);
     }
   };
 

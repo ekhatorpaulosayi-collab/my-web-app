@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Takeover Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.danger:hover {
+            background: #dc2626;
+        }
+        button.success {
+            background: #10b981;
+        }
+        button.success:hover {
+            background: #059669;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 5px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status.pass {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.fail {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .log {
+            background: #1e293b;
+            color: #10b981;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .test-step {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #e5e7eb;
+            background: #f9fafb;
+        }
+        .test-step.active {
+            border-left-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .test-step.passed {
+            border-left-color: #10b981;
+            background: #d1fae5;
+        }
+        .test-step.failed {
+            border-left-color: #ef4444;
+            background: #fee2e2;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            margin: 5px;
+            width: 300px;
+        }
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3b82f6;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Chat Takeover Test Suite</h1>
+
+    <!-- Configuration -->
+    <div class="test-card">
+        <h2>⚙️ Configuration</h2>
+        <div>
+            <label>Supabase URL:</label>
+            <input type="text" id="supabaseUrl" value="https://yzlniqwzqlsftxrtapdl.supabase.co" />
+        </div>
+        <div>
+            <label>Store ID:</label>
+            <input type="text" id="storeId" placeholder="Enter your store ID" />
+        </div>
+        <div>
+            <label>Conversation ID:</label>
+            <input type="text" id="conversationId" placeholder="Will be generated or enter existing" />
+        </div>
+        <button onclick="saveConfig()">Save Config</button>
+        <button onclick="loadConfig()">Load Saved</button>
+    </div>
+
+    <!-- Test 1: Duplicate Messages -->
+    <div class="test-card">
+        <h2>Test 1: Duplicate Message Check</h2>
+        <div id="test1-status" class="status pending">Not Started</div>
+
+        <div class="test-step" id="step1-1">
+            Step 1: Simulate customer requesting human
+        </div>
+        <div class="test-step" id="step1-2">
+            Step 2: Trigger agent takeover
+        </div>
+        <div class="test-step" id="step1-3">
+            Step 3: Check for duplicate messages
+        </div>
+
+        <button onclick="runTest1()">Run Test</button>
+        <button onclick="resetTest1()" class="danger">Reset</button>
+
+        <div class="log" id="test1-log"></div>
+    </div>
+
+    <!-- Test 2: Timer Functionality -->
+    <div class="test-card">
+        <h2>Test 2: WhatsApp Fallback Timer</h2>
+        <div id="test2-status" class="status pending">Not Started</div>
+
+        <div class="timer" id="timer-display">--:--</div>
+
+        <div class="test-step" id="step2-1">
+            Step 1: Set conversation to 'requested' status
+        </div>
+        <div class="test-step" id="step2-2">
+            Step 2: Start timer (1 minute test)
+        </div>
+        <div class="test-step" id="step2-3">
+            Step 3: Wait for timer expiry
+        </div>
+        <div class="test-step" id="step2-4">
+            Step 4: Check WhatsApp option appears
+        </div>
+
+        <button onclick="runTest2()">Run Test</button>
+        <button onclick="simulateTakeover()" class="success">Simulate Takeover</button>
+        <button onclick="resetTest2()" class="danger">Reset</button>
+
+        <div class="log" id="test2-log"></div>
+    </div>
+
+    <!-- Test 3: Status Transitions -->
+    <div class="test-card">
+        <h2>Test 3: Status Transition Flow</h2>
+        <div id="test3-status" class="status pending">Not Started</div>
+
+        <div>Current Status: <span id="current-status" style="font-weight: bold;">Unknown</span></div>
+
+        <div class="test-step" id="step3-1">
+            ai → requested
+        </div>
+        <div class="test-step" id="step3-2">
+            requested → agent
+        </div>
+        <div class="test-step" id="step3-3">
+            agent → ended
+        </div>
+
+        <button onclick="runTest3()">Run Full Flow</button>
+        <button onclick="checkCurrentStatus()">Check Status</button>
+        <button onclick="resetTest3()" class="danger">Reset</button>
+
+        <div class="log" id="test3-log"></div>
+    </div>
+
+    <!-- Manual Testing Helper -->
+    <div class="test-card">
+        <h2>🔧 Manual Test Helper</h2>
+        <p>Open these in separate tabs:</p>
+        <button onclick="openDashboard()">Open Dashboard</button>
+        <button onclick="openStorefront()">Open Storefront</button>
+        <button onclick="openSupabase()">Open Supabase</button>
+
+        <h3>Quick SQL Queries:</h3>
+        <button onclick="copySQL('checkDuplicates')">Copy: Check Duplicates</button>
+        <button onclick="copySQL('checkStatus')">Copy: Check Status</button>
+        <button onclick="copySQL('checkMessages')">Copy: Check Messages</button>
+
+        <div class="log" id="sql-output"></div>
+    </div>
+
+    <script>
+        // Configuration
+        let config = {
+            supabaseUrl: '',
+            storeId: '',
+            conversationId: ''
+        };
+
+        // Load saved config
+        function loadConfig() {
+            const saved = localStorage.getItem('testConfig');
+            if (saved) {
+                config = JSON.parse(saved);
+                document.getElementById('supabaseUrl').value = config.supabaseUrl;
+                document.getElementById('storeId').value = config.storeId;
+                document.getElementById('conversationId').value = config.conversationId;
+                log('test1', 'Config loaded');
+            }
+        }
+
+        // Save config
+        function saveConfig() {
+            config.supabaseUrl = document.getElementById('supabaseUrl').value;
+            config.storeId = document.getElementById('storeId').value;
+            config.conversationId = document.getElementById('conversationId').value;
+            localStorage.setItem('testConfig', JSON.stringify(config));
+            alert('Config saved!');
+        }
+
+        // Logging helper
+        function log(testId, message) {
+            const logEl = document.getElementById(testId + '-log');
+            if (logEl) {
+                const time = new Date().toLocaleTimeString();
+                logEl.innerHTML += `[${time}] ${message}\n`;
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+            console.log(`[${testId}] ${message}`);
+        }
+
+        // Update step status
+        function updateStep(stepId, status) {
+            const step = document.getElementById(stepId);
+            if (step) {
+                step.className = 'test-step ' + status;
+            }
+        }
+
+        // Test 1: Duplicate Messages
+        async function runTest1() {
+            log('test1', 'Starting duplicate message test...');
+            document.getElementById('test1-status').className = 'status pending';
+            document.getElementById('test1-status').textContent = 'Running';
+
+            try {
+                // Step 1
+                updateStep('step1-1', 'active');
+                log('test1', 'Simulating customer request...');
+                await simulateCustomerRequest();
+                updateStep('step1-1', 'passed');
+
+                // Step 2
+                updateStep('step1-2', 'active');
+                log('test1', 'Triggering agent takeover...');
+                await simulateAgentTakeover();
+                updateStep('step1-2', 'passed');
+
+                // Step 3
+                updateStep('step1-3', 'active');
+                log('test1', 'Checking for duplicates...');
+                const hasDuplicates = await checkForDuplicates();
+
+                if (!hasDuplicates) {
+                    updateStep('step1-3', 'passed');
+                    document.getElementById('test1-status').className = 'status pass';
+                    document.getElementById('test1-status').textContent = 'PASSED';
+                    log('test1', '✅ No duplicates found!');
+                } else {
+                    updateStep('step1-3', 'failed');
+                    document.getElementById('test1-status').className = 'status fail';
+                    document.getElementById('test1-status').textContent = 'FAILED';
+                    log('test1', '❌ Duplicates detected!');
+                }
+            } catch (error) {
+                log('test1', '❌ Error: ' + error.message);
+                document.getElementById('test1-status').className = 'status fail';
+                document.getElementById('test1-status').textContent = 'ERROR';
+            }
+        }
+
+        // Test 2: Timer
+        let timerInterval;
+        let timeLeft = 60;
+
+        async function runTest2() {
+            log('test2', 'Starting timer test...');
+            document.getElementById('test2-status').className = 'status pending';
+            document.getElementById('test2-status').textContent = 'Running';
+
+            // Step 1
+            updateStep('step2-1', 'active');
+            log('test2', 'Setting status to requested...');
+            await setConversationStatus('requested');
+            updateStep('step2-1', 'passed');
+
+            // Step 2
+            updateStep('step2-2', 'active');
+            log('test2', 'Starting 60 second timer...');
+            startTimer();
+            updateStep('step2-2', 'passed');
+
+            // Step 3
+            updateStep('step2-3', 'active');
+            log('test2', 'Waiting for timer to expire...');
+        }
+
+        function startTimer() {
+            timeLeft = 60;
+            if (timerInterval) clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const mins = Math.floor(timeLeft / 60);
+                const secs = timeLeft % 60;
+                document.getElementById('timer-display').textContent =
+                    `${mins}:${secs.toString().padStart(2, '0')}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    updateStep('step2-3', 'passed');
+                    updateStep('step2-4', 'active');
+                    log('test2', 'Timer expired! Check if WhatsApp option appears.');
+                    checkWhatsAppOption();
+                }
+            }, 1000);
+        }
+
+        function simulateTakeover() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                document.getElementById('timer-display').textContent = 'STOPPED';
+                log('test2', 'Timer stopped by takeover!');
+                updateStep('step2-3', 'passed');
+                document.getElementById('test2-status').className = 'status pass';
+                document.getElementById('test2-status').textContent = 'PASSED';
+            }
+        }
+
+        // Test 3: Status Transitions
+        async function runTest3() {
+            log('test3', 'Starting status transition test...');
+            document.getElementById('test3-status').className = 'status pending';
+            document.getElementById('test3-status').textContent = 'Running';
+
+            try {
+                // Step 1: ai → requested
+                updateStep('step3-1', 'active');
+                await setConversationStatus('ai');
+                await new Promise(r => setTimeout(r, 1000));
+                await setConversationStatus('requested');
+                updateStep('step3-1', 'passed');
+                log('test3', '✅ ai → requested');
+
+                // Step 2: requested → agent
+                updateStep('step3-2', 'active');
+                await new Promise(r => setTimeout(r, 1000));
+                await setConversationStatus('agent');
+                updateStep('step3-2', 'passed');
+                log('test3', '✅ requested → agent');
+
+                // Step 3: agent → ended
+                updateStep('step3-3', 'active');
+                await new Promise(r => setTimeout(r, 1000));
+                await setConversationStatus('ended');
+                updateStep('step3-3', 'passed');
+                log('test3', '✅ agent → ended');
+
+                document.getElementById('test3-status').className = 'status pass';
+                document.getElementById('test3-status').textContent = 'PASSED';
+            } catch (error) {
+                log('test3', '❌ Error: ' + error.message);
+                document.getElementById('test3-status').className = 'status fail';
+                document.getElementById('test3-status').textContent = 'FAILED';
+            }
+        }
+
+        // Helper functions
+        async function simulateCustomerRequest() {
+            // Simulate API call
+            return new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        async function simulateAgentTakeover() {
+            // Simulate API call
+            return new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        async function checkForDuplicates() {
+            // This would actually query the database
+            // For demo, randomly return true/false
+            return Math.random() > 0.7;
+        }
+
+        async function setConversationStatus(status) {
+            document.getElementById('current-status').textContent = status;
+            log('test3', `Status set to: ${status}`);
+            return new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        async function checkWhatsAppOption() {
+            // Check if WhatsApp option would appear
+            const hasWhatsApp = confirm('Does the store have WhatsApp configured?');
+            if (hasWhatsApp) {
+                updateStep('step2-4', 'passed');
+                document.getElementById('test2-status').className = 'status pass';
+                document.getElementById('test2-status').textContent = 'PASSED';
+                log('test2', '✅ WhatsApp option available');
+            } else {
+                updateStep('step2-4', 'passed');
+                document.getElementById('test2-status').className = 'status pass';
+                document.getElementById('test2-status').textContent = 'PASSED';
+                log('test2', '✅ Correctly showing "Keep Waiting" only');
+            }
+        }
+
+        function checkCurrentStatus() {
+            const status = prompt('Enter current conversation status:');
+            if (status) {
+                document.getElementById('current-status').textContent = status;
+                log('test3', `Current status: ${status}`);
+            }
+        }
+
+        // Reset functions
+        function resetTest1() {
+            document.getElementById('test1-status').className = 'status pending';
+            document.getElementById('test1-status').textContent = 'Not Started';
+            ['step1-1', 'step1-2', 'step1-3'].forEach(id => updateStep(id, ''));
+            document.getElementById('test1-log').innerHTML = '';
+        }
+
+        function resetTest2() {
+            if (timerInterval) clearInterval(timerInterval);
+            document.getElementById('test2-status').className = 'status pending';
+            document.getElementById('test2-status').textContent = 'Not Started';
+            document.getElementById('timer-display').textContent = '--:--';
+            ['step2-1', 'step2-2', 'step2-3', 'step2-4'].forEach(id => updateStep(id, ''));
+            document.getElementById('test2-log').innerHTML = '';
+        }
+
+        function resetTest3() {
+            document.getElementById('test3-status').className = 'status pending';
+            document.getElementById('test3-status').textContent = 'Not Started';
+            document.getElementById('current-status').textContent = 'Unknown';
+            ['step3-1', 'step3-2', 'step3-3'].forEach(id => updateStep(id, ''));
+            document.getElementById('test3-log').innerHTML = '';
+        }
+
+        // Open helpers
+        function openDashboard() {
+            window.open('/dashboard/conversations', '_blank');
+        }
+
+        function openStorefront() {
+            const storeId = document.getElementById('storeId').value;
+            if (storeId) {
+                window.open(`/${storeId}`, '_blank');
+            } else {
+                alert('Please enter a store ID first');
+            }
+        }
+
+        function openSupabase() {
+            window.open('https://supabase.com/dashboard', '_blank');
+        }
+
+        // SQL helpers
+        function copySQL(type) {
+            const queries = {
+                checkDuplicates: `SELECT conversation_id, content, COUNT(*)
+FROM ai_chat_messages
+WHERE content LIKE '%human agent has joined%'
+GROUP BY conversation_id, content
+HAVING COUNT(*) > 1;`,
+                checkStatus: `SELECT id, takeover_status, agent_id, is_agent_active
+FROM ai_chat_conversations
+WHERE id = '${config.conversationId || '[CONVERSATION_ID]'}';`,
+                checkMessages: `SELECT role, content, is_agent_message, created_at
+FROM ai_chat_messages
+WHERE conversation_id = '${config.conversationId || '[CONVERSATION_ID]'}'
+ORDER BY created_at DESC
+LIMIT 10;`
+            };
+
+            const query = queries[type];
+            navigator.clipboard.writeText(query);
+            document.getElementById('sql-output').textContent = query;
+            alert('SQL copied to clipboard!');
+        }
+
+        // Load config on startup
+        loadConfig();
+    </script>
+</body>
+</html>

@@ -1,7 +1,13 @@
 // Conversations Page - Clean Design with Inline Styles
 import React from 'react';
-import { CleanConversations } from '../components/dashboard/CleanConversations';
+import ConversationsPageFixed from '../components/dashboard/ConversationsPageFixed';
+import QuickDebugger from '../components/debug/QuickDebugger';
 
 export default function ConversationsPage() {
-  return <CleanConversations />;
+  return (
+    <>
+      <ConversationsPageFixed />
+      <QuickDebugger />
+    </>
+  );
 }

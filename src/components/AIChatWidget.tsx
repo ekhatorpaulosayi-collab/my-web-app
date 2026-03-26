@@ -6,6 +6,7 @@ import { searchDocumentation, getSuggestedQuestions, getDocById } from '../utils
 import { useAppContext } from '../hooks/useAppContext';
 import { trackStorefrontChat } from '../services/chatTrackingService';
 import SupportEscalation from './SupportEscalation';
+import WhatsAppFallbackTimer from './chat/WhatsAppFallbackTimer';
 import { BookOpen, Zap, MessageCircle } from 'lucide-react';
 import { Documentation } from '../types/documentation';
 import { getSmartQuestionsForContext, getTopQuestions } from '../data/smartQuestions';
@@ -213,6 +214,19 @@ export default function AIChatWidget({
   const [hasModalOpen, setHasModalOpen] = useState(false); // Track when modals are open
   const [isAgentActive, setIsAgentActive] = useState(false); // Track agent takeover
   const [conversationId, setConversationId] = useState<string | null>(null); // Track conversation ID
+  const [takeoverStatus, setTakeoverStatus] = useState<'ai' | 'requested' | 'agent' | 'ended'>('ai'); // Track specific takeover status
+
+  // Use ref to track agent state for real-time subscription
+  const isAgentActiveRef = useRef(isAgentActive);
+  useEffect(() => {
+    isAgentActiveRef.current = isAgentActive;
+  }, [isAgentActive]);
+  const [storeData, setStoreData] = useState<{
+    id: string;
+    whatsapp_number?: string;
+    wa_fallback_minutes?: number;
+  } | null>(null); // Store data for WhatsApp fallback
+  const [lastCustomerMessage, setLastCustomerMessage] = useState<string>(''); // Track last message for WhatsApp context
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -371,6 +385,38 @@ export default function AIChatWidget({
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
+  // Fetch store data when on storefront
+  useEffect(() => {
+    if (contextType === 'storefront' && storeSlug) {
+      const fetchStoreData = async () => {
+        try {
+          console.log('[AIChatWidget] Fetching store data for:', storeSlug);
+          const { data, error } = await supabase
+            .from('stores')
+            .select('id, whatsapp_number, wa_fallback_minutes')
+            .eq('slug', storeSlug)
+            .single();
+
+          if (data && !error) {
+            setStoreData({
+              id: data.id,
+              whatsapp_number: data.whatsapp_number,
+              wa_fallback_minutes: data.wa_fallback_minutes || 5 // Default to 5 minutes
+            });
+            console.log('[AIChatWidget] Store data loaded:', {
+              hasWhatsApp: !!data.whatsapp_number,
+              fallbackMinutes: data.wa_fallback_minutes
+            });
+          }
+        } catch (err) {
+          console.error('[AIChatWidget] Error fetching store data:', err);
+        }
+      };
+
+      fetchStoreData();
+    }
+  }, [contextType, storeSlug]);
 
   // Auto-open with context-aware welcome messages
   useEffect(() => {
@@ -649,114 +695,292 @@ export default function AIChatWidget({
       }
     };
 
-    // Initial fetch
+    // Initial fetch only (no polling - rely on real-time subscriptions)
     fetchMessages();
 
-    // Poll every 2 seconds
-    const interval = setInterval(fetchMessages, 2000);
+    // No polling interval - we'll use real-time subscriptions for updates
 
     return () => {
-      console.log('[AIChatWidget] Stopping message polling');
-      clearInterval(interval);
+      console.log('[AIChatWidget] Agent polling cleanup');
     };
   }, [isAgentActive]);
 
-  // Real-time subscription for agent takeover and messages
+  // Real-time subscription for agent takeover and messages with robust error handling
   useEffect(() => {
     if (!conversationId) return;
 
     console.log('[AIChatWidget] Setting up real-time subscription for conversation:', conversationId);
 
-    // Subscribe to conversation updates (for agent takeover status)
-    const conversationChannel = supabase
-      .channel(`conversation_${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'ai_chat_conversations',
-          filter: `id=eq.${conversationId}`,
-        },
-        (payload) => {
-          console.log('[AIChatWidget] Conversation updated:', payload);
-          const newStatus = payload.new as any;
+    let retryCount = 0;
+    const maxRetries = 3;
+    let conversationChannel: any;
 
-          if (newStatus.is_agent_active !== undefined) {
-            setIsAgentActive(newStatus.is_agent_active);
+    const setupSubscription = async () => {
+      try {
+        // First check if the conversation exists and get its current state
+        const { data: convData, error: convError } = await supabase
+          .from('ai_chat_conversations')
+          .select('id, takeover_status, is_agent_active')
+          .eq('id', conversationId)
+          .single();
 
-            if (newStatus.is_agent_active) {
-              // Agent has taken over
-              const agentMessage: Message = {
-                role: 'assistant',
-                content: '👨‍💼 A human agent has joined the conversation. They will assist you from here.',
-                timestamp: new Date(),
-              };
-              setMessages(prev => [...prev, agentMessage]);
-            } else if (isAgentActive) {
-              // Agent has ended takeover
-              const aiMessage: Message = {
-                role: 'assistant',
-                content: '🤖 The agent has ended the session. I\'m back to assist you!',
-                timestamp: new Date(),
-              };
-              setMessages(prev => [...prev, aiMessage]);
-            }
+        if (convError) {
+          console.error('[AIChatWidget] Error fetching conversation:', convError);
+          // Don't retry if conversation doesn't exist
+          if (convError.code === 'PGRST116') {
+            console.log('[AIChatWidget] Conversation not found, skipping subscription');
+            return;
+          }
+        } else if (convData) {
+          // Set initial state from database
+          if (convData.takeover_status) {
+            setTakeoverStatus(convData.takeover_status);
+          }
+          if (convData.is_agent_active !== undefined) {
+            setIsAgentActive(convData.is_agent_active);
           }
         }
-      )
-      .subscribe((status) => {
-        console.log('[AIChatWidget] Conversation subscription status:', status);
-      });
 
-    // Subscribe to new messages
-    const messageChannel = supabase
-      .channel(`messages_${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'ai_chat_messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          console.log('[AIChatWidget] New message received:', payload);
-          const newMsg = payload.new as any;
+        // Subscribe to conversation updates (for agent takeover status)
+        conversationChannel = supabase
+          .channel(`conversation_${conversationId}_${Date.now()}`) // Unique channel name to prevent conflicts
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'ai_chat_conversations',
+              filter: `id=eq.${conversationId}`,
+            },
+            (payload) => {
+              console.log('[AIChatWidget] Conversation updated:', payload);
+              const newStatus = payload.new as any;
 
-          // Only process agent messages (from store owner)
-          if (newMsg.is_agent_message) {
-            const agentMessage: Message = {
-              role: 'assistant',
+              // Track takeover_status changes
+              if (newStatus.takeover_status) {
+                console.log('[AIChatWidget] Takeover status changed to:', newStatus.takeover_status);
+                setTakeoverStatus(newStatus.takeover_status);
+
+                // Handle different status transitions
+                if (newStatus.takeover_status === 'agent') {
+                  setIsAgentActive(true);
+                  // Agent has taken over
+                  // Message is already added in ConversationsPageFixed.tsx handleInitiateTakeover
+                  // Commenting out to prevent duplicate messages
+                  // const agentMessage: Message = {
+                  //   role: 'assistant',
+                  //   content: '👨‍💼 A human agent has joined the conversation. They will assist you from here.',
+                  //   timestamp: new Date(),
+                  // };
+                  // setMessages(prev => [...prev, agentMessage]);
+                } else if (newStatus.takeover_status === 'ended' && isAgentActiveRef.current) {
+                  setIsAgentActive(false);
+                  // Agent has ended takeover
+                  const aiMessage: Message = {
+                    role: 'assistant',
+                    content: '🤖 The agent has ended the session. I\'m back to assist you!',
+                    timestamp: new Date(),
+                  };
+                  setMessages(prev => [...prev, aiMessage]);
+                }
+              }
+
+              // Legacy support for is_agent_active field
+              if (newStatus.is_agent_active !== undefined) {
+                setIsAgentActive(newStatus.is_agent_active);
+              }
+            }
+          )
+          .subscribe((status) => {
+            console.log('[AIChatWidget] Conversation subscription status:', status);
+
+            if (status === 'CHANNEL_ERROR') {
+              console.error('[AIChatWidget] Channel error detected, will retry...');
+              retryCount++;
+              if (retryCount < maxRetries) {
+                setTimeout(() => {
+                  console.log(`[AIChatWidget] Retrying subscription (attempt ${retryCount}/${maxRetries})`);
+                  conversationChannel?.unsubscribe();
+                  setupSubscription();
+                }, 1000 * retryCount); // Exponential backoff
+              } else {
+                console.error('[AIChatWidget] Max retries reached, subscription failed');
+              }
+            } else if (status === 'SUBSCRIBED') {
+              console.log('[AIChatWidget] Successfully subscribed to conversation updates');
+              retryCount = 0; // Reset retry count on successful connection
+            }
+          });
+      } catch (error) {
+        console.error('[AIChatWidget] Error setting up subscription:', error);
+      }
+    };
+
+    setupSubscription();
+
+    // Setup message subscription with robust error handling
+    let messageRetryCount = 0;
+    const messageMaxRetries = 3;
+    let messageChannel: any;
+
+    const setupMessageSubscription = () => {
+      messageChannel = supabase
+        .channel(`messages_${conversationId}_${Date.now()}`) // Unique channel name
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'ai_chat_messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            console.log('[AIChatWidget] New message received:', payload);
+            const newMsg = payload.new as any;
+
+            // Process ALL messages from the subscription, not just during agent takeover
+            // This ensures agent messages sent from dashboard appear in customer chat
+            const message: Message = {
+              role: newMsg.is_agent_message ? 'assistant' : (newMsg.role as 'user' | 'assistant'),
               content: newMsg.content,
               timestamp: new Date(newMsg.created_at),
             };
 
-            // Add message if not already present
+            // Add message if not already present (improved deduplication)
             setMessages(prev => {
-              const exists = prev.some(m =>
-                m.content === agentMessage.content &&
-                Math.abs(m.timestamp.getTime() - agentMessage.timestamp.getTime()) < 1000
-              );
+              // Check for exact duplicates within 5 seconds
+              const isDuplicate = prev.some(m => {
+                const timeDiff = Math.abs(m.timestamp.getTime() - message.timestamp.getTime());
+                const contentMatch = m.content === message.content;
+                const roleMatch = m.role === message.role;
+                return contentMatch && roleMatch && timeDiff < 5000;
+              });
 
-              if (!exists) {
-                return [...prev, agentMessage];
+              if (!isDuplicate) {
+                console.log('[AIChatWidget] Adding new message to chat:', {
+                  role: message.role,
+                  isAgent: newMsg.is_agent_message,
+                  isAgentActive: isAgentActiveRef.current,
+                  content: message.content.substring(0, 50)
+                });
+                return [...prev, message];
+              } else {
+                console.log('[AIChatWidget] Duplicate message detected, skipping:', {
+                  content: message.content.substring(0, 50),
+                  role: message.role
+                });
               }
               return prev;
             });
           }
+        )
+        .subscribe((status) => {
+          console.log('[AIChatWidget] Messages subscription status:', status);
+
+          if (status === 'CHANNEL_ERROR') {
+            console.error('[AIChatWidget] Message channel error detected');
+            messageRetryCount++;
+            if (messageRetryCount < messageMaxRetries) {
+              setTimeout(() => {
+                console.log(`[AIChatWidget] Retrying message subscription (${messageRetryCount}/${messageMaxRetries})`);
+                messageChannel?.unsubscribe();
+                setupMessageSubscription();
+              }, 1000 * messageRetryCount);
+            } else {
+              console.error('[AIChatWidget] Max retries reached for message subscription');
+            }
+          } else if (status === 'SUBSCRIBED') {
+            console.log('[AIChatWidget] Successfully subscribed to messages');
+            messageRetryCount = 0;
+          }
+        });
+    };
+
+    setupMessageSubscription();
+
+    // Fallback polling for messages when WebSocket fails
+    let pollInterval: NodeJS.Timeout | null = null;
+    const startPolling = () => {
+      if (pollInterval) return; // Already polling
+
+      console.log('[AIChatWidget] Starting fallback polling for messages');
+
+      const pollMessages = async () => {
+        if (!conversationId) return;
+
+        try {
+          const { data: messages, error } = await supabase
+            .from('ai_chat_messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+
+          if (!error && messages) {
+            // Check if agent takeover is active
+            const { data: convData } = await supabase
+              .from('ai_chat_conversations')
+              .select('is_agent_active, takeover_status')
+              .eq('id', conversationId)
+              .single();
+
+            if (convData) {
+              setIsAgentActive(convData.is_agent_active || convData.takeover_status === 'agent');
+              isAgentActiveRef.current = convData.is_agent_active || convData.takeover_status === 'agent';
+            }
+
+            // Update messages if there are new ones
+            setMessages(prev => {
+              const prevCount = prev.length;
+              const newMessages = messages.map(msg => ({
+                role: msg.is_agent_message ? 'assistant' : (msg.role as 'user' | 'assistant'),
+                content: msg.content,
+                timestamp: new Date(msg.created_at),
+              }));
+
+              // Only update if there are actually new messages
+              if (newMessages.length > prevCount) {
+                console.log('[AIChatWidget] Polling found new messages:', newMessages.length - prevCount);
+                return newMessages;
+              }
+              return prev;
+            });
+          }
+        } catch (error) {
+          console.error('[AIChatWidget] Polling error:', error);
         }
-      )
-      .subscribe((status) => {
-        console.log('[AIChatWidget] Messages subscription status:', status);
-      });
+      };
+
+      // Poll more frequently if agent is active (every 1 second), otherwise every 3 seconds
+      const pollFrequency = isAgentActiveRef.current ? 1000 : 3000;
+      pollInterval = setInterval(pollMessages, pollFrequency);
+      // Also poll immediately
+      pollMessages();
+
+      // Adjust polling frequency when agent status changes
+      const adjustPollingFrequency = setInterval(() => {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          const newFrequency = isAgentActiveRef.current ? 1000 : 3000;
+          console.log(`[AIChatWidget] Adjusting polling frequency to ${newFrequency}ms (agent active: ${isAgentActiveRef.current})`);
+          pollInterval = setInterval(pollMessages, newFrequency);
+        }
+      }, 5000); // Check every 5 seconds if we need to adjust frequency
+    };
+
+    // Start polling if max retries are reached
+    if (messageRetryCount >= messageMaxRetries) {
+      startPolling();
+    }
 
     return () => {
-      console.log('[AIChatWidget] Cleaning up real-time subscriptions');
-      conversationChannel.unsubscribe();
-      messageChannel.unsubscribe();
+      console.log('[AIChatWidget] Cleaning up real-time subscriptions and polling');
+      conversationChannel?.unsubscribe();
+      messageChannel?.unsubscribe();
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
-  }, [conversationId, isAgentActive]);
+  }, [conversationId]); // Don't recreate subscription when isAgentActive changes
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || loading) return;
@@ -764,13 +988,21 @@ export default function AIChatWidget({
     const userMessage = inputMessage.trim();
     setInputMessage('');
 
-    // Add user message immediately
-    const newMessage: Message = {
-      role: 'user',
-      content: userMessage,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, newMessage]);
+    // Only add message locally when NOT in agent mode
+    // During agent takeover, messages come through real-time subscription
+    if (!isAgentActive) {
+      const newMessage: Message = {
+        role: 'user',
+        content: userMessage,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, newMessage]);
+    } else {
+      console.log('[AIChatWidget] Agent mode active, message will be added via real-time subscription');
+    }
+
+    // Track last customer message for WhatsApp context
+    setLastCustomerMessage(userMessage);
 
     setLoading(true);
 
@@ -932,8 +1164,18 @@ export default function AIChatWidget({
         setConversationId(data.conversationId);
       }
 
+      // Check for takeover status from response
+      if (data.takeoverStatus) {
+        console.log('[AIChatWidget] Takeover status from response:', data.takeoverStatus);
+        setTakeoverStatus(data.takeoverStatus);
+
+        if (data.takeoverStatus === 'requested') {
+          console.log('[AIChatWidget] Human help requested, timer will start');
+        }
+      }
+
       // Check if agent takeover is active
-      if (data.agentActive) {
+      if (data.agentActive || data.takeoverStatus === 'agent') {
         console.log('[AIChatWidget] Agent takeover detected, starting polling');
         setIsAgentActive(true);
         // Use the actual conversation ID from the response
@@ -1332,6 +1574,24 @@ export default function AIChatWidget({
 
             <div ref={messagesEndRef} />
           </div>
+
+          {/* WhatsApp Fallback Timer (only on storefront when requested) */}
+          {contextType === 'storefront' && conversationId && storeData && (
+            <WhatsAppFallbackTimer
+              conversationId={conversationId}
+              storeId={storeData.id}
+              store={{
+                whatsapp_number: storeData.whatsapp_number,
+                wa_fallback_minutes: storeData.wa_fallback_minutes
+              }}
+              takeoverStatus={takeoverStatus}
+              lastCustomerMessage={lastCustomerMessage}
+              onReset={() => {
+                console.log('[AIChatWidget] Fallback timer reset');
+                // Timer reset - customer chose to keep waiting
+              }}
+            />
+          )}
 
           {/* Input */}
           <div style={{

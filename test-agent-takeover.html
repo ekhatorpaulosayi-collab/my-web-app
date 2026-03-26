@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Takeover Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .warning { background: #fff3cd; color: #856404; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            background: #f9fafb;
+            border-left: 3px solid #3b82f6;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        #logs {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 10px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Agent Takeover Functionality Test</h1>
+
+    <div class="test-section">
+        <h2>Connection Status</h2>
+        <div id="connectionStatus" class="status info">Initializing...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Quick Actions</h2>
+        <button onclick="testDatabaseConnection()">Test Database Connection</button>
+        <button onclick="testAgentTakeover()">Test Agent Takeover Function</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Activity Log</h2>
+        <div id="logs"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        // Get Supabase credentials from environment
+        const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://yzlniqwzqlsftxrtapdl.supabase.co';
+        const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            entry.style.borderLeftColor = type === 'error' ? '#ef4444' :
+                                         type === 'success' ? '#10b981' :
+                                         type === 'warning' ? '#f59e0b' : '#3b82f6';
+            logs.insertBefore(entry, logs.firstChild);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+        }
+
+        function showResult(message, type = 'info') {
+            const resultsEl = document.getElementById('testResults');
+            const result = document.createElement('div');
+            result.className = `status ${type}`;
+            result.textContent = message;
+            resultsEl.insertBefore(result, resultsEl.firstChild);
+        }
+
+        // Test database connection
+        window.testDatabaseConnection = async function() {
+            log('Testing database connection...');
+            try {
+                const { data, error } = await supabase
+                    .from('ai_chat_conversations')
+                    .select('id')
+                    .limit(1);
+
+                if (error) throw error;
+
+                log('Database connection successful!', 'success');
+                showResult('✅ Database connection is working', 'success');
+
+                // Check if takeover columns exist
+                const { data: cols, error: colError } = await supabase
+                    .from('ai_chat_conversations')
+                    .select('takeover_status, is_agent_active')
+                    .limit(1);
+
+                if (!colError) {
+                    log('Takeover columns exist', 'success');
+                    showResult('✅ Required columns (takeover_status, is_agent_active) exist', 'success');
+                } else {
+                    log('Takeover columns missing: ' + colError.message, 'warning');
+                    showResult('⚠️ Some takeover columns may be missing', 'warning');
+                }
+
+            } catch (err) {
+                log('Database connection failed: ' + err.message, 'error');
+                showResult('❌ Database connection failed: ' + err.message, 'error');
+            }
+        };
+
+        // Test agent takeover function
+        window.testAgentTakeover = async function() {
+            log('Testing agent takeover function...');
+            try {
+                // First get a test conversation
+                const { data: conversations, error: convError } = await supabase
+                    .from('ai_chat_conversations')
+                    .select('id, takeover_status, is_agent_active')
+                    .limit(1);
+
+                if (convError) throw convError;
+
+                if (!conversations || conversations.length === 0) {
+                    log('No conversations found to test with', 'warning');
+                    showResult('⚠️ No conversations available for testing', 'warning');
+                    return;
+                }
+
+                const testConv = conversations[0];
+                log(`Using conversation ${testConv.id} for test`);
+
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    log('No authenticated user found', 'warning');
+                    showResult('⚠️ Please log in to test agent takeover', 'warning');
+                    return;
+                }
+
+                // Test the initiate_agent_takeover function
+                log('Calling initiate_agent_takeover function...');
+                const { data: funcResult, error: funcError } = await supabase
+                    .rpc('initiate_agent_takeover', {
+                        p_conversation_id: testConv.id,
+                        p_agent_id: user.id,
+                        p_agent_name: 'Test Agent'
+                    });
+
+                if (funcError) {
+                    log('Function call failed: ' + funcError.message, 'error');
+                    showResult('❌ Agent takeover function failed: ' + funcError.message, 'error');
+
+                    // Check if it's a type casting error
+                    if (funcError.message.includes('operator does not exist') ||
+                        funcError.message.includes('uuid') ||
+                        funcError.message.includes('text')) {
+                        showResult('❌ Type casting issue detected - SQL fix may not have been applied correctly', 'error');
+                    }
+                    return;
+                }
+
+                log('Function result: ' + JSON.stringify(funcResult), 'success');
+
+                if (funcResult?.success) {
+                    showResult('✅ Agent takeover function works correctly!', 'success');
+
+                    // Verify the conversation was updated
+                    const { data: updatedConv, error: verifyError } = await supabase
+                        .from('ai_chat_conversations')
+                        .select('takeover_status, is_agent_active')
+                        .eq('id', testConv.id)
+                        .single();
+
+                    if (!verifyError && updatedConv) {
+                        log(`Conversation status: takeover_status=${updatedConv.takeover_status}, is_agent_active=${updatedConv.is_agent_active}`, 'success');
+
+                        if (updatedConv.takeover_status === 'agent' && updatedConv.is_agent_active) {
+                            showResult('✅ Database updated correctly - agent is active', 'success');
+                        }
+
+                        // Now end the takeover to clean up
+                        log('Ending test takeover...');
+                        const { data: endResult, error: endError } = await supabase
+                            .rpc('end_agent_takeover', {
+                                p_conversation_id: testConv.id,
+                                p_agent_id: user.id
+                            });
+
+                        if (!endError && endResult?.success) {
+                            log('Test takeover ended successfully', 'success');
+                            showResult('✅ Full takeover cycle tested successfully!', 'success');
+                        }
+                    }
+                } else {
+                    showResult('⚠️ Function returned but indicated failure', 'warning');
+                }
+
+            } catch (err) {
+                log('Test failed: ' + err.message, 'error');
+                showResult('❌ Test failed: ' + err.message, 'error');
+            }
+        };
+
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = '';
+            document.getElementById('testResults').innerHTML = '';
+            log('Logs cleared');
+        };
+
+        // Initial connection test
+        (async function() {
+            updateStatus('Testing connection to Supabase...', 'info');
+
+            const { data: { user }, error } = await supabase.auth.getUser();
+
+            if (user) {
+                updateStatus(`Connected as ${user.email}`, 'success');
+                log('Authenticated as ' + user.email, 'success');
+            } else {
+                updateStatus('Not authenticated - some tests may be limited', 'warning');
+                log('Not authenticated', 'warning');
+            }
+
+            // Note about WebSocket timeouts
+            log('Note: WebSocket timeout errors are expected and handled by falling back to polling', 'info');
+        })();
+    </script>
+</body>
+</html>

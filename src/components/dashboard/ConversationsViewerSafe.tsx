@@ -40,9 +40,10 @@ interface Conversation {
   store_id?: string;
   user_id?: string;
   messages?: Message[];
-  takeover_status?: 'ai' | 'agent_requested' | 'agent_active' | 'agent_ended';
+  takeover_status?: 'ai' | 'agent_requested' | 'agent_active' | 'agent_ended' | 'moved_to_whatsapp';
   agent_id?: string;
   agent_takeover_at?: string;
+  moved_to_whatsapp_at?: string;
 }
 
 interface Message {
@@ -136,6 +137,7 @@ export function ConversationsViewerSafe() {
           takeover_status,
           agent_id,
           agent_takeover_at,
+          moved_to_whatsapp_at,
           ai_chat_messages (
             id,
             role,
@@ -220,6 +222,7 @@ export function ConversationsViewerSafe() {
         takeover_status: conv.takeover_status || 'ai',
         agent_id: conv.agent_id,
         agent_takeover_at: conv.agent_takeover_at,
+        moved_to_whatsapp_at: conv.moved_to_whatsapp_at,
         messages: messages.sort((a: any, b: any) =>
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         )
@@ -478,7 +481,13 @@ export function ConversationsViewerSafe() {
                               Agent Active
                             </span>
                           )}
-                          {(!conv.takeover_status || conv.takeover_status === 'ai') && (
+                          {(conv.takeover_status === 'moved_to_whatsapp' || conv.moved_to_whatsapp_at) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                              <MessageCircle className="w-3 h-3" />
+                              WhatsApp
+                            </span>
+                          )}
+                          {(!conv.takeover_status || conv.takeover_status === 'ai') && !conv.moved_to_whatsapp_at && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
                               <Bot className="w-3 h-3" />
                               AI

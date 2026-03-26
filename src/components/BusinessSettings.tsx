@@ -15,6 +15,7 @@ import { useDirty } from '../hooks/useDirty';
 import { logOut } from '../lib/authService-supabase';
 import { StoreSettings } from './StoreSettings';
 import TaxRateSelector from './TaxRateSelector';
+import WhatsAppFallbackSettings from './settings/WhatsAppFallbackSettings';
 
 type BusinessSettingsProps = {
   isOpen: boolean;
@@ -137,6 +138,7 @@ export default function BusinessSettings({
     ownerName: profile.ownerName || '',
     phone: profile.phone || '',
     whatsappNumber: profile.whatsappNumber || '',
+    waFallbackMinutes: profile.waFallbackMinutes || 5,
     instagramHandle: profile.instagramHandle || '',
     facebookPage: profile.facebookPage || '',
     tiktokHandle: profile.tiktokHandle || '',
@@ -252,6 +254,7 @@ export default function BusinessSettings({
           ownerName: profile.ownerName || '',
           phone: profile.phone || '',
           whatsappNumber: profile.whatsappNumber || '',
+          waFallbackMinutes: profile.waFallbackMinutes || profile.wa_fallback_minutes || 5,
           instagramHandle: profile.instagramHandle || '',
           facebookPage: profile.facebookPage || '',
           tiktokHandle: profile.tiktokHandle || '',
@@ -375,6 +378,7 @@ export default function BusinessSettings({
         ownerName: formData.ownerName,
         phone: formData.phone,
         whatsappNumber: formData.whatsappNumber,
+        wa_fallback_minutes: formData.waFallbackMinutes,
         instagramHandle: formData.instagramHandle,
         facebookPage: formData.facebookPage,
         tiktokHandle: formData.tiktokHandle,
@@ -705,6 +709,23 @@ export default function BusinessSettings({
                         For sharing products via WhatsApp
                       </small>
                     </div>
+
+                    {/* WhatsApp Fallback Timer Settings */}
+                    {formData.whatsappNumber && (
+                      <div className="bs-field">
+                        <label className="bs-label">
+                          ⏱️ WhatsApp Fallback Timer
+                        </label>
+                        <WhatsAppFallbackSettings
+                          value={formData.waFallbackMinutes}
+                          onChange={(value) => handleInputChange('waFallbackMinutes', value)}
+                          whatsappNumber={formData.whatsappNumber}
+                        />
+                        <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px', display: 'block' }}>
+                          Time to wait before suggesting customers move to WhatsApp when you're not available
+                        </small>
+                      </div>
+                    )}
 
                     <div className="bs-field">
                       <label htmlFor="instagram" className="bs-label">Instagram Handle</label>

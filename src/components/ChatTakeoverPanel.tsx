@@ -95,7 +95,7 @@ export const ChatTakeoverPanel: React.FC<Props> = ({
         .rpc('initiate_agent_takeover', {
           p_conversation_id: conversation.id,
           p_agent_id: userId,
-          p_reason: 'Manual intervention requested'
+          p_agent_name: 'Store Owner' // Adding agent name for consistency
         });
 
       if (error) throw error;
@@ -103,15 +103,16 @@ export const ChatTakeoverPanel: React.FC<Props> = ({
       setTakeoverSessionId(data);
       setIsAgentActive(true);
 
-      // Add system message
-      const systemMessage: Message = {
-        id: `system-${Date.now()}`,
-        role: 'assistant',
-        content: '🔔 A human agent has joined the conversation',
-        created_at: new Date().toISOString(),
-        is_agent_message: true
-      };
-      setMessages(prev => [...prev, systemMessage]);
+      // System message is already added in ConversationsPageFixed.tsx handleInitiateTakeover
+      // Commenting out to prevent duplicate messages
+      // const systemMessage: Message = {
+      //   id: `system-${Date.now()}`,
+      //   role: 'assistant',
+      //   content: '🔔 A human agent has joined the conversation',
+      //   created_at: new Date().toISOString(),
+      //   is_agent_message: true
+      // };
+      // setMessages(prev => [...prev, systemMessage]);
 
     } catch (error) {
       console.error('Error taking over chat:', error);

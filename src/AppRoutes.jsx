@@ -40,6 +40,7 @@ const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard.tsx'));
 const AffiliateAdmin = lazy(() => import('./pages/AffiliateAdmin.tsx'));
 const SubscriptionUpgrade = lazy(() => import('./components/SubscriptionUpgrade.tsx'));
 const ConversationsPage = lazy(() => import('./pages/ConversationsPage.tsx'));
+const AgentTakeoverDebugger = lazy(() => import('./components/debug/AgentTakeoverDebugger.tsx'));
 
 /**
  * App Routes
@@ -171,6 +172,16 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <ConversationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Agent Takeover Debugger - Comprehensive debugging for chat takeover issues */}
+        <Route
+          path="/debug/agent-takeover"
+          element={
+            <ProtectedRoute>
+              <AgentTakeoverDebugger />
             </ProtectedRoute>
           }
         />
