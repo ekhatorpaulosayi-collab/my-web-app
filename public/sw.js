@@ -9,7 +9,7 @@
  * - Background sync for offline operations
  */
 
-const CACHE_VERSION = 'storehouse-v3.0'; // Force cache update
+const CACHE_VERSION = 'storehouse-v4.0'; // Force complete cache clear 2026-03-26
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
