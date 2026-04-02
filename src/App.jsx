@@ -83,6 +83,7 @@ import TaxPanel from './components/TaxPanel.tsx';
 import MoneyPage from './pages/MoneyPage.jsx';
 import { hasPinSet, verifyPin, isUnlocked, unlock, lock } from './lib/pinService.ts';
 import ShareStoreCard from './components/ShareStoreCard.jsx';
+import QuotaAlert from './components/dashboard/QuotaAlert.tsx';
 import { useAuth } from './contexts/AuthContext';
 import { useUser } from './lib/supabase-hooks';
 import {
@@ -4070,6 +4071,9 @@ Low Stock: ${lowStockItems.length}
 
       {/* Share Your Store Card */}
       <ShareStoreCard onOpenSettings={() => setShowSettings(true)} />
+
+      {/* AI Chat Quota Alert */}
+      <QuotaAlert userId={currentUser?.uid} />
 
       {/* New Dashboard v2.0 - Widget-based */}
       <Dashboard

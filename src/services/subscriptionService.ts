@@ -112,7 +112,7 @@ export async function canAddProduct(userId: string): Promise<LimitCheckResult> {
       // Fallback: Allow free tier limits if subscription check fails
       return {
         allowed: true,
-        limit: 50,
+        limit: 30,
         currentCount: 0,
         tierName: 'Free',
         reason: 'Using free tier limits'
@@ -123,7 +123,7 @@ export async function canAddProduct(userId: string): Promise<LimitCheckResult> {
 
     // Fix: If limit is 0, null or undefined, use free tier default
     if (result && (!result.limit || result.limit === 0)) {
-      result.limit = 50; // Free tier default
+      result.limit = 30; // Free tier default
       result.tierName = result.tierName || 'Free';
     }
 
@@ -138,7 +138,7 @@ export async function canAddProduct(userId: string): Promise<LimitCheckResult> {
     // Fallback: Allow free tier limits if something goes wrong
     return {
       allowed: true,
-      limit: 50,
+      limit: 30,
       currentCount: 0,
       tierName: 'Free',
       reason: 'Using free tier limits'

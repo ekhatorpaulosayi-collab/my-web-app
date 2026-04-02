@@ -42,6 +42,7 @@ const SubscriptionUpgrade = lazy(() => import('./components/SubscriptionUpgrade.
 const ConversationsPage = lazy(() => import('./pages/ConversationsPage.tsx'));
 const AgentTakeoverDebugger = lazy(() => import('./components/debug/AgentTakeoverDebugger.tsx'));
 const DebugCenter = lazy(() => import('./pages/DebugCenter.tsx'));
+const ContributionPublicView = lazy(() => import('./components/contributions/ContributionPublicView.tsx'));
 
 /**
  * App Routes
@@ -434,6 +435,9 @@ export default function AppRoutes() {
 
         {/* Public invoice view - accessible without login */}
         <Route path="/invoice/:id" element={<PublicInvoiceView />} />
+
+        {/* Public contribution group view - accessible without login */}
+        <Route path="/a/:shareCode" element={<ContributionPublicView />} />
 
         {/* Catch-all - redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />

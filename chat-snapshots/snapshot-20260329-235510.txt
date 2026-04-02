@@ -1,0 +1,24 @@
+Chat Widget Snapshot
+Created: Sun Mar 29 23:55:10 BST 2026
+Version: Production-ready (debug code removed)
+
+Files included:
+- AIChatWidget.tsx
+- WhatsAppFallbackTimer.tsx (if exists)
+- OwnerNotificationManager.tsx (if exists)
+- ownerNotificationService.ts (if exists)
+- ai-chat edge function (if exists)
+
+Features in this snapshot:
+- Polling-based message fetching (3s interval)
+- Message deduplication with UUID
+- Mobile clock skew handling
+- WhatsApp fallback timer
+- Owner notification system
+- Business hours awareness
+- Human takeover flow
+- Debug code removed
+
+To restore from this snapshot:
+cp chat-snapshots/AIChatWidget-20260329-235510.tsx src/components/AIChatWidget.tsx
+# Restore other files as needed

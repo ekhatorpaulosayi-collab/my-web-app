@@ -60,32 +60,12 @@ export async function trackStorefrontChat(data: ChatTrackingData) {
 
     console.log('[ChatTracking] Conversation saved:', conversation.id);
 
-    // Step 3: Save both messages (user and assistant)
-    const messages = [
-      {
-        conversation_id: conversation.id,
-        store_id: store.id,
-        role: 'user' as const,
-        content: data.message,
-      },
-      {
-        conversation_id: conversation.id,
-        store_id: store.id,
-        role: 'assistant' as const,
-        content: data.response,
-      },
-    ];
+    // Step 3: Messages are already saved by the edge function, no need to save here
+    // The edge function saves both user and assistant messages at:
+    // - User message: index.ts line 2435
+    // - Assistant message: index.ts line 2716-2721
 
-    const { error: msgError } = await supabase
-      .from('ai_chat_messages')
-      .insert(messages);
-
-    if (msgError) {
-      console.error('[ChatTracking] Failed to save messages:', msgError);
-      return false;
-    }
-
-    console.log('[ChatTracking] Messages saved successfully!');
+    console.log('[ChatTracking] Messages saved successfully by edge function!');
     return true;
 
   } catch (error) {

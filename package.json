@@ -16,7 +16,9 @@
     "analyze-ux": "node scripts/analyze-dashboard-ux.js",
     "screenshot": "node ux-tools/screenshot.js",
     "record-session": "node ux-tools/record-session.js",
-    "quick-test": "node ux-tools/quick-test.js"
+    "quick-test": "node ux-tools/quick-test.js",
+    "check:chat": "./scripts/check-chat-integrity.sh",
+    "chat:snapshot": "./scripts/chat-snapshot.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
@@ -64,6 +66,7 @@
     "supabase": "^2.83.0",
     "tsx": "^4.21.0",
     "vite": "^7.1.7",
-    "vite-plugin-compression2": "^2.3.1"
+    "vite-plugin-compression2": "^2.3.1",
+    "web-push": "^3.6.7"
   }
 }

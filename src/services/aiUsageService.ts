@@ -23,14 +23,15 @@ export interface AIUsageData {
  */
 export async function getAIUsage(userId: string): Promise<AIUsageData | null> {
   try {
-    // Get user's subscription data
+    // Skip RPC call since it doesn't exist, go directly to subscription data
     const subscription = await getUserTier(userId);
     if (!subscription) return null;
 
     const chatsUsed = subscription.ai_chats_used || 0;
     const totalLimit = subscription.max_ai_chats_monthly || 30;
     const chatsRemaining = Math.max(0, totalLimit - chatsUsed);
-    const percentageUsed = (chatsUsed / totalLimit) * 100;
+    const tierName = subscription.tier_name || 'Free';
+    const percentageUsed = totalLimit > 0 ? (chatsUsed / totalLimit) * 100 : 0;
     const isApproachingLimit = chatsRemaining <= 5 && chatsRemaining > 0;
     const hasExhausted = chatsRemaining === 0;
 
@@ -53,7 +54,7 @@ export async function getAIUsage(userId: string): Promise<AIUsageData | null> {
       chatsUsed,
       chatsRemaining,
       totalLimit,
-      tierName: subscription.tier_name || 'Free',
+      tierName: tierName,
       isApproachingLimit,
       hasExhausted,
       percentageUsed,

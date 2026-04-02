@@ -146,8 +146,8 @@ export function AgentChatInterface({ conversationId, storeId, sessionId }: Agent
       const { data, error } = await supabase
         .rpc('send_agent_message', {
           p_conversation_id: conversationId,
-          p_agent_id: user.uid,
-          p_message: newMessage
+          p_message: newMessage,
+          p_agent_id: user.uid
         });
 
       if (error) throw error;

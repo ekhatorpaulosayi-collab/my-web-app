@@ -254,7 +254,7 @@ export default function BusinessSettings({
           ownerName: profile.ownerName || '',
           phone: profile.phone || '',
           whatsappNumber: profile.whatsappNumber || '',
-          waFallbackMinutes: profile.waFallbackMinutes || profile.wa_fallback_minutes || 5,
+          waFallbackMinutes: profile.waFallbackMinutes || profile.wa_fallback_minutes || 2,
           instagramHandle: profile.instagramHandle || '',
           facebookPage: profile.facebookPage || '',
           tiktokHandle: profile.tiktokHandle || '',

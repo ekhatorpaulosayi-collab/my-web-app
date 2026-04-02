@@ -25,9 +25,10 @@ export default function WhatsAppFallbackTimer({
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [showOptions, setShowOptions] = useState(false);
   const [timerActive, setTimerActive] = useState(false);
+  const [waitingSinceTimestamp, setWaitingSinceTimestamp] = useState<string | null>(null);
 
-  // Get fallback minutes (default to 5 if not set)
-  const fallbackMinutes = store?.wa_fallback_minutes || 5;
+  // Get fallback minutes (default to 2 if not set)
+  const fallbackMinutes = store?.wa_fallback_minutes || 2;
   const hasWhatsApp = !!store?.whatsapp_number;
 
   // Format time for display
@@ -79,36 +80,170 @@ export default function WhatsAppFallbackTimer({
   };
 
   // Reset timer
-  const resetTimer = () => {
+  const resetTimer = async () => {
+    // Update the waiting timestamp on server to current time
+    try {
+      const { error } = await supabase
+        .from('ai_chat_conversations')
+        .update({
+          waiting_for_owner_since: new Date().toISOString()
+        })
+        .eq('id', conversationId);
+
+      if (error) {
+        console.error('[WhatsAppTimer] Error updating timestamp:', error);
+      }
+    } catch (err) {
+      console.error('[WhatsAppTimer] Error in resetTimer:', err);
+    }
+
+    // Reset local state
     setTimeLeft(fallbackMinutes * 60);
     setShowOptions(false);
     setTimerActive(true);
+    setWaitingSinceTimestamp(new Date().toISOString());
     onReset?.();
   };
 
-  // Start timer when status changes to 'requested'
-  useEffect(() => {
-    if (takeoverStatus === 'requested' && !timerActive) {
-      setTimeLeft(fallbackMinutes * 60);
-      setTimerActive(true);
-      setShowOptions(false);
-    } else if (takeoverStatus === 'agent') {
-      // Owner took over - cancel timer
+  // Cancel takeover and revert to AI
+  const handleCancelTakeover = async () => {
+    try {
+      console.log('[WhatsAppTimer] Cancel takeover requested - reverting to AI');
+
+      // Update conversation to clear the takeover request
+      // Set takeover_status to null (not 'ai') to properly reset state
+      const { error } = await supabase
+        .from('ai_chat_conversations')
+        .update({
+          takeover_status: null,  // Clear the takeover status completely
+          is_agent_active: false,
+          waiting_for_owner_since: null,
+          chat_status: 'active'  // Ensure chat is active
+        })
+        .eq('id', conversationId);
+
+      if (error) {
+        console.error('[WhatsAppTimer] Error canceling takeover:', error);
+        return;
+      }
+
+      // Add a system message
+      const { error: msgError } = await supabase
+        .from('ai_chat_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'system',
+          content: "You're back with the AI assistant",
+          is_agent_message: false,
+          sender_type: 'system'
+        });
+
+      if (msgError) {
+        console.error('[WhatsAppTimer] Error adding system message:', msgError);
+      }
+
+      // Clear timer state immediately
       setTimerActive(false);
       setShowOptions(false);
       setTimeLeft(0);
-    }
-  }, [takeoverStatus, fallbackMinutes, timerActive]);
+      setWaitingSinceTimestamp(null);
 
-  // Countdown logic
+      // Trigger parent reset if provided - this should update parent state
+      onReset?.();
+
+      console.log('[WhatsAppTimer] Takeover cancelled successfully - AI mode restored');
+    } catch (err) {
+      console.error('[WhatsAppTimer] Error in handleCancelTakeover:', err);
+    }
+  };
+
+  // Fetch waiting_for_owner_since timestamp and calculate time remaining
+  useEffect(() => {
+    const fetchTimerState = async () => {
+      if (takeoverStatus === 'requested' && !timerActive) {
+        try {
+          // Fetch the waiting_for_owner_since timestamp from database
+          const { data, error } = await supabase
+            .from('ai_chat_conversations')
+            .select('waiting_for_owner_since')
+            .eq('id', conversationId)
+            .single();
+
+          if (error) {
+            console.error('[WhatsAppTimer] Error fetching timestamp:', error);
+            // If column doesn't exist, use current time as fallback
+            if (error.message?.includes('does not exist')) {
+              console.log('[WhatsAppTimer] Column not yet added - using local timer');
+            }
+            // Fallback to starting fresh timer
+            setTimeLeft(fallbackMinutes * 60);
+            setTimerActive(true);
+            setShowOptions(false);
+            setWaitingSinceTimestamp(new Date().toISOString());
+            return;
+          }
+
+          if (data?.waiting_for_owner_since) {
+            // Calculate time elapsed since request
+            const requestTime = new Date(data.waiting_for_owner_since).getTime();
+            const now = Date.now();
+            const elapsedSeconds = Math.floor((now - requestTime) / 1000);
+            const totalSeconds = fallbackMinutes * 60;
+            const remaining = Math.max(0, totalSeconds - elapsedSeconds);
+
+            console.log('[WhatsAppTimer] Timer state from server:', {
+              requestTime: data.waiting_for_owner_since,
+              elapsedSeconds,
+              remaining
+            });
+
+            setWaitingSinceTimestamp(data.waiting_for_owner_since);
+
+            if (remaining > 0) {
+              setTimeLeft(remaining);
+              setTimerActive(true);
+              setShowOptions(false);
+            } else {
+              // Timer already expired
+              setTimeLeft(0);
+              setTimerActive(false);
+              setShowOptions(true);
+            }
+          } else {
+            // No timestamp yet, start fresh
+            setTimeLeft(fallbackMinutes * 60);
+            setTimerActive(true);
+            setShowOptions(false);
+          }
+        } catch (err) {
+          console.error('[WhatsAppTimer] Error in fetchTimerState:', err);
+          // Fallback to starting fresh timer
+          setTimeLeft(fallbackMinutes * 60);
+          setTimerActive(true);
+          setShowOptions(false);
+        }
+      } else if (takeoverStatus === 'agent') {
+        // Owner took over - cancel timer
+        setTimerActive(false);
+        setShowOptions(false);
+        setTimeLeft(0);
+        setWaitingSinceTimestamp(null);
+      }
+    };
+
+    fetchTimerState();
+  }, [takeoverStatus, fallbackMinutes, timerActive, conversationId]);
+
+  // Countdown logic with poll-before-modal pattern
   useEffect(() => {
     if (!timerActive || timeLeft <= 0) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       setTimeLeft(prev => {
         if (prev <= 1) {
+          // Timer expired - do a fresh status check BEFORE showing modal
+          checkStatusBeforeModal();
           setTimerActive(false);
-          setShowOptions(true);
           return 0;
         }
         return prev - 1;
@@ -118,12 +253,68 @@ export default function WhatsAppFallbackTimer({
     return () => clearInterval(interval);
   }, [timerActive, timeLeft]);
 
+  // Poll-before-modal pattern: Check if owner took over before showing options
+  const checkStatusBeforeModal = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('ai_chat_conversations')
+        .select('is_agent_active, takeover_status')
+        .eq('id', conversationId)
+        .single();
+
+      if (error) {
+        console.error('[WhatsAppTimer] Error checking status before modal:', error);
+        setShowOptions(true); // Show modal on error as fallback
+        return;
+      }
+
+      // Only show modal if owner hasn't taken over
+      if (!data?.is_agent_active) {
+        setShowOptions(true);
+      } else {
+        console.log('[WhatsAppTimer] Owner took over before timer expired - not showing modal');
+        setTimerActive(false);
+        setShowOptions(false);
+      }
+    } catch (err) {
+      console.error('[WhatsAppTimer] Error in checkStatusBeforeModal:', err);
+      setShowOptions(true); // Show modal on error as fallback
+    }
+  };
+
+  // Auto-dismiss modal if owner takes over while it's showing
+  useEffect(() => {
+    if (!showOptions) return;
+
+    // Poll every 3 seconds while modal is showing
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('ai_chat_conversations')
+          .select('is_agent_active, takeover_status')
+          .eq('id', conversationId)
+          .single();
+
+        if (!error && data?.is_agent_active) {
+          console.log('[WhatsAppTimer] Owner took over - auto-dismissing modal');
+          setShowOptions(false);
+          setTimerActive(false);
+          clearInterval(pollInterval);
+        }
+      } catch (err) {
+        console.error('[WhatsAppTimer] Error polling during modal:', err);
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [showOptions, conversationId]);
+
   // Don't render anything if not in requested state
   if (takeoverStatus !== 'requested') return null;
 
   return (
     <>
-      {/* Timer Display (while counting down) */}
+      {/* Timer Display with Cancel Button (while counting down) */}
       {timerActive && timeLeft > 0 && (
         <div style={{
           padding: '8px 12px',
@@ -133,11 +324,46 @@ export default function WhatsAppFallbackTimer({
           color: '#92400e',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           gap: '8px',
           marginBottom: '12px'
         }}>
-          <Clock size={14} />
-          <span>Waiting for store owner... {formatTime(timeLeft)}</span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <Clock size={14} />
+            <span>Waiting for store owner... {formatTime(timeLeft)}</span>
+          </div>
+
+          {/* Cancel Button */}
+          <button
+            onClick={handleCancelTakeover}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              color: '#6b7280',
+              backgroundColor: 'transparent',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f9fafb';
+              e.currentTarget.style.borderColor = '#9ca3af';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.borderColor = '#d1d5db';
+            }}
+            type="button"
+            aria-label="Cancel request and return to AI assistant"
+          >
+            Cancel — Back to AI
+          </button>
         </div>
       )}
 

@@ -5,8 +5,9 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp, CreditCard, MessageCircle, Bell } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, QrCode, FileSpreadsheet } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
+import { NotificationBadge } from './dashboard/OwnerNotificationManager';
 import './MoreMenu.css';
 
 interface MoreMenuProps {
@@ -64,117 +65,139 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     };
   }, [onClose]);
 
-  const menuItems = [
-    // 🏪 MOST USED - Daily Operations
+  // Organize menu items into sections
+  const sections = [
     {
-      icon: Share2,
-      label: 'Online Store',
-      description: 'Share your online catalog - customers browse & order 24/7',
-      action: onShowOnlineStore
+      title: 'Sell',
+      items: [
+        {
+          icon: Share2,
+          label: 'Online Store',
+          description: 'Share your online catalog - customers browse & order 24/7',
+          action: onShowOnlineStore
+        },
+        {
+          icon: QrCode,
+          label: 'WhatsApp Store Link',
+          description: 'Share your store link via WhatsApp or QR code',
+          action: onShowOnlineStore // Reuse the same action as Online Store
+        }
+      ]
     },
     {
-      icon: MessageCircle,
-      label: 'Customer Chats',
-      description: 'View and manage conversations from your online store visitors',
-      action: () => navigate('/conversations'),
-      badge: 'NEW',
-      highlight: true
+      title: 'Track',
+      items: [
+        {
+          icon: Send,
+          label: 'Daily Sales Summary',
+          description: 'Get daily sales digest via email or WhatsApp',
+          action: onSendDailySummary
+        },
+        {
+          icon: BarChart3,
+          label: 'Sales by Channel',
+          description: 'See which channels drive the most sales (Instagram, WhatsApp, Walk-in)',
+          action: onViewChannelAnalytics
+        },
+        {
+          icon: UserCircle2,
+          label: 'Customers',
+          description: 'Track customer purchases, loyalty, and outstanding payments',
+          action: () => navigate('/customers') // Fixed: Navigate to customers page, not credits
+        },
+        {
+          icon: Receipt,
+          label: 'Professional Invoices',
+          description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
+          action: () => navigate('/invoices')
+        }
+      ]
     },
     {
-      icon: UserCircle2,
-      label: 'Customers',
-      description: 'Track customer purchases, loyalty, and outstanding payments',
-      action: onViewCustomers
+      title: 'Manage',
+      items: [
+        {
+          icon: BookOpen,
+          label: 'Money Book',
+          description: 'Track credit sales and manage ajo/contribution groups',
+          action: onViewMoney, // Use the onViewMoney prop which shows the Money Book
+          badge: 'NEW'
+        },
+        {
+          icon: MessageCircle,
+          label: 'Customer Chats',
+          description: 'View and manage conversations from your online store visitors',
+          action: () => navigate('/conversations'),
+          badge: 'NEW'
+        },
+        // Staff Management (owner only)
+        ...(canManageStaff() && !isStaffMode ? [{
+          icon: UserCog,
+          label: 'Staff Management',
+          description: 'Add and manage team members',
+          action: () => navigate('/staff')
+        }] : []),
+        {
+          icon: FileSpreadsheet,
+          label: 'Export Data',
+          description: 'Download your data for Excel or Google Sheets',
+          action: onExportData
+        }
+      ]
     },
     {
-      icon: Receipt,
-      label: 'Professional Invoices',
-      description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
-      action: () => navigate('/invoices')
-    },
-
-    // 📊 REPORTING & ANALYTICS
-    {
-      icon: Send,
-      label: 'Daily Sales Summary',
-      description: 'Get daily sales digest via email or WhatsApp',
-      action: onSendDailySummary
-    },
-    {
-      icon: BarChart3,
-      label: 'Sales by Channel',
-      description: 'See which channels drive the most sales (Instagram, WhatsApp, Walk-in)',
-      action: onViewChannelAnalytics
-    },
-
-    // 🌟 GROWTH & ENGAGEMENT
-    {
-      icon: Star,
-      label: 'Customer Reviews',
-      description: 'Collect & display customer testimonials',
-      action: () => navigate('/reviews')
-    },
-
-    // 💳 ACCOUNT MANAGEMENT
-    {
-      icon: CreditCard,
-      label: 'Subscription & Billing',
-      description: 'Upgrade plan, manage subscription, cancel or switch billing',
-      action: () => navigate('/upgrade'),
-      highlight: true,
-      badge: 'Manage Plan'
+      title: 'Growth',
+      items: [
+        {
+          icon: Star,
+          label: 'Customer Reviews',
+          description: 'Collect & display customer testimonials',
+          action: () => navigate('/reviews')
+        },
+        {
+          icon: Gift,
+          label: 'Partner Program',
+          description: 'Earn 30% recurring commission on every paid referral',
+          action: () => navigate('/affiliate/signup'),
+          badge: 'Earn Money'
+        }
+      ]
     },
     {
-      icon: Gift,
-      label: '💰 Partner Program',
-      description: 'Earn 30% recurring commission on every paid referral',
-      action: () => navigate('/affiliate/signup'),
-      highlight: true,
-      badge: 'Earn Money'
-    },
-
-    // 👥 TEAM MANAGEMENT
-    // Staff Management (owner only)
-    ...(canManageStaff() && !isStaffMode ? [{
-      icon: UserCog,
-      label: 'Manage Staff',
-      description: 'Add & manage team',
-      action: () => navigate('/staff')
-    }] : []),
-
-    // Staff Mode Login (show if owner and not in staff mode)
-    ...(!isStaffMode && canManageStaff() ? [{
-      icon: Users,
-      label: 'Staff Mode',
-      description: 'Login as staff member',
-      action: onStaffModeToggle
-    }] : []),
-
-    // Staff Mode Toggle (show if in staff mode)
-    ...(isStaffMode ? [{
-      icon: LogOut,
-      label: 'Exit Staff Mode',
-      description: `Logged in as ${currentStaff?.name}`,
-      action: () => {
-        exitStaffMode();
-        alert('Exited staff mode');
-      }
-    }] : []),
-
-    // 📥 DATA & HELP
-    {
-      icon: Download,
-      label: 'Export Data (CSV)',
-      description: 'Download your data for Excel or Google Sheets',
-      action: onExportData
-    },
-    {
-      icon: HelpCircle,
-      label: 'Getting Started Guide',
-      description: 'Show setup checklist',
-      action: () => {
-        window.dispatchEvent(new Event('show-getting-started'));
-      }
+      title: 'Account',
+      items: [
+        {
+          icon: CreditCard,
+          label: 'Subscription & Billing',
+          description: 'Upgrade plan, manage subscription, cancel or switch billing',
+          action: () => navigate('/upgrade')
+        },
+        // Staff Mode Login (show if owner and not in staff mode)
+        ...(!isStaffMode && canManageStaff() ? [{
+          icon: Users,
+          label: 'Staff Mode',
+          description: 'Login as staff member',
+          action: onStaffModeToggle
+        }] : []),
+        // Staff Mode Toggle (show if in staff mode)
+        ...(isStaffMode ? [{
+          icon: LogOut,
+          label: 'Exit Staff Mode',
+          description: `Logged in as ${currentStaff?.name}`,
+          action: () => {
+            exitStaffMode();
+            alert('Exited staff mode');
+          }
+        }] : []),
+        {
+          icon: HelpCircle,
+          label: 'Getting Started Guide',
+          description: 'Show setup checklist',
+          action: () => {
+            window.dispatchEvent(new Event('show-getting-started'));
+          }
+        }
+      ]
     }
   ];
 
@@ -202,24 +225,47 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
             <X size={20} />
           </button>
         </div>
-        <div className="more-menu-grid">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.label}
-                className={`more-menu-item ${(item as any).highlight ? 'highlight' : ''}`}
-                onClick={() => handleItemClick(item.action)}
-                disabled={!item.action}
-              >
-                <Icon size={24} className="more-menu-icon" />
-                <div className="more-menu-text">
-                  <div className="more-menu-label">{item.label}</div>
-                  <div className="more-menu-description">{item.description}</div>
-                </div>
-              </button>
-            );
-          })}
+        <div className="more-menu-sections">
+          {sections.map((section) => (
+            <div key={section.title} className="more-menu-section">
+              <h4 className="more-menu-section-title">{section.title}</h4>
+              <div className="more-menu-grid">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isCustomerChats = item.label === 'Customer Chats';
+
+                  return (
+                    <button
+                      key={item.label}
+                      className="more-menu-item"
+                      onClick={() => handleItemClick(item.action)}
+                      disabled={!item.action}
+                      style={{ position: 'relative' }}
+                    >
+                      <div className="more-menu-item-content">
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <Icon size={22} className="more-menu-icon" />
+                          {isCustomerChats && <NotificationBadge />}
+                        </div>
+                        <div className="more-menu-text">
+                          <div className="more-menu-label">
+                            {item.label}
+                            {(item as any).badge && (
+                              <span className="more-menu-badge">
+                                {(item as any).badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="more-menu-description">{item.description}</div>
+                        </div>
+                        <div className="more-menu-chevron">›</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </dialog>

@@ -110,6 +110,39 @@ export async function signUp(email, password, storeName = null, storeType = null
           console.debug('[Auth] Store profile created');
           storeData = data;
         }
+
+        // Step 3: Create default free subscription for new user
+        try {
+          const subscriptionRecord = {
+            user_id: user.id,
+            tier: 'free', // Must be lowercase 'free' - database constraint
+            status: 'active',
+            started_at: new Date().toISOString(),
+            // Set expires_at to 100 years in the future for free tier
+            expires_at: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+
+          const { error: subError } = await supabase
+            .from('subscriptions')
+            .insert([subscriptionRecord]);
+
+          if (subError) {
+            // Check if subscription already exists
+            if (subError.code === '23505') { // Duplicate key error
+              console.debug('[Auth] Subscription already exists, continuing...');
+            } else {
+              console.error('[Auth] Subscription creation error:', subError);
+              // Not fatal - user can still use with fallback limits
+            }
+          } else {
+            console.debug('[Auth] Free subscription created for user');
+          }
+        } catch (subErr) {
+          console.error('[Auth] Subscription setup error:', subErr);
+          // Continue anyway - fallback limits will apply
+        }
       } catch (error) {
         console.error('[Auth] Profile setup error:', error);
         // Continue anyway - user can complete profile later

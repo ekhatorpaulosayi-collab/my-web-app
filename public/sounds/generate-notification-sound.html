@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Notification Sound</title>
+</head>
+<body>
+    <h1>Notification Sound Generator</h1>
+    <button onclick="generateAndPlaySound()">Generate & Play Sound</button>
+    <button onclick="downloadSound()" id="downloadBtn" style="display:none;">Download notification.mp3</button>
+
+    <script>
+        let audioBuffer;
+
+        function generateAndPlaySound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const sampleRate = audioContext.sampleRate;
+            const duration = 0.5; // 500ms total
+            const numSamples = sampleRate * duration;
+
+            // Create buffer for our sound
+            audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
+            const channel = audioBuffer.getChannelData(0);
+
+            // Generate a pleasant two-tone chime
+            const freq1 = 523.25; // C5
+            const freq2 = 659.25; // E5
+            const attackTime = 0.01;
+            const decayTime = 0.1;
+            const sustainLevel = 0.3;
+            const releaseTime = 0.2;
+
+            for (let i = 0; i < numSamples; i++) {
+                const t = i / sampleRate;
+                let amplitude = 0;
+
+                // ADSR envelope
+                if (t < attackTime) {
+                    amplitude = t / attackTime;
+                } else if (t < attackTime + decayTime) {
+                    const decayProgress = (t - attackTime) / decayTime;
+                    amplitude = 1 - decayProgress * (1 - sustainLevel);
+                } else if (t < duration - releaseTime) {
+                    amplitude = sustainLevel;
+                } else {
+                    const releaseProgress = (t - (duration - releaseTime)) / releaseTime;
+                    amplitude = sustainLevel * (1 - releaseProgress);
+                }
+
+                // Mix two frequencies for a pleasant chime
+                let sample = 0;
+                if (t < 0.25) {
+                    // First tone
+                    sample = Math.sin(2 * Math.PI * freq1 * t) * amplitude;
+                } else {
+                    // Second tone (higher)
+                    const t2 = t - 0.25;
+                    let amplitude2 = 0;
+                    if (t2 < attackTime) {
+                        amplitude2 = t2 / attackTime;
+                    } else if (t2 < attackTime + decayTime) {
+                        const decayProgress = (t2 - attackTime) / decayTime;
+                        amplitude2 = 1 - decayProgress * (1 - sustainLevel);
+                    } else {
+                        const releaseProgress = t2 / releaseTime;
+                        amplitude2 = sustainLevel * (1 - releaseProgress);
+                    }
+                    sample = Math.sin(2 * Math.PI * freq2 * t) * amplitude2;
+                }
+
+                // Apply overall volume reduction to keep it pleasant
+                channel[i] = sample * 0.3;
+            }
+
+            // Play the sound
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start();
+
+            // Show download button
+            document.getElementById('downloadBtn').style.display = 'inline-block';
+        }
+
+        function downloadSound() {
+            if (!audioBuffer) {
+                alert('Please generate the sound first');
+                return;
+            }
+
+            // Convert to WAV format
+            const length = audioBuffer.length;
+            const arrayBuffer = new ArrayBuffer(44 + length * 2);
+            const view = new DataView(arrayBuffer);
+
+            // WAV header
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + length * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, audioBuffer.sampleRate, true);
+            view.setUint32(28, audioBuffer.sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, length * 2, true);
+
+            // Convert float samples to 16-bit PCM
+            const channel = audioBuffer.getChannelData(0);
+            let offset = 44;
+            for (let i = 0; i < length; i++) {
+                const sample = Math.max(-1, Math.min(1, channel[i]));
+                view.setInt16(offset, sample * 0x7FFF, true);
+                offset += 2;
+            }
+
+            // Create blob and download
+            const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'notification.wav';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

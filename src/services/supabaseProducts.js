@@ -125,9 +125,35 @@ export async function addProduct(userId, productData) {
   try {
     console.debug('[SupabaseProducts] Adding product:', productData.name);
 
-    // Check tier limits before adding product
-    const limitCheck = await canAddProduct(userId);
-    if (!limitCheck.allowed) {
+    // Check tier limits before adding product - Free tier fallback if no subscription
+    let limitCheck;
+    try {
+      limitCheck = await canAddProduct(userId);
+    } catch (e) {
+      console.warn('[Subscription] Error checking limits, using free tier defaults:', e);
+      limitCheck = {
+        allowed: true,
+        limit: 30,
+        currentCount: 0,
+        tierName: 'Free',
+        reason: 'Using free tier limits'
+      };
+    }
+
+    // If the reason contains "No active subscription", treat as free tier
+    if (limitCheck.reason && limitCheck.reason.includes('No active subscription')) {
+      console.warn('[Subscription] No subscription found, using free tier defaults');
+      limitCheck = {
+        allowed: true,
+        limit: 30,
+        currentCount: 0,
+        tierName: 'Free',
+        reason: 'Using free tier limits'
+      };
+    }
+
+    // Only block if truly exceeded limits (not missing subscription)
+    if (!limitCheck.allowed && limitCheck.currentCount >= (limitCheck.limit || 30)) {
       const error = new Error(limitCheck.reason || 'Product limit reached');
       error.limitExceeded = true;
       error.limitInfo = limitCheck;

@@ -64,10 +64,18 @@ export async function createSale(sale: Sale, userId?: string): Promise<Sale | nu
       return null;
     }
 
+    // Validate product_id is present
+    const productId = sale.product_id || sale.itemId;
+    if (!productId) {
+      console.error('[supabaseSales] ❌ VALIDATION ERROR: Product ID is required for sales');
+      console.error('[supabaseSales] Sale data that failed validation:', sale);
+      throw new Error('Product selection is required to record a sale');
+    }
+
     // Ensure we have required fields
     const saleData = {
       user_id: actualUserId,  // ALWAYS use auth user ID
-      product_id: sale.product_id || sale.itemId || null,
+      product_id: productId,  // Validated to be non-null
       product_name: sale.product_name || sale.itemName || 'Unknown Product',
       quantity: sale.quantity || 1,
       unit_price: sale.unit_price || 0,

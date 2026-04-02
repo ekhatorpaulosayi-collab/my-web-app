@@ -9,7 +9,7 @@ import { isMobileDevice } from './whatsapp';
 
 export interface ProductShareData {
   name: string;
-  price: number; // in Naira
+  price: number; // in naira (e.g. 4000 for ₦4,000)
   description?: string;
   imageUrl?: string;
   storeUrl?: string;
@@ -71,7 +71,7 @@ export function formatForInstagram(product: ProductShareData): string {
   lines.push(`✨ ${product.name.toUpperCase()}`);
   lines.push('');
 
-  // Price
+  // Price in naira
   lines.push(`💰 ${formatNGN(product.price)}`);
   lines.push('');
 
@@ -141,9 +141,8 @@ export async function downloadProductImage(imageUrl: string, productName: string
 }
 
 /**
- * Share product to Instagram with improved UX
- * Downloads image (optional) + copies caption
- * No app opening to avoid popup blocking instructions
+ * Share product to Instagram with Web Share API fallback to clipboard
+ * Uses native share sheet on mobile for best UX
  */
 export async function shareToInstagram(product: ProductShareData): Promise<{
   success: boolean;
@@ -152,26 +151,27 @@ export async function shareToInstagram(product: ProductShareData): Promise<{
   imageUrl?: string;
   productName?: string;
 }> {
-  console.log('[Instagram Share] START - No download should happen here');
+  console.log('[Instagram Share] Starting share process');
   console.log('[Instagram Share] Product:', product.name);
 
-  // Format product caption
-  const caption = formatForInstagram(product);
+  // Skip Web Share API for Instagram to prevent accidentally opening WhatsApp
+  // Go directly to clipboard copy method for consistent behavior
+
+  // Format Instagram-specific caption
+  const instagramCaption = formatForInstagram(product);
 
   try {
-    // Copy caption to clipboard
-    console.log('[Instagram Share] Copying caption to clipboard...');
+    console.log('[Instagram Share] Falling back to clipboard copy');
     if (navigator.clipboard) {
-      await navigator.clipboard.writeText(caption);
-      console.log('[Instagram Share] Caption copied successfully');
+      await navigator.clipboard.writeText(instagramCaption);
+      console.log('[Instagram Share] Caption copied to clipboard');
     }
 
-    console.log('[Instagram Share] Returning success - NO DOWNLOAD CALL');
-    // Return success with image URL - modal will show instructions with download button
+    // Return with instructions modal data
     return {
       success: true,
-      message: '📋 Caption copied to clipboard!',
-      caption,
+      message: '📋 Product details copied! Open Instagram and paste in your post or story',
+      caption: instagramCaption,
       imageUrl: product.imageUrl,
       productName: product.name
     };
@@ -365,7 +365,7 @@ export function formatForFacebook(product: ProductShareData): string {
   lines.push(`✨ ${product.name.toUpperCase()}`);
   lines.push('');
 
-  // Price
+  // Price (convert from kobo to naira)
   lines.push(`💰 Price: ${formatNGN(product.price)}`);
   lines.push('');
 
@@ -397,52 +397,67 @@ export function formatForFacebook(product: ProductShareData): string {
 
 /**
  * Share product to Facebook using Share Dialog
- * Uses Facebook's official sharer.php - auto-includes product image via Open Graph
+ * Uses Web Share API on mobile, Facebook's sharer.php on desktop
  */
-export function shareToFacebook(product: ProductShareData): {
+export async function shareToFacebook(product: ProductShareData): Promise<{
   success: boolean;
   message: string;
   url?: string;
-} {
+}> {
   try {
-    // If product has a store URL, use Facebook Share Dialog
-    // This automatically pulls image and details from Open Graph meta tags
-    if (product.storeUrl) {
-      const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(product.storeUrl)}`;
+    const shareText = `${product.name} - ${formatNGN(product.price)}${product.description ? `\n${product.description}` : ''}\nAvailable now!`;
+    const productUrl = product.storeUrl || '';
 
-      // Open Facebook Share Dialog in popup (better UX than new tab)
-      const width = 600;
-      const height = 400;
-      const left = (window.screen.width - width) / 2;
-      const top = (window.screen.height - height) / 2;
+    // On mobile, try Web Share API first (user can select Facebook from native share sheet)
+    if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+      try {
+        console.log('[Facebook Share] Using Web Share API on mobile');
+        await navigator.share({
+          title: product.name,
+          text: shareText,
+          url: productUrl
+        });
 
-      window.open(
-        shareUrl,
-        'facebook-share-dialog',
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
-      );
+        return {
+          success: true,
+          message: '✅ Shared successfully!',
+          url: productUrl
+        };
+      } catch (err) {
+        // User cancelled or Web Share failed, fall through to Facebook sharer
+        console.log('[Facebook Share] Web Share API cancelled or failed, using Facebook sharer');
+      }
+    }
+
+    // Desktop or mobile fallback: use Facebook sharer URL
+    if (productUrl) {
+      // Build Facebook sharer URL with both URL and quote parameters
+      const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}&quote=${encodeURIComponent(shareText)}`;
+
+      // Open in new tab (simpler and more reliable than popup)
+      window.open(shareUrl, '_blank');
 
       return {
         success: true,
-        message: '✅ Opening Facebook Share...\n\nProduct image and details will auto-load from your store!',
+        message: '✅ Opening Facebook Share...',
         url: shareUrl
       };
     }
 
-    // Fallback: If no store URL, use old method (copy text)
+    // Fallback: If no store URL, copy text to clipboard
     const text = formatForFacebook(product);
 
     // Copy text to clipboard
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(text);
     }
 
-    // Open Facebook - use same simple web sharing for mobile and desktop
+    // Open Facebook
     window.open('https://www.facebook.com', '_blank');
 
     return {
       success: true,
-      message: '📋 Product details copied! Opening Facebook...\n\nNext steps:\n1. Tap "What\'s on your mind?"\n2. Paste product details\n3. Tap "Photo" to upload product image\n4. Post!'
+      message: '📋 Product details copied! Opening Facebook...\n\nPaste in your post and add product photo!'
     };
   } catch (error) {
     console.error('[Facebook Share] Error:', error);

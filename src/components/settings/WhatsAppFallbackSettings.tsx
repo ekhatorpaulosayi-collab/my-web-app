@@ -14,19 +14,19 @@ export default function WhatsAppFallbackSettings({
   whatsappNumber,
   disabled = false
 }: WhatsAppFallbackSettingsProps) {
-  // Default to 5 minutes if no value set
-  const fallbackMinutes = value || 5;
+  // Default to 2 minutes if no value set
+  const fallbackMinutes = value || 2;
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(Number(e.target.value));
   };
 
   const presetOptions = [
-    { label: '1 min', value: 1, description: 'Quick response' },
-    { label: '3 min', value: 3, description: 'Short wait' },
-    { label: '5 min', value: 5, description: 'Recommended' },
-    { label: '10 min', value: 10, description: 'Patient customers' },
-    { label: '15 min', value: 15, description: 'Maximum wait' }
+    { label: '1 min', value: 1, description: 'Very quick' },
+    { label: '2 min', value: 2, description: 'Recommended' },
+    { label: '3 min', value: 3, description: 'Balanced' },
+    { label: '5 min', value: 5, description: 'Patient' },
+    { label: '10 min', value: 10, description: 'Maximum wait' }
   ];
 
   const isDisabled = disabled || !whatsappNumber;

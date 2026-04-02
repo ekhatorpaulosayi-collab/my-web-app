@@ -43,6 +43,9 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const { profile } = useBusinessProfile();
 
+  // Debug log to see exact price value
+  console.log('[ProductShareMenu] Received product price:', product.price, 'Type:', typeof product.price, 'Full product:', product);
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -135,7 +138,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
           result = await shareToWhatsAppStatus(shareData);
           break;
         case 'facebook':
-          result = shareToFacebook(shareData);
+          result = await shareToFacebook(shareData);
           break;
         case 'tiktok':
           result = shareToTikTok(shareData);

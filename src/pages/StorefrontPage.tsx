@@ -1057,7 +1057,7 @@ function StorefrontContent() {
                         product={{
                           id: product.id,
                           name: product.name,
-                          price: product.selling_price,
+                          price: product.selling_price / 100, // Convert from kobo to naira
                           description: product.description,
                           imageUrl: product.image_url
                         }}

@@ -70,12 +70,15 @@ export const AIUsageCounter: React.FC<AIUsageCounterProps> = ({
   // Compact view for header/widget
   if (compact) {
     return (
-      <div className={`ai-usage-compact ${isExhausted ? 'exhausted' : isLowCredits ? 'low' : ''}`}>
+      <div
+        className={`ai-usage-compact ${isExhausted ? 'exhausted' : isLowCredits ? 'low' : ''}`}
+        title={`${usage.tierName} Tier: ${usage.chatsUsed.toLocaleString()} of ${usage.totalLimit.toLocaleString()} AI chats used this month`}
+      >
         <div className="usage-icon">
           {isExhausted ? <Lock size={16} /> : <Zap size={16} />}
         </div>
         <span className="usage-text">
-          {isExhausted ? 'AI Locked' : `${usage.chatsRemaining} AI`}
+          {isExhausted ? 'AI Locked' : `${usage.chatsRemaining.toLocaleString()} AI left`}
         </span>
         {(isLowCredits || isExhausted) && (
           <button className="upgrade-btn-compact" onClick={handleUpgradeClick}>

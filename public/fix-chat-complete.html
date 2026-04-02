@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complete Chat Fix - 3 Step Process</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin: 0 0 10px 0;
+      font-size: 32px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 18px;
+      margin: 0;
+    }
+    .step-card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .step-number {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-right: 20px;
+    }
+    .step-title {
+      flex: 1;
+    }
+    .step-title h2 {
+      margin: 0;
+      color: #333;
+      font-size: 24px;
+    }
+    .step-title p {
+      margin: 5px 0 0 0;
+      color: #666;
+      font-size: 16px;
+    }
+    .sql-box {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 20px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      max-height: 400px;
+      overflow-y: auto;
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .copy-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .copy-button:hover {
+      background: #6366f1;
+    }
+    .copy-button.copied {
+      background: #10b981;
+    }
+    .warning-box {
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #92400e;
+    }
+    .success-box {
+      background: #dcfce7;
+      border: 2px solid #22c55e;
+      border-radius: 8px;
+      padding: 15px;
+      color: #14532d;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .action-button {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .action-button:hover {
+      background: #6366f1;
+    }
+    .comment { color: #608b4e; }
+    .keyword { color: #569cd6; }
+    .string { color: #ce9178; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔧 Complete Chat Visibility Fix - 3 Step Process</h1>
+      <p class="subtitle">Follow these steps in order to fix the duplicate function error and enable customer message visibility</p>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">
+          <h2>Check Existing Functions</h2>
+          <p>First, let's see what send_agent_message functions exist in your database</p>
+        </div>
+      </div>
+
+      <div class="sql-box" id="sql1">
+        <button class="copy-button" onclick="copySQL('sql1')">📋 Copy SQL</button>
+        <pre><span class="comment">-- Check what send_agent_message functions exist in the database</span>
+<span class="keyword">SELECT</span>
+    p.proname <span class="keyword">AS</span> function_name,
+    pg_get_function_identity_arguments(p.oid) <span class="keyword">AS</span> arguments,
+    n.nspname <span class="keyword">AS</span> schema_name
+<span class="keyword">FROM</span> pg_proc p
+<span class="keyword">LEFT JOIN</span> pg_namespace n <span class="keyword">ON</span> p.pronamespace = n.oid
+<span class="keyword">WHERE</span> p.proname = <span class="string">'send_agent_message'</span>
+<span class="keyword">ORDER BY</span> p.proname, p.oid;</pre>
+      </div>
+
+      <div class="warning-box">
+        ⚠️ <strong>Note the results:</strong> This will show you all versions of the send_agent_message function. You'll need this information for Step 2.
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <div class="step-title">
+          <h2>Apply RLS Policies and Table Structure</h2>
+          <p>This fixes all policies and table structure WITHOUT touching the function</p>
+        </div>
+      </div>
+
+      <div class="sql-box" id="sql2">
+        <button class="copy-button" onclick="copySQL('sql2')">📋 Copy SQL</button>
+        <pre><span class="comment">-- Fix Chat Agent Takeover: Customer Message Visibility (POLICIES ONLY)</span>
+
+<span class="comment">-- 1. Fix RLS Policies for ai_chat_messages</span>
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Users can view their own messages"</span> <span class="keyword">ON</span> ai_chat_messages;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Enable read access for all users"</span> <span class="keyword">ON</span> ai_chat_messages;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Enable insert for authenticated users only"</span> <span class="keyword">ON</span> ai_chat_messages;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Enable update for users based on user_id"</span> <span class="keyword">ON</span> ai_chat_messages;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Anyone can view messages in public conversations"</span> <span class="keyword">ON</span> ai_chat_messages;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Authenticated users can insert messages"</span> <span class="keyword">ON</span> ai_chat_messages;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Agents can update messages"</span> <span class="keyword">ON</span> ai_chat_messages;
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Anyone can view messages in public conversations"</span>
+<span class="keyword">ON</span> ai_chat_messages <span class="keyword">FOR SELECT</span>
+<span class="keyword">USING</span> (true);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Authenticated users can insert messages"</span>
+<span class="keyword">ON</span> ai_chat_messages <span class="keyword">FOR INSERT</span>
+<span class="keyword">WITH CHECK</span> (auth.uid() <span class="keyword">IS NOT NULL</span>);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Agents can update messages"</span>
+<span class="keyword">ON</span> ai_chat_messages <span class="keyword">FOR UPDATE</span>
+<span class="keyword">USING</span> (
+  agent_id = auth.uid() <span class="keyword">OR</span>
+  auth.uid() <span class="keyword">IN</span> (<span class="keyword">SELECT</span> id <span class="keyword">FROM</span> auth.users <span class="keyword">WHERE</span> raw_user_meta_data->><span class="string">'role'</span> = <span class="string">'admin'</span>)
+);
+
+<span class="comment">-- 2. Fix RLS Policies for ai_chat_conversations</span>
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Users can view their own conversations"</span> <span class="keyword">ON</span> ai_chat_conversations;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Enable read access for all users"</span> <span class="keyword">ON</span> ai_chat_conversations;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Anyone can view conversations"</span> <span class="keyword">ON</span> ai_chat_conversations;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Anyone can create conversations"</span> <span class="keyword">ON</span> ai_chat_conversations;
+<span class="keyword">DROP POLICY IF EXISTS</span> <span class="string">"Agents can update conversations"</span> <span class="keyword">ON</span> ai_chat_conversations;
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Anyone can view conversations"</span>
+<span class="keyword">ON</span> ai_chat_conversations <span class="keyword">FOR SELECT</span>
+<span class="keyword">USING</span> (true);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Anyone can create conversations"</span>
+<span class="keyword">ON</span> ai_chat_conversations <span class="keyword">FOR INSERT</span>
+<span class="keyword">WITH CHECK</span> (true);
+
+<span class="keyword">CREATE POLICY</span> <span class="string">"Agents can update conversations"</span>
+<span class="keyword">ON</span> ai_chat_conversations <span class="keyword">FOR UPDATE</span>
+<span class="keyword">USING</span> (
+  agent_id = auth.uid() <span class="keyword">OR</span>
+  auth.uid() <span class="keyword">IN</span> (<span class="keyword">SELECT</span> id <span class="keyword">FROM</span> auth.users <span class="keyword">WHERE</span> raw_user_meta_data->><span class="string">'role'</span> = <span class="string">'admin'</span>)
+);
+
+<span class="comment">-- 3. Add missing columns if they don't exist</span>
+<span class="keyword">ALTER TABLE</span> ai_chat_messages
+<span class="keyword">ADD COLUMN IF NOT EXISTS</span> is_agent_message <span class="keyword">BOOLEAN DEFAULT</span> false;
+
+<span class="keyword">ALTER TABLE</span> ai_chat_messages
+<span class="keyword">ADD COLUMN IF NOT EXISTS</span> agent_id <span class="keyword">UUID REFERENCES</span> auth.users(id);
+
+<span class="keyword">ALTER TABLE</span> ai_chat_messages
+<span class="keyword">ADD COLUMN IF NOT EXISTS</span> sender_type <span class="keyword">TEXT DEFAULT</span> <span class="string">'customer'</span>;
+
+<span class="keyword">ALTER TABLE</span> ai_chat_conversations
+<span class="keyword">ADD COLUMN IF NOT EXISTS</span> takeover_status <span class="keyword">TEXT DEFAULT</span> <span class="string">'ai'</span>;
+
+<span class="keyword">ALTER TABLE</span> ai_chat_conversations
+<span class="keyword">ADD COLUMN IF NOT EXISTS</span> is_agent_active <span class="keyword">BOOLEAN DEFAULT</span> false;
+
+<span class="keyword">ALTER TABLE</span> ai_chat_conversations
+<span class="keyword">ADD COLUMN IF NOT EXISTS</span> agent_id <span class="keyword">UUID REFERENCES</span> auth.users(id);
+
+<span class="comment">-- 4. Grant necessary permissions</span>
+<span class="keyword">GRANT</span> USAGE <span class="keyword">ON SCHEMA</span> public <span class="keyword">TO</span> anon, authenticated;
+<span class="keyword">GRANT ALL ON</span> ai_chat_messages <span class="keyword">TO</span> anon, authenticated;
+<span class="keyword">GRANT ALL ON</span> ai_chat_conversations <span class="keyword">TO</span> anon, authenticated;
+
+<span class="comment">-- 5. Enable RLS</span>
+<span class="keyword">ALTER TABLE</span> ai_chat_messages <span class="keyword">ENABLE ROW LEVEL SECURITY</span>;
+<span class="keyword">ALTER TABLE</span> ai_chat_conversations <span class="keyword">ENABLE ROW LEVEL SECURITY</span>;
+
+<span class="comment">-- 6. Create indexes for better performance</span>
+<span class="keyword">CREATE INDEX IF NOT EXISTS</span> idx_messages_conversation_id <span class="keyword">ON</span> ai_chat_messages(conversation_id);
+<span class="keyword">CREATE INDEX IF NOT EXISTS</span> idx_messages_agent_id <span class="keyword">ON</span> ai_chat_messages(agent_id);
+<span class="keyword">CREATE INDEX IF NOT EXISTS</span> idx_messages_is_agent <span class="keyword">ON</span> ai_chat_messages(is_agent_message);
+<span class="keyword">CREATE INDEX IF NOT EXISTS</span> idx_conversations_agent_id <span class="keyword">ON</span> ai_chat_conversations(agent_id);
+<span class="keyword">CREATE INDEX IF NOT EXISTS</span> idx_conversations_takeover_status <span class="keyword">ON</span> ai_chat_conversations(takeover_status);
+
+<span class="keyword">SELECT</span> <span class="string">'RLS policies and table structure fixed!'</span> <span class="keyword">as</span> status;</pre>
+      </div>
+
+      <div class="success-box">
+        ✅ This should run without errors and fix the visibility issues
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <div class="step-title">
+          <h2>Drop and Recreate Function (Optional)</h2>
+          <p>Based on Step 1 results, drop the specific function versions found</p>
+        </div>
+      </div>
+
+      <div class="warning-box">
+        ⚠️ <strong>Important:</strong> Replace the function signatures below with the exact ones from Step 1's results
+      </div>
+
+      <div class="sql-box" id="sql3">
+        <button class="copy-button" onclick="copySQL('sql3')">📋 Copy SQL</button>
+        <pre><span class="comment">-- Drop specific function versions based on Step 1 results</span>
+<span class="comment">-- REPLACE these with the exact signatures from Step 1!</span>
+
+<span class="keyword">DROP FUNCTION IF EXISTS</span> public.send_agent_message(p_conversation_id uuid, p_message text, p_agent_id uuid) <span class="keyword">CASCADE</span>;
+<span class="keyword">DROP FUNCTION IF EXISTS</span> public.send_agent_message(uuid, text, uuid) <span class="keyword">CASCADE</span>;
+
+<span class="comment">-- After dropping, you can create the new function if needed</span>
+<span class="comment">-- (Only if your application actually uses this function)</span></pre>
+      </div>
+
+      <div class="success-box">
+        🎯 <strong>Note:</strong> You may not need to recreate the function if your application doesn't use it. The RLS policies from Step 2 should be sufficient for customers to see agent messages.
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-title">
+          <h2>✅ Test the Fix</h2>
+          <p>After completing the steps above:</p>
+        </div>
+      </div>
+
+      <ol style="line-height: 1.8; font-size: 16px;">
+        <li>Take over a chat conversation as an agent</li>
+        <li>Send a message from the dashboard</li>
+        <li>Check the customer view - they should now see your messages!</li>
+        <li>The duplicate "human agent has joined" issue should also be resolved</li>
+      </ol>
+
+      <div class="button-group">
+        <a href="https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new" target="_blank" class="action-button">
+          📝 Open Supabase SQL Editor
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function copySQL(id) {
+      const sqlContent = document.querySelector(`#${id} pre`).textContent;
+      navigator.clipboard.writeText(sqlContent).then(() => {
+        const button = document.querySelector(`#${id} .copy-button`);
+        button.textContent = '✅ Copied!';
+        button.classList.add('copied');
+
+        setTimeout(() => {
+          button.textContent = '📋 Copy SQL';
+          button.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

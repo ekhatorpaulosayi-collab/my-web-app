@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, MessageSquare, X, UserCheck, UserX } from 'lucide-react';
+import { Search, Send, MessageSquare, X, UserCheck, UserX, WifiOff, Wifi } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { realtimeManager, setupRealtimeChannel } from '../../utils/supabaseRealtimeHelper';
 
 interface Message {
   id?: string;
@@ -38,6 +39,8 @@ export default function ConversationsPageFixed() {
   const [isTakeoverActive, setIsTakeoverActive] = useState(false);
   const [takeoverSessionId, setTakeoverSessionId] = useState<string | null>(null);
   const [isInitiatingTakeover, setIsInitiatingTakeover] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting' | 'error'>('connecting');
+  const [channelError, setChannelError] = useState<string | null>(null);
 
   const { currentUser: user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -186,18 +189,96 @@ export default function ConversationsPageFixed() {
 
     console.log('[Polling] Starting message polling for conversation:', selectedConversation.id);
 
-    // Set up subscription with fallback to polling
+    // Set up subscription with robust error handling
     const setupSubscription = async () => {
-      // Clean up any existing subscription first
-      if (subscriptionRef.current) {
-        console.log('[Realtime] Cleaning up existing subscription');
-        subscriptionRef.current.unsubscribe();
-        subscriptionRef.current = null;
+      setRealtimeStatus('connecting');
+      setChannelError(null);
+
+      // Clean up any existing channels first
+      await realtimeManager.removeChannel(`conversation-${selectedConversation.id}`);
+
+      try {
+        // Setup realtime channel with the helper
+        const channel = await setupRealtimeChannel(
+          `conversation-${selectedConversation.id}`,
+          [
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ai_chat_messages',
+              filter: `conversation_id=eq.${selectedConversation.id}`,
+              callback: (payload) => {
+                console.log('[Realtime] New message received:', payload);
+                pollMessages('realtime');
+              }
+            },
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'ai_chat_messages',
+              filter: `conversation_id=eq.${selectedConversation.id}`,
+              callback: (payload) => {
+                console.log('[Realtime] Message updated:', payload);
+                pollMessages('realtime');
+              }
+            },
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'ai_chat_conversations',
+              filter: `id=eq.${selectedConversation.id}`,
+              callback: (payload) => {
+                console.log('[Realtime] Conversation updated:', payload);
+                const newConv = payload.new as Conversation;
+                if (newConv.is_agent_active !== undefined) {
+                  setIsTakeoverActive(newConv.is_agent_active);
+                  if (newConv.agent_id) {
+                    setTakeoverSessionId(newConv.session_id);
+                  }
+                }
+              }
+            }
+          ],
+          {
+            onConnect: () => {
+              console.log('[Realtime] Connected successfully');
+              setRealtimeStatus('connected');
+              setChannelError(null);
+
+              // Start polling as backup
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+              }
+              pollingIntervalRef.current = setInterval(() => pollMessages('polling'), 3000);
+            },
+            onError: (error) => {
+              console.error('[Realtime] Connection error:', error);
+              setRealtimeStatus('error');
+              setChannelError('Realtime connection failed. Using fallback polling.');
+
+              // Ensure polling is running as fallback
+              if (!pollingIntervalRef.current) {
+                pollingIntervalRef.current = setInterval(() => pollMessages('polling'), 2000);
+              }
+            }
+          }
+        );
+
+        subscriptionRef.current = channel;
+      } catch (error) {
+        console.error('[Realtime] Failed to setup channel:', error);
+        setRealtimeStatus('error');
+        setChannelError('Failed to establish realtime connection');
+
+        // Fallback to polling only
+        if (!pollingIntervalRef.current) {
+          pollingIntervalRef.current = setInterval(() => pollMessages('polling'), 2000);
+        }
       }
 
-      // Also remove any existing channels for this conversation
+      // Also remove any orphaned channels
       const existingChannels = supabase.getChannels().filter(ch =>
-        ch.topic?.includes(`conversation-${selectedConversation.id}`)
+        ch.topic?.includes(`conversation-`) && !ch.topic?.includes(`conversation-${selectedConversation.id}`)
       );
       existingChannels.forEach(ch => {
         console.log('[Realtime] Removing existing channel:', ch.topic);
@@ -526,30 +607,19 @@ export default function ConversationsPageFixed() {
 
     setSendingMessage(true);
     try {
-      // Update conversation timestamp
-      await supabase
-        .from('ai_chat_conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', selectedConversation.id);
-
-      // Insert agent message
+      // Use the RPC function to send agent message
       const { data, error } = await supabase
-        .from('ai_chat_messages')
-        .insert({
-          conversation_id: selectedConversation.id,
-          role: 'assistant',
-          content: messageText.trim(),
-          is_agent_message: true,
-          agent_id: user?.uid,
-          created_at: new Date().toISOString()
-        })
-        .select();
+        .rpc('send_agent_message', {
+          p_conversation_id: selectedConversation.id,
+          p_message: messageText.trim(),
+          p_agent_id: user?.uid
+        });
 
       if (error) throw error;
 
       // Add message to local state immediately
       const newMessage: Message = {
-        id: data?.[0]?.id || crypto.randomUUID(),
+        id: data?.message_id || crypto.randomUUID(),
         role: 'assistant',
         content: messageText.trim(),
         is_agent_message: true,

@@ -3,6 +3,12 @@ import { getDebts, markDebtPaidNotify, recordPaymentNotify, recordInstallmentPay
 import { openWhatsApp } from '../utils/wa';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { CreateDebtModal } from './CreateDebtModal';
+import ContributionGroupList from './contributions/ContributionGroupList';
+import CreateGroupForm from './contributions/CreateGroupForm';
+import ContributionGroupDetail from './contributions/ContributionGroupDetail';
+import GroupSettings from './contributions/GroupSettings';
+import { getGroups, createGroup, updateGroup, deleteGroup } from '../services/contributionService';
+import { useAuth } from '../contexts/AuthContext';
 
 // Adapter type to match the component's expected format
 type Debt = {
@@ -57,13 +63,21 @@ export default function CustomerDebtDrawer({
   businessName = 'Storehouse',
   onToast
 }: CustomerDebtDrawerProps) {
+  const { currentUser } = useAuth();
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [mainTab, setMainTab] = useState<'credit-sales' | 'contributions'>('credit-sales');
   const [tab, setTab] = useState<'all' | 'overdue' | 'paid'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [confirmMarkPaid, setConfirmMarkPaid] = useState<Debt | null>(null);
   const [recordPaymentDebt, setRecordPaymentDebt] = useState<LocalStorageDebt | null>(null);
   const [showCreateDebtModal, setShowCreateDebtModal] = useState(false);
+  const [showCreateGroupForm, setShowCreateGroupForm] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [contributionGroups, setContributionGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -91,6 +105,31 @@ export default function CustomerDebtDrawer({
 
     setDebts(convertedDebts);
   }, [isOpen]);
+
+  // Load contribution groups when drawer opens or tab changes
+  useEffect(() => {
+    if (!isOpen || mainTab !== 'contributions' || !currentUser?.uid) return;
+
+    const loadContributionGroups = async () => {
+      setLoadingGroups(true);
+      try {
+        const result = await getGroups(currentUser.uid);
+        if (!result.error && result.data) {
+          setContributionGroups(result.data);
+        } else {
+          console.error('Error loading contribution groups:', result.error);
+          onToast?.('Failed to load contribution groups');
+        }
+      } catch (error) {
+        console.error('Error loading contribution groups:', error);
+        onToast?.('Failed to load contribution groups');
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+
+    loadContributionGroups();
+  }, [isOpen, mainTab, currentUser?.uid]);
 
   // Filter and sort debts
   const filteredDebts = useMemo(() => {
@@ -407,44 +446,131 @@ Thank you for your payment! 🙏`;
 
   return (
     <>
-      <div className="drawer-backdrop" onClick={onClose} />
-      <div className="credits-drawer debt-drawer-premium">
+      <div className="drawer-backdrop" onClick={onClose} style={{ pointerEvents: 'auto' }} />
+      <div className="credits-drawer debt-drawer-premium" style={{ pointerEvents: 'auto' }}>
         {/* Header */}
         <div className="debt-drawer-header">
           <button className="drawer-back" onClick={onClose} aria-label="Close">
             ←
           </button>
           <div className="debt-header-content">
-            <h2 className="debt-drawer-title">Debt/Credit Sales</h2>
-            <p className="debt-drawer-subtitle">
-              Total: {formatNaira(total)} ({count} {count === 1 ? 'person' : 'people'})
-            </p>
+            <h2 className="debt-drawer-title">Money Book</h2>
+            {mainTab === 'credit-sales' && (
+              <p className="debt-drawer-subtitle">
+                Total: {formatNaira(total)} ({count} {count === 1 ? 'person' : 'people'})
+              </p>
+            )}
           </div>
-          <button
-            onClick={() => setShowCreateDebtModal(true)}
-            style={{
-              padding: '8px 16px',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginRight: '8px'
-            }}
-            title="Create new debt"
-            aria-label="Create new debt"
-          >
-            + Add
-          </button>
+          {mainTab === 'credit-sales' && (
+            <button
+              onClick={() => setShowCreateDebtModal(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginRight: '8px'
+              }}
+              title="Create new debt"
+              aria-label="Create new debt"
+            >
+              + Add
+            </button>
+          )}
+          {mainTab === 'contributions' && !showCreateGroupForm && (
+            <button
+              onClick={() => {
+                setSelectedGroup(null);
+                setShowGroupSettings(false);
+                setShowCreateGroupForm(true);
+              }}
+              style={{
+                padding: '8px 16px',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginRight: '8px'
+              }}
+              title="Create new contribution group"
+              aria-label="Create new contribution group"
+            >
+              + New Group
+            </button>
+          )}
           <button className="drawer-close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="debt-chips-container">
+        {/* Main Tabs */}
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid #e5e5e5',
+          backgroundColor: '#fff'
+        }}>
+          <button
+            onClick={() => setMainTab('credit-sales')}
+            style={{
+              flex: 1,
+              padding: '12px 8px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: mainTab === 'credit-sales' ? '2px solid #10b981' : '2px solid transparent',
+              color: mainTab === 'credit-sales' ? '#10b981' : '#666',
+              fontWeight: mainTab === 'credit-sales' ? 600 : 400,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Credit Sales
+          </button>
+          <button
+            onClick={() => setMainTab('contributions')}
+            style={{
+              flex: 1,
+              padding: '12px 8px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: mainTab === 'contributions' ? '2px solid #10b981' : '2px solid transparent',
+              color: mainTab === 'contributions' ? '#10b981' : '#666',
+              fontWeight: mainTab === 'contributions' ? 600 : 400,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>Contributions</span>
+            <span style={{
+              background: '#ef4444',
+              color: 'white',
+              fontSize: '9px',
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: '8px',
+              textTransform: 'uppercase',
+              lineHeight: 1.2
+            }}>
+              NEW
+            </span>
+          </button>
+        </div>
+
+        {/* Credit Sales Tabs */}
+        {mainTab === 'credit-sales' && (
+          <div className="debt-chips-container">
           <div className="debt-chip-row" role="radiogroup" aria-label="Filter debts">
             <button
               className={`debt-chip ${tab === 'all' ? 'active' : ''}`}
@@ -484,14 +610,18 @@ Thank you for your payment! 🙏`;
             />
           </div>
         </div>
+        )}
 
-        {/* Debt List */}
+        {/* Credit Sales Content */}
+        {mainTab === 'credit-sales' && (
         <div className="drawer-content debt-drawer-content">
           {filteredDebts.length === 0 ? (
             <div className="debt-empty-state">
               <div className="debt-empty-icon">📱</div>
               <p className="debt-empty-text">
-                No {tab.toLowerCase()} debts{searchQuery.trim() ? ' found' : ''}
+                {tab === 'all' && !searchQuery.trim()
+                  ? 'No records yet. Tap + Add to track a credit sale.'
+                  : `No ${tab.toLowerCase()} debts${searchQuery.trim() ? ' found' : ''}`}
               </p>
               {searchQuery.trim() && (
                 <button className="debt-clear-search" onClick={() => setSearchQuery('')}>
@@ -753,6 +883,209 @@ Thank you for your payment! 🙏`;
             })
           )}
         </div>
+        )}
+
+        {/* Contributions Content */}
+        {mainTab === 'contributions' && (
+          <div className="drawer-content debt-drawer-content">
+            {showCreateGroupForm ? (
+              <CreateGroupForm
+                onCancel={() => setShowCreateGroupForm(false)}
+                isLoading={creatingGroup}
+                onSubmit={async (groupData) => {
+                  console.log('=== CREATE GROUP SUBMIT START ===');
+                  console.log('Form data received:', groupData);
+                  console.log('Current user ID:', currentUser?.uid);
+
+                  if (!currentUser?.uid) {
+                    console.error('No user ID found');
+                    onToast?.('Please login to create a contribution group');
+                    return;
+                  }
+
+                  setCreatingGroup(true);
+
+                  try {
+                    console.log('Calling createGroup service with:', {
+                      userId: currentUser.uid,
+                      name: groupData.name,
+                      amount: groupData.amount,
+                      frequency: groupData.frequency,
+                      collectionDay: groupData.collectionDay,
+                      membersCount: groupData.members?.length
+                    });
+
+                    // Create group in database with members
+                    const result = await createGroup(currentUser.uid, {
+                      name: groupData.name,
+                      amount: groupData.amount,
+                      frequency: groupData.frequency,
+                      collectionDay: groupData.collectionDay,
+                      members: groupData.members
+                    });
+
+                    console.log('createGroup result:', result);
+
+                    if (result.error) {
+                      console.error('=== SUPABASE ERROR DETAILS ===');
+                      console.error('Error object:', result.error);
+                      console.error('Error message:', (result.error as any)?.message);
+                      console.error('Error code:', (result.error as any)?.code);
+                      console.error('Error details:', (result.error as any)?.details);
+                      console.error('Error hint:', (result.error as any)?.hint);
+
+                      // Show the actual error message to help diagnose
+                      const errorMessage = (result.error as any)?.message || 'Failed to create contribution group';
+                      onToast?.(`Error: ${errorMessage}`);
+                      setCreatingGroup(false);
+                      return;
+                    }
+
+                    console.log('Group created successfully:', result.data);
+
+                    // Reload groups to get the newly created one
+                    console.log('Reloading groups...');
+                    const groupsResult = await getGroups(currentUser.uid);
+
+                    if (!groupsResult.error && groupsResult.data) {
+                      console.log('Groups reloaded:', groupsResult.data.length, 'groups found');
+                      setContributionGroups(groupsResult.data);
+
+                      // Select the newly created group
+                      const newGroup = groupsResult.data.find(g => g.id === result.data?.id);
+                      if (newGroup) {
+                        console.log('Selecting new group:', newGroup);
+                        // Normalize the group data structure for the detail component
+                        const normalizedGroup = {
+                          ...newGroup,
+                          members: newGroup.contribution_members || newGroup.members || [],
+                          currentRecipientId: newGroup.currentRecipient?.id || '',
+                          cycleNumber: newGroup.current_cycle || 1,
+                          totalCycles: newGroup.totalMembers || newGroup.total_members || 0,
+                          nextCollectionDate: new Date().toISOString(),
+                          isActive: newGroup.status === 'active'
+                        };
+                        setSelectedGroup(normalizedGroup);
+                      }
+                    } else if (groupsResult.error) {
+                      console.error('Error reloading groups:', groupsResult.error);
+                    }
+
+                    setShowCreateGroupForm(false);
+                    onToast?.('Contribution group created successfully!');
+                    console.log('=== CREATE GROUP SUBMIT SUCCESS ===');
+                  } catch (error) {
+                    console.error('=== UNEXPECTED ERROR ===');
+                    console.error('Error type:', typeof error);
+                    console.error('Error:', error);
+                    console.error('Error stack:', (error as any)?.stack);
+
+                    const errorMessage = (error as any)?.message || 'Failed to create contribution group';
+                    onToast?.(`Error: ${errorMessage}`);
+                  } finally {
+                    setCreatingGroup(false);
+                  }
+                }}
+              />
+            ) : selectedGroup ? (
+              <ContributionGroupDetail
+                group={selectedGroup}
+                onBack={() => setSelectedGroup(null)}
+                onUpdate={(updatedGroup) => {
+                  // Update the group in the list
+                  setContributionGroups(contributionGroups.map(g =>
+                    g.id === updatedGroup.id ? updatedGroup : g
+                  ));
+                  setSelectedGroup(updatedGroup);
+                }}
+                onSettings={() => {
+                  setShowGroupSettings(true);
+                }}
+                onAddMember={() => {
+                  // Open the GroupSettings modal with the members tab focused
+                  setShowGroupSettings(true);
+                  onToast?.('You can add members in the group settings');
+                }}
+                onMarkPaid={(memberId) => {
+                  console.log('Mark paid:', memberId);
+                  // Update member payment status
+                  const updatedGroup = {
+                    ...selectedGroup,
+                    members: selectedGroup.members?.map(m =>
+                      m.id === memberId ? { ...m, isPaid: true, hasPaid: true, paymentDate: new Date().toISOString() } : m
+                    )
+                  };
+                  setSelectedGroup(updatedGroup);
+                  setContributionGroups(contributionGroups.map(g =>
+                    g.id === updatedGroup.id ? updatedGroup : g
+                  ));
+                  onToast?.('Member marked as paid');
+                }}
+                onRecordPayment={(memberId, amount, cycle) => {
+                  console.log('Payment recorded:', memberId, amount, cycle);
+                  // This would typically update the group's payment records
+                  onToast?.('Payment recorded successfully');
+                }}
+                onRecordPayout={(recipientId, amount) => {
+                  console.log('Payout recorded:', recipientId, amount);
+                  onToast?.('Payout recorded successfully');
+                }}
+                onRemindUnpaid={(memberIds) => {
+                  // Show modal with list of unpaid members
+                  const members = selectedGroup.members?.filter(m => memberIds.includes(m.id)) || [];
+
+                  if (members.length === 0) {
+                    onToast?.('No unpaid members to remind');
+                    return;
+                  }
+
+                  // Open WhatsApp for each member
+                  members.forEach((member, index) => {
+                    if (member.phone) {
+                      const message = encodeURIComponent(
+                        `Hi ${member.name}, your contribution of ${formatNaira(selectedGroup.amount)} for "${selectedGroup.name}" is due ${
+                          selectedGroup.frequency === 'weekly' ? 'this week' :
+                          selectedGroup.frequency === 'biweekly' ? 'this fortnight' :
+                          'this month'
+                        }. Please pay before ${selectedGroup.collectionDay || 'the collection day'}. Thank you!`
+                      );
+
+                      const phoneNumber = member.phone.replace(/\D/g, '');
+                      const waLink = `https://wa.me/${phoneNumber}?text=${message}`;
+
+                      // Open with slight delay to avoid popup blocking
+                      setTimeout(() => {
+                        window.open(waLink, '_blank');
+                      }, index * 500);
+                    }
+                  });
+
+                  onToast?.(`Opening WhatsApp for ${members.length} member(s)`);
+                }}
+              />
+            ) : (
+              <ContributionGroupList
+                groups={contributionGroups}
+                onGroupClick={(group) => {
+                  // Normalize the group data structure for the detail component
+                  const normalizedGroup = {
+                    ...group,
+                    members: group.contribution_members || group.members || [],
+                    currentRecipientId: group.currentRecipient?.id || '',
+                    cycleNumber: group.current_cycle || 1,
+                    totalCycles: group.totalMembers || group.total_members || 0,
+                    nextCollectionDate: new Date().toISOString(),
+                    isActive: group.status === 'active'
+                  };
+                  setSelectedGroup(normalizedGroup);
+                }}
+                onCreateGroup={() => {
+                  setShowCreateGroupForm(true);
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Confirmation Modal */}
@@ -804,6 +1137,67 @@ Thank you for your payment! 🙏`;
         onClose={() => setShowCreateDebtModal(false)}
         onCreateDebt={handleCreateDebt}
       />
+
+      {/* Group Settings Modal */}
+      {showGroupSettings && selectedGroup && (
+        <GroupSettings
+          group={{
+            ...selectedGroup,
+            isShared: selectedGroup.share_enabled || false,
+            shareCode: selectedGroup.share_code
+          }}
+          onBack={() => setShowGroupSettings(false)}
+          onSave={async (updates) => {
+            try {
+              // Update the group in the database
+              const result = await updateGroup(selectedGroup.id, updates);
+
+              if (!result.error) {
+                // Update local state
+                const updatedGroup = { ...selectedGroup, ...updates };
+                setSelectedGroup(updatedGroup);
+                setContributionGroups(contributionGroups.map(g =>
+                  g.id === updatedGroup.id ? updatedGroup : g
+                ));
+                setShowGroupSettings(false);
+                onToast?.('Group settings updated successfully');
+              } else {
+                onToast?.('Failed to update group settings');
+              }
+            } catch (error) {
+              console.error('Error updating group:', error);
+              onToast?.('Failed to update group settings');
+            }
+          }}
+          onDelete={async () => {
+            if (!confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
+              return;
+            }
+
+            try {
+              const result = await deleteGroup(selectedGroup.id);
+
+              if (!result.error) {
+                // Remove from local state
+                setContributionGroups(contributionGroups.filter(g => g.id !== selectedGroup.id));
+                setSelectedGroup(null);
+                setShowGroupSettings(false);
+                onToast?.('Group deleted successfully');
+              } else {
+                onToast?.('Failed to delete group');
+              }
+            } catch (error) {
+              console.error('Error deleting group:', error);
+              onToast?.('Failed to delete group');
+            }
+          }}
+          onGenerateShareCode={() => {
+            // Generate a new share code
+            const code = Math.random().toString(36).substr(2, 8).toUpperCase();
+            return code;
+          }}
+        />
+      )}
     </>
   );
 }

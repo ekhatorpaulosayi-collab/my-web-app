@@ -1,0 +1,2093 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from 'react-router-dom';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
+import { searchDocumentation, getSuggestedQuestions, getDocById } from '../utils/docSearch';
+import { useAppContext } from '../hooks/useAppContext';
+import { trackStorefrontChat } from '../services/chatTrackingService';
+import SupportEscalation from './SupportEscalation';
+import WhatsAppFallbackTimer from './chat/WhatsAppFallbackTimer';
+import { BookOpen, Zap, MessageCircle, UserCheck } from 'lucide-react';
+import { Documentation } from '../types/documentation';
+import { getSmartQuestionsForContext, getTopQuestions } from '../data/smartQuestions';
+
+interface Message {
+  id?: string; // UUID from database for deduplication
+  isLocal?: boolean; // Flag for optimistically added messages
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  docReferences?: string[]; // IDs of referenced docs
+  quickActions?: QuickAction[];
+}
+
+interface QuickAction {
+  label: string;
+  action: () => void;
+}
+
+// Simple markdown-to-JSX renderer for chat messages
+function renderMarkdown(text: string): React.ReactNode {
+  console.log('[renderMarkdown] Rendering text:', text.substring(0, 100));
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, lineIndex) => {
+    // Handle horizontal rules (---)
+    if (line.trim() === '---') {
+      elements.push(<hr key={lineIndex} style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />);
+      return;
+    }
+
+    // Handle headings (## text)
+    const headingMatch = line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ fontWeight: 700, fontSize: '1.0625rem', marginTop: '8px', marginBottom: '4px' }}>
+          {parseInlineMarkdown(headingMatch[1])}
+        </div>
+      );
+      return;
+    }
+
+    // Handle numbered lists (1️⃣ or 1. text)
+    const numberedMatch = line.match(/^(\d+[️⃣.])\s+(.+)$/);
+    if (numberedMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ marginLeft: '8px', marginTop: '4px' }}>
+          <span style={{ fontWeight: 600 }}>{numberedMatch[1]}</span> {parseInlineMarkdown(numberedMatch[2])}
+        </div>
+      );
+      return;
+    }
+
+    // Handle bullet lists (✅ or - or • text)
+    const bulletMatch = line.match(/^([✅🎉📧💬📞🔵🟢🟣→•-])\s+(.+)$/);
+    if (bulletMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ marginLeft: '8px', marginTop: '4px' }}>
+          {bulletMatch[1]} {parseInlineMarkdown(bulletMatch[2])}
+        </div>
+      );
+      return;
+    }
+
+    // Regular text with inline markdown
+    if (line.trim()) {
+      elements.push(
+        <div key={lineIndex} style={{ marginTop: '4px' }}>
+          {parseInlineMarkdown(line)}
+        </div>
+      );
+    } else {
+      // Empty line = spacing
+      elements.push(<div key={lineIndex} style={{ height: '4px' }} />);
+    }
+  });
+
+  // Wrap in a div for better mobile rendering instead of Fragment
+  return <div style={{ display: 'contents' }}>{elements}</div>;
+}
+
+// Parse inline markdown (bold, links)
+function parseInlineMarkdown(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Check for markdown link [text](url)
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (linkMatch) {
+      const linkText = linkMatch[1];
+      const linkUrl = linkMatch[2];
+      console.log('[parseInlineMarkdown] Found link:', { linkText, linkUrl });
+      parts.push(
+        <a
+          key={key++}
+          href={linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#667eea',
+            fontWeight: 600,
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          }}
+          onClick={async (e) => {
+            e.stopPropagation();
+            console.log('[AIChatWidget] Link clicked:', linkUrl);
+
+            // Track click analytics
+            try {
+              const eventType = linkUrl.includes('signup') ? 'signup_clicked' :
+                               linkUrl.includes('support') || linkUrl.includes('mailto') ? 'support_clicked' :
+                               'link_clicked';
+
+              await fetch(`${supabaseUrl}/functions/v1/track-chat-event`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': supabaseAnonKey,
+                },
+                body: JSON.stringify({
+                  eventType,
+                  linkUrl,
+                  userType,
+                }),
+              }).catch(err => console.error('Analytics tracking failed:', err));
+            } catch (err) {
+              console.error('Failed to track link click:', err);
+            }
+          }}
+        >
+          {linkText}
+        </a>
+      );
+      remaining = remaining.substring(linkMatch[0].length);
+      continue;
+    }
+
+    // Check for bold **text**
+    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
+    if (boldMatch) {
+      parts.push(<strong key={key++}>{boldMatch[1]}</strong>);
+      remaining = remaining.substring(boldMatch[0].length);
+      continue;
+    }
+
+    // Regular text until next markdown
+    const nextSpecial = remaining.search(/\[|\*\*/);
+    if (nextSpecial === -1) {
+      // No more markdown, add rest as text
+      parts.push(<span key={key++}>{remaining}</span>);
+      break;
+    } else {
+      // Add text before next markdown
+      parts.push(<span key={key++}>{remaining.substring(0, nextSpecial)}</span>);
+      remaining = remaining.substring(nextSpecial);
+    }
+  }
+
+  return <span style={{ display: 'inline' }}>{parts}</span>;
+}
+
+interface AIChatWidgetProps {
+  contextType?: 'onboarding' | 'help' | 'storefront' | 'business-advisory';
+  storeSlug?: string;
+  autoOpen?: boolean;
+  persistentBubble?: boolean;  // PHASE 1: Always show chat bubble even if not auto-opening
+  storeInfo?: {
+    businessName?: string;
+    aboutUs?: string;
+    address?: string;
+    whatsappNumber?: string;
+    deliveryAreas?: string;
+    deliveryTime?: string;
+    businessHours?: string;
+    returnPolicy?: string;
+  };
+}
+
+export default function AIChatWidget({
+  contextType = 'onboarding',
+  storeSlug,
+  autoOpen = false,
+  persistentBubble = false,  // PHASE 1: Default false for backward compatibility
+  storeInfo: propsStoreInfo  // Rename to avoid conflict
+}: AIChatWidgetProps) {
+  // Removed excessive logging - was causing performance issues
+  // console.log('[AIChatWidget] Component mounted!', { contextType, autoOpen });
+  const { user } = useAuth();
+  const location = useLocation();
+  const appContext = useAppContext(); // Get app context for personalization
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [quotaInfo, setQuotaInfo] = useState<any>(null);
+  const [showSupport, setShowSupport] = useState(false);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
+  const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
+  const [shouldPulse, setShouldPulse] = useState(false); // For first-visit animation
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [hasModalOpen, setHasModalOpen] = useState(false); // Track when modals are open
+  const [isAgentActive, setIsAgentActive] = useState(false); // Track agent takeover
+  const [conversationId, setConversationId] = useState<string | null>(null); // Track conversation ID
+  const [takeoverStatus, setTakeoverStatus] = useState<'ai' | 'requested' | 'agent' | 'ended'>('ai'); // Track specific takeover status
+
+  // Use ref to track agent state for real-time subscription
+  const isAgentActiveRef = useRef(isAgentActive);
+  useEffect(() => {
+    isAgentActiveRef.current = isAgentActive;
+  }, [isAgentActive]);
+  const [storeData, setStoreData] = useState<{
+    id: string;
+    whatsapp_number?: string;
+    wa_fallback_minutes?: number;
+    business_hours?: string | null;
+    days_of_operation?: string | null;
+  } | null>(null); // Store data for WhatsApp fallback
+  const [lastCustomerMessage, setLastCustomerMessage] = useState<string>(''); // Track last message for WhatsApp context
+  const [customerMessageCount, setCustomerMessageCount] = useState(0); // Track number of customer messages
+  const [needsHumanHelp, setNeedsHumanHelp] = useState(false); // Track if AI suggested human help
+  const [isWithinBusinessHours, setIsWithinBusinessHours] = useState<boolean | null>(null); // Track business hours
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastMessageTimestampRef = useRef<string | null>(null);
+
+  // Handle desktop detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Detect when modals are open for smart positioning
+  useEffect(() => {
+    const checkForModals = () => {
+      // More comprehensive modal detection
+      const hasEODModal = document.querySelector('.eod-modal') !== null;
+      const hasModalOverlay = document.querySelector('.modal-overlay') !== null;
+      const hasSheetModal = document.querySelector('.sheet-overlay') !== null;
+      const hasBottomSheet = document.querySelector('.bottom-sheet') !== null;
+      const hasActionSheet = document.querySelector('.action-sheet') !== null;
+
+      // Check if any element has "Send EOD Report" or "Send via WhatsApp" text
+      const hasEODReportText = Array.from(document.querySelectorAll('h2, button')).some(el =>
+        el.textContent?.includes('Send EOD Report') ||
+        el.textContent?.includes('Send via WhatsApp')
+      );
+
+      const hasAnyModal = hasEODModal || hasModalOverlay || hasSheetModal ||
+                         hasBottomSheet || hasActionSheet || hasEODReportText;
+
+      if (hasAnyModal !== hasModalOpen) {
+        console.log('[AIChatWidget] Modal state changed:', hasAnyModal, {
+          hasEODModal, hasModalOverlay, hasSheetModal, hasEODReportText
+        });
+        setHasModalOpen(hasAnyModal);
+      }
+    };
+
+    // Check initially
+    checkForModals();
+
+    // Set up observer to detect DOM changes
+    const observer = new MutationObserver(checkForModals);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+
+    // Also listen for custom events if needed
+    const interval = setInterval(checkForModals, 250); // More frequent checks
+
+    return () => {
+      observer.disconnect();
+      clearInterval(interval);
+    };
+  }, [hasModalOpen]);
+
+  // Detect user type (visitor, shopper, or authenticated user)
+  // IMPORTANT: Wait for auth to load before setting userType
+  useEffect(() => {
+    console.log('[AIChatWidget] Auth check starting...', {
+      hasUserFromContext: !!user,
+      userIdFromContext: user?.id,
+      storeSlug
+    });
+
+    // Give auth context time to load (check session)
+    const checkAuth = async () => {
+      try {
+        console.log('[AIChatWidget] Checking Supabase session...');
+
+        // Check Supabase session directly
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        console.log('[AIChatWidget] Session check result:', {
+          hasSession: !!session,
+          sessionUserId: session?.user?.id,
+          hasUser: !!user,
+          userIdFromContext: user?.id,
+          error: error?.message
+        });
+
+        // PRIORITY 1: If on storefront, ALWAYS use shopper mode (even if logged in)
+        if (storeSlug && contextType === 'storefront') {
+          setUserType('shopper'); // Storefront = shopping assistant (always!)
+          console.log('[AIChatWidget] 🛍️ Storefront mode - userType set to: shopper', { storeSlug, isLoggedIn: !!(session?.user || user) });
+        } else if (session?.user || user) {
+          setUserType('user'); // Logged in on dashboard/admin = user mode
+          console.log('[AIChatWidget] ✅ User detected - userType set to: user', {
+            userId: user?.id,
+            hasAuthContext: !!user,
+            hasSession: !!session
+          });
+        } else {
+          setUserType('visitor'); // Landing page = marketing mode
+          console.log('[AIChatWidget] 👋 No user - userType set to: visitor');
+        }
+      } catch (err) {
+        console.error('[AIChatWidget] Auth check error:', err);
+        setUserType('visitor');
+      }
+    };
+
+    checkAuth();
+  }, [user, storeSlug]);
+
+  // Fetch initial quota info for authenticated users
+  useEffect(() => {
+    const fetchQuotaInfo = async () => {
+      if (userType === 'user' && user?.id) {
+        try {
+          // Call the check_chat_quota function to get current usage
+          const { data, error } = await supabase.rpc('check_chat_quota', {
+            p_user_id: user.id,
+            p_context_type: contextType || 'help'
+          });
+
+          if (data && !error) {
+            setQuotaInfo({
+              chatsUsed: data.chats_used,
+              chatLimit: data.chat_limit,
+              remaining: data.remaining,
+              isGrandfathered: data.is_grandfathered
+            });
+
+            console.log('[AIChatWidget] Quota info fetched:', {
+              used: data.chats_used,
+              limit: data.chat_limit,
+              remaining: data.remaining
+            });
+          }
+        } catch (err) {
+          console.error('[AIChatWidget] Error fetching quota:', err);
+        }
+      }
+    };
+
+    fetchQuotaInfo();
+  }, [userType, user?.id, contextType]);
+
+  // Trigger gentle pulse for first-time visitors
+  useEffect(() => {
+    const hasUsedChat = localStorage.getItem('storehouse_chat_used');
+    if (!hasUsedChat && !isOpen) {
+      // Wait 5 seconds then pulse 3 times
+      const timer = setTimeout(() => {
+        setShouldPulse(true);
+        // Stop pulsing after animation completes (3 pulses = 6 seconds)
+        setTimeout(() => setShouldPulse(false), 6000);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  // Helper function to check if current time is within business hours
+  const checkBusinessHours = (businessHours: any, daysOfOperation: any): boolean => {
+    try {
+      // Check if both values exist
+      if (!businessHours || !daysOfOperation) {
+        // No business hours configured = no human takeover available
+        return false;
+      }
+
+      const now = new Date();
+      const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+      // Handle days_of_operation - could be string, array, or need JSON parsing
+      let daysArray: string[] = [];
+      if (Array.isArray(daysOfOperation)) {
+        // If it's already an array, convert each element to lowercase string
+        daysArray = daysOfOperation.map(d => String(d).toLowerCase().trim());
+      } else if (typeof daysOfOperation === 'string') {
+        // Try to parse as JSON first
+        try {
+          const parsed = JSON.parse(daysOfOperation);
+          if (Array.isArray(parsed)) {
+            daysArray = parsed.map(d => String(d).toLowerCase().trim());
+          } else {
+            // Assume comma-separated string
+            daysArray = daysOfOperation.toLowerCase().split(',').map(d => d.trim());
+          }
+        } catch {
+          // Not JSON, assume comma-separated string
+          daysArray = daysOfOperation.toLowerCase().split(',').map(d => d.trim());
+        }
+      } else {
+        // Unknown format, can't process
+        return false;
+      }
+
+      // Check if today is in days of operation
+      if (!daysArray.includes(currentDay)) {
+        return false;
+      }
+
+      // Parse business hours - could be JSON or string format
+      let startTime: string, endTime: string;
+
+      if (typeof businessHours === 'string') {
+        // Try to parse as JSON first (like {"open": "08:00", "close": "23:00"})
+        try {
+          const parsed = JSON.parse(businessHours);
+          if (parsed.open && parsed.close) {
+            // Convert 24-hour format to 12-hour format if needed
+            const convertTo12Hour = (time24: string): string => {
+              const [hours, minutes] = time24.split(':').map(Number);
+              const period = hours >= 12 ? 'PM' : 'AM';
+              const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+              return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+            };
+            startTime = convertTo12Hour(parsed.open);
+            endTime = convertTo12Hour(parsed.close);
+          } else {
+            // JSON but wrong format
+            return false;
+          }
+        } catch {
+          // Not JSON, try to parse as "9:00 AM - 5:00 PM" format
+          const parts = businessHours.split('-').map(t => t.trim());
+          if (parts.length !== 2) {
+            return false;
+          }
+          [startTime, endTime] = parts;
+        }
+      } else if (typeof businessHours === 'object' && businessHours.open && businessHours.close) {
+        // Already an object with open/close properties
+        const convertTo12Hour = (time24: string): string => {
+          const [hours, minutes] = time24.split(':').map(Number);
+          const period = hours >= 12 ? 'PM' : 'AM';
+          const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+          return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+        };
+        startTime = convertTo12Hour(businessHours.open);
+        endTime = convertTo12Hour(businessHours.close);
+      } else {
+        // Unknown format
+        return false;
+      }
+
+      // Convert current time to comparable format
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+      // Parse start time
+      const parseTime = (timeStr: string): number => {
+        const [time, period] = timeStr.split(' ');
+        const [hours, minutes] = time.split(':').map(Number);
+        let hour24 = hours;
+        if (period === 'PM' && hours !== 12) hour24 += 12;
+        if (period === 'AM' && hours === 12) hour24 = 0;
+        return hour24 * 60 + minutes;
+      };
+
+      const startMinutes = parseTime(startTime);
+      const endMinutes = parseTime(endTime);
+
+      return currentTimeInMinutes >= startMinutes && currentTimeInMinutes <= endMinutes;
+    } catch (err) {
+      console.error('[AIChatWidget] Error parsing business hours:', err);
+      return false;
+    }
+  };
+
+  // Update business hours status when store data changes
+  useEffect(() => {
+    if (storeData) {
+      const isOpen = checkBusinessHours(storeData.business_hours, storeData.days_of_operation);
+      setIsWithinBusinessHours(isOpen);
+      console.log('[AIChatWidget] Business hours check:', {
+        isOpen,
+        businessHours: storeData.business_hours,
+        daysOfOperation: storeData.days_of_operation
+      });
+    }
+  }, [storeData]);
+
+  // Fetch store data when on storefront
+  useEffect(() => {
+    if (contextType === 'storefront' && storeSlug) {
+      const fetchStoreData = async () => {
+        try {
+          console.log('[AIChatWidget] Fetching store data for:', storeSlug);
+          const { data, error } = await supabase
+            .from('stores')
+            .select('id, whatsapp_number, wa_fallback_minutes, business_hours, days_of_operation')
+            .eq('store_slug', storeSlug)
+            .single();
+
+          if (data && !error) {
+            setStoreData({
+              id: data.id,
+              whatsapp_number: data.whatsapp_number,
+              wa_fallback_minutes: data.wa_fallback_minutes || 2, // Default to 2 minutes
+              business_hours: data.business_hours,
+              days_of_operation: data.days_of_operation
+            });
+            console.log('[AIChatWidget] Store data loaded:', {
+              hasWhatsApp: !!data.whatsapp_number,
+              fallbackMinutes: data.wa_fallback_minutes,
+              businessHours: data.business_hours,
+              daysOfOperation: data.days_of_operation
+            });
+          }
+        } catch (err) {
+          console.error('[AIChatWidget] Error fetching store data:', err);
+        }
+      };
+
+      fetchStoreData();
+    }
+  }, [contextType, storeSlug]);
+
+  // Auto-open with context-aware welcome messages
+  useEffect(() => {
+    const isOnlineStoreSetup = location.pathname.includes('/online-store-setup');
+    const isLandingPage = location.pathname === '/' || location.pathname === '/home' || location.pathname === '/landing';
+
+    // PHASE 1: Help mode - Available anytime for assistance (non-intrusive)
+    // IMPORTANT: Check this FIRST before any early returns so it always runs
+    if (contextType === 'help' && persistentBubble && user) {
+      const hasSeenHelpChat = localStorage.getItem('storehouse_help_chat_seen');
+      if (!hasSeenHelpChat) {
+        // Show a subtle welcome after 10 seconds (non-intrusive)
+        setTimeout(() => {
+          // Don't auto-open, just show a small notification
+          console.log('[AIChatWidget] Help mode activated - bubble always visible');
+          localStorage.setItem('storehouse_help_chat_seen', 'true');
+        }, 10000);
+      }
+      // In help mode with persistentBubble, we still want the bubble to show
+      // even if we don't auto-open, so don't return early
+    }
+
+    // STOREFRONT MODE: NO auto-popup (less intrusive, user-initiated)
+    // The pulsing animation and tooltip will draw attention instead
+    if (contextType === 'storefront' && storeSlug) {
+      // No auto-popup - let users click when ready
+      return;
+    }
+
+    // Auto-open for Online Store Setup (first visit only)
+    if (isOnlineStoreSetup && user) {
+      const hasSeenStoreSetupChat = localStorage.getItem('storehouse_store_setup_chat_seen');
+      if (!hasSeenStoreSetupChat) {
+        setTimeout(() => {
+          setIsOpen(true);
+          // REMOVED: setMessages - let messages come from polling/database only
+          localStorage.setItem('storehouse_store_setup_chat_seen', 'true');
+        }, 3000);
+      }
+      return;
+    }
+
+    // Marketing mode: Auto-open for landing page visitors (not logged in)
+    if (!user && isLandingPage) {
+      const hasSeenMarketingChat = localStorage.getItem('storehouse_marketing_chat_seen');
+      if (!hasSeenMarketingChat) {
+        setTimeout(() => {
+          setIsOpen(true);
+          // REMOVED: setMessages - let messages come from polling/database only
+          localStorage.setItem('storehouse_marketing_chat_seen', 'true');
+        }, 5000); // 5 seconds for visitors to read page first
+      }
+      return;
+    }
+
+    // Onboarding mode: Auto-open for new authenticated users
+    if (autoOpen && user && contextType === 'onboarding') {
+      const hasSeenChat = localStorage.getItem('storehouse_chat_seen');
+      if (!hasSeenChat) {
+        setTimeout(() => {
+          setIsOpen(true);
+          // REMOVED: setMessages - let messages come from polling/database only
+          localStorage.setItem('storehouse_chat_seen', 'true');
+        }, 8000); // 8 seconds delay to let users view dashboard first
+      }
+    }
+  }, [autoOpen, contextType, location.pathname, user, persistentBubble]);
+
+  // PHASE 2: Load context-aware smart questions based on user type and current page
+  useEffect(() => {
+    let suggestions: string[] = [];
+
+    if (userType === 'visitor') {
+      // Marketing questions for non-logged-in visitors
+      suggestions = [
+        "What makes Storehouse different from Excel?",
+        "Can I really create an online store in 3 minutes?",
+        "How much does it cost?",
+        "Is my business data secure?",
+        "Can I accept OPay and bank transfers?",
+        "Do I need to know coding?",
+      ];
+    } else if (userType === 'shopper') {
+      // Shopping assistant questions for storefront visitors
+      suggestions = [
+        "What payment methods do you accept?",
+        "How do I place an order?",
+        "Do you deliver?",
+        "Can I get a bulk discount?",
+      ];
+    } else if (contextType === 'business-advisory') {
+      // Business tips and marketing strategies
+      suggestions = [
+        "How do I price my products to attract customers?",
+        "What's the best way to market on WhatsApp?",
+        "How can I get more customers for my business?",
+        "How do I retain customers and get repeat sales?",
+        "What are good sales techniques for Nigerian markets?",
+        "How do I deal with slow-moving inventory?",
+      ];
+    } else if (contextType === 'help') {
+      // PHASE 2: Context-aware smart questions for help mode
+      // Detect current page context from URL
+      const path = location.pathname.toLowerCase();
+      let pageContext = 'dashboard'; // default
+
+      if (path.includes('staff')) pageContext = 'staff';
+      else if (path.includes('customer')) pageContext = 'customers';
+      else if (path.includes('invoice')) pageContext = 'invoices';
+      else if (path.includes('online-store')) pageContext = 'online-store';
+      else if (path.includes('report')) pageContext = 'reports';
+      else if (path.includes('settings')) pageContext = 'settings';
+      else if (path.includes('sale')) pageContext = 'sales';
+      else if (path.includes('product') || path.includes('inventory')) pageContext = 'products';
+      else if (path.includes('referral')) pageContext = 'referrals';
+
+      // Get smart questions for this context
+      suggestions = getSmartQuestionsForContext(pageContext, 6);
+
+      // If no context-specific questions, show top questions
+      if (suggestions.length === 0) {
+        suggestions = getTopQuestions(6);
+      }
+    } else {
+      // Fallback: Onboarding mode uses original logic
+      suggestions = getSuggestedQuestions(appContext);
+    }
+
+    setSuggestedQuestions(suggestions);
+  }, [appContext, userType, contextType, location.pathname]);
+
+  // Scroll to bottom on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Progressive feature showcasing: Detect milestones and suggest next steps
+  useEffect(() => {
+    if (!user || userType !== 'user') return; // Only for authenticated users
+
+    // Milestone 1: User just added their first product
+    if (appContext.hasProducts && !appContext.hasSales) {
+      const hasSeenSalesSuggestion = localStorage.getItem('storehouse_seen_sales_suggestion');
+      if (!hasSeenSalesSuggestion && messages.length > 0) {
+        setTimeout(() => {
+          const showcaseMessage: Message = {
+            role: 'assistant',
+            content: "🎉 Great job adding your first product!\n\n💡 **Next feature:** Want to see how sales tracking works?\n\nStorehouse automatically calculates your profit when you record sales. Your cost price vs selling price = instant profit insights!\n\nInterested in recording a test sale?",
+            timestamp: new Date(),
+          };
+          // REMOVED: setMessages - let messages come from polling/database only
+          localStorage.setItem('storehouse_seen_sales_suggestion', 'true');
+        }, 3000); // 3 seconds after adding product
+      }
+    }
+
+    // Milestone 2: User recorded their first sale
+    if (appContext.hasSales && !appContext.hasOnlineStore) {
+      const hasSeenStoreSuggestion = localStorage.getItem('storehouse_seen_store_suggestion');
+      if (!hasSeenStoreSuggestion && messages.length > 0) {
+        setTimeout(() => {
+          const showcaseMessage: Message = {
+            role: 'assistant',
+            content: "💰 Awesome! You're tracking sales and profit now!\n\n💡 **Next feature:** Did you know you can create an online store in 3 minutes?\n\nYour customers can:\n✅ Browse products 24/7\n✅ Send orders via WhatsApp\n✅ Pay with OPay, Moniepoint, or Banks\n\nWant me to show you how?",
+            timestamp: new Date(),
+          };
+          // REMOVED: setMessages - let messages come from polling/database only
+          localStorage.setItem('storehouse_seen_store_suggestion', 'true');
+        }, 4000);
+      }
+    }
+
+    // Milestone 3: User created their online store
+    if (appContext.hasOnlineStore) {
+      const hasSeenPaymentSuggestion = localStorage.getItem('storehouse_seen_payment_suggestion');
+      if (!hasSeenPaymentSuggestion && messages.length > 0) {
+        setTimeout(() => {
+          const showcaseMessage: Message = {
+            role: 'assistant',
+            content: "🎊 Your store is live! Congratulations!\n\n💡 **Pro tip:** Have you added payment methods yet?\n\nMost customers prefer:\n🟢 OPay (instant settlement)\n🔵 Moniepoint (business banking)\n🟣 PalmPay (youth demographic)\n\nAdding multiple payment options increases sales by 30-50%!\n\nWant to add OPay or Moniepoint now?",
+            timestamp: new Date(),
+          };
+          // REMOVED: setMessages - let messages come from polling/database only
+          localStorage.setItem('storehouse_seen_payment_suggestion', 'true');
+        }, 5000);
+      }
+    }
+  }, [appContext.hasProducts, appContext.hasSales, appContext.hasOnlineStore, user, userType, messages.length]);
+
+  // Agent mode detection - just log, don't load messages
+  useEffect(() => {
+    if (!isAgentActive) return;
+    console.log('[AIChatWidget] Agent mode detected, messages will come through main polling');
+    // DO NOT load messages here - the main polling loop handles everything
+  }, [isAgentActive]);
+
+  // Primary polling approach for messages and conversation status
+  useEffect(() => {
+    if (!conversationId) return;
+
+    console.log('[AIChatWidget] Starting polling for conversation:', conversationId);
+
+    let pollInterval: NodeJS.Timeout | null = null;
+    let lastActivityTime = Date.now();
+    let currentPollRate = 3000; // Start at 3 seconds
+    let idleCounter = 0; // Count consecutive polls with no new messages
+
+    // Initial fetch of conversation state
+    const initializeConversation = async () => {
+      try {
+        // Get initial conversation state
+        const { data: convData, error: convError } = await supabase
+          .from('ai_chat_conversations')
+          .select('id, takeover_status, is_agent_active, chat_status')
+          .eq('id', conversationId)
+          .single();
+
+        if (convError) {
+          console.error('[AIChatWidget] Error fetching conversation:', convError);
+          if (convError.code === 'PGRST116') {
+            console.log('[AIChatWidget] Conversation not found');
+            return;
+          }
+        } else if (convData) {
+          // Set initial state from database
+          if (convData.takeover_status) {
+            setTakeoverStatus(convData.takeover_status);
+          }
+          if (convData.is_agent_active !== undefined) {
+            setIsAgentActive(convData.is_agent_active);
+            isAgentActiveRef.current = convData.is_agent_active;
+          }
+
+          // Stop polling if conversation moved to WhatsApp
+          if (convData.chat_status === 'moved_to_whatsapp') {
+            console.log('[AIChatWidget] Conversation moved to WhatsApp, stopping polling');
+            return;
+          }
+        }
+
+        // CRITICAL FIX: Do NOT load initial messages here!
+        // The polling loop is the ONLY place that should fetch messages from the database.
+        // Loading messages here causes duplicates because:
+        // 1. Customer sends first message (added optimistically)
+        // 2. Edge function returns conversationId
+        // 3. This useEffect fires and would load the message from DB
+        // 4. Polling also loads the same message
+        // Result: duplicate messages
+
+        // Only set the lastMessageTimestamp if we don't have one yet
+        // This ensures polling starts from the right point without loading messages
+        // IMPORTANT: Don't do this query! It can cause the first AI message to be skipped.
+        // When the first message is sent, we set lastMessageTimestamp in handleSend (line 1081)
+        // to the time BEFORE the AI response is created. If we query here, we might get
+        // the AI response timestamp, causing polling to skip the AI response entirely.
+        // Trust the timestamp set in handleSend instead.
+        if (!lastMessageTimestampRef.current) {
+          console.log('[AIChatWidget] WARNING: No lastMessageTimestamp set for conversation init');
+          // Set to a very early timestamp so polling fetches all messages
+          // This is a fallback that should rarely happen
+          lastMessageTimestampRef.current = new Date(Date.now() - 60000).toISOString(); // 1 minute ago
+        }
+      } catch (error) {
+        console.error('[AIChatWidget] Error initializing conversation:', error);
+      }
+    };
+
+    // Polling function
+    const pollForUpdates = async () => {
+      if (!conversationId) return;
+
+      try {
+        // CRITICAL: Only poll if we have a timestamp to poll from
+        // Without this check, the first poll would fetch ALL messages and cause duplicates
+        if (!lastMessageTimestampRef.current) {
+          console.log('[AIChatWidget] No lastMessageTimestamp yet, skipping poll');
+          return;
+        }
+
+        // Poll for new messages (only those newer than last known)
+        console.log('[AIChatWidget] Polling for messages after:', lastMessageTimestampRef.current);
+        const { data: newMessages, error: msgError } = await supabase
+          .from('ai_chat_messages')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .gt('created_at', lastMessageTimestampRef.current)
+          .order('created_at', { ascending: true });
+
+        // FALLBACK: If we've polled 3+ times and found nothing, but have few/no messages, do a full fetch
+        // This handles the case where mobile clock skew causes timestamp mismatch
+        // Note: Using a simple counter that's incremented on each poll attempt
+        if (!msgError && (!newMessages || newMessages.length === 0) &&
+            messages.filter(m => !m.isLocal).length <= 1) {
+
+          console.log('[AIChatWidget] Fallback: Fetching all messages after 3 polls with no results');
+          const { data: allMessages, error: fallbackError } = await supabase
+            .from('ai_chat_messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+
+          if (!fallbackError && allMessages && allMessages.length > 0) {
+            console.log('[AIChatWidget] Fallback found', allMessages.length, 'total messages');
+
+            // Update timestamp from the latest message
+            lastMessageTimestampRef.current = allMessages[allMessages.length - 1].created_at;
+
+            // Format and set all messages
+            const formattedAllMessages = allMessages.map(msg => ({
+              id: msg.id,
+              role: msg.is_agent_message ? 'assistant' : (msg.role as 'user' | 'assistant'),
+              content: msg.content,
+              timestamp: new Date(msg.created_at),
+            }));
+
+            setMessages(formattedAllMessages);
+            return; // Exit after fallback
+          }
+        }
+
+        if (!msgError && newMessages && newMessages.length > 0) {
+          console.log('[AIChatWidget] Found', newMessages.length, 'new messages');
+
+          // Reset idle counter when new messages arrive
+          idleCounter = 0;
+          lastActivityTime = Date.now();
+
+          // Speed up polling when new messages arrive (if it was slowed)
+          if (currentPollRate !== 3000) {
+            currentPollRate = 3000;
+            restartPolling();
+          }
+
+          // Add new messages with ID for deduplication
+          const formattedNewMessages = newMessages.map(msg => ({
+            id: msg.id, // Preserve UUID from database
+            role: msg.is_agent_message ? 'assistant' : (msg.role as 'user' | 'assistant'),
+            content: msg.content,
+            timestamp: new Date(msg.created_at),
+          }));
+
+          setMessages(prev => {
+            const existingIds = new Set(prev.filter(m => m.id && !m.isLocal).map(m => m.id));
+
+            // Replace local messages with their database versions
+            const updated = prev.map(existing => {
+              if (!existing.isLocal) return existing;
+              const dbVersion = formattedNewMessages.find(nm =>
+                nm.role === existing.role &&
+                nm.content?.substring(0, 50) === existing.content?.substring(0, 50)
+              );
+              if (dbVersion) return { ...dbVersion, isLocal: false };
+              return existing;
+            });
+
+            // Find which local messages were replaced (so we don't add them again)
+            const replacedContents = prev
+              .filter(m => m.isLocal)
+              .map(m => m.content?.substring(0, 50))
+              .filter(content =>
+                formattedNewMessages.some(nm => nm.content?.substring(0, 50) === content)
+              );
+
+            // Add only genuinely new messages — not already in state by UUID, not replacements for local messages
+            const toAdd = formattedNewMessages.filter(msg => {
+              if (existingIds.has(msg.id)) return false;
+              if (replacedContents.includes(msg.content?.substring(0, 50))) return false;
+              return true;
+            });
+
+            return [...updated, ...toAdd];
+          });
+
+          // Update last message timestamp
+          lastMessageTimestampRef.current = newMessages[newMessages.length - 1].created_at;
+          console.log('[AIChatWidget] Updated lastMessageTimestamp to:', lastMessageTimestampRef.current);
+        } else {
+          // No new messages - increment idle counter
+          idleCounter++;
+        }
+
+        // Poll for conversation status changes
+        const { data: convData, error: convError } = await supabase
+          .from('ai_chat_conversations')
+          .select('is_agent_active, takeover_status, chat_status')
+          .eq('id', conversationId)
+          .single();
+
+        if (!convError && convData) {
+          // Check for status changes
+          const newAgentActive = convData.is_agent_active || convData.takeover_status === 'agent';
+
+          if (newAgentActive !== isAgentActiveRef.current) {
+            console.log('[AIChatWidget] Agent status changed:', newAgentActive);
+            setIsAgentActive(newAgentActive);
+            isAgentActiveRef.current = newAgentActive;
+
+            // Add status message when agent ends session
+            if (!newAgentActive && convData.takeover_status === 'ended') {
+              const aiMessage: Message = {
+                role: 'assistant',
+                content: '🤖 The agent has ended the session. I\'m back to assist you!',
+                timestamp: new Date(),
+              };
+              // REMOVED: setMessages - let messages come from polling/database only
+            }
+          }
+
+          // Update takeover status
+          if (convData.takeover_status !== takeoverStatus) {
+            setTakeoverStatus(convData.takeover_status);
+          }
+
+          // Stop polling if moved to WhatsApp
+          if (convData.chat_status === 'moved_to_whatsapp') {
+            console.log('[AIChatWidget] Conversation moved to WhatsApp, stopping polling');
+            if (pollInterval) clearInterval(pollInterval);
+            return;
+          }
+        }
+
+        // Slow down polling after 10 consecutive polls with no new messages (30 seconds at 3s rate)
+        if (idleCounter >= 10 && currentPollRate !== 5000) {
+          console.log('[AIChatWidget] Slowing polling to 5s after', idleCounter, 'idle polls');
+          currentPollRate = 5000;
+          restartPolling();
+        }
+
+      } catch (error) {
+        console.error('[AIChatWidget] Polling error:', error);
+      }
+    };
+
+    // Restart polling with new frequency
+    const restartPolling = () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      pollInterval = setInterval(pollForUpdates, currentPollRate);
+    };
+
+    // Initialize and start polling
+    initializeConversation().then(() => {
+      // Start polling
+      pollInterval = setInterval(pollForUpdates, currentPollRate);
+    });
+
+    return () => {
+      console.log('[AIChatWidget] Cleaning up polling intervals');
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [conversationId]);
+
+  // Request human agent function for storefront customers
+  const requestHumanAgent = async () => {
+    console.log('[AIChatWidget] Customer requesting human agent');
+
+    // Get session ID for tracking
+    const sessionId = sessionStorage.getItem('chat_session_id');
+    if (!sessionId || !conversationId) {
+      console.error('[AIChatWidget] No session/conversation to request agent for');
+      return;
+    }
+
+    try {
+      // Update conversation status to 'requested' with timestamp (if column exists)
+      const updateData: any = { takeover_status: 'requested' };
+
+      // Try to include timestamp if column exists, but don't fail if it doesn't
+      try {
+        updateData.waiting_for_owner_since = new Date().toISOString();
+      } catch (e) {
+        console.log('[AIChatWidget] Setting timestamp locally for fallback');
+      }
+
+      const { error: updateError } = await supabase
+        .from('ai_chat_conversations')
+        .update(updateData)
+        .eq('id', conversationId);
+
+      if (updateError) {
+        console.error('[AIChatWidget] Error requesting agent:', updateError);
+        return;
+      }
+
+      // DO NOT add system message locally - let it come from polling
+      // The system message is saved to the database and will be fetched by polling
+      console.log('[AIChatWidget] Human agent requested, system message will be fetched via polling');
+
+      // Update local takeover status to trigger timer
+      setTakeoverStatus('requested');
+
+      // Insert system message to database for tracking
+      const { error: msgError } = await supabase
+        .from('ai_chat_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'system',
+          content: 'Customer requested to speak with store owner',
+          is_agent_message: false,
+          sender_type: 'customer'
+        });
+
+      if (msgError) {
+        console.error('[AIChatWidget] Error inserting system message:', msgError);
+      }
+
+      console.log('[AIChatWidget] Human agent requested successfully');
+    } catch (error) {
+      console.error('[AIChatWidget] Error in requestHumanAgent:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || loading) return;
+
+    const userMessage = inputMessage.trim();
+    setInputMessage('');
+
+    // ALWAYS add customer message optimistically with local flag
+    // The polling merge will replace it with the database version
+    // This prevents duplicates during agent takeover transitions
+    const newMessage: Message = {
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date(),
+      isLocal: true, // Mark as optimistically added - will be replaced by DB version
+    };
+    setMessages(prev => [...prev, newMessage]);
+
+    // Track last customer message for WhatsApp context
+    setLastCustomerMessage(userMessage);
+
+    // Increment customer message count for smart button timing
+    setCustomerMessageCount(prev => prev + 1);
+
+    setLoading(true);
+
+    try {
+      // STEP 1: Search documentation for relevant guides (hybrid: keyword + vector)
+      const docResults = await searchDocumentation(userMessage, appContext, 3);
+      console.log('[AIChatWidget] Found', docResults.length, 'relevant docs');
+
+      // STEP 2: Format docs for AI context
+      const relevantDocs = docResults.map(result => ({
+        id: result.doc.id,
+        title: result.doc.title,
+        description: result.doc.description,
+        content: result.doc.content || result.doc.steps?.map(s => s.instruction).join('\n') || '',
+        score: result.score,
+      }));
+
+      // STEP 2.5: Get store info (use props if provided, otherwise fetch)
+      let storeInfo = null;
+
+      // PHASE 1 FIX: Prefer props (already loaded by parent), only fetch if not provided
+      if (propsStoreInfo && Object.keys(propsStoreInfo).length > 0) {
+        // Use storeInfo from props (faster, no extra query)
+        storeInfo = propsStoreInfo;
+        console.log('[AIChatWidget] Using store info from props:', {
+          hasAbout: !!storeInfo.aboutUs,
+          hasDelivery: !!storeInfo.deliveryAreas,
+          hasReturns: !!storeInfo.returnPolicy,
+          aboutUsLength: storeInfo.aboutUs?.length || 0,
+        });
+      } else if (storeSlug && contextType === 'storefront') {
+        // Fallback: Fetch if not provided in props
+        console.log('[AIChatWidget] Fetching store info for:', storeSlug);
+        const { data: storeData } = await supabase
+          .from('stores')
+          .select('about_us, delivery_areas, delivery_time, return_policy, whatsapp_number, business_name, address')
+          .eq('store_slug', storeSlug)
+          .single();
+
+        if (storeData) {
+          storeInfo = {
+            aboutUs: storeData.about_us,
+            deliveryAreas: storeData.delivery_areas,
+            deliveryTime: storeData.delivery_time,
+            returnPolicy: storeData.return_policy,
+            whatsappNumber: storeData.whatsapp_number,
+            businessName: storeData.business_name,
+            address: storeData.address,
+          };
+          console.log('[AIChatWidget] Store info fetched successfully:', {
+            hasAbout: !!storeInfo.aboutUs,
+            hasDelivery: !!storeInfo.deliveryAreas,
+            hasReturns: !!storeInfo.returnPolicy,
+            aboutUsLength: storeInfo.aboutUs?.length || 0,
+          });
+        } else {
+          console.log('[AIChatWidget] Store not found or no data');
+        }
+      }
+
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Generate or get sessionId for tracking conversations
+      let sessionId = sessionStorage.getItem('chat_session_id');
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        sessionStorage.setItem('chat_session_id', sessionId);
+      }
+
+      // DEBUG: Log what we're sending
+      console.log('[AIChatWidget] Sending to AI:', {
+        contextType,
+        userType,
+        hasUser: !!user,
+        docsFound: relevantDocs.length,
+        message: userMessage,
+        sessionId, // Log sessionId for debugging
+      });
+
+      // STEP 3: Call AI chat endpoint with RAG context
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || supabaseAnonKey}`,
+          'apikey': supabaseAnonKey,
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          contextType,
+          storeSlug,
+          sessionId, // IMPORTANT: Send sessionId to edge function for tracking
+          userType, // NEW: Send visitor/shopper/user type
+          appContext, // Send app state
+          relevantDocs, // Send documentation context (RAG)
+          storeInfo, // NEW: Send store info for intelligent responses
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('[AIChatWidget] API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: data.error,
+          data
+        });
+
+        // Check if it's a quota exceeded error (429 status)
+        if (response.status === 429) {
+          // Store quota info if provided
+          if (data.chatsUsed !== undefined && data.chatLimit !== undefined) {
+            setQuotaInfo({
+              chatsUsed: data.chatsUsed,
+              chatLimit: data.chatLimit,
+              remaining: data.remaining || 0
+            });
+          }
+
+          // Create a detailed quota error with the data
+          const quotaError = {
+            isQuotaError: true,
+            chatsUsed: data.chatsUsed,
+            chatLimit: data.chatLimit,
+            remaining: data.remaining || 0,
+            upgradeRequired: data.upgradeRequired
+          };
+          throw quotaError;
+        }
+
+        throw new Error(data.error || 'Failed to get response');
+      }
+
+      // STEP 4: Add AI response with doc references and quick actions
+      const quickActions: QuickAction[] = [];
+
+      // Add "Contact Support" if confidence is low
+      if (data.confidence && data.confidence < 0.6) {
+        quickActions.push({
+          label: '💬 Talk to Support',
+          action: () => setShowSupport(true),
+        });
+      }
+
+      // DO NOT add AI response optimistically - let polling fetch it from database
+      // This prevents duplicates since the edge function already saves it to the DB
+      console.log('[AIChatWidget] AI response received, will be added via polling');
+
+      // CRITICAL: Update timestamp to slightly in the past to avoid clock skew issues
+      // On mobile devices, the client clock might be ahead of the server clock
+      // Using current time would cause polling to skip messages that were just saved
+      // Subtracting 2 seconds ensures we catch all new messages even with clock differences
+      const safeTimestamp = new Date(Date.now() - 2000).toISOString(); // 2 seconds ago
+      lastMessageTimestampRef.current = safeTimestamp;
+      console.log('[AIChatWidget] Updated lastMessageTimestamp after edge function (2s ago):', safeTimestamp);
+
+      // Always capture conversation ID if provided
+      if (data.conversationId && !conversationId) {
+        console.log('[AIChatWidget] Setting conversation ID from response:', data.conversationId);
+        setConversationId(data.conversationId);
+      }
+
+      // Check if AI suggests human help
+      if (data.needsHumanHelp) {
+        console.log('[AIChatWidget] AI suggests human help');
+        setNeedsHumanHelp(true);
+      }
+
+      // Check for takeover status from response
+      if (data.takeoverStatus) {
+        console.log('[AIChatWidget] Takeover status from response:', data.takeoverStatus);
+        setTakeoverStatus(data.takeoverStatus);
+
+        if (data.takeoverStatus === 'requested') {
+          console.log('[AIChatWidget] Human help requested, timer will start');
+        }
+      }
+
+      // Check if agent takeover is active
+      if (data.agentActive || data.takeoverStatus === 'agent') {
+        console.log('[AIChatWidget] Agent takeover detected, starting polling');
+        setIsAgentActive(true);
+        // Use the actual conversation ID from the response
+        if (data.conversationId) {
+          console.log('[AIChatWidget] Setting conversation ID:', data.conversationId);
+          setConversationId(data.conversationId);
+        } else {
+          // Fallback: fetch conversation ID from session
+          const sessionId = sessionStorage.getItem('chat_session_id');
+          if (sessionId) {
+            const { data: convData } = await supabase
+              .from('ai_chat_conversations')
+              .select('id')
+              .eq('session_id', sessionId)
+              .single();
+
+            if (convData) {
+              console.log('[AIChatWidget] Found conversation ID from session:', convData.id);
+              setConversationId(convData.id);
+            }
+          }
+        }
+        // IMPORTANT: Don't add any system message when agent is active
+        // The agent's actual messages will come through polling
+        return; // Exit early to prevent any further processing
+      }
+
+      // Track storefront conversations for visibility
+      if (contextType === 'storefront' && storeSlug) {
+        console.log('[AIChatWidget] Tracking storefront conversation...');
+        const sessionId = sessionStorage.getItem('chat_session_id') ||
+                         `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        sessionStorage.setItem('chat_session_id', sessionId);
+
+        trackStorefrontChat({
+          storeSlug,
+          sessionId,
+          message: userMessage,
+          response: data.response,
+        }).then(success => {
+          if (success) {
+            console.log('[AIChatWidget] Conversation tracked successfully!');
+          } else {
+            console.log('[AIChatWidget] Failed to track conversation');
+          }
+        });
+      }
+
+      // Update quota info
+      if (data.quotaInfo) {
+        setQuotaInfo(data.quotaInfo);
+      }
+
+      // Reset failed attempts on success
+      setFailedAttempts(0);
+
+    } catch (error: any) {
+      console.error('Chat error:', error);
+
+      // Increment failed attempts
+      setFailedAttempts(prev => prev + 1);
+
+      let errorContent = 'Sorry, something went wrong. Please try again.';
+      let quickActions: QuickAction[] | undefined;
+
+      // Check if it's a quota error
+      if (error.isQuotaError) {
+        const { chatsUsed, chatLimit, remaining } = error;
+
+        if (chatLimit > 0) {
+          errorContent = `📊 **Monthly Chat Limit Reached!**\n\nYou've used ${chatsUsed}/${chatLimit} AI chats this month.\n\n`;
+
+          // Add tier-specific messages
+          if (chatLimit === 30) {
+            errorContent += `You're on the **Free** plan. Upgrade to get more AI assistance!\n\n`;
+            errorContent += `• **Starter**: 300 chats/month - ₦5,000\n`;
+            errorContent += `• **Pro**: 750 chats/month - ₦10,000\n`;
+            errorContent += `• **Business**: 1,500 chats/month - ₦20,000\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 300) {
+            errorContent += `You're on the **Starter** plan. Need more chats?\n\n`;
+            errorContent += `• **Pro**: 750 chats/month - ₦10,000\n`;
+            errorContent += `• **Business**: 1,500 chats/month - ₦20,000\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 750) {
+            errorContent += `You're on the **Pro** plan. Need more chats?\n\n`;
+            errorContent += `• **Business**: 1,500 chats/month - ₦20,000\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 1500) {
+            errorContent += `You're on the **Business** plan. Need more chats?\n\n`;
+            errorContent += `• **Enterprise**: 10,000 chats/month - ₦50,000`;
+          } else if (chatLimit === 10000) {
+            errorContent += `You're on the **Enterprise** plan. For unlimited chats, contact sales!`;
+          } else {
+            errorContent += `Upgrade your plan for more AI assistance!`;
+          }
+        } else {
+          errorContent = `📊 **Chat Limit Reached!**\n\nYou've reached your monthly AI chat limit. Upgrade your plan to continue!`;
+        }
+
+        // Add upgrade button
+        quickActions = [{
+          label: '🚀 Upgrade Now',
+          action: () => {
+            // Navigate to subscription page
+            window.location.href = '/subscription';
+          }
+        }];
+      } else if (error.message) {
+        errorContent = error.message;
+      }
+
+      // DO NOT add error message to local state - let it come from polling if saved to DB
+      // This prevents duplicates as the edge function may save errors to database
+      console.log('[AIChatWidget] Error occurred, not adding error message locally to avoid duplicates');
+      console.log('[AIChatWidget] Error content would have been:', errorContent.substring(0, 100));
+
+      // Auto-escalate after 2 failures (but not for quota errors)
+      if (failedAttempts >= 1 && !error.isQuotaError) {
+        setTimeout(() => {
+          setShowSupport(true);
+        }, 1000);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleSuggestedQuestion = (question: string) => {
+    setInputMessage(question);
+    // Auto-send
+    setTimeout(() => {
+      handleSendMessage();
+    }, 100);
+  };
+
+  return (
+    <div className="ai-chat-container" style={{
+      position: 'fixed',
+      bottom: isOpen && !isDesktop ? '0' : '20px', // Full bottom on mobile when open
+      right: contextType === 'storefront' && isDesktop ? '120px' : isDesktop ? '20px' : '0', // Full width on mobile
+      left: isOpen && !isDesktop ? '0' : 'auto', // Full width on mobile when open
+      zIndex: 99999, // High z-index to appear above everything
+      pointerEvents: 'none', // Allow clicks to pass through container
+      // Force fixed width container on desktop
+      ...(isDesktop ? {
+        width: '400px',
+        maxWidth: '400px',
+      } : {}),
+    }}>
+      {/* Chat Window */}
+      {isOpen && (
+        <div className="ai-chat-window" style={{
+          position: !isDesktop ? 'fixed' : 'relative',
+          top: !isDesktop ? '0' : 'auto',
+          left: !isDesktop ? '0' : 'auto',
+          right: !isDesktop ? '0' : 'auto',
+          bottom: !isDesktop ? '0' : 'auto',
+          width: isDesktop ? '400px' : '100vw',
+          maxWidth: isDesktop ? '400px' : '100vw',
+          minWidth: isDesktop ? '400px' : '100vw',
+          height: isDesktop ? '600px' : '100vh',
+          maxHeight: isDesktop ? '600px' : '100vh',
+          background: 'white',
+          borderRadius: isDesktop ? '16px' : '0',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          display: 'flex',
+          flexDirection: 'column',
+          marginBottom: isDesktop ? '16px' : '0',
+          overflow: 'hidden',
+          pointerEvents: 'auto', // Re-enable clicks for chat window
+          zIndex: 99999, // Ensure it's above everything
+        }}>
+          {/* Header */}
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            padding: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.25rem',
+              }}>
+                🤖
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '1rem' }}>
+                  Storehouse Assistant
+                </div>
+                <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>
+                  {userType === 'visitor' ? 'Your Business Growth Partner' :
+                   userType === 'shopper' ? 'Shopping Assistant' :
+                   contextType === 'business-advisory' ? '💡 Nigerian Business Consultant' :
+                   contextType === 'onboarding' ? 'Your Setup Guide' :
+                   contextType === 'help' ? 'Here to Help' : 'Product Inquiries'}
+                  {/* Show quota info for authenticated users */}
+                  {userType === 'user' && quotaInfo && quotaInfo.chatLimit > 0 && (
+                    <div style={{
+                      marginTop: '2px',
+                      fontSize: '0.65rem',
+                      opacity: 0.85,
+                      fontWeight: 400
+                    }}>
+                      💬 {Math.max(0, quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0))} chats remaining this month
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                color: 'white',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Quota Info */}
+          {quotaInfo && user && (
+            <div style={{
+              padding: '8px 16px',
+              background: quotaInfo.remaining < 3 ? '#fef3c7' : '#ecfdf5',
+              fontSize: '0.75rem',
+              color: quotaInfo.remaining < 3 ? '#92400e' : '#065f46',
+              borderBottom: '1px solid #e5e7eb',
+            }}>
+              {quotaInfo.remaining} of {quotaInfo.chat_limit} chats remaining this month
+              {quotaInfo.remaining < 3 && ' - Consider upgrading!'}
+            </div>
+          )}
+
+          {/* Messages */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            position: 'relative', // Establish containing block
+            minHeight: '0', // Fix flexbox height calculation on mobile
+          }}>
+            {/* Suggested Questions (only show if no messages yet) */}
+            {messages.length === 0 && suggestedQuestions.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '8px', fontWeight: 600 }}>
+                  <Zap size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                  Quick Questions:
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {suggestedQuestions.slice(0, 4).map((question, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSuggestedQuestion(question)}
+                      style={{
+                        background: '#f9fafb',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '0.8125rem',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f5f7ff';
+                        e.currentTarget.style.borderColor = '#667eea';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#f9fafb';
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                      }}
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
+            {messages.map((msg, index) => (
+              <div key={index}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  }}
+                >
+                  <div style={{
+                    maxWidth: '80%',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    background: msg.role === 'user'
+                      ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                      : '#f3f4f6',
+                    color: msg.role === 'user' ? 'white' : '#374151',
+                    fontSize: '0.9375rem',
+                    lineHeight: 1.5,
+                    // Fix for mobile Safari rendering
+                    WebkitTextSizeAdjust: '100%',
+                    WebkitFontSmoothing: 'antialiased',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    minHeight: '1px', // Ensure container has height
+                  }}>
+                    {(msg.role === 'assistant' || msg.role === 'ai') ? (
+                      <div style={{ display: 'block', width: '100%' }}>
+                        {renderMarkdown(msg.content)}
+                      </div>
+                    ) : (
+                      msg.content
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Actions for assistant messages */}
+                {(msg.role === 'assistant' || msg.role === 'ai') && msg.quickActions && msg.quickActions.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    gap: '8px',
+                    marginTop: '8px',
+                    flexWrap: 'wrap',
+                  }}>
+                    {msg.quickActions.map((action, actionIdx) => (
+                      <button
+                        key={actionIdx}
+                        onClick={action.action}
+                        style={{
+                          background: 'white',
+                          border: '1.5px solid #667eea',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          fontSize: '0.8125rem',
+                          color: '#667eea',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          transition: 'all 0.2s',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#667eea';
+                          e.currentTarget.style.color = 'white';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'white';
+                          e.currentTarget.style.color = '#667eea';
+                        }}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {loading && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-start',
+              }}>
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: '#f3f4f6',
+                  color: '#6b7280',
+                  fontSize: '0.9375rem',
+                }}>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <span style={{ animation: 'pulse 1.5s infinite' }}>●</span>
+                    <span style={{ animation: 'pulse 1.5s infinite 0.2s' }}>●</span>
+                    <span style={{ animation: 'pulse 1.5s infinite 0.4s' }}>●</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* WhatsApp Fallback Timer (only on storefront when requested) */}
+          {contextType === 'storefront' && conversationId && storeData && (
+            <WhatsAppFallbackTimer
+              conversationId={conversationId}
+              storeId={storeData.id}
+              store={{
+                whatsapp_number: storeData.whatsapp_number,
+                wa_fallback_minutes: storeData.wa_fallback_minutes
+              }}
+              takeoverStatus={takeoverStatus}
+              lastCustomerMessage={lastCustomerMessage}
+              onReset={() => {
+                console.log('[AIChatWidget] Fallback timer reset');
+                // Timer reset - customer chose to keep waiting
+              }}
+            />
+          )}
+
+          {/* Input */}
+          <div style={{
+            padding: '16px',
+            borderTop: '1px solid #e5e7eb',
+            background: '#fafafa',
+          }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Type your message..."
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '0.9375rem',
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={loading || !inputMessage.trim()}
+                style={{
+                  padding: '10px 20px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  cursor: loading || !inputMessage.trim() ? 'not-allowed' : 'pointer',
+                  opacity: loading || !inputMessage.trim() ? 0.5 : 1,
+                }}
+              >
+                Send
+              </button>
+            </div>
+
+            {/* Request Human Agent Button with smart timing and business hours awareness */}
+            {contextType === 'storefront' &&
+             conversationId &&
+             messages.length > 0 &&
+             takeoverStatus === 'ai' &&
+             isWithinBusinessHours === true && // Only show if within business hours (null or false = no button)
+             (customerMessageCount >= 3 || needsHumanHelp) && ( // Show after 3 messages OR if AI needs help
+              <button
+                onClick={requestHumanAgent}
+                style={{
+                  marginTop: '8px',
+                  width: '100%',
+                  padding: '10px',
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.9';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+              >
+                <UserCheck size={16} />
+                Request Store Owner
+              </button>
+            )}
+
+            {/* New Topic Button */}
+            {messages.length > 0 && (
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setInputMessage('');
+                  setCustomerMessageCount(0); // Reset message count
+                  setNeedsHumanHelp(false); // Reset help flag
+                  console.log('[AIChatWidget] Conversation cleared - starting new topic');
+                }}
+                style={{
+                  marginTop: '8px',
+                  width: '100%',
+                  padding: '8px',
+                  background: '#f3f4f6',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 500,
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#e5e7eb';
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#f3f4f6';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
+              >
+                🔄 New Topic (Clear Chat)
+              </button>
+            )}
+
+            <div style={{
+              marginTop: '8px',
+              fontSize: '0.75rem',
+              color: '#6b7280',
+              textAlign: 'center',
+            }}>
+              Powered by AI • Press Enter to send
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Bubble - Enhanced Visibility for Storefront */}
+      {!isOpen && (
+        <div style={{
+          position: 'fixed',
+          bottom: !isDesktop && contextType === 'storefront' ? '80px' : '20px', // Higher on mobile storefront to avoid bottom nav
+          right: !isDesktop && contextType === 'storefront' ? '20px' : contextType === 'storefront' && isDesktop ? '120px' : '20px',
+          zIndex: 99999,
+          // Hide with animation when modal is open
+          opacity: hasModalOpen ? 0 : 1,
+          visibility: hasModalOpen ? 'hidden' : 'visible',
+          transform: hasModalOpen ? 'scale(0.8)' : 'scale(1)',
+          transition: 'opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease',
+          pointerEvents: hasModalOpen ? 'none' : 'auto', // Disable interactions when hidden
+        }}>
+          {/* Pulsing ring animation for storefront */}
+          {contextType === 'storefront' && (
+            <div
+              className="pulse-ring"
+              style={{
+                position: 'absolute',
+                top: '-4px',
+                left: '-4px',
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                border: '3px solid #667eea',
+                animation: 'pulse-ring 2s ease-out infinite',
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+
+          <button
+            onClick={() => {
+              setIsOpen(true);
+              // Mark that user has used chat
+              localStorage.setItem('storehouse_chat_used', 'true');
+            }}
+            className={shouldPulse ? 'first-visit-pulse' : ''}
+            style={{
+              // Changed from circle to pill shape for text
+              borderRadius: '50px',
+              padding: '14px 24px',
+              background: contextType === 'storefront'
+                ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' // Green for shopping
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple for admin
+              border: 'none',
+              boxShadow: contextType === 'storefront'
+                ? '0 6px 24px rgba(16, 185, 129, 0.5)' // Stronger green shadow
+                : '0 4px 16px rgba(102, 126, 234, 0.4)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              fontSize: '1rem',
+              color: 'white',
+              fontWeight: '600',
+              transition: 'all 0.3s ease',
+              pointerEvents: 'auto',
+              position: 'relative',
+              zIndex: 1,
+              minWidth: 'fit-content',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.08)';
+              e.currentTarget.style.boxShadow = contextType === 'storefront'
+                ? '0 8px 32px rgba(16, 185, 129, 0.6)'
+                : '0 6px 24px rgba(102, 126, 234, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = contextType === 'storefront'
+                ? '0 6px 24px rgba(16, 185, 129, 0.5)'
+                : '0 4px 16px rgba(102, 126, 234, 0.4)';
+            }}
+            aria-label={contextType === 'storefront' ? 'Shop with AI Assistant' : 'Open AI Chat Assistant'}
+          >
+            <span style={{ fontSize: '1.5rem' }}>
+              {contextType === 'storefront' ? '🛍️' : '🤖'}
+            </span>
+            <span style={{
+              fontSize: '1rem',
+              fontWeight: '700',
+              letterSpacing: '0',
+              WebkitFontSmoothing: 'antialiased',
+              MozOsxFontSmoothing: 'grayscale',
+              textRendering: 'optimizeLegibility',
+            }}>
+              {/* Smart text that shows quota when low */}
+              {(() => {
+                // Check quota for logged-in users
+                if (userType === 'user' && quotaInfo) {
+                  const remaining = quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0);
+                  if (remaining <= 10 && remaining > 0) {
+                    return `${remaining} chats left`;
+                  }
+                }
+
+                // Context-specific help text
+                if (contextType === 'storefront') {
+                  return 'Ask about products';
+                } else if (!localStorage.getItem('storehouse_chat_used')) {
+                  return 'Need Help?';
+                } else {
+                  // Page-specific help after first use
+                  const pathname = window.location.pathname;
+                  if (pathname.includes('/products')) return 'Help with products?';
+                  if (pathname.includes('/sales')) return 'Record a sale?';
+                  if (pathname.includes('/inventory')) return 'Track inventory?';
+                  if (pathname.includes('/reports')) return 'View reports?';
+                  if (pathname.includes('/customers')) return 'Manage customers?';
+                  if (pathname.includes('/payment') || pathname.includes('/checkout')) return 'Payment Help?';
+                  return 'Need Help?';
+                }
+              })()}
+            </span>
+
+            {/* Red notification dot for very low quota */}
+            {userType === 'user' && quotaInfo &&
+             quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0) <= 5 &&
+             quotaInfo.chatLimit - (quotaInfo.chatsUsed || 0) > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-6px',
+                right: '-6px',
+                background: '#ef4444',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                border: '2px solid white',
+              }} />
+            )}
+          </button>
+
+          {/* "Need Help?" tooltip for storefront - positioned to avoid cutoff */}
+          {contextType === 'storefront' && (
+            <>
+              {/* Tooltip above button (desktop) */}
+              {isDesktop && (
+                <div
+                  className="chat-tooltip"
+                  style={{
+                    position: 'absolute',
+                    bottom: '75px',
+                    right: 'auto',
+                    left: '50%',
+                    transform: 'translateX(-50%)', // Center it above the button
+                    background: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: '#059669',
+                    whiteSpace: 'nowrap',
+                    animation: 'bounce-tooltip 2s ease-in-out infinite',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  💬 Need help?
+                </div>
+              )}
+
+              {/* Label above button (mobile - more visible) */}
+              {/* REMOVED: "Chat Here" label was misleading users on storefront pages */}
+              {/* The button itself already says "Ask about products" which is clear enough */}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Support Escalation Modal */}
+      {showSupport && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px',
+          }}
+          onClick={() => setShowSupport(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <SupportEscalation
+              conversationHistory={messages}
+              userQuestion={messages[messages.length - 1]?.content}
+              onClose={() => setShowSupport(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Minimal Pulse Animations Only */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+
+        @keyframes pulse-ring {
+          0% {
+            transform: scale(0.9);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1.3);
+            opacity: 0;
+          }
+        }
+
+        @keyframes gentle-pulse {
+          0%, 100% {
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+            transform: scale(1.05);
+          }
+        }
+
+        .first-visit-pulse {
+          animation: gentle-pulse 2s ease-in-out 3;
+        }
+
+        @keyframes bounce-tooltip {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-8px);
+          }
+        }
+
+        .chat-tooltip {
+          animation: bounce-tooltip 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-label {
+          0%, 100% {
+            transform: translateX(-50%) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translateX(-50%) scale(1.05);
+            opacity: 0.9;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
