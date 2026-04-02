@@ -110,6 +110,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           label: 'Professional Invoices',
           description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
           action: () => navigate('/invoices')
+        },
+        {
+          icon: TrendingUp,
+          label: 'Money & Profits',
+          description: 'View item costs, prices, and profit margins',
+          action: onViewMoney // This opens the Money & Profits page
         }
       ]
     },
@@ -120,7 +126,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           icon: BookOpen,
           label: 'Money Book',
           description: 'Track credit sales and manage ajo/contribution groups',
-          action: onViewMoney, // Use the onViewMoney prop which shows the Money Book
+          action: onViewCustomers, // Fixed: This opens CustomerDebtDrawer (Money Book with Credit Sales + Contributions tabs)
           badge: 'NEW'
         },
         {
