@@ -16,7 +16,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client with optimized settings
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Trim the anon key to remove any trailing newlines that cause WebSocket failures
+export const supabase = createClient(supabaseUrl, supabaseAnonKey?.trim(), {
   auth: {
     // Auto-refresh tokens
     autoRefreshToken: true,
