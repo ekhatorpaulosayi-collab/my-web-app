@@ -34,7 +34,8 @@ interface ContributionGroupDetailProps {
   onRemindUnpaid: (memberIds: string[]) => void;
   onRecordPayout: (recipientId: string, amount: number) => void;
   onSettings: () => void;
-  onAddMember?: () => void;
+  onAddMember?: (member: { name: string; phone?: string }) => Promise<void> | void;
+  onUpdate?: (group: ContributionGroup) => void;
 }
 
 const formatNaira = (amount: number) => {
@@ -78,6 +79,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [allSelected, setAllSelected] = useState(false);
   const [memberAnimations, setMemberAnimations] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
+  const [showAddMemberForm, setShowAddMemberForm] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberPhone, setNewMemberPhone] = useState('');
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -157,6 +162,30 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const copyShareLink = () => {
     if (shareUrl) {
       navigator.clipboard.writeText(`https://${shareUrl}`);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!newMemberName.trim()) return;
+
+    setIsAddingMember(true);
+    try {
+      // Call the onAddMember prop with the new member data
+      if (onAddMember) {
+        await onAddMember({
+          name: newMemberName.trim(),
+          phone: newMemberPhone.trim() || undefined
+        });
+      }
+
+      // Reset form
+      setNewMemberName('');
+      setNewMemberPhone('');
+      setShowAddMemberForm(false);
+    } catch (error) {
+      console.error('Failed to add member:', error);
+    } finally {
+      setIsAddingMember(false);
     }
   };
 
@@ -531,37 +560,141 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           })}
         </div>
 
-        {/* Add Member Button */}
+        {/* Add Member Section */}
         {onAddMember && (
-          <button
-            onClick={onAddMember}
-            style={{
-              marginTop: '20px',
-              width: '100%',
-              padding: '14px',
-              background: 'white',
-              color: '#10b981',
-              border: '2px dashed #10b981',
-              borderRadius: '12px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'white';
-            }}
-          >
-            <span style={{ fontSize: '18px' }}>+</span>
-            Add New Member
-          </button>
+          <>
+            {showAddMemberForm ? (
+              <div style={{
+                marginTop: '20px',
+                padding: '16px',
+                background: 'white',
+                border: '2px solid #10b981',
+                borderRadius: '12px'
+              }}>
+                <h4 style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginBottom: '12px'
+                }}>
+                  Add New Member
+                </h4>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <input
+                    type="text"
+                    placeholder="Member name *"
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      transition: 'border 0.2s'
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#10b981'}
+                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                    autoFocus
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Phone number (optional)"
+                    value={newMemberPhone}
+                    onChange={(e) => setNewMemberPhone(e.target.value)}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      transition: 'border 0.2s'
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#10b981'}
+                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                  />
+                  <div style={{
+                    display: 'flex',
+                    gap: '8px'
+                  }}>
+                    <button
+                      onClick={handleAddMember}
+                      disabled={!newMemberName.trim() || isAddingMember}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: newMemberName.trim() && !isAddingMember
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                          : '#e5e7eb',
+                        color: newMemberName.trim() && !isAddingMember ? 'white' : '#9ca3af',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: newMemberName.trim() && !isAddingMember ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {isAddingMember ? 'Adding...' : 'Add Member'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddMemberForm(false);
+                        setNewMemberName('');
+                        setNewMemberPhone('');
+                      }}
+                      style={{
+                        padding: '10px 16px',
+                        background: '#f3f4f6',
+                        color: '#374151',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddMemberForm(true)}
+                style={{
+                  marginTop: '20px',
+                  width: '100%',
+                  padding: '14px',
+                  background: 'white',
+                  color: '#10b981',
+                  border: '2px dashed #10b981',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>+</span>
+                Add New Member
+              </button>
+            )}
+          </>
         )}
       </div>
 

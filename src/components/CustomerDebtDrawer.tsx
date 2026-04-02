@@ -7,7 +7,7 @@ import ContributionGroupList from './contributions/ContributionGroupList';
 import CreateGroupForm from './contributions/CreateGroupForm';
 import ContributionGroupDetail from './contributions/ContributionGroupDetail';
 import GroupSettings from './contributions/GroupSettings';
-import { getGroups, createGroup, updateGroup, deleteGroup } from '../services/contributionService';
+import { getGroups, createGroup, updateGroup, deleteGroup, addMember } from '../services/contributionService';
 import { useAuth } from '../contexts/AuthContext';
 
 // Adapter type to match the component's expected format
@@ -505,7 +505,19 @@ Thank you for your payment! 🙏`;
               + New Group
             </button>
           )}
-          <button className="drawer-close" onClick={onClose} aria-label="Close">
+          <button
+            className="drawer-close"
+            onClick={() => {
+              // Reset contribution states when closing
+              setSelectedGroup(null);
+              setShowCreateGroupForm(false);
+              setShowGroupSettings(false);
+              // Reset to default tab
+              setMainTab('credit-sales');
+              onClose();
+            }}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>
@@ -534,7 +546,13 @@ Thank you for your payment! 🙏`;
             Credit Sales
           </button>
           <button
-            onClick={() => setMainTab('contributions')}
+            onClick={() => {
+              setMainTab('contributions');
+              // Reset to list view when switching to Contributions tab
+              setSelectedGroup(null);
+              setShowCreateGroupForm(false);
+              setShowGroupSettings(false);
+            }}
             style={{
               flex: 1,
               padding: '12px 8px',
@@ -963,7 +981,8 @@ Thank you for your payment! 🙏`;
                           cycleNumber: newGroup.current_cycle || 1,
                           totalCycles: newGroup.totalMembers || newGroup.total_members || 0,
                           nextCollectionDate: new Date().toISOString(),
-                          isActive: newGroup.status === 'active'
+                          isActive: newGroup.status === 'active',
+                          collectionDay: newGroup.collection_day || newGroup.collectionDay || ''
                         };
                         setSelectedGroup(normalizedGroup);
                       }
@@ -1001,10 +1020,48 @@ Thank you for your payment! 🙏`;
                 onSettings={() => {
                   setShowGroupSettings(true);
                 }}
-                onAddMember={() => {
-                  // Open the GroupSettings modal with the members tab focused
-                  setShowGroupSettings(true);
-                  onToast?.('You can add members in the group settings');
+                onAddMember={async (memberData) => {
+                  try {
+                    // Calculate payout position for the new member
+                    const currentMembers = selectedGroup.members || [];
+                    const nextPosition = currentMembers.length + 1;
+
+                    // Add member to Supabase
+                    const result = await addMember(selectedGroup.id, {
+                      name: memberData.name,
+                      phone: memberData.phone,
+                      payoutPosition: nextPosition
+                    });
+
+                    if (!result.error && result.data) {
+                      // Update local state with the new member
+                      const newMember = {
+                        id: result.data.id,
+                        name: result.data.name,
+                        phone: result.data.phone,
+                        isPaid: false,
+                        hasPaid: false
+                      };
+
+                      const updatedGroup = {
+                        ...selectedGroup,
+                        members: [...(selectedGroup.members || []), newMember],
+                        totalCycles: (selectedGroup.members?.length || 0) + 1
+                      };
+
+                      setSelectedGroup(updatedGroup);
+                      setContributionGroups(contributionGroups.map(g =>
+                        g.id === updatedGroup.id ? updatedGroup : g
+                      ));
+
+                      onToast?.(`${memberData.name} has been added to the group`);
+                    } else {
+                      throw new Error(result.error || 'Failed to add member');
+                    }
+                  } catch (error) {
+                    console.error('Failed to add member:', error);
+                    onToast?.('Failed to add member. Please try again.');
+                  }
                 }}
                 onMarkPaid={(memberId) => {
                   console.log('Mark paid:', memberId);
@@ -1075,7 +1132,8 @@ Thank you for your payment! 🙏`;
                     cycleNumber: group.current_cycle || 1,
                     totalCycles: group.totalMembers || group.total_members || 0,
                     nextCollectionDate: new Date().toISOString(),
-                    isActive: group.status === 'active'
+                    isActive: group.status === 'active',
+                    collectionDay: group.collection_day || group.collectionDay || ''
                   };
                   setSelectedGroup(normalizedGroup);
                 }}
@@ -1144,13 +1202,23 @@ Thank you for your payment! 🙏`;
           group={{
             ...selectedGroup,
             isShared: selectedGroup.share_enabled || false,
-            shareCode: selectedGroup.share_code
+            shareCode: selectedGroup.share_code,
+            isActive: selectedGroup.status === 'active' || selectedGroup.isActive,
+            collectionDay: selectedGroup.collectionDay || selectedGroup.collection_day || ''
           }}
           onBack={() => setShowGroupSettings(false)}
           onSave={async (updates) => {
             try {
+              // Map the fields correctly for database update
+              const dbUpdates = {
+                ...updates,
+                collection_day: updates.collectionDay,
+                status: updates.isActive ? 'active' : 'paused',
+                share_enabled: updates.isShared
+              };
+
               // Update the group in the database
-              const result = await updateGroup(selectedGroup.id, updates);
+              const result = await updateGroup(selectedGroup.id, dbUpdates);
 
               if (!result.error) {
                 // Update local state
