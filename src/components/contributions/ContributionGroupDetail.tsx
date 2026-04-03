@@ -229,15 +229,15 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
-        return { color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', text: 'Paid' };
+        return { color: '#059669', bg: '#d1fae5', text: 'Paid' };
       case 'late':
-        return { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', text: 'Late' };
+        return { color: '#ea580c', bg: '#fed7aa', text: 'Late' };
       case 'defaulted':
-        return { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', text: 'Defaulted' };
+        return { color: '#dc2626', bg: '#fee2e2', text: 'Defaulted' };
       case 'frozen':
-        return { color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', text: 'Frozen' };
+        return { color: '#64748b', bg: '#e2e8f0', text: 'Frozen' };
       default:
-        return { color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', text: 'Active' };
+        return { color: '#64748b', bg: '#f1f5f9', text: 'Active' };
     }
   };
 
@@ -285,10 +285,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
   return (
     <div style={{
-      background: '#fafafa',
+      background: '#f8f9fa',
       height: '100vh',
       overflowY: 'auto',
-      paddingBottom: '140px' // Increased from 100px to prevent overlap with Need Help button
+      paddingBottom: '100px'
     }}>
       {/* Premium Header */}
       <div style={{
@@ -431,29 +431,38 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           {/* Current Recipient Badge */}
           {currentRecipient && (
             <div style={{
-              marginTop: '20px',
-              padding: '12px 20px',
+              marginTop: '16px',
+              padding: '10px 16px',
               background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-              borderRadius: '16px',
-              boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)'
+              borderRadius: '12px',
+              boxShadow: '0 2px 8px rgba(251, 191, 36, 0.25)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '12px'
             }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: 'white',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: '4px',
-                opacity: 0.9
+              <span style={{
+                fontSize: '20px'
               }}>
-                This Cycle's Recipient
-              </div>
-              <div style={{
-                fontSize: '18px',
-                fontWeight: 700,
-                color: 'white'
-              }}>
-                {currentRecipient.name}
+                👑
+              </span>
+              <div>
+                <div style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.95)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.03em'
+                }}>
+                  Cycle {group.cycleNumber} Recipient
+                </div>
+                <div style={{
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  color: 'white',
+                  marginTop: '2px'
+                }}>
+                  {currentRecipient.name}
+                </div>
               </div>
             </div>
           )}
@@ -513,23 +522,25 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  padding: '16px',
+                  padding: '20px',
                   background: isPaid
-                    ? 'linear-gradient(to right, rgba(16, 185, 129, 0.05), rgba(16, 185, 129, 0.02))'
+                    ? 'linear-gradient(to right, rgba(16, 185, 129, 0.04), rgba(16, 185, 129, 0.01))'
                     : isFrozen
-                    ? 'linear-gradient(to right, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.02))'
+                    ? 'linear-gradient(to right, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.02))'
                     : 'white',
-                  borderRadius: '16px',
+                  borderRadius: '12px',
                   border: `1px solid ${
-                    isPaid ? 'rgba(16, 185, 129, 0.2)' :
-                    isFrozen ? 'rgba(59, 130, 246, 0.2)' :
-                    'rgba(229, 231, 235, 0.8)'
+                    isPaid ? 'rgba(16, 185, 129, 0.15)' :
+                    isFrozen ? 'rgba(148, 163, 184, 0.2)' :
+                    '#e5e7eb'
                   }`,
                   transition: 'all 0.3s ease',
                   transform: isAnimating ? 'scale(0.98)' : 'scale(1)',
                   opacity: mounted ? 1 : 0,
-                  animation: `slideIn 0.3s ease ${index * 0.05}s forwards`,
-                  position: 'relative'
+                  animation: `slideIn 0.3s ease ${index * 0.03}s forwards`,
+                  position: 'relative',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  gap: '4px'
                 }}
               >
                 {/* Checkbox for unpaid and not frozen */}
@@ -548,23 +559,38 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   />
                 )}
 
-                {/* Avatar */}
+                {/* Avatar with colored circle and initials */}
                 <div style={{
                   width: '44px',
                   height: '44px',
                   borderRadius: '50%',
                   background: isPaid
                     ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : '#f3f4f6',
-                  color: isPaid ? 'white' : '#6b7280',
+                    : isFrozen
+                    ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
+                    : (() => {
+                        // Generate consistent color based on member name
+                        const colors = [
+                          'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                          'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                          'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                          'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)'
+                        ];
+                        const index = member.name.charCodeAt(0) % colors.length;
+                        return colors[index];
+                      })(),
+                  color: 'white',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '18px',
+                  fontSize: isPaid ? '20px' : '16px',
                   fontWeight: 600,
-                  marginRight: '12px'
+                  marginRight: '12px',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
                 }}>
-                  {isPaid ? '✓' : member.name.charAt(0).toUpperCase()}
+                  {isPaid ? '✓' : member.name.substring(0, 2).toUpperCase()}
                 </div>
 
                 {/* Name and badges */}
@@ -583,13 +609,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       {member.name}
                     </span>
                     <span style={{
-                      padding: '2px 8px',
+                      padding: '4px 10px',
                       background: statusBadge.bg,
                       color: statusBadge.color,
-                      borderRadius: '8px',
-                      fontSize: '10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
                       fontWeight: 600,
-                      textTransform: 'uppercase'
+                      letterSpacing: '0.02em'
                     }}>
                       {statusBadge.text}
                     </span>
@@ -630,21 +656,24 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       onClick={() => handleMarkPaid(member.id)}
                       style={{
                         padding: '8px 16px',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
                         color: 'white',
                         border: 'none',
-                        borderRadius: '10px',
+                        borderRadius: '8px',
                         fontSize: '13px',
                         fontWeight: 600,
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        minHeight: '36px'
+                        minHeight: '36px',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.transform = 'scale(1.03)';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
                       }}
                       onMouseLeave={e => {
                         e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.05)';
                       }}
                     >
                       Mark Paid
@@ -713,13 +742,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       <div style={{
                         position: 'absolute',
                         right: 0,
-                        top: '40px',
+                        top: '44px',
                         background: 'white',
                         border: '1px solid #e5e7eb',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                        zIndex: 10,
-                        minWidth: '180px',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.05)',
+                        zIndex: 100,
+                        minWidth: '200px',
                         overflow: 'hidden'
                       }}>
                         {memberStatus !== 'frozen' && memberStatus !== 'defaulted' && !isPaid && (
@@ -1042,12 +1071,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               <button
                 onClick={() => setShowAddMemberForm(true)}
                 style={{
-                  marginTop: '20px',
+                  marginTop: '24px',
+                  marginBottom: '16px',
                   width: '100%',
-                  padding: '14px',
+                  padding: '16px',
                   background: 'white',
-                  color: '#10b981',
-                  border: '2px dashed #10b981',
+                  color: '#14b8a6',
+                  border: '2px dashed #14b8a6',
                   borderRadius: '12px',
                   fontSize: '14px',
                   fontWeight: 600,
@@ -1059,13 +1089,15 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   gap: '8px'
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)';
+                  e.currentTarget.style.background = 'rgba(20, 184, 166, 0.04)';
+                  e.currentTarget.style.borderColor = '#0d9488';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.borderColor = '#14b8a6';
                 }}
               >
-                <span style={{ fontSize: '18px' }}>+</span>
+                <span style={{ fontSize: '20px' }}>+</span>
                 Add New Member
               </button>
             )}
@@ -1116,7 +1148,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               style={{
                 flex: 1,
                 padding: '14px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '12px',
@@ -1125,7 +1157,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 minHeight: '48px',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                boxShadow: '0 4px 12px rgba(20, 184, 166, 0.3)',
                 animation: 'pulse 2s infinite'
               }}
               onMouseEnter={e => {
@@ -1531,7 +1563,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
@@ -1574,10 +1606,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
         @keyframes pulse {
           0%, 100% {
-            boxShadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            boxShadow: 0 4px 12px rgba(20, 184, 166, 0.3);
           }
           50% {
-            boxShadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+            boxShadow: 0 4px 20px rgba(20, 184, 166, 0.5);
           }
         }
 

@@ -2724,10 +2724,14 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
     // ============================================================================
     // PART 2: Check monthly quota
     // ============================================================================
-    const { data: quotaResult } = await supabase
-      .rpc('check_ai_chat_quota', { p_user_id: storeUserId });
+    const { data: quotaResult, error: quotaError } = await supabase
+      .rpc('check_ai_chat_quota', { p_user_id: storeUserId ? storeUserId.toString() : null });
 
-    if (quotaResult && !quotaResult.allowed) {
+    // FAIL-OPEN: If quota check fails, allow the message (don't block customers)
+    if (quotaError) {
+      console.error('[StorefrontChat] Quota check failed, allowing message:', quotaError);
+      // Continue with the chat - don't block on quota check errors
+    } else if (quotaResult && !quotaResult.allowed) {
       const whatsappNumber = storeContext?.profile?.whatsappNumber || '';
       const storeName = storeContext?.profile?.businessName || 'this store';
       const address = storeContext?.profile?.address || '';
