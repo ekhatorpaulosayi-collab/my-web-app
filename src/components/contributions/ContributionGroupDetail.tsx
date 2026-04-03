@@ -55,8 +55,18 @@ const formatNaira = (amount: number) => {
 
 const formatDate = (date: string) => {
   const d = new Date(date);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}`;
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) {
+    return 'today';
+  } else if (d.toDateString() === yesterday.toDateString()) {
+    return 'yesterday';
+  } else {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[d.getMonth()]} ${d.getDate()}`;
+  }
 };
 
 const frequencyLabels = {
@@ -181,7 +191,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
       minHeight: '100vh',
       paddingBottom: '120px'
     }}>
-      {/* Section 1: Group header (sticky) */}
+      {/* Group header (sticky) */}
       <div style={{
         background: 'white',
         borderBottom: '1px solid #eee',
@@ -272,13 +282,14 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         </div>
       </div>
 
-      {/* Section 2: The numbers (replaces progress ring) */}
       <div style={{ padding: '16px' }}>
+        {/* Simple summary card replacing progress ring */}
         <div style={{
           background: '#f8f8f6',
           borderRadius: '16px',
           padding: '20px',
-          textAlign: 'center'
+          textAlign: 'center',
+          marginBottom: '16px'
         }}>
           <div style={{
             display: 'flex',
@@ -304,8 +315,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             <div style={{
               marginTop: '10px',
               display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
               padding: '6px 16px',
               borderRadius: '20px',
               background: '#FAEEDA',
@@ -316,10 +325,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </div>
           )}
         </div>
-      </div>
 
-      {/* Section 3: Member checklist */}
-      <div style={{ padding: '0 16px' }}>
+        {/* Members section */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -342,6 +349,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           </span>
         </div>
 
+        {/* Simplified member list */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -349,8 +357,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         }}>
           {group.members.map((member) => {
             const isPaid = member.isPaid || member.hasPaid;
-            const isRecipient = currentRecipient && member.id === currentRecipient.id;
             const daysOverdue = !isPaid && group.collectionDay ? getDaysOverdue(group.collectionDay) : 0;
+            const isLate = daysOverdue > 0;
 
             return (
               <div
@@ -359,8 +367,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   padding: '12px',
                   background: isPaid
                     ? 'linear-gradient(to right, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.04))'
-                    : 'linear-gradient(to right, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.04))',
-                  border: `1px solid ${isPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                    : isLate
+                    ? 'linear-gradient(to right, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.04))'
+                    : 'white',
+                  border: `1px solid ${isPaid ? 'rgba(16, 185, 129, 0.2)' : isLate ? 'rgba(245, 158, 11, 0.2)' : '#e5e7eb'}`,
                   borderRadius: '12px',
                   display: 'flex',
                   alignItems: 'center',
@@ -368,7 +378,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {/* Avatar circle with single initial */}
+                  {/* Coloured avatar circle */}
                   <div style={{
                     width: '36px',
                     height: '36px',
@@ -390,10 +400,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: isPaid ? '16px' : '14px',
+                    fontSize: '14px',
                     fontWeight: '600'
                   }}>
-                    {isPaid ? '✓' : member.name.charAt(0).toUpperCase()}
+                    {member.name.charAt(0).toUpperCase()}
                   </div>
 
                   <div>
@@ -404,41 +414,43 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     }}>
                       <span style={{
                         fontSize: '15px',
-                        fontWeight: '500',
+                        fontWeight: '600',
                         color: '#1f2937'
                       }}>
                         {member.name}
                       </span>
-                      {isRecipient && (
+                      {/* ONE status badge only - either Late or nothing */}
+                      {isLate && !isPaid && (
                         <span style={{
-                          padding: '2px 6px',
-                          background: '#fbbf24',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          color: 'white'
+                          padding: '2px 8px',
+                          background: '#fed7aa',
+                          color: '#ea580c',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '600'
                         }}>
-                          Collects
+                          Late
                         </span>
                       )}
                     </div>
+                    {/* Detail text */}
                     <div style={{
                       fontSize: '12px',
                       color: '#6b7280',
                       marginTop: '2px'
                     }}>
                       {isPaid
-                        ? (member.paidAt ? `Paid ${formatDate(member.paidAt)}` : 'Paid')
+                        ? `Paid ${member.paidAt ? formatDate(member.paidAt) : 'today'}`
                         : daysOverdue > 0
                         ? `${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue`
                         : group.collectionDay
                         ? `Due ${group.collectionDay}`
-                        : 'Pending'}
+                        : 'Pending payment'}
                     </div>
                   </div>
                 </div>
 
-                {/* Right side: Paid button or checkmark */}
+                {/* Right side: Mark Paid button or checkmark */}
                 {!isPaid ? (
                   <button
                     onClick={() => handleMarkPaid(member.id)}
@@ -451,10 +463,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       fontSize: '14px',
                       fontWeight: '500',
                       cursor: 'pointer',
-                      minWidth: '70px'
+                      minWidth: '90px'
                     }}
                   >
-                    Paid
+                    Mark Paid
                   </button>
                 ) : (
                   <div style={{
@@ -476,7 +488,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           })}
         </div>
 
-        {/* Section 4: Add Member */}
+        {/* Add Member section */}
         {onAddMember && (
           <>
             {showAddMemberForm ? (
@@ -579,7 +591,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           </>
         )}
 
-        {/* Section 5: Two action buttons */}
+        {/* Two action buttons */}
         <div style={{
           display: 'flex',
           gap: '8px',
@@ -587,21 +599,20 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         }}>
           <button
             onClick={handleRemindAll}
-            disabled={allPaid || unpaidMembers.length === 0}
+            disabled={unpaidMembers.length === 0}
             style={{
               flex: 1,
               padding: '14px',
               borderRadius: '12px',
-              border: allPaid ? 'none' : '1.5px solid #ddd',
-              background: allPaid ? '#f3f4f6' : 'transparent',
-              color: allPaid ? '#10b981' : '#666',
+              border: '1.5px solid #ddd',
+              background: 'transparent',
+              color: unpaidMembers.length > 0 ? '#666' : '#ccc',
               fontSize: '14px',
               fontWeight: '500',
-              cursor: allPaid ? 'default' : 'pointer',
-              opacity: allPaid ? 0.6 : 1
+              cursor: unpaidMembers.length > 0 ? 'pointer' : 'not-allowed'
             }}
           >
-            {allPaid ? 'All paid!' : 'Remind all'}
+            Remind all
           </button>
           <button
             onClick={() => allPaid && setShowPayoutModal(true)}
@@ -611,13 +622,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               padding: '14px',
               borderRadius: '12px',
               border: 'none',
-              background: allPaid ? '#0F6E56' : '#e5e7eb',
+              background: allPaid ? '#14b8a6' : '#e5e7eb',
               color: allPaid ? 'white' : '#9ca3af',
               fontSize: '14px',
               fontWeight: '500',
               cursor: allPaid ? 'pointer' : 'not-allowed',
-              opacity: allPaid ? 1 : 0.4,
-              pointerEvents: allPaid ? 'auto' : 'none'
+              opacity: allPaid ? 1 : 0.4
             }}
           >
             Record payout
@@ -788,7 +798,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: '#0F6E56',
+                  background: '#14b8a6',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
