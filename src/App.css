@@ -3910,7 +3910,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  max-height: 80vh;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
   background: var(--white);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
