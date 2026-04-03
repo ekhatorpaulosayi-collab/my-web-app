@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { ProgressRing } from './ProgressRing';
 import * as contributionService from '../../services/contributionService';
 
 interface Member {
@@ -12,6 +11,7 @@ interface Member {
   paymentDate?: string;
   status?: 'active' | 'late' | 'defaulted' | 'frozen';
   paidAt?: string;
+  created_at?: string;
 }
 
 interface ContributionGroup {
@@ -54,11 +54,9 @@ const formatNaira = (amount: number) => {
 };
 
 const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('en-NG', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric'
-  });
+  const d = new Date(date);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}`;
 };
 
 const frequencyLabels = {
@@ -76,180 +74,33 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   onSettings,
   onAddMember
 }) => {
-  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [showShareModal, setShowShareModal] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
-  const [allSelected, setAllSelected] = useState(false);
-  const [memberAnimations, setMemberAnimations] = useState<Set<string>>(new Set());
-  const [mounted, setMounted] = useState(false);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [showMemberMenu, setShowMemberMenu] = useState<string | null>(null);
-  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
-  const [selectedMemberForHistory, setSelectedMemberForHistory] = useState<Member | null>(null);
-  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
-  const [groupPaymentHistory, setGroupPaymentHistory] = useState<any[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    // Load group payment history on mount
-    loadGroupPaymentHistory();
-  }, []);
+  // Calculate recipient using rotation logic
+  const sortedMembers = [...group.members].sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateA - dateB;
+  });
+  const recipientIndex = (group.cycleNumber - 1) % sortedMembers.length;
+  const currentRecipient = sortedMembers[recipientIndex];
 
-  const loadGroupPaymentHistory = async () => {
-    const { data, error } = await contributionService.getGroupPaymentHistory(group.id);
-    if (data && !error) {
-      setGroupPaymentHistory(data);
-    }
-  };
-
-  // Fix 3: Implement recipient rotation logic based on cycle number
-  // Sort members by creation order (assuming they're already in creation order from the database)
-  // Then use modulo to determine current recipient
-  const recipientIndex = (group.cycleNumber - 1) % group.members.length;
-  const currentRecipient = group.members[recipientIndex] || group.members.find(m => m.id === group.currentRecipientId);
-
+  // Calculate paid/unpaid members
   const paidMembers = group.members.filter(m => m.isPaid || m.hasPaid);
   const unpaidMembers = group.members.filter(m => !m.isPaid && !m.hasPaid);
   const totalMembers = group.members.length;
-  const totalCollected = paidMembers.reduce((sum, m) => sum + (m.paymentAmount || group.amount), 0);
-  const progressPercent = totalMembers > 0 ? (paidMembers.length / totalMembers) * 100 : 0;
-  const totalAmount = group.amount * totalMembers;
-  const shareUrl = group.share_code ? `storehouse.ng/a/${group.share_code}` : null;
-
-  useEffect(() => {
-    const unpaidIds = new Set(unpaidMembers.map(m => m.id));
-    setAllSelected(
-      unpaidIds.size > 0 &&
-      Array.from(unpaidIds).every(id => selectedMembers.has(id))
-    );
-  }, [selectedMembers, unpaidMembers]);
-
-  const handleMemberToggle = (memberId: string) => {
-    const newSelected = new Set(selectedMembers);
-    if (newSelected.has(memberId)) {
-      newSelected.delete(memberId);
-    } else {
-      newSelected.add(memberId);
-    }
-    setSelectedMembers(newSelected);
-  };
-
-  const handleSelectAll = () => {
-    if (allSelected) {
-      setSelectedMembers(new Set());
-    } else {
-      setSelectedMembers(new Set(unpaidMembers.map(m => m.id)));
-    }
-  };
-
-  const handleRemindSelected = () => {
-    const unpaidIds = unpaidMembers
-      .filter(m => selectedMembers.has(m.id))
-      .map(m => m.id);
-
-    if (unpaidIds.length > 0) {
-      onRemindUnpaid(unpaidIds);
-      setSelectedMembers(new Set());
-    }
-  };
-
-  const handleMarkPaid = async (memberId: string) => {
-    // Trigger animation
-    setMemberAnimations(new Set([memberId]));
-
-    // Save payment to database
-    const { data, error } = await contributionService.markPaid(
-      group.id,
-      memberId,
-      group.cycleNumber,
-      {
-        amount: group.amount,
-        paymentMethod: 'cash',
-        note: `Cycle ${group.cycleNumber} payment`
-      }
-    );
-
-    if (!error) {
-      // Refresh payment history
-      await loadGroupPaymentHistory();
-
-      // Call the parent handler after saving
-      setTimeout(() => {
-        onMarkPaid(memberId);
-        setMemberAnimations(new Set());
-      }, 300);
-    } else {
-      console.error('Failed to save payment:', error);
-      setMemberAnimations(new Set());
-    }
-  };
-
-  const handleRecordPayout = () => {
-    if (currentRecipient) {
-      onRecordPayout(currentRecipient.id, totalCollected);
-      setShowPayoutModal(false);
-    }
-  };
-
-  const openWhatsAppForMember = (member: Member) => {
-    if (!member.phone) return;
-    const message = encodeURIComponent(
-      `Hi ${member.name}, this is a reminder for your ${formatNaira(group.amount)} contribution to "${group.name}". Collection day: ${group.collectionDay}. Thank you!`
-    );
-    const phoneNumber = member.phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
-  };
-
-  const copyShareLink = () => {
-    if (shareUrl) {
-      navigator.clipboard.writeText(`https://${shareUrl}`);
-    }
-  };
-
-  // Calculate member status based on payment and collection day
-  const getMemberStatus = (member: Member): 'paid' | 'late' | 'defaulted' | 'frozen' | 'active' => {
-    if (member.status === 'frozen') return 'frozen';
-    if (member.status === 'defaulted') return 'defaulted';
-    if (member.isPaid || member.hasPaid) return 'paid';
-
-    // Check if late based on collection day
-    if (group.collectionDay) {
-      const today = new Date().getDay();
-      const collectionDayIndex = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-        .indexOf(group.collectionDay);
-
-      if (collectionDayIndex !== -1 && today > collectionDayIndex) {
-        return 'late';
-      }
-    }
-
-    return 'active';
-  };
-
-  // Get status badge color and text
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return { color: '#059669', bg: '#d1fae5', text: 'Paid' };
-      case 'late':
-        return { color: '#ea580c', bg: '#fed7aa', text: 'Late' };
-      case 'defaulted':
-        return { color: '#dc2626', bg: '#fee2e2', text: 'Defaulted' };
-      case 'frozen':
-        return { color: '#64748b', bg: '#e2e8f0', text: 'Frozen' };
-      default:
-        return { color: '#64748b', bg: '#f1f5f9', text: 'Active' };
-    }
-  };
+  const totalCollected = paidMembers.length * group.amount;
+  const totalExpected = totalMembers * group.amount;
+  const allPaid = unpaidMembers.length === 0;
 
   // Calculate days overdue
   const getDaysOverdue = (collectionDay?: string) => {
     if (!collectionDay) return 0;
-
     const today = new Date();
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const collectionDayIndex = dayNames.indexOf(collectionDay);
@@ -264,20 +115,48 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     return daysOverdue;
   };
 
+  const handleMarkPaid = async (memberId: string) => {
+    // Save payment to database
+    await contributionService.markPaid(
+      group.id,
+      memberId,
+      group.cycleNumber,
+      {
+        amount: group.amount,
+        paymentMethod: 'cash',
+        note: `Cycle ${group.cycleNumber} payment`
+      }
+    );
+
+    // Call the parent handler
+    onMarkPaid(memberId);
+  };
+
+  const handleRecordPayout = () => {
+    if (currentRecipient && allPaid) {
+      onRecordPayout(currentRecipient.id, totalCollected);
+      setShowPayoutModal(false);
+    }
+  };
+
+  const handleRemindAll = () => {
+    const unpaidIds = unpaidMembers.map(m => m.id);
+    if (unpaidIds.length > 0) {
+      onRemindUnpaid(unpaidIds);
+    }
+  };
+
   const handleAddMember = async () => {
     if (!newMemberName.trim()) return;
 
     setIsAddingMember(true);
     try {
-      // Call the onAddMember prop with the new member data
       if (onAddMember) {
         await onAddMember({
           name: newMemberName.trim(),
           phone: newMemberPhone.trim() || undefined
         });
       }
-
-      // Reset form
       setNewMemberName('');
       setNewMemberPhone('');
       setShowAddMemberForm(false);
@@ -288,100 +167,77 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     }
   };
 
+  const shareUrl = group.share_code ? `storehouse.ng/a/${group.share_code}` : null;
+
+  const copyShareLink = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(`https://${shareUrl}`);
+    }
+  };
+
   return (
     <div style={{
       background: '#f8f9fa',
-      height: '100vh',
-      overflowY: 'auto',
-      paddingBottom: '120px' // Bug 8: Increased padding for Need Help button
+      minHeight: '100vh',
+      paddingBottom: '120px'
     }}>
-      {/* Fix 2: Sticky Group Name Header */}
+      {/* Section 1: Group header (sticky) */}
       <div style={{
-        background: 'linear-gradient(to bottom, #ffffff, #fefefe)',
-        borderBottom: '1px solid rgba(229, 231, 235, 0.8)',
-        padding: '12px 16px',
+        background: 'white',
+        borderBottom: '1px solid #eee',
+        padding: '16px',
         position: 'sticky',
         top: 0,
-        zIndex: 15,
-        backdropFilter: 'blur(10px)'
+        zIndex: 10
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          marginBottom: '4px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button
               onClick={onBack}
               style={{
                 width: '36px',
                 height: '36px',
-                borderRadius: '10px',
-                background: '#f3f4f6',
+                borderRadius: '8px',
+                background: 'transparent',
                 border: 'none',
-                fontSize: '18px',
+                fontSize: '20px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#e5e7eb';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = '#f3f4f6';
+                justifyContent: 'center'
               }}
             >
               ←
             </button>
-            <div style={{ flex: 1 }}>
-              <h1 style={{
-                fontSize: '18px',
-                fontWeight: 700,
-                color: '#1f2937',
-                marginBottom: '2px',
-                letterSpacing: '-0.02em'
-              }}>
-                {group.name}
-              </h1>
-              <div style={{
-                display: 'flex',
-                gap: '6px',
-                flexWrap: 'wrap'
-              }}>
-                <span style={{
-                  fontSize: '12px',
-                  color: '#6b7280'
-                }}>
-                  {formatNaira(group.amount)} • {frequencyLabels[group.frequency]}
-                  {group.collectionDay && ` • ${group.collectionDay}s`}
-                </span>
-              </div>
-            </div>
+            <h1 style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#1f2937',
+              margin: 0
+            }}>
+              {group.name}
+            </h1>
           </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             {shareUrl && (
               <button
                 onClick={() => setShowShareModal(true)}
                 style={{
                   width: '36px',
                   height: '36px',
-                  borderRadius: '10px',
-                  background: '#f3f4f6',
+                  borderRadius: '8px',
+                  background: 'transparent',
                   border: 'none',
-                  fontSize: '16px',
+                  fontSize: '18px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#e5e7eb';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = '#f3f4f6';
+                  justifyContent: 'center'
                 }}
               >
                 📤
@@ -392,118 +248,109 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               style={{
                 width: '36px',
                 height: '36px',
-                borderRadius: '10px',
-                background: '#f3f4f6',
+                borderRadius: '8px',
+                background: 'transparent',
                 border: 'none',
-                fontSize: '16px',
+                fontSize: '18px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#e5e7eb';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = '#f3f4f6';
+                justifyContent: 'center'
               }}
             >
               ⚙️
             </button>
           </div>
         </div>
+        <div style={{
+          fontSize: '13px',
+          color: '#6b7280',
+          marginLeft: '48px'
+        }}>
+          {formatNaira(group.amount)} · {frequencyLabels[group.frequency]}
+          {group.collectionDay && ` · ${group.collectionDay}s`}
+        </div>
       </div>
 
-      {/* Progress Section (no longer sticky) */}
-      <div style={{
-        background: 'linear-gradient(to bottom, #ffffff, #fefefe)',
-        padding: '20px 16px 24px'
-      }}>
-        {/* Hero Progress Section */}
+      {/* Section 2: The numbers (replaces progress ring) */}
+      <div style={{ padding: '16px' }}>
         <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '24px 0'
+          background: '#f8f8f6',
+          borderRadius: '16px',
+          padding: '20px',
+          textAlign: 'center'
         }}>
-          <ProgressRing
-            progress={progressPercent}
-            size={140}
-            strokeWidth={10}
-            amountCollected={formatNaira(totalCollected)}
-            totalAmount={formatNaira(totalAmount)}
-            membersPaid={paidMembers.length}
-            totalMembers={totalMembers}
-            isComplete={progressPercent === 100}
-          />
-
-          {/* Current Recipient Badge - Bug 4: Compact inline chip */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'baseline',
+            gap: '8px'
+          }}>
+            <span style={{
+              fontSize: '28px',
+              fontWeight: '600',
+              color: '#0F6E56'
+            }}>
+              {formatNaira(totalCollected)}
+            </span>
+            <span style={{
+              fontSize: '14px',
+              color: '#888'
+            }}>
+              of {formatNaira(totalExpected)}
+            </span>
+          </div>
           {currentRecipient && (
             <div style={{
+              marginTop: '10px',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 16px',
               borderRadius: '20px',
               background: '#FAEEDA',
-              color: '#854F0B',
               fontSize: '13px',
-              fontWeight: 500,
-              marginTop: '8px'
+              color: '#854F0B'
             }}>
-              → {currentRecipient.name} receives this cycle
+              Collects this cycle → {currentRecipient.name}
             </div>
           )}
         </div>
       </div>
 
-      {/* Members Section */}
-      <div style={{ padding: '20px 16px' }}>
+      {/* Section 3: Member checklist */}
+      <div style={{ padding: '0 16px' }}>
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '16px'
+          marginBottom: '12px'
         }}>
           <h3 style={{
             fontSize: '16px',
-            fontWeight: 600,
-            color: '#374151'
+            fontWeight: '500',
+            color: '#374151',
+            margin: 0
           }}>
-            Members ({totalMembers})
+            Members
           </h3>
-          {unpaidMembers.length > 0 && (
-            <button
-              onClick={handleSelectAll}
-              style={{
-                fontSize: '13px',
-                color: '#10b981',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: 500
-              }}
-            >
-              {allSelected ? 'Deselect all' : 'Select all'}
-            </button>
-          )}
+          <span style={{
+            fontSize: '14px',
+            color: '#6b7280'
+          }}>
+            {paidMembers.length}/{totalMembers} paid
+          </span>
         </div>
 
-        {/* Member List */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px'
+          gap: '8px'
         }}>
-          {group.members.map((member, index) => {
-            const memberStatus = getMemberStatus(member);
-            const isPaid = memberStatus === 'paid';
-            const isFrozen = memberStatus === 'frozen';
-            const isRecipient = currentRecipient && member.id === currentRecipient.id;  // Fix 3: Use calculated recipient
-            const isAnimating = memberAnimations.has(member.id);
-            const statusBadge = getStatusBadge(memberStatus);
-            const daysOverdue = memberStatus === 'late' ? getDaysOverdue(group.collectionDay) : 0;
+          {group.members.map((member) => {
+            const isPaid = member.isPaid || member.hasPaid;
+            const isRecipient = currentRecipient && member.id === currentRecipient.id;
+            const daysOverdue = !isPaid && group.collectionDay ? getDaysOverdue(group.collectionDay) : 0;
 
             return (
               <div
@@ -511,51 +358,24 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 style={{
                   padding: '12px',
                   background: isPaid
-                    ? 'linear-gradient(to right, rgba(16, 185, 129, 0.04), rgba(16, 185, 129, 0.01))'
-                    : isFrozen
-                    ? 'linear-gradient(to right, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.02))'
-                    : 'white',
-                  border: '1px solid #eee',
+                    ? 'linear-gradient(to right, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.04))'
+                    : 'linear-gradient(to right, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.04))',
+                  border: `1px solid ${isPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
                   borderRadius: '12px',
-                  marginBottom: '8px',
-                  transition: 'all 0.3s ease',
-                  transform: isAnimating ? 'scale(0.98)' : 'scale(1)',
-                  opacity: mounted ? 1 : 0,
-                  animation: `slideIn 0.3s ease ${index * 0.03}s forwards`,
-                  position: 'relative'
-                }}
-              >
-                {/* Bug 3: Two-row card layout */}
-                {/* Row 1: Avatar + Name + Badges */}
-                <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '6px'
-                }}>
-                  {/* Bug 1 fix: Hide checkbox to prevent black square */}
-                  {!isPaid && !isFrozen && (
-                    <input
-                      type="checkbox"
-                      checked={selectedMembers.has(member.id)}
-                      onChange={() => handleMemberToggle(member.id)}
-                      style={{
-                        display: 'none' // Bug 1: Hide checkbox to prevent black square
-                      }}
-                    />
-                  )}
-
-                  {/* Avatar with colored circle and initials */}
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {/* Avatar circle with single initial */}
                   <div style={{
                     width: '36px',
                     height: '36px',
                     borderRadius: '50%',
                     background: isPaid
                       ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                      : isFrozen
-                      ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
                       : (() => {
-                          // Generate consistent color based on member name
                           const colors = [
                             'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
                             'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
@@ -570,477 +390,187 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: isPaid ? '18px' : '14px',
-                    fontWeight: 600,
-                    flexShrink: 0,
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                    fontSize: isPaid ? '16px' : '14px',
+                    fontWeight: '600'
                   }}>
-                    {/* Bug 2 fix: Show only first letter */}
                     {isPaid ? '✓' : member.name.charAt(0).toUpperCase()}
                   </div>
 
-                  {/* Name */}
-                  <span style={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: '#1f2937'
-                  }}>
-                    {member.name}
-                  </span>
-
-                  {/* Status badge */}
-                  <span style={{
-                    padding: '3px 8px',
-                    background: statusBadge.bg,
-                    color: statusBadge.color,
-                    borderRadius: '6px',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    letterSpacing: '0.02em'
-                  }}>
-                    {statusBadge.text}
-                  </span>
-
-                  {/* Recipient badge if applicable */}
-                  {isRecipient && (
-                    <span style={{
-                      padding: '3px 8px',
-                      background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-                      borderRadius: '6px',
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      color: 'white'
-                    }}>
-                      RECIPIENT
-                    </span>
-                  )}
-                </div>
-
-                {/* Row 2: Detail text and action buttons */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginLeft: '46px' // Indent under name, not avatar
-                }}>
-                  {/* Detail text - Bug 5 fix: Proper status messages */}
-                  <div style={{
-                    fontSize: '12px',
-                    color: '#6b7280'
-                  }}>
-                    {isPaid && member.paidAt
-                      ? `Paid ${formatDate(member.paidAt)}`
-                      : isPaid
-                      ? 'Paid today'
-                      : memberStatus === 'late'
-                      ? `${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue`
-                      : memberStatus === 'frozen'
-                      ? `Frozen - owes ${formatNaira(group.amount)}`
-                      : memberStatus === 'defaulted'
-                      ? 'Defaulted - turn moved to last'
-                      : group.collectionDay
-                      ? `Due ${group.collectionDay}`
-                      : 'Pending payment'}
-                  </div>
-
-                  {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {!isPaid && !isFrozen && (
-                      <button
-                        onClick={() => handleMarkPaid(member.id)}
-                        style={{
-                          padding: '6px 12px',
-                          background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          minHeight: '32px'
-                        }}
-                      >
-                        Mark Paid
-                      </button>
-                    )}
-
-                    {/* Three-dot menu */}
-                    <div style={{ position: 'relative' }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowMemberMenu(showMemberMenu === member.id ? null : member.id);
-                        }}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          background: 'transparent',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '16px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = '#f3f4f6';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        ⋮
-                      </button>
-
-                    {/* Member action menu */}
-                    {showMemberMenu === member.id && (
-                      <div style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '44px',
-                        background: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.05)',
-                        zIndex: 50,  // Fix 1: Increased z-index to prevent clipping
-                        minWidth: '200px',
-                        overflow: 'hidden'
-                      }}>
-                        {memberStatus !== 'frozen' && memberStatus !== 'defaulted' && !isPaid && (
-                          <button
-                            onClick={() => {
-                              onUpdate?.({
-                                ...group,
-                                members: group.members.map(m =>
-                                  m.id === member.id ? { ...m, status: 'defaulted' } : m
-                                )
-                              });
-                              setShowMemberMenu(null);
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '12px 16px',
-                              background: 'transparent',
-                              border: 'none',
-                              textAlign: 'left',
-                              fontSize: '14px',
-                              cursor: 'pointer',
-                              color: '#374151',
-                              transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = '#fef2f2';
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            Mark as Defaulted
-                          </button>
-                        )}
-
-                        {memberStatus !== 'frozen' ? (
-                          <button
-                            onClick={() => {
-                              onUpdate?.({
-                                ...group,
-                                members: group.members.map(m =>
-                                  m.id === member.id ? { ...m, status: 'frozen' } : m
-                                )
-                              });
-                              setShowMemberMenu(null);
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '12px 16px',
-                              background: 'transparent',
-                              border: 'none',
-                              textAlign: 'left',
-                              fontSize: '14px',
-                              cursor: 'pointer',
-                              color: '#374151',
-                              transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = '#eff6ff';
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            Freeze Member
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              onUpdate?.({
-                                ...group,
-                                members: group.members.map(m =>
-                                  m.id === member.id ? { ...m, status: 'active' } : m
-                                )
-                              });
-                              setShowMemberMenu(null);
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '12px 16px',
-                              background: 'transparent',
-                              border: 'none',
-                              textAlign: 'left',
-                              fontSize: '14px',
-                              cursor: 'pointer',
-                              color: '#374151',
-                              transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = '#f0fdf4';
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            Unfreeze Member
-                          </button>
-                        )}
-
-                        <button
-                          onClick={async () => {
-                            setSelectedMemberForHistory(member);
-                            setShowMemberMenu(null);
-                            setLoadingHistory(true);
-
-                            // Load member's payment history
-                            const { data, error } = await contributionService.getMemberPaymentHistory(member.id);
-                            if (data && !error) {
-                              setPaymentHistory(data);
-                            }
-                            setLoadingHistory(false);
-                            setShowPaymentHistory(true);
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            background: 'transparent',
-                            border: 'none',
-                            textAlign: 'left',
-                            fontSize: '14px',
-                            cursor: 'pointer',
-                            color: '#374151',
-                            borderTop: '1px solid #e5e7eb',
-                            transition: 'background 0.2s'
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.background = '#f9fafb';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.background = 'transparent';
-                          }}
-                        >
-                          View Payment History
-                        </button>
-                      </div>
-                    )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Payment History Section */}
-        {groupPaymentHistory.length > 0 && (
-          <div style={{
-            marginTop: '32px',
-            padding: '20px',
-            background: 'white',
-            borderRadius: '16px',
-            border: '1px solid rgba(229, 231, 235, 0.8)'
-          }}>
-            <h3 style={{
-              fontSize: '16px',
-              fontWeight: 600,
-              color: '#374151',
-              marginBottom: '16px'
-            }}>
-              Payment History
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto'
-            }}>
-              {groupPaymentHistory.map((payment: any, index: number) => (
-                <div
-                  key={payment.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 0',
-                    borderBottom: index < groupPaymentHistory.length - 1 ? '1px solid #f3f4f6' : 'none'
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
+                  <div>
                     <div style={{
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      color: '#1f2937'
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
                     }}>
-                      {payment.contribution_members?.name || 'Unknown Member'}
+                      <span style={{
+                        fontSize: '15px',
+                        fontWeight: '500',
+                        color: '#1f2937'
+                      }}>
+                        {member.name}
+                      </span>
+                      {isRecipient && (
+                        <span style={{
+                          padding: '2px 6px',
+                          background: '#fbbf24',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          color: 'white'
+                        }}>
+                          Collects
+                        </span>
+                      )}
                     </div>
                     <div style={{
                       fontSize: '12px',
                       color: '#6b7280',
                       marginTop: '2px'
                     }}>
-                      Cycle {payment.cycle_number} • {formatDate(payment.paid_at)}
-                    </div>
-                  </div>
-                  <div style={{
-                    textAlign: 'right'
-                  }}>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: '#10b981'
-                    }}>
-                      {formatNaira(payment.amount)}
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#6b7280',
-                      textTransform: 'capitalize'
-                    }}>
-                      {payment.payment_method || 'cash'}
+                      {isPaid
+                        ? (member.paidAt ? `Paid ${formatDate(member.paidAt)}` : 'Paid')
+                        : daysOverdue > 0
+                        ? `${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue`
+                        : group.collectionDay
+                        ? `Due ${group.collectionDay}`
+                        : 'Pending'}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Add Member Section */}
+                {/* Right side: Paid button or checkmark */}
+                {!isPaid ? (
+                  <button
+                    onClick={() => handleMarkPaid(member.id)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#14b8a6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      minWidth: '70px'
+                    }}
+                  >
+                    Paid
+                  </button>
+                ) : (
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px'
+                  }}>
+                    ✓
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Section 4: Add Member */}
         {onAddMember && (
           <>
             {showAddMemberForm ? (
               <div style={{
-                marginTop: '20px',
+                marginTop: '16px',
                 padding: '16px',
                 background: 'white',
-                border: '2px solid #10b981',
+                border: '1.5px dashed #14b8a6',
                 borderRadius: '12px'
               }}>
-                <h4 style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#374151',
-                  marginBottom: '12px'
-                }}>
-                  Add New Member
-                </h4>
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}>
-                  <input
-                    type="text"
-                    placeholder="Member name *"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
+                <input
+                  type="text"
+                  placeholder="Member name"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    marginBottom: '8px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                  autoFocus
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone (optional)"
+                  value={newMemberPhone}
+                  onChange={(e) => setNewMemberPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    marginBottom: '12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={handleAddMember}
+                    disabled={!newMemberName.trim() || isAddingMember}
                     style={{
-                      padding: '10px 12px',
-                      border: '1px solid #e5e7eb',
+                      flex: 1,
+                      padding: '10px',
+                      background: newMemberName.trim() && !isAddingMember ? '#14b8a6' : '#e5e7eb',
+                      color: newMemberName.trim() && !isAddingMember ? 'white' : '#9ca3af',
+                      border: 'none',
                       borderRadius: '8px',
                       fontSize: '14px',
-                      outline: 'none',
-                      transition: 'border 0.2s'
+                      fontWeight: '500',
+                      cursor: newMemberName.trim() && !isAddingMember ? 'pointer' : 'not-allowed'
                     }}
-                    onFocus={e => e.target.style.borderColor = '#10b981'}
-                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
-                    autoFocus
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Phone number (optional)"
-                    value={newMemberPhone}
-                    onChange={(e) => setNewMemberPhone(e.target.value)}
+                  >
+                    {isAddingMember ? 'Adding...' : 'Add'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddMemberForm(false);
+                      setNewMemberName('');
+                      setNewMemberPhone('');
+                    }}
                     style={{
-                      padding: '10px 12px',
-                      border: '1px solid #e5e7eb',
+                      padding: '10px 16px',
+                      background: '#f3f4f6',
+                      color: '#374151',
+                      border: 'none',
                       borderRadius: '8px',
                       fontSize: '14px',
-                      outline: 'none',
-                      transition: 'border 0.2s'
+                      fontWeight: '500',
+                      cursor: 'pointer'
                     }}
-                    onFocus={e => e.target.style.borderColor = '#10b981'}
-                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
-                  />
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px'
-                  }}>
-                    <button
-                      onClick={handleAddMember}
-                      disabled={!newMemberName.trim() || isAddingMember}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        background: newMemberName.trim() && !isAddingMember
-                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                          : '#e5e7eb',
-                        color: newMemberName.trim() && !isAddingMember ? 'white' : '#9ca3af',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: newMemberName.trim() && !isAddingMember ? 'pointer' : 'not-allowed',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {isAddingMember ? 'Adding...' : 'Add Member'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAddMemberForm(false);
-                        setNewMemberName('');
-                        setNewMemberPhone('');
-                      }}
-                      style={{
-                        padding: '10px 16px',
-                        background: '#f3f4f6',
-                        color: '#374151',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
               <button
                 onClick={() => setShowAddMemberForm(true)}
                 style={{
-                  marginTop: '8px',
+                  marginTop: '16px',
                   width: '100%',
                   padding: '14px',
-                  border: '1.5px dashed #ccc',
+                  border: '1.5px dashed #14b8a6',
                   borderRadius: '12px',
                   background: 'transparent',
-                  color: '#0F6E56',
+                  color: '#14b8a6',
                   fontSize: '14px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textAlign: 'center'
+                  fontWeight: '500',
+                  cursor: 'pointer'
                 }}
               >
                 + Add Member
@@ -1048,75 +578,52 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             )}
           </>
         )}
-      </div>
 
-      {/* Bottom Action Bar */}
-      {(unpaidMembers.length > 0 || (progressPercent === 100 && currentRecipient)) && (
+        {/* Section 5: Two action buttons */}
         <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '16px',
-          background: 'linear-gradient(to top, rgba(255,255,255,1), rgba(255,255,255,0.95))',
-          borderTop: '1px solid rgba(229, 231, 235, 0.8)',
-          backdropFilter: 'blur(10px)',
           display: 'flex',
-          gap: '12px',
-          zIndex: 20
+          gap: '8px',
+          marginTop: '16px'
         }}>
-          {unpaidMembers.length > 0 && (
-            <button
-              onClick={handleRemindSelected}
-              disabled={selectedMembers.size === 0}
-              style={{
-                flex: 1,
-                padding: '14px',
-                background: selectedMembers.size > 0 ? 'white' : '#f9fafb',
-                color: selectedMembers.size > 0 ? '#f59e0b' : '#9ca3af',
-                border: selectedMembers.size > 0 ? '2px solid #f59e0b' : '2px solid #e5e7eb',
-                borderRadius: '12px',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: selectedMembers.size > 0 ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s',
-                minHeight: '48px'
-              }}
-            >
-              💬 Remind {selectedMembers.size > 0 ? `(${selectedMembers.size})` : ''}
-            </button>
-          )}
-
-          {progressPercent === 100 && currentRecipient && (
-            <button
-              onClick={() => setShowPayoutModal(true)}
-              style={{
-                flex: 1,
-                padding: '14px',
-                background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                minHeight: '48px',
-                boxShadow: '0 4px 12px rgba(20, 184, 166, 0.3)',
-                animation: 'pulse 2s infinite'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'scale(1.02)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              🎉 Record Payout • {formatNaira(totalCollected)}
-            </button>
-          )}
+          <button
+            onClick={handleRemindAll}
+            disabled={allPaid || unpaidMembers.length === 0}
+            style={{
+              flex: 1,
+              padding: '14px',
+              borderRadius: '12px',
+              border: allPaid ? 'none' : '1.5px solid #ddd',
+              background: allPaid ? '#f3f4f6' : 'transparent',
+              color: allPaid ? '#10b981' : '#666',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: allPaid ? 'default' : 'pointer',
+              opacity: allPaid ? 0.6 : 1
+            }}
+          >
+            {allPaid ? 'All paid!' : 'Remind all'}
+          </button>
+          <button
+            onClick={() => allPaid && setShowPayoutModal(true)}
+            disabled={!allPaid}
+            style={{
+              flex: 1,
+              padding: '14px',
+              borderRadius: '12px',
+              border: 'none',
+              background: allPaid ? '#0F6E56' : '#e5e7eb',
+              color: allPaid ? 'white' : '#9ca3af',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: allPaid ? 'pointer' : 'not-allowed',
+              opacity: allPaid ? 1 : 0.4,
+              pointerEvents: allPaid ? 'auto' : 'none'
+            }}
+          >
+            Record payout
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Share Modal */}
       {showShareModal && shareUrl && (
@@ -1131,52 +638,48 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(4px)'
+            zIndex: 1000
           }}
           onClick={() => setShowShareModal(false)}
         >
           <div
             style={{
               background: 'white',
-              borderRadius: '20px',
+              borderRadius: '16px',
               padding: '24px',
               maxWidth: '400px',
-              width: '90%',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
-              animation: 'slideUp 0.3s ease'
+              width: '90%'
             }}
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{
               fontSize: '18px',
-              fontWeight: 600,
-              marginBottom: '20px',
+              fontWeight: '600',
+              marginBottom: '16px',
               color: '#1f2937'
             }}>
               Share Group Link
             </h3>
             <div style={{
               background: '#f9fafb',
-              padding: '14px',
-              borderRadius: '12px',
-              marginBottom: '20px',
+              padding: '12px',
+              borderRadius: '8px',
+              marginBottom: '16px',
               fontFamily: 'monospace',
               fontSize: '13px',
               wordBreak: 'break-all',
-              color: '#4b5563',
-              border: '1px solid #e5e7eb'
+              color: '#4b5563'
             }}>
               https://{shareUrl}
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => {
                   const message = encodeURIComponent(
                     `Hi! You're part of the "${group.name}" contribution group.\n\n` +
                     `Amount: ${formatNaira(group.amount)} ${group.frequency}\n` +
                     `Collection Day: ${group.collectionDay || 'TBD'}\n\n` +
-                    `Join and track payments here: https://${shareUrl}`
+                    `Join here: https://${shareUrl}`
                   );
                   window.open(`https://wa.me/?text=${message}`, '_blank');
                   setShowShareModal(false);
@@ -1187,18 +690,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   background: '#25d366',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  minHeight: '44px'
+                  fontWeight: '500',
+                  cursor: 'pointer'
                 }}
               >
-                💬 WhatsApp
+                WhatsApp
               </button>
               <button
                 onClick={() => {
@@ -1211,228 +709,14 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   background: '#f3f4f6',
                   color: '#374151',
                   border: 'none',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  minHeight: '44px'
+                  fontWeight: '500',
+                  cursor: 'pointer'
                 }}
               >
-                📋 Copy Link
+                Copy Link
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Payment History Modal */}
-      {showPaymentHistory && selectedMemberForHistory && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(4px)'
-          }}
-          onClick={() => setShowPaymentHistory(false)}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '20px',
-              padding: '24px',
-              maxWidth: '500px',
-              width: '90%',
-              maxHeight: '70vh',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
-              animation: 'slideUp 0.3s ease'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px'
-            }}>
-              <h3 style={{
-                fontSize: '18px',
-                fontWeight: 600,
-                color: '#1f2937'
-              }}>
-                {selectedMemberForHistory.name}'s Payment History
-              </h3>
-              <button
-                onClick={() => setShowPaymentHistory(false)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: '#f3f4f6',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '18px',
-                  color: '#6b7280'
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              marginBottom: '16px'
-            }}>
-              {loadingHistory ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  color: '#6b7280'
-                }}>
-                  Loading payment history...
-                </div>
-              ) : paymentHistory.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  color: '#6b7280'
-                }}>
-                  No payment history found for this member.
-                </div>
-              ) : (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}>
-                  {paymentHistory.map((payment: any) => (
-                    <div
-                      key={payment.id}
-                      style={{
-                        padding: '16px',
-                        background: '#f9fafb',
-                        borderRadius: '12px',
-                        border: '1px solid #e5e7eb'
-                      }}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'start',
-                        marginBottom: '8px'
-                      }}>
-                        <div>
-                          <div style={{
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#1f2937'
-                          }}>
-                            Cycle {payment.cycle_number}
-                          </div>
-                          <div style={{
-                            fontSize: '12px',
-                            color: '#6b7280',
-                            marginTop: '2px'
-                          }}>
-                            {formatDate(payment.paid_at)}
-                          </div>
-                        </div>
-                        <div style={{
-                          textAlign: 'right'
-                        }}>
-                          <div style={{
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#10b981'
-                          }}>
-                            {formatNaira(payment.amount)}
-                          </div>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            textTransform: 'capitalize',
-                            marginTop: '2px'
-                          }}>
-                            {payment.payment_method || 'cash'}
-                          </div>
-                        </div>
-                      </div>
-                      {payment.note && (
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#6b7280',
-                          fontStyle: 'italic',
-                          marginTop: '8px',
-                          padding: '8px',
-                          background: 'white',
-                          borderRadius: '8px'
-                        }}>
-                          Note: {payment.note}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{
-              padding: '16px 0 0',
-              borderTop: '1px solid #e5e7eb'
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '12px'
-              }}>
-                <span style={{
-                  fontSize: '14px',
-                  color: '#6b7280'
-                }}>
-                  Total Payments:
-                </span>
-                <span style={{
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  color: '#1f2937'
-                }}>
-                  {paymentHistory.length}
-                </span>
-              </div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <span style={{
-                  fontSize: '14px',
-                  color: '#6b7280'
-                }}>
-                  Total Amount:
-                </span>
-                <span style={{
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#10b981'
-                }}>
-                  {formatNaira(paymentHistory.reduce((sum: number, p: any) => sum + p.amount, 0))}
-                </span>
-              </div>
             </div>
           </div>
         </div>
@@ -1451,27 +735,24 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(4px)'
+            zIndex: 1000
           }}
           onClick={() => setShowPayoutModal(false)}
         >
           <div
             style={{
               background: 'white',
-              borderRadius: '20px',
+              borderRadius: '16px',
               padding: '24px',
               maxWidth: '400px',
-              width: '90%',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
-              animation: 'slideUp 0.3s ease'
+              width: '90%'
             }}
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{
               fontSize: '18px',
-              fontWeight: 600,
-              marginBottom: '20px',
+              fontWeight: '600',
+              marginBottom: '16px',
               color: '#1f2937'
             }}>
               Confirm Payout
@@ -1480,12 +761,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               fontSize: '14px',
               color: '#6b7280',
               marginBottom: '20px',
-              lineHeight: '1.6'
+              lineHeight: '1.5'
             }}>
               Record payout of <strong>{formatNaira(totalCollected)}</strong> to{' '}
               <strong>{currentRecipient?.name}</strong> for cycle {group.cycleNumber}?
             </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => setShowPayoutModal(false)}
                 style={{
@@ -1494,11 +775,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   background: '#f3f4f6',
                   color: '#374151',
                   border: 'none',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  minHeight: '44px'
+                  fontWeight: '500',
+                  cursor: 'pointer'
                 }}
               >
                 Cancel
@@ -1508,63 +788,21 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                  background: '#0F6E56',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  minHeight: '44px'
+                  fontWeight: '500',
+                  cursor: 'pointer'
                 }}
               >
-                Confirm Payout
+                Confirm
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            boxShadow: 0 4px 12px rgba(20, 184, 166, 0.3);
-          }
-          50% {
-            boxShadow: 0 4px 20px rgba(20, 184, 166, 0.5);
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          * {
-            animation-duration: 0.001s !important;
-            transition-duration: 0.001s !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
