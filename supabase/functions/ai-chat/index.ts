@@ -2639,12 +2639,16 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
   const languageInstruction = getLanguageInstruction(language);
 
   // ============================================================================
-  // PART 1: Check per-conversation AI response limit
+  // PART 1: Check per-conversation AI response limit (FAIL-SAFE)
   // ============================================================================
-  const storeUserId = store?.user_id;
-  const conversationId = storeContext.conversationId;
+  let shouldLimitResponses = false;
+  let limitMessage = '';
 
-  if (storeUserId && conversationId) {
+  try {
+    const storeUserId = store?.user_id;
+    const conversationId = storeContext?.conversationId;
+
+    if (storeUserId && conversationId) {
     // Get the store owner's subscription tier
     const { data: ownerSubscription } = await supabase
       .from('subscriptions')
@@ -2695,8 +2699,6 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
         const address = storeContext?.profile?.address || '';
         const minutesLeft = Math.ceil((new Date(limitHitTime).getTime() + (cooldownMinutes * 60000) - Date.now()) / 60000);
 
-        let limitMessage = '';
-
         if (tier === 'free') {
           limitMessage = `Thanks for your interest! 😊 I've shared what I can for now.\n\nTo continue:\n📱 Reach the store owner directly on WhatsApp${whatsappNumber ? ' at ' + whatsappNumber : ''} — they'll be happy to help with orders and pricing!\n${address ? '📍 Or visit us at ' + address : ''}\n\n⏰ I'll be available again in about ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}!`;
         } else if (tier === 'basic') {
@@ -2714,29 +2716,38 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
             content: limitMessage
           });
 
-        return jsonResponse({
-          response: limitMessage,
-          limitReached: true
-        }, 200);
+        shouldLimitResponses = true;
       }
     }
+    }
+  } catch (limitError) {
+    console.error('[StorefrontChat] Per-conversation limit check failed:', limitError);
+    // If limit check fails, don't block the AI response
+    shouldLimitResponses = false;
+  }
 
-    // ============================================================================
-    // PART 2: Check monthly quota
-    // ============================================================================
-    const { data: quotaResult, error: quotaError } = await supabase
-      .rpc('check_ai_chat_quota', { p_user_id: storeUserId ? storeUserId.toString() : null });
+  // ============================================================================
+  // PART 2: Check monthly quota (FAIL-SAFE)
+  // ============================================================================
+  let quotaExhausted = false;
+  let quotaMessage = '';
 
-    // FAIL-OPEN: If quota check fails, allow the message (don't block customers)
-    if (quotaError) {
-      console.error('[StorefrontChat] Quota check failed, allowing message:', quotaError);
-      // Continue with the chat - don't block on quota check errors
-    } else if (quotaResult && !quotaResult.allowed) {
+  try {
+    const storeUserId = store?.user_id;
+    const conversationId = storeContext?.conversationId;
+
+    if (storeUserId && conversationId) {
+      const { data: quotaResult, error: quotaError } = await supabase
+        .rpc('check_ai_chat_quota', { p_user_id: storeUserId ? storeUserId.toString() : null });
+
+      // FAIL-OPEN: If quota check fails, allow the message (don't block customers)
+      if (quotaError) {
+        console.error('[StorefrontChat] Quota check failed, allowing message:', quotaError);
+        // Continue with the chat - don't block on quota check errors
+      } else if (quotaResult && !quotaResult.allowed) {
       const whatsappNumber = storeContext?.profile?.whatsappNumber || '';
       const storeName = storeContext?.profile?.businessName || 'this store';
       const address = storeContext?.profile?.address || '';
-
-      let quotaMessage = '';
 
       if (quotaResult.tier === 'free') {
         quotaMessage = `Hi there! 👋 Welcome to ${storeName}!\n\nOur AI assistant is taking a short break this month, but the store owner is ready to help you personally!\n\n📱 WhatsApp us${whatsappNumber ? ' at ' + whatsappNumber : ''} for:\n• Product questions and prices\n• Orders and delivery\n• Special deals\n${address ? '\n📍 Visit us at ' + address : ''}\n\nWe'd love to serve you! 🛍️`;
@@ -2754,11 +2765,30 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
           content: quotaMessage
         });
 
-      return jsonResponse({
-        response: quotaMessage,
-        quotaExhausted: true
-      }, 200);
+        quotaExhausted = true;
+      }
     }
+  } catch (quotaError) {
+    console.error('[StorefrontChat] Monthly quota check failed:', quotaError);
+    // If quota check fails, don't block the AI response
+    quotaExhausted = false;
+  }
+
+  // ============================================================================
+  // APPLY LIMITS - Only if checks succeeded AND limits were reached
+  // ============================================================================
+  if (shouldLimitResponses && limitMessage) {
+    return jsonResponse({
+      response: limitMessage,
+      limitReached: true
+    }, 200);
+  }
+
+  if (quotaExhausted && quotaMessage) {
+    return jsonResponse({
+      response: quotaMessage,
+      quotaExhausted: true
+    }, 200);
   }
 
   // Build COMPREHENSIVE system prompt with ALL store data
