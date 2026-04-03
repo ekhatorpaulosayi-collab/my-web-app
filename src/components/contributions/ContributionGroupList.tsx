@@ -143,7 +143,7 @@ export const ContributionGroupList: React.FC<ContributionGroupListProps> = ({
 
   return (
     <div style={{
-      padding: '80px 16px 100px', // Increased top padding from 20px to 80px to account for tab bar
+      padding: '20px 0 100px', // Reduced horizontal padding since parent has padding, kept some top padding
       background: '#fafafa',
       minHeight: '100vh'
     }}>

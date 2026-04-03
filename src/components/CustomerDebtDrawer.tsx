@@ -110,6 +110,11 @@ export default function CustomerDebtDrawer({
   useEffect(() => {
     if (!isOpen || mainTab !== 'contributions' || !currentUser?.uid) return;
 
+    // ALWAYS reset to list view when switching to contributions tab
+    setSelectedGroup(null);
+    setShowCreateGroupForm(false);
+    setShowGroupSettings(false);
+
     const loadContributionGroups = async () => {
       setLoadingGroups(true);
       try {
@@ -547,14 +552,11 @@ Thank you for your payment! 🙏`;
           </button>
           <button
             onClick={() => {
-              // Reset to list view BEFORE switching to Contributions tab
+              setMainTab('contributions');
+              // Reset to list view when switching to Contributions tab
               setSelectedGroup(null);
               setShowCreateGroupForm(false);
               setShowGroupSettings(false);
-              // Small delay to ensure state is cleared before tab switch
-              setTimeout(() => {
-                setMainTab('contributions');
-              }, 0);
             }}
             style={{
               flex: 1,
@@ -1009,7 +1011,7 @@ Thank you for your payment! 🙏`;
                   }
                 }}
               />
-            ) : selectedGroup && mainTab === 'contributions' ? (
+            ) : selectedGroup ? (
               <ContributionGroupDetail
                 group={selectedGroup}
                 onBack={() => setSelectedGroup(null)}
