@@ -288,7 +288,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
       background: '#f8f9fa',
       height: '100vh',
       overflowY: 'auto',
-      paddingBottom: '100px'
+      paddingBottom: '120px' // Bug 8: Increased padding for Need Help button
     }}>
       {/* Premium Header */}
       <div style={{
@@ -428,42 +428,21 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             isComplete={progressPercent === 100}
           />
 
-          {/* Current Recipient Badge */}
+          {/* Current Recipient Badge - Bug 4: Compact inline chip */}
           {currentRecipient && (
             <div style={{
-              marginTop: '16px',
-              padding: '10px 16px',
-              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-              borderRadius: '12px',
-              boxShadow: '0 2px 8px rgba(251, 191, 36, 0.25)',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '12px'
+              gap: '6px',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              background: '#FAEEDA',
+              color: '#854F0B',
+              fontSize: '13px',
+              fontWeight: 500,
+              marginTop: '8px'
             }}>
-              <span style={{
-                fontSize: '20px'
-              }}>
-                👑
-              </span>
-              <div>
-                <div style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: 'rgba(255, 255, 255, 0.95)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.03em'
-                }}>
-                  Cycle {group.cycleNumber} Recipient
-                </div>
-                <div style={{
-                  fontSize: '15px',
-                  fontWeight: 700,
-                  color: 'white',
-                  marginTop: '2px'
-                }}>
-                  {currentRecipient.name}
-                </div>
-              </div>
+              → {currentRecipient.name} receives this cycle
             </div>
           )}
         </div>
@@ -520,222 +499,191 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               <div
                 key={member.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '20px',
+                  padding: '12px',
                   background: isPaid
                     ? 'linear-gradient(to right, rgba(16, 185, 129, 0.04), rgba(16, 185, 129, 0.01))'
                     : isFrozen
                     ? 'linear-gradient(to right, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.02))'
                     : 'white',
+                  border: '1px solid #eee',
                   borderRadius: '12px',
-                  border: `1px solid ${
-                    isPaid ? 'rgba(16, 185, 129, 0.15)' :
-                    isFrozen ? 'rgba(148, 163, 184, 0.2)' :
-                    '#e5e7eb'
-                  }`,
+                  marginBottom: '8px',
                   transition: 'all 0.3s ease',
                   transform: isAnimating ? 'scale(0.98)' : 'scale(1)',
                   opacity: mounted ? 1 : 0,
                   animation: `slideIn 0.3s ease ${index * 0.03}s forwards`,
-                  position: 'relative',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                  gap: '4px'
+                  position: 'relative'
                 }}
               >
-                {/* Checkbox for unpaid and not frozen */}
-                {!isPaid && !isFrozen && (
-                  <input
-                    type="checkbox"
-                    checked={selectedMembers.has(member.id)}
-                    onChange={() => handleMemberToggle(member.id)}
-                    style={{
-                      width: '20px',
-                      height: '20px',
-                      marginRight: '12px',
-                      cursor: 'pointer',
-                      accentColor: '#10b981'
-                    }}
-                  />
-                )}
-
-                {/* Avatar with colored circle and initials */}
+                {/* Bug 3: Two-row card layout */}
+                {/* Row 1: Avatar + Name + Badges */}
                 <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '50%',
-                  background: isPaid
-                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : isFrozen
-                    ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
-                    : (() => {
-                        // Generate consistent color based on member name
-                        const colors = [
-                          'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                          'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                          'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                          'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)'
-                        ];
-                        const index = member.name.charCodeAt(0) % colors.length;
-                        return colors[index];
-                      })(),
-                  color: 'white',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: isPaid ? '20px' : '16px',
-                  fontWeight: 600,
-                  marginRight: '12px',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                  gap: '10px',
+                  marginBottom: '6px'
                 }}>
-                  {isPaid ? '✓' : member.name.substring(0, 2).toUpperCase()}
-                </div>
+                  {/* Bug 1 fix: Hide checkbox to prevent black square */}
+                  {!isPaid && !isFrozen && (
+                    <input
+                      type="checkbox"
+                      checked={selectedMembers.has(member.id)}
+                      onChange={() => handleMemberToggle(member.id)}
+                      style={{
+                        display: 'none' // Bug 1: Hide checkbox to prevent black square
+                      }}
+                    />
+                  )}
 
-                {/* Name and badges */}
-                <div style={{ flex: 1 }}>
+                  {/* Avatar with colored circle and initials */}
                   <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: isPaid
+                      ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                      : isFrozen
+                      ? 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
+                      : (() => {
+                          // Generate consistent color based on member name
+                          const colors = [
+                            'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                            'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                            'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                            'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)'
+                          ];
+                          const index = member.name.charCodeAt(0) % colors.length;
+                          return colors[index];
+                        })(),
+                    color: 'white',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    marginBottom: '4px'
+                    justifyContent: 'center',
+                    fontSize: isPaid ? '18px' : '14px',
+                    fontWeight: 600,
+                    flexShrink: 0,
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
                   }}>
-                    <span style={{
-                      fontSize: '15px',
-                      fontWeight: 600,
-                      color: '#1f2937'
-                    }}>
-                      {member.name}
-                    </span>
-                    <span style={{
-                      padding: '4px 10px',
-                      background: statusBadge.bg,
-                      color: statusBadge.color,
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      letterSpacing: '0.02em'
-                    }}>
-                      {statusBadge.text}
-                    </span>
-                    {isRecipient && (
-                      <span style={{
-                        padding: '2px 8px',
-                        background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-                        borderRadius: '8px',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        color: 'white',
-                        textTransform: 'uppercase'
-                      }}>
-                        Recipient
-                      </span>
-                    )}
+                    {/* Bug 2 fix: Show only first letter */}
+                    {isPaid ? '✓' : member.name.charAt(0).toUpperCase()}
                   </div>
+
+                  {/* Name */}
+                  <span style={{
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    color: '#1f2937'
+                  }}>
+                    {member.name}
+                  </span>
+
+                  {/* Status badge */}
+                  <span style={{
+                    padding: '3px 8px',
+                    background: statusBadge.bg,
+                    color: statusBadge.color,
+                    borderRadius: '6px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    letterSpacing: '0.02em'
+                  }}>
+                    {statusBadge.text}
+                  </span>
+
+                  {/* Recipient badge if applicable */}
+                  {isRecipient && (
+                    <span style={{
+                      padding: '3px 8px',
+                      background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                      borderRadius: '6px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: 'white'
+                    }}>
+                      RECIPIENT
+                    </span>
+                  )}
+                </div>
+
+                {/* Row 2: Detail text and action buttons */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginLeft: '46px' // Indent under name, not avatar
+                }}>
+                  {/* Detail text - Bug 5 fix: Proper status messages */}
                   <div style={{
-                    fontSize: '13px',
+                    fontSize: '12px',
                     color: '#6b7280'
                   }}>
                     {isPaid && member.paidAt
-                      ? `Paid on ${formatDate(member.paidAt)}`
+                      ? `Paid ${formatDate(member.paidAt)}`
+                      : isPaid
+                      ? 'Paid today'
                       : memberStatus === 'late'
                       ? `${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue`
                       : memberStatus === 'frozen'
-                      ? 'Account suspended'
+                      ? `Frozen - owes ${formatNaira(group.amount)}`
                       : memberStatus === 'defaulted'
-                      ? 'Missed payment - moved to last'
+                      ? 'Defaulted - turn moved to last'
+                      : group.collectionDay
+                      ? `Due ${group.collectionDay}`
                       : 'Pending payment'}
                   </div>
-                </div>
 
-                {/* Action buttons */}
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {!isPaid && !isFrozen && (
-                    <button
-                      onClick={() => handleMarkPaid(member.id)}
-                      style={{
-                        padding: '8px 16px',
-                        background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        minHeight: '36px',
-                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'scale(1.03)';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.05)';
-                      }}
-                    >
-                      Mark Paid
-                    </button>
-                  )}
-                  {member.phone && !isPaid && (
-                    <button
-                      onClick={() => openWhatsAppForMember(member)}
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        background: '#f3f4f6',
-                        border: 'none',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        fontSize: '16px',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Send WhatsApp reminder"
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = '#e5e7eb';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = '#f3f4f6';
-                      }}
-                    >
-                      💬
-                    </button>
-                  )}
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {!isPaid && !isFrozen && (
+                      <button
+                        onClick={() => handleMarkPaid(member.id)}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          minHeight: '32px'
+                        }}
+                      >
+                        Mark Paid
+                      </button>
+                    )}
 
-                  {/* Three-dot menu */}
-                  <div style={{ position: 'relative' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowMemberMenu(showMemberMenu === member.id ? null : member.id);
-                      }}
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        background: 'transparent',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        fontSize: '18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = '#f3f4f6';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                      ⋮
-                    </button>
+                    {/* Three-dot menu */}
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMemberMenu(showMemberMenu === member.id ? null : member.id);
+                        }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          background: 'transparent',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = '#f3f4f6';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        ⋮
+                      </button>
 
                     {/* Member action menu */}
                     {showMemberMenu === member.id && (
@@ -885,6 +833,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         </button>
                       </div>
                     )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1071,34 +1020,20 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               <button
                 onClick={() => setShowAddMemberForm(true)}
                 style={{
-                  marginTop: '24px',
-                  marginBottom: '16px',
+                  marginTop: '8px',
                   width: '100%',
-                  padding: '16px',
-                  background: 'white',
-                  color: '#14b8a6',
-                  border: '2px dashed #14b8a6',
+                  padding: '14px',
+                  border: '1.5px dashed #ccc',
                   borderRadius: '12px',
+                  background: 'transparent',
+                  color: '#0F6E56',
                   fontSize: '14px',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(20, 184, 166, 0.04)';
-                  e.currentTarget.style.borderColor = '#0d9488';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'white';
-                  e.currentTarget.style.borderColor = '#14b8a6';
+                  textAlign: 'center'
                 }}
               >
-                <span style={{ fontSize: '20px' }}>+</span>
-                Add New Member
+                + Add Member
               </button>
             )}
           </>
