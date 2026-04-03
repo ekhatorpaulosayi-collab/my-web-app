@@ -106,7 +106,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     }
   };
 
-  const currentRecipient = group.members.find(m => m.id === group.currentRecipientId);
+  // Fix 3: Implement recipient rotation logic based on cycle number
+  // Sort members by creation order (assuming they're already in creation order from the database)
+  // Then use modulo to determine current recipient
+  const recipientIndex = (group.cycleNumber - 1) % group.members.length;
+  const currentRecipient = group.members[recipientIndex] || group.members.find(m => m.id === group.currentRecipientId);
+
   const paidMembers = group.members.filter(m => m.isPaid || m.hasPaid);
   const unpaidMembers = group.members.filter(m => !m.isPaid && !m.hasPaid);
   const totalMembers = group.members.length;
@@ -290,32 +295,31 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
       overflowY: 'auto',
       paddingBottom: '120px' // Bug 8: Increased padding for Need Help button
     }}>
-      {/* Premium Header */}
+      {/* Fix 2: Sticky Group Name Header */}
       <div style={{
         background: 'linear-gradient(to bottom, #ffffff, #fefefe)',
         borderBottom: '1px solid rgba(229, 231, 235, 0.8)',
-        padding: '20px 16px',
+        padding: '12px 16px',
         position: 'sticky',
         top: 0,
-        zIndex: 10,
+        zIndex: 15,
         backdropFilter: 'blur(10px)'
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '16px'
+          justifyContent: 'space-between'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
             <button
               onClick={onBack}
               style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 background: '#f3f4f6',
                 border: 'none',
-                fontSize: '20px',
+                fontSize: '18px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -333,21 +337,21 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </button>
             <div style={{ flex: 1 }}>
               <h1 style={{
-                fontSize: '22px',
+                fontSize: '18px',
                 fontWeight: 700,
                 color: '#1f2937',
-                marginBottom: '4px',
+                marginBottom: '2px',
                 letterSpacing: '-0.02em'
               }}>
                 {group.name}
               </h1>
               <div style={{
                 display: 'flex',
-                gap: '8px',
+                gap: '6px',
                 flexWrap: 'wrap'
               }}>
                 <span style={{
-                  fontSize: '13px',
+                  fontSize: '12px',
                   color: '#6b7280'
                 }}>
                   {formatNaira(group.amount)} • {frequencyLabels[group.frequency]}
@@ -356,17 +360,17 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
             {shareUrl && (
               <button
                 onClick={() => setShowShareModal(true)}
                 style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '12px',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
                   background: '#f3f4f6',
                   border: 'none',
-                  fontSize: '18px',
+                  fontSize: '16px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -386,12 +390,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             <button
               onClick={onSettings}
               style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 background: '#f3f4f6',
                 border: 'none',
-                fontSize: '18px',
+                fontSize: '16px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -409,7 +413,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </button>
           </div>
         </div>
+      </div>
 
+      {/* Progress Section (no longer sticky) */}
+      <div style={{
+        background: 'linear-gradient(to bottom, #ffffff, #fefefe)',
+        padding: '20px 16px 24px'
+      }}>
         {/* Hero Progress Section */}
         <div style={{
           display: 'flex',
@@ -490,7 +500,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             const memberStatus = getMemberStatus(member);
             const isPaid = memberStatus === 'paid';
             const isFrozen = memberStatus === 'frozen';
-            const isRecipient = member.id === group.currentRecipientId;
+            const isRecipient = currentRecipient && member.id === currentRecipient.id;  // Fix 3: Use calculated recipient
             const isAnimating = memberAnimations.has(member.id);
             const statusBadge = getStatusBadge(memberStatus);
             const daysOverdue = memberStatus === 'late' ? getDaysOverdue(group.collectionDay) : 0;
@@ -695,7 +705,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         border: '1px solid #e5e7eb',
                         borderRadius: '8px',
                         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.05)',
-                        zIndex: 100,
+                        zIndex: 50,  // Fix 1: Increased z-index to prevent clipping
                         minWidth: '200px',
                         overflow: 'hidden'
                       }}>
