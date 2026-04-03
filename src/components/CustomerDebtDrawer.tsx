@@ -547,11 +547,14 @@ Thank you for your payment! 🙏`;
           </button>
           <button
             onClick={() => {
-              setMainTab('contributions');
-              // Reset to list view when switching to Contributions tab
+              // Reset to list view BEFORE switching to Contributions tab
               setSelectedGroup(null);
               setShowCreateGroupForm(false);
               setShowGroupSettings(false);
+              // Small delay to ensure state is cleared before tab switch
+              setTimeout(() => {
+                setMainTab('contributions');
+              }, 0);
             }}
             style={{
               flex: 1,
@@ -1006,7 +1009,7 @@ Thank you for your payment! 🙏`;
                   }
                 }}
               />
-            ) : selectedGroup ? (
+            ) : selectedGroup && mainTab === 'contributions' ? (
               <ContributionGroupDetail
                 group={selectedGroup}
                 onBack={() => setSelectedGroup(null)}

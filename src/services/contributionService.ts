@@ -434,12 +434,49 @@ export async function markPaid(
         cycle_number: cycleNumber,
         amount: data.amount,
         payment_method: data.paymentMethod,
-        note: data.note
+        note: data.note,
+        paid_at: new Date().toISOString()
       })
       .select()
       .single();
 
     return { data: payment, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// Get payment history for a specific member
+export async function getMemberPaymentHistory(memberId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('contribution_payments')
+      .select(`
+        *,
+        contribution_groups!inner(name, amount, frequency)
+      `)
+      .eq('member_id', memberId)
+      .order('paid_at', { ascending: false });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// Get all payment history for a group
+export async function getGroupPaymentHistory(groupId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('contribution_payments')
+      .select(`
+        *,
+        contribution_members!inner(name)
+      `)
+      .eq('group_id', groupId)
+      .order('paid_at', { ascending: false });
+
+    return { data, error };
   } catch (error) {
     return { data: null, error };
   }
