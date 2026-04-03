@@ -120,6 +120,7 @@ export default function CustomerDebtDrawer({
       try {
         const result = await getGroups(currentUser.uid);
         if (!result.error && result.data) {
+          console.log('Loaded contribution groups:', result.data); // Debug log to see data structure
           setContributionGroups(result.data);
         } else {
           console.error('Error loading contribution groups:', result.error);
@@ -1150,6 +1151,7 @@ Thank you for your payment! 🙏`;
                     isActive: group.status === 'active',
                     collectionDay: group.collection_day || group.collectionDay || ''
                   };
+                  console.log('Opening group detail with:', normalizedGroup); // Debug log
                   setSelectedGroup(normalizedGroup);
                 }}
                 onCreateGroup={() => {
