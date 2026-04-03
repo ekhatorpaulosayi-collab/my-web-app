@@ -75,7 +75,7 @@ export default function CustomerDebtDrawer({
   const [showCreateGroupForm, setShowCreateGroupForm] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [contributionGroups, setContributionGroups] = useState<any[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(true);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
 
@@ -1125,6 +1125,16 @@ Thank you for your payment! 🙏`;
                   onToast?.(`Opening WhatsApp for ${members.length} member(s)`);
                 }}
               />
+            ) : loadingGroups ? (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '60px 20px',
+                color: '#6b7280'
+              }}>
+                Loading groups...
+              </div>
             ) : (
               <ContributionGroupList
                 groups={contributionGroups}
