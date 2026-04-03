@@ -286,7 +286,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   return (
     <div style={{
       background: '#fafafa',
-      minHeight: '100vh',
+      height: '100vh',
+      overflowY: 'auto',
       paddingBottom: '140px' // Increased from 100px to prevent overlap with Need Help button
     }}>
       {/* Premium Header */}

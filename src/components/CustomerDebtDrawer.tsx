@@ -1215,8 +1215,18 @@ Thank you for your payment! 🙏`;
 
       {/* Group Settings Modal */}
       {showGroupSettings && selectedGroup && (
-        <GroupSettings
-          group={{
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'white',
+          zIndex: 1000,
+          overflowY: 'auto'
+        }}>
+          <GroupSettings
+            group={{
             ...selectedGroup,
             isShared: selectedGroup.share_enabled || false,
             shareCode: selectedGroup.share_code,
@@ -1282,6 +1292,7 @@ Thank you for your payment! 🙏`;
             return code;
           }}
         />
+        </div>
       )}
     </>
   );
