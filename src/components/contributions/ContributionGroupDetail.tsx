@@ -40,6 +40,7 @@ interface ContributionGroupDetailProps {
   onSettings: () => void;
   onAddMember?: (member: { name: string; phone?: string }) => Promise<void> | void;
   onUpdate?: (group: ContributionGroup) => void;
+  onSettingsVisibilityChange?: (isVisible: boolean) => void;
 }
 
 const formatNaira = (amount: number) => {
@@ -84,7 +85,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   onRecordPayout,
   onSettings,
   onAddMember,
-  onUpdate
+  onUpdate,
+  onSettingsVisibilityChange
 }) => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -95,6 +97,11 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [showSettings, setShowSettings] = useState(false);
   const [showRemindModal, setShowRemindModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Notify parent when Settings visibility changes
+  React.useEffect(() => {
+    onSettingsVisibilityChange?.(showSettings);
+  }, [showSettings, onSettingsVisibilityChange]);
 
   // Settings form state
   const [editedName, setEditedName] = useState(group.name);

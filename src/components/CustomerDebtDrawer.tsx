@@ -78,6 +78,7 @@ export default function CustomerDebtDrawer({
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -454,8 +455,8 @@ Thank you for your payment! 🙏`;
     <>
       <div className="drawer-backdrop" onClick={onClose} style={{ pointerEvents: 'auto' }} />
       <div className="credits-drawer debt-drawer-premium" style={{ pointerEvents: 'auto' }}>
-        {/* Header */}
-        <div className="debt-drawer-header">
+        {/* Header - Hide when Settings is visible */}
+        <div className="debt-drawer-header" style={{ display: isSettingsVisible ? 'none' : 'flex' }}>
           <button className="drawer-back" onClick={onClose} aria-label="Close">
             ←
           </button>
@@ -528,9 +529,9 @@ Thank you for your payment! 🙏`;
           </button>
         </div>
 
-        {/* Main Tabs */}
+        {/* Main Tabs - Hide when Settings is visible */}
         <div style={{
-          display: 'flex',
+          display: isSettingsVisible ? 'none' : 'flex',
           borderBottom: '1px solid #e5e5e5',
           backgroundColor: '#fff'
         }}>
@@ -1023,6 +1024,7 @@ Thank you for your payment! 🙏`;
                   ));
                   setSelectedGroup(updatedGroup);
                 }}
+                onSettingsVisibilityChange={(isVisible) => setIsSettingsVisible(isVisible)}
                 onSettings={() => {
                   setShowGroupSettings(true);
                 }}
