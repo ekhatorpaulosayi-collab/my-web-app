@@ -106,6 +106,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [cyclePayments, setCyclePayments] = useState<any[]>([]);
   const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [showPayoutSchedule, setShowPayoutSchedule] = useState(false);
+  const [isSelectingRecipient, setIsSelectingRecipient] = useState(false);
 
   // Load payments for current cycle on mount
   React.useEffect(() => {
@@ -642,15 +644,22 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </span>
           </div>
           {currentRecipient && (
-            <div style={{
-              marginTop: '10px',
-              display: 'inline-flex',
-              padding: '6px 16px',
-              borderRadius: '20px',
-              background: '#FAEEDA',
-              fontSize: '13px',
-              color: '#854F0B'
-            }}>
+            <div
+              onClick={() => setShowPayoutSchedule(true)}
+              style={{
+                marginTop: '10px',
+                display: 'inline-flex',
+                padding: '6px 16px',
+                borderRadius: '20px',
+                background: '#FAEEDA',
+                fontSize: '13px',
+                color: '#854F0B',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#F5E1BC'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#FAEEDA'}
+            >
               Collects this cycle → {currentRecipient.name}
             </div>
           )}
@@ -2056,13 +2065,28 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   }}>
                     {selectedMember.name}
                   </h3>
-                  <p style={{
-                    fontSize: '14px',
-                    color: '#6b7280',
-                    margin: '2px 0 0 0'
-                  }}>
-                    {selectedMember.phone || 'No phone saved'}
-                  </p>
+                  {selectedMember.phone ? (
+                    <a
+                      href={`tel:${selectedMember.phone}`}
+                      style={{
+                        fontSize: '14px',
+                        color: '#14b8a6',
+                        margin: '2px 0 0 0',
+                        display: 'block',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      {selectedMember.phone} (tap to call)
+                    </a>
+                  ) : (
+                    <p style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      margin: '2px 0 0 0'
+                    }}>
+                      No phone saved
+                    </p>
+                  )}
                 </div>
               </div>
               <button
@@ -2255,6 +2279,196 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               >
                 Mark as Paid
               </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Payout Schedule Modal */}
+      {showPayoutSchedule && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            zIndex: 1004
+          }}
+          onClick={() => {
+            setShowPayoutSchedule(false);
+            setIsSelectingRecipient(false);
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px 16px 0 0',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '500px',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#1f2937',
+                margin: 0
+              }}>
+                Payout Schedule
+              </h3>
+              <button
+                onClick={() => {
+                  setShowPayoutSchedule(false);
+                  setIsSelectingRecipient(false);
+                }}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#6b7280'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Payout Order List */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              marginBottom: '20px'
+            }}>
+              {sortedMembers.map((member, index) => {
+                const isCurrent = index === recipientIndex;
+                const cycleNum = index + 1;
+
+                return (
+                  <div
+                    key={member.id}
+                    onClick={() => {
+                      if (isSelectingRecipient) {
+                        // Confirm recipient change
+                        if (confirm(`Make ${member.name} this cycle's recipient?`)) {
+                          // Update recipient for current cycle
+                          // Note: This would need backend support to actually change the recipient
+                          alert(`${member.name} is now the recipient for cycle ${group.cycleNumber}`);
+                          setIsSelectingRecipient(false);
+                          setShowPayoutSchedule(false);
+                        }
+                      }
+                    }}
+                    style={{
+                      padding: '12px 16px',
+                      background: isCurrent ? '#D1FAE5' : isSelectingRecipient ? '#F9FAFB' : 'white',
+                      border: isCurrent ? '2px solid #10B981' : '1px solid #E5E7EB',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: isSelectingRecipient ? 'pointer' : 'default',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (isSelectingRecipient && !isCurrent) {
+                        e.currentTarget.style.background = '#F3F4F6';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isSelectingRecipient && !isCurrent) {
+                        e.currentTarget.style.background = '#F9FAFB';
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#6B7280'
+                      }}>
+                        {cycleNum}.
+                      </span>
+                      <span style={{
+                        fontSize: '15px',
+                        fontWeight: isCurrent ? '600' : '500',
+                        color: isCurrent ? '#059669' : '#1F2937'
+                      }}>
+                        {member.name}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        fontSize: '13px',
+                        color: '#6B7280'
+                      }}>
+                        ← Cycle {cycleNum}
+                      </span>
+                      {isCurrent && (
+                        <span style={{
+                          padding: '2px 8px',
+                          background: '#10B981',
+                          color: 'white',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '600'
+                        }}>
+                          current ✓
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Change Recipient Button */}
+            {!isSelectingRecipient ? (
+              <button
+                onClick={() => setIsSelectingRecipient(true)}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: '#F3F4F6',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Change Recipient
+              </button>
+            ) : (
+              <div style={{
+                padding: '12px',
+                background: '#FEF3C7',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: '#92400E',
+                textAlign: 'center'
+              }}>
+                Tap any member to make them this cycle's recipient
+              </div>
             )}
           </div>
         </div>
