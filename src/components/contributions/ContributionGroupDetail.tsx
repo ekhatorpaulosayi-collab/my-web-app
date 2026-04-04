@@ -473,7 +473,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         </div>
       </div>
 
-      <div style={{ padding: '16px' }}>
+      <div style={{ padding: '16px', paddingBottom: '140px' }}>
         {/* Simple summary card replacing progress ring */}
         <div style={{
           background: '#f8f8f6',
@@ -569,7 +569,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {/* Coloured avatar circle */}
+                  {/* Fix 6: Dynamic avatar colors based on member name */}
                   <div style={{
                     width: '36px',
                     height: '36px',
@@ -577,15 +577,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     background: isPaid
                       ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
                       : (() => {
-                          const colors = [
-                            'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                            'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                            'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                            'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                            'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)'
-                          ];
-                          const index = member.name.charCodeAt(0) % colors.length;
-                          return colors[index];
+                          const avatarColors = ['#7F77DD', '#1D9E75', '#D85A30', '#D4537E', '#BA7517', '#378ADD'];
+                          const colorIndex = member.name.charCodeAt(0) % avatarColors.length;
+                          const avatarColor = avatarColors[colorIndex];
+                          return avatarColor;
                         })(),
                     color: 'white',
                     display: 'flex',
@@ -767,10 +762,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   marginTop: '16px',
                   width: '100%',
                   padding: '14px',
-                  border: '1.5px dashed #ccc', // Fix 2: Changed to light grey
+                  border: '1.5px dashed #ccc', // Fix 5: Changed to light grey
                   borderRadius: '12px',
                   background: 'transparent',
-                  color: '#14b8a6', // Text stays teal
+                  color: '#0F6E56', // Text stays teal
                   fontSize: '14px',
                   fontWeight: '500',
                   cursor: 'pointer'
@@ -1100,25 +1095,44 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             overflowY: 'auto'
           }}
         >
-          {/* Settings Header */}
+          {/* Settings Header - Fix 1: Add back button and proper X button */}
           <div style={{
             position: 'sticky',
             top: 0,
             background: 'white',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid #eee',
             padding: '16px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            zIndex: 1002
           }}>
-            <h2 style={{
-              fontSize: '20px',
-              fontWeight: '600',
-              color: '#1f2937',
-              margin: 0
-            }}>
-              Settings
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={() => setShowSettings(false)}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ←
+              </button>
+              <span style={{
+                fontSize: '18px',
+                fontWeight: '500',
+                color: '#1f2937'
+              }}>
+                Settings
+              </span>
+            </div>
             <button
               onClick={() => setShowSettings(false)}
               style={{
@@ -1131,14 +1145,15 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                color: '#6b7280'
               }}
             >
-              ×
+              ✕
             </button>
           </div>
 
-          <div style={{ paddingBottom: '40px' }}>
+          <div style={{ paddingBottom: '140px' }}>
             {/* Group Details Section */}
             <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
               <h3 style={{
