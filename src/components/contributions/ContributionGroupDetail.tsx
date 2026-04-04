@@ -103,6 +103,30 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [selectedMemberForPayment, setSelectedMemberForPayment] = useState<string | null>(null);
   const [paymentNote, setPaymentNote] = useState('');
   const [recipientOrder, setRecipientOrder] = useState<string[]>([]);
+  const [cyclePayments, setCyclePayments] = useState<any[]>([]);
+  const [showMemberDetail, setShowMemberDetail] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+
+  // Load payments for current cycle on mount
+  React.useEffect(() => {
+    loadCyclePayments();
+  }, [group.id, group.cycleNumber]);
+
+  const loadCyclePayments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contribution_payments')
+        .select('*')
+        .eq('group_id', group.id)
+        .eq('cycle_number', group.cycleNumber);
+
+      if (!error && data) {
+        setCyclePayments(data);
+      }
+    } catch (error) {
+      console.error('Failed to load cycle payments:', error);
+    }
+  };
 
   // Notify parent when Settings visibility changes
   React.useEffect(() => {
@@ -138,9 +162,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const nextRecipientIndex = group.cycleNumber % sortedMembers.length;
   const nextRecipient = sortedMembers[nextRecipientIndex];
 
-  // Calculate paid/unpaid members
-  const paidMembers = group.members.filter(m => m.isPaid || m.hasPaid);
-  const unpaidMembers = group.members.filter(m => !m.isPaid && !m.hasPaid);
+  // Calculate paid/unpaid members based on database payments
+  const getMemberPaidStatus = (memberId: string) => {
+    return cyclePayments.some(payment => payment.member_id === memberId);
+  };
+
+  const paidMembers = group.members.filter(m => getMemberPaidStatus(m.id));
+  const unpaidMembers = group.members.filter(m => !getMemberPaidStatus(m.id));
   const totalMembers = group.members.length;
   const totalCollected = paidMembers.length * group.amount;
   const totalExpected = totalMembers * group.amount;
@@ -200,12 +228,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     }
   };
 
-  // Load payment history when settings opens
+  // Load payment history when settings or member detail opens
   useEffect(() => {
-    if (showSettings) {
+    if (showSettings || showMemberDetail) {
       loadPaymentHistory();
     }
-  }, [showSettings]);
+  }, [showSettings, showMemberDetail]);
 
   const loadPaymentHistory = async () => {
     setLoadingHistory(true);
@@ -246,6 +274,9 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         note: paymentNote || `Cycle ${group.cycleNumber} payment`
       }
     );
+
+    // Reload payments from database to update UI
+    await loadCyclePayments();
 
     // Call the parent handler
     onMarkPaid(selectedMemberForPayment);
@@ -710,14 +741,23 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           gap: '8px'
         }}>
           {group.members.map((member) => {
-            const isPaid = member.isPaid || member.hasPaid;
+            const isPaid = getMemberPaidStatus(member.id);
             const paymentStatus = !isPaid ? getPaymentStatus(group.collectionDay) : null;
             const isLate = paymentStatus?.status === 'late';
+            const memberPayment = cyclePayments.find(p => p.member_id === member.id);
 
             return (
               <div
                 key={member.id}
+                onClick={(e) => {
+                  // Don't open detail if clicking on Mark Paid button
+                  if (!(e.target as HTMLElement).closest('button')) {
+                    setSelectedMember(member);
+                    setShowMemberDetail(true);
+                  }
+                }}
                 style={{
+                  cursor: 'pointer',
                   padding: '12px',
                   background: isPaid
                     ? 'linear-gradient(to right, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.04))'
@@ -789,7 +829,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       marginTop: '2px'
                     }}>
                       {isPaid
-                        ? `Paid ${member.paidAt ? formatDate(member.paidAt) : 'today'}`
+                        ? `Paid ${memberPayment?.created_at ? formatDate(memberPayment.created_at) : 'today'}`
                         : paymentStatus?.text || 'Pending payment'}
                     </div>
                   </div>
@@ -1950,6 +1990,272 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Member Detail Modal */}
+      {showMemberDetail && selectedMember && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            zIndex: 1003
+          }}
+          onClick={() => setShowMemberDetail(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px 16px 0 0',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '500px',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Member Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: getMemberPaidStatus(selectedMember.id)
+                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                    : '#6b7280',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  fontWeight: '600'
+                }}>
+                  {selectedMember.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 style={{
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: '#1f2937',
+                    margin: 0
+                  }}>
+                    {selectedMember.name}
+                  </h3>
+                  <p style={{
+                    fontSize: '14px',
+                    color: '#6b7280',
+                    margin: '2px 0 0 0'
+                  }}>
+                    {selectedMember.phone || 'No phone saved'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMemberDetail(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#6b7280'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Member Details */}
+            <div style={{
+              background: '#f9fafb',
+              padding: '16px',
+              borderRadius: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                  Rotation Position
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: '500', color: '#1f2937' }}>
+                  Position {sortedMembers.findIndex(m => m.id === selectedMember.id) + 1} of {sortedMembers.length}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                  Payment Status (Cycle {group.cycleNumber})
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: '500', color: getMemberPaidStatus(selectedMember.id) ? '#059669' : '#dc2626' }}>
+                  {(() => {
+                    const isPaid = getMemberPaidStatus(selectedMember.id);
+                    const payment = cyclePayments.find(p => p.member_id === selectedMember.id);
+                    const paymentStatus = !isPaid ? getPaymentStatus(group.collectionDay) : null;
+
+                    if (isPaid && payment) {
+                      return `Paid ${formatDate(payment.created_at)} (${payment.payment_method || 'cash'})`;
+                    } else {
+                      return paymentStatus?.text || 'Pending payment';
+                    }
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '16px'
+            }}>
+              {sortedMembers.findIndex(m => m.id === selectedMember.id) > 0 && (
+                <button
+                  onClick={() => {
+                    const index = recipientOrder.findIndex(id => id === selectedMember.id);
+                    if (index > 0) {
+                      moveRecipientUp(index);
+                      saveRecipientOrder();
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: '#f3f4f6',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  ↑ Move Up
+                </button>
+              )}
+              {sortedMembers.findIndex(m => m.id === selectedMember.id) < sortedMembers.length - 1 && (
+                <button
+                  onClick={() => {
+                    const index = recipientOrder.findIndex(id => id === selectedMember.id);
+                    if (index < recipientOrder.length - 1) {
+                      moveRecipientDown(index);
+                      saveRecipientOrder();
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: '#f3f4f6',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  ↓ Move Down
+                </button>
+              )}
+            </div>
+
+            {/* Payment History */}
+            <div>
+              <h4 style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '12px'
+              }}>
+                Payment History
+              </h4>
+              <div style={{
+                maxHeight: '200px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                {paymentHistory
+                  .filter(p => p.member_id === selectedMember.id)
+                  .map((payment, index) => (
+                    <div
+                      key={payment.id}
+                      style={{
+                        padding: '12px',
+                        background: '#f9fafb',
+                        borderRadius: '8px',
+                        fontSize: '13px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: '500' }}>Cycle {payment.cycle_number}</span>
+                        <span style={{ color: '#059669' }}>{formatNaira(payment.amount_paid)}</span>
+                      </div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>
+                        {formatDate(payment.created_at)} • {payment.payment_method || 'cash'}
+                      </div>
+                    </div>
+                  ))}
+                {paymentHistory.filter(p => p.member_id === selectedMember.id).length === 0 && (
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: '#6b7280',
+                    fontSize: '13px'
+                  }}>
+                    No payment history yet
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            {!getMemberPaidStatus(selectedMember.id) && (
+              <button
+                onClick={() => {
+                  setShowMemberDetail(false);
+                  handleMarkPaidClick(selectedMember.id);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: '#14b8a6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  marginTop: '16px'
+                }}
+              >
+                Mark as Paid
+              </button>
+            )}
           </div>
         </div>
       )}
