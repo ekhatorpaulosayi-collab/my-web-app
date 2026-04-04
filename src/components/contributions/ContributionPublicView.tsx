@@ -8,6 +8,7 @@ interface PaymentRecord {
   memberName: string;
   amount: number;
   date: string;
+  paid_at?: string;
   cycleNumber: number;
 }
 
@@ -46,8 +47,10 @@ const formatNaira = (amount: number) => {
 };
 
 const formatDate = (dateString: string) => {
+  if (!dateString) return '';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-NG', {
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric'
@@ -185,12 +188,13 @@ export const ContributionPublicView: React.FC = () => {
   const progressPercent = (paidCount / group.members.length) * 100;
   const totalPool = group.amount * group.members.length;
 
-  // Group payment history by cycle
+  // Group payment history by cycle, defaulting to 1 if cycle number is missing
   const paymentsByCycle = group.paymentHistory.reduce((acc, payment) => {
-    if (!acc[payment.cycleNumber]) {
-      acc[payment.cycleNumber] = [];
+    const cycleNum = payment.cycleNumber || 1;
+    if (!acc[cycleNum]) {
+      acc[cycleNum] = [];
     }
-    acc[payment.cycleNumber].push(payment);
+    acc[cycleNum].push(payment);
     return acc;
   }, {} as { [key: number]: PaymentRecord[] });
 
@@ -517,7 +521,7 @@ export const ContributionPublicView: React.FC = () => {
                       color: '#6b7280',
                       marginBottom: '8px'
                     }}>
-                      Cycle {cycle}
+                      Cycle {cycle || 1}
                     </h3>
                     <div style={{
                       display: 'grid',
@@ -536,10 +540,10 @@ export const ContributionPublicView: React.FC = () => {
                           }}
                         >
                           <span style={{ color: '#374151' }}>
-                            {payment.memberName}
+                            {payment.memberName || 'Member'}
                           </span>
                           <span style={{ color: '#6b7280' }}>
-                            {formatNaira(payment.amount)} • {formatDate(payment.date)}
+                            {formatNaira(payment.amount)}{formatDate(payment.date || payment.paid_at) && ` • ${formatDate(payment.date || payment.paid_at)}`}
                           </span>
                         </div>
                       ))}
@@ -563,17 +567,17 @@ export const ContributionPublicView: React.FC = () => {
             color: '#1f2937',
             marginBottom: '8px'
           }}>
-            Want to organize your own contribution group?
+            Storehouse — free tools for Nigerian businesses
           </h3>
           <p style={{
             fontSize: '14px',
             color: '#6b7280',
             marginBottom: '20px'
           }}>
-            Join Storehouse and start managing contributions easily
+            Track sales, manage debts, run ajo groups, and more
           </p>
           <a
-            href={`https://storehouse.ng/${group.storeSlug}`}
+            href="https://storehouse.ng"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -587,7 +591,7 @@ export const ContributionPublicView: React.FC = () => {
               fontWeight: 600
             }}
           >
-            Get Started Free
+            Try Storehouse Free
           </a>
           <p style={{
             marginTop: '16px',
