@@ -1090,25 +1090,24 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'white',
-            zIndex: 9999, // Fix: Higher than Money Book header
+            zIndex: 99999,
+            background: '#ffffff',
             overflowY: 'auto',
-            paddingTop: '60px' // Fix: Add padding to start below Money Book header
+            padding: 0,
+            margin: 0
           }}
         >
           {/* Settings Header - Fix 1: Add back button and proper X button */}
           <div style={{
-            position: 'fixed', // Fix: Changed from sticky to fixed
-            top: '60px', // Fix: Position below Money Book header
-            left: 0,
-            right: 0,
-            background: 'white',
-            borderBottom: '1px solid #eee',
+            position: 'sticky',
+            top: 0,
+            background: '#ffffff',
             padding: '16px',
+            borderBottom: '1px solid #eee',
+            zIndex: 1,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            zIndex: 10000 // Fix: Ensure header is on top
+            justifyContent: 'space-between'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
@@ -1156,7 +1155,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </button>
           </div>
 
-          <div style={{ paddingTop: '60px', paddingBottom: '140px' }}>
+          <div style={{ paddingBottom: '140px' }}>
             {/* Group Details Section */}
             <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
               <h3 style={{
