@@ -29,6 +29,8 @@ interface ContributionGroup {
   cycleNumber: number;
   totalCycles: number;
   nextCollectionDate?: string;
+  cycle_start_date?: string;
+  created_at?: string;
 }
 
 interface ContributionGroupDetailProps {
@@ -112,6 +114,9 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [editedAmount, setEditedAmount] = useState(group.amount.toString());
   const [editedFrequency, setEditedFrequency] = useState(group.frequency);
   const [editedCollectionDay, setEditedCollectionDay] = useState(group.collectionDay || '');
+  const [editedCycleStartDate, setEditedCycleStartDate] = useState(
+    group.cycle_start_date || group.created_at || new Date().toISOString().split('T')[0]
+  );
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -141,21 +146,58 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const totalExpected = totalMembers * group.amount;
   const allPaid = unpaidMembers.length === 0;
 
-  // Calculate days overdue
-  const getDaysOverdue = (collectionDay?: string) => {
-    if (!collectionDay) return 0;
+  // Calculate days overdue based on cycle start date
+  const getPaymentStatus = (collectionDay?: string) => {
+    if (!collectionDay) return { status: 'pending', text: 'Pending payment', daysOverdue: 0 };
+
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Get the cycle start date
+    const cycleStartDate = new Date(group.cycle_start_date || group.created_at || today.toISOString());
+    cycleStartDate.setHours(0, 0, 0, 0);
+
+    // Find the day of week indices
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const collectionDayIndex = dayNames.indexOf(collectionDay);
 
-    if (collectionDayIndex === -1) return 0;
+    if (collectionDayIndex === -1) return { status: 'pending', text: 'Pending payment', daysOverdue: 0 };
 
-    const todayIndex = today.getDay();
-    let daysOverdue = todayIndex - collectionDayIndex;
+    // Find the first collection day after cycle start
+    let firstCollectionDate = new Date(cycleStartDate);
+    while (firstCollectionDate.getDay() !== collectionDayIndex) {
+      firstCollectionDate.setDate(firstCollectionDate.getDate() + 1);
+    }
 
-    if (daysOverdue < 0) daysOverdue = 0;
+    // If cycle start is already on collection day, use it
+    if (cycleStartDate.getDay() === collectionDayIndex) {
+      firstCollectionDate = new Date(cycleStartDate);
+    }
 
-    return daysOverdue;
+    // Calculate difference
+    const diffTime = today.getTime() - firstCollectionDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      // Before first collection date
+      const daysUntil = Math.abs(diffDays);
+      const collectionDateStr = `${firstCollectionDate.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][firstCollectionDate.getMonth()]}`;
+      return {
+        status: 'upcoming',
+        text: `Due ${collectionDay} (${collectionDateStr})`,
+        daysOverdue: 0
+      };
+    } else if (diffDays === 0) {
+      // Today is collection day
+      return { status: 'due_today', text: 'Due today', daysOverdue: 0 };
+    } else {
+      // Past collection date
+      return {
+        status: 'late',
+        text: `${diffDays} day${diffDays !== 1 ? 's' : ''} overdue`,
+        daysOverdue: diffDays
+      };
+    }
   };
 
   // Load payment history when settings opens
@@ -344,7 +386,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           name: editedName,
           amount: parseFloat(editedAmount),
           frequency: editedFrequency,
-          collection_day: editedCollectionDay
+          collection_day: editedCollectionDay,
+          cycle_start_date: editedCycleStartDate
         })
         .eq('id', group.id);
 
@@ -357,7 +400,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           name: editedName,
           amount: parseFloat(editedAmount),
           frequency: editedFrequency,
-          collectionDay: editedCollectionDay
+          collectionDay: editedCollectionDay,
+          cycle_start_date: editedCycleStartDate
         });
       }
       setShowSettings(false);
@@ -667,8 +711,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         }}>
           {group.members.map((member) => {
             const isPaid = member.isPaid || member.hasPaid;
-            const daysOverdue = !isPaid && group.collectionDay ? getDaysOverdue(group.collectionDay) : 0;
-            const isLate = daysOverdue > 0;
+            const paymentStatus = !isPaid ? getPaymentStatus(group.collectionDay) : null;
+            const isLate = paymentStatus?.status === 'late';
 
             return (
               <div
@@ -746,11 +790,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     }}>
                       {isPaid
                         ? `Paid ${member.paidAt ? formatDate(member.paidAt) : 'today'}`
-                        : daysOverdue > 0
-                        ? `${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue`
-                        : group.collectionDay
-                        ? `Due ${group.collectionDay}`
-                        : 'Pending payment'}
+                        : paymentStatus?.text || 'Pending payment'}
                     </div>
                   </div>
                 </div>
@@ -1353,7 +1393,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 </select>
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: '#6b7280' }}>
                   Collection Day
                 </label>
@@ -1378,6 +1418,31 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   <option value="Saturday">Saturday</option>
                   <option value="Sunday">Sunday</option>
                 </select>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: '#6b7280' }}>
+                  Cycle Start Date
+                </label>
+                <input
+                  type="date"
+                  value={editedCycleStartDate}
+                  onChange={(e) => setEditedCycleStartDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
+                <div style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '4px'
+                }}>
+                  First collection is on the first {editedCollectionDay || 'collection day'} after this date
+                </div>
               </div>
 
               <button
