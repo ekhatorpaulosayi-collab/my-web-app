@@ -97,6 +97,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [showSettings, setShowSettings] = useState(false);
   const [showRemindModal, setShowRemindModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [selectedMemberForPayment, setSelectedMemberForPayment] = useState<string | null>(null);
+  const [paymentNote, setPaymentNote] = useState('');
+  const [recipientOrder, setRecipientOrder] = useState<string[]>([]);
 
   // Notify parent when Settings visibility changes
   React.useEffect(() => {
@@ -110,6 +114,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [editedCollectionDay, setEditedCollectionDay] = useState(group.collectionDay || '');
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Initialize recipient order from members
+  React.useEffect(() => {
+    if (group.members && recipientOrder.length === 0) {
+      setRecipientOrder(group.members.map(m => m.id));
+    }
+  }, [group.members]);
 
   // Calculate recipient using rotation logic
   const sortedMembers = [...group.members].sort((a, b) => {
@@ -173,21 +184,34 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     }
   };
 
-  const handleMarkPaid = async (memberId: string) => {
+  const handleMarkPaidClick = (memberId: string) => {
+    setSelectedMemberForPayment(memberId);
+    setPaymentNote('');
+    setShowPaymentMethodModal(true);
+  };
+
+  const handleConfirmPayment = async (method: 'cash' | 'transfer' | 'other') => {
+    if (!selectedMemberForPayment) return;
+
     // Save payment to database
     await contributionService.markPaid(
       group.id,
-      memberId,
+      selectedMemberForPayment,
       group.cycleNumber,
       {
         amount: group.amount,
-        paymentMethod: 'cash',
-        note: `Cycle ${group.cycleNumber} payment`
+        paymentMethod: method,
+        note: paymentNote || `Cycle ${group.cycleNumber} payment`
       }
     );
 
     // Call the parent handler
-    onMarkPaid(memberId);
+    onMarkPaid(selectedMemberForPayment);
+
+    // Close modal and reset
+    setShowPaymentMethodModal(false);
+    setSelectedMemberForPayment(null);
+    setPaymentNote('');
   };
 
   // Fix 3: Wire up Remind All button
@@ -279,6 +303,39 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   };
 
   // Settings modal functions
+  const moveRecipientUp = (index: number) => {
+    if (index === 0) return;
+    const newOrder = [...recipientOrder];
+    [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]];
+    setRecipientOrder(newOrder);
+  };
+
+  const moveRecipientDown = (index: number) => {
+    if (index === recipientOrder.length - 1) return;
+    const newOrder = [...recipientOrder];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    setRecipientOrder(newOrder);
+  };
+
+  const saveRecipientOrder = async () => {
+    try {
+      // Update the position field for each member
+      const updates = recipientOrder.map((memberId, index) =>
+        supabase
+          .from('contribution_members')
+          .update({ position: index })
+          .eq('id', memberId)
+          .eq('group_id', group.id)
+      );
+
+      await Promise.all(updates);
+      alert('Recipient order saved!');
+    } catch (error) {
+      console.error('Failed to save order:', error);
+      alert('Failed to save order. Please try again.');
+    }
+  };
+
   const handleSaveGroupDetails = async () => {
     try {
       const { error } = await supabase
@@ -524,6 +581,61 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           )}
         </div>
 
+        {/* Collection Day Banner */}
+        {(() => {
+          const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+          const isCollectionDay = group.collectionDay && today.toLowerCase() === group.collectionDay.toLowerCase();
+          const paidToday = paidMembers.length;
+          const totalToday = group.members.length;
+
+          if (isCollectionDay) {
+            const allPaidToday = paidToday === totalToday;
+            return (
+              <div style={{
+                background: allPaidToday ? '#d1fae5' : '#fed7aa',
+                border: `1px solid ${allPaidToday ? '#86efac' : '#fdba74'}`,
+                borderRadius: '12px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <span style={{
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: allPaidToday ? '#065f46' : '#92400e'
+                }}>
+                  {allPaidToday
+                    ? '✅ All paid! Ready for payout'
+                    : `📅 Today is collection day — ${paidToday}/${totalToday} paid`
+                  }
+                </span>
+              </div>
+            );
+          } else if (group.collectionDay) {
+            // Calculate days until next collection day
+            const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const todayIndex = new Date().getDay();
+            const targetIndex = daysOfWeek.indexOf(group.collectionDay.toLowerCase());
+
+            let daysUntil = targetIndex - todayIndex;
+            if (daysUntil <= 0) daysUntil += 7;
+
+            return (
+              <div style={{
+                fontSize: '13px',
+                color: '#6b7280',
+                marginBottom: '12px',
+                textAlign: 'center'
+              }}>
+                Next collection: {group.collectionDay} ({daysUntil} day{daysUntil !== 1 ? 's' : ''})
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         {/* Members section */}
         <div style={{
           display: 'flex',
@@ -646,7 +758,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 {/* Right side: Mark Paid button or checkmark */}
                 {!isPaid ? (
                   <button
-                    onClick={() => handleMarkPaid(member.id)}
+                    onClick={() => handleMarkPaidClick(member.id)}
                     style={{
                       padding: '8px 16px',
                       background: '#14b8a6',
@@ -1316,20 +1428,90 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               </div>
 
               <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                {sortedMembers.map((member, index) => (
-                  <div
-                    key={member.id}
-                    style={{
-                      padding: '8px',
-                      background: index === recipientIndex ? '#fef3c7' : 'transparent',
-                      borderRadius: '4px',
-                      marginBottom: '4px'
-                    }}
-                  >
-                    {index + 1}. {member.name} {index === recipientIndex && '(current)'}
-                  </div>
-                ))}
+                {recipientOrder.map((memberId, index) => {
+                  const member = group.members.find(m => m.id === memberId);
+                  if (!member) return null;
+                  const isCurrent = index === recipientIndex;
+
+                  return (
+                    <div
+                      key={member.id}
+                      style={{
+                        padding: '8px',
+                        background: isCurrent ? '#fef3c7' : '#f9fafb',
+                        borderRadius: '4px',
+                        marginBottom: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '500' }}>{index + 1}.</span>
+                        <span>{member.name}</span>
+                        {isCurrent && <span style={{ fontSize: '12px', color: '#92400e' }}>(current)</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {index > 0 && (
+                          <button
+                            onClick={() => moveRecipientUp(index)}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '4px',
+                              background: 'white',
+                              border: '1px solid #e5e7eb',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '16px'
+                            }}
+                          >
+                            ↑
+                          </button>
+                        )}
+                        {index < recipientOrder.length - 1 && (
+                          <button
+                            onClick={() => moveRecipientDown(index)}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '4px',
+                              background: 'white',
+                              border: '1px solid #e5e7eb',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '16px'
+                            }}
+                          >
+                            ↓
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+              <button
+                onClick={saveRecipientOrder}
+                style={{
+                  marginTop: '12px',
+                  padding: '8px 16px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                Save Order
+              </button>
             </div>
 
             {/* Member Management Section */}
@@ -1513,6 +1695,116 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 Delete Group
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Method Modal */}
+      {showPaymentMethodModal && selectedMemberForPayment && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1002
+          }}
+          onClick={() => setShowPaymentMethodModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              marginBottom: '16px',
+              color: '#1f2937'
+            }}>
+              How did they pay?
+            </h3>
+
+            {/* Payment method pills */}
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '16px'
+            }}>
+              {(['cash', 'transfer', 'other'] as const).map(method => (
+                <button
+                  key={method}
+                  onClick={() => handleConfirmPayment(method)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: '#f3f4f6',
+                    color: '#374151',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    textTransform: 'capitalize'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#10b981';
+                    e.currentTarget.style.color = 'white';
+                    e.currentTarget.style.borderColor = '#10b981';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f3f4f6';
+                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                  }}
+                >
+                  {method === 'cash' ? 'Cash' : method === 'transfer' ? 'Transfer' : 'Other'}
+                </button>
+              ))}
+            </div>
+
+            {/* Optional note */}
+            <input
+              type="text"
+              placeholder="Add a note (optional)"
+              value={paymentNote}
+              onChange={(e) => setPaymentNote(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                fontSize: '14px',
+                marginBottom: '16px'
+              }}
+            />
+
+            <button
+              onClick={() => setShowPaymentMethodModal(false)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
