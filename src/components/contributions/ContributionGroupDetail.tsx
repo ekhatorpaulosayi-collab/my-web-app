@@ -684,19 +684,19 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         if (isCurrentRecipient) return;
 
                         const oldMember = sortedMembers[recipientIndex];
-                        const oldPos = oldMember.position ?? recipientIndex;
-                        const newPos = m.position ?? idx;
+                        const oldPos = oldMember.payout_position ?? recipientIndex + 1;
+                        const newPos = m.payout_position ?? idx + 1;
 
                         try {
                           const { error: e1 } = await supabase
                             .from('contribution_members')
-                            .update({ position: newPos })
+                            .update({ payout_position: newPos })
                             .eq('id', oldMember.id)
                             .eq('group_id', group.id);
 
                           const { error: e2 } = await supabase
                             .from('contribution_members')
-                            .update({ position: oldPos })
+                            .update({ payout_position: oldPos })
                             .eq('id', m.id)
                             .eq('group_id', group.id);
 
@@ -704,8 +704,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                             window.alert('Error saving: ' + JSON.stringify(e1 || e2));
                           } else {
                             const updated = group.members.map(mem => {
-                              if (mem.id === oldMember.id) return { ...mem, position: newPos };
-                              if (mem.id === m.id) return { ...mem, position: oldPos };
+                              if (mem.id === oldMember.id) return { ...mem, payout_position: newPos };
+                              if (mem.id === m.id) return { ...mem, payout_position: oldPos };
                               return mem;
                             });
                             if (onUpdate) onUpdate({ ...group, members: updated });
