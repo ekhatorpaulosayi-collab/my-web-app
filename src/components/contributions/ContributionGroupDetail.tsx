@@ -687,6 +687,15 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         const oldPos = oldMember.payout_position ?? recipientIndex + 1;
                         const newPos = m.payout_position ?? idx + 1;
 
+                        console.log('MEMBER OBJECTS:', {
+                          oldName: oldMember.name,
+                          oldPayoutPos: oldMember.payout_position,
+                          oldKeys: Object.keys(oldMember),
+                          newName: m.name,
+                          newPayoutPos: m.payout_position,
+                          newKeys: Object.keys(m)
+                        });
+
                         try {
                           const { error: e1 } = await supabase
                             .from('contribution_members')
