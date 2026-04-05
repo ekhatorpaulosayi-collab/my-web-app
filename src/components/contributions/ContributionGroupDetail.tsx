@@ -2510,67 +2510,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               })}
             </div>
 
-            {/* Change Recipient Dropdown */}
-            <div style={{ marginTop: '16px' }}>
-              <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                Change Recipient:
-              </label>
-              <select
-                value={currentRecipient?.id || ''}
-                onChange={async (e) => {
-                  console.log('DROPDOWN CHANGED:', e.target.value);
-                  const newRecipientId = e.target.value;
-                  const newRecipient = sortedMembers.find(m => m.id === newRecipientId);
-                  if (!newRecipient) return;
-
-                  const oldRecipient = sortedMembers[recipientIndex];
-                  const oldPos = oldRecipient.position ?? recipientIndex;
-                  const newPos = newRecipient.position ?? sortedMembers.indexOf(newRecipient);
-
-                  console.log('SWAPPING:', { old: oldRecipient.name, oldPos, new: newRecipient.name, newPos });
-
-                  // Swap positions in database
-                  const { error: e1 } = await supabase
-                    .from('contribution_members')
-                    .update({ position: newPos })
-                    .eq('id', oldRecipient.id);
-
-                  const { error: e2 } = await supabase
-                    .from('contribution_members')
-                    .update({ position: oldPos })
-                    .eq('id', newRecipient.id);
-
-                  console.log('SWAP RESULT:', { e1, e2 });
-
-                  if (e1 || e2) {
-                    alert('Failed to change recipient');
-                  } else {
-                    // Update local state
-                    const updated = group.members.map(m => {
-                      if (m.id === oldRecipient.id) return { ...m, position: newPos };
-                      if (m.id === newRecipient.id) return { ...m, position: oldPos };
-                      return m;
-                    });
-                    if (onUpdate) onUpdate({ ...group, members: updated });
-                    alert(newRecipient.name + ' is now this cycle\'s recipient');
-                    setShowPayoutSchedule(false);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: '1px solid #ddd',
-                  fontSize: '14px',
-                  background: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                {sortedMembers.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
       )}
