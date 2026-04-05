@@ -522,6 +522,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   };
 
   return (
+    <>
+      {console.log('DETAIL VIEW RENDERING', { showPayoutSchedule, groupName: group?.name })}
     <div style={{
       background: '#f8f9fa',
       minHeight: '100vh',
@@ -2428,6 +2430,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               <select
                 value={currentRecipient?.id || ''}
                 onChange={async (e) => {
+                  console.log('DROPDOWN CHANGED:', e.target.value);
                   const newRecipientId = e.target.value;
                   const newRecipient = sortedMembers.find(m => m.id === newRecipientId);
                   if (!newRecipient) return;
@@ -2484,6 +2487,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         </div>
       )}
     </div>
+    </>
   );
 };
 
