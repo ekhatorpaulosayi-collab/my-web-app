@@ -669,6 +669,115 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               Collects this cycle → {currentRecipient.name}
             </div>
           )}
+
+          {/* Recipient Change Dropdown - Direct on Main View */}
+          {currentRecipient && (
+            <div style={{
+              marginTop: '12px',
+              marginBottom: '16px'
+            }}>
+              <label style={{
+                display: 'block',
+                fontSize: '13px',
+                color: '#6b7280',
+                marginBottom: '4px'
+              }}>
+                Change Recipient:
+              </label>
+              <select
+                value={currentRecipient.id}
+                onChange={async (e) => {
+                  const newRecipientId = e.target.value;
+
+                  // Debug with alerts for mobile
+                  alert(`Changing recipient to: ${newRecipientId}`);
+
+                  const currentRec = group.members.find(m => m.position === group.current_round);
+                  const newRec = group.members.find(m => m.id === newRecipientId);
+
+                  if (!currentRec || !newRec || currentRec.id === newRec.id) {
+                    alert('Invalid recipient selection');
+                    return;
+                  }
+
+                  alert(`Swapping positions: ${currentRec.name} (pos ${currentRec.position}) with ${newRec.name} (pos ${newRec.position})`);
+
+                  try {
+                    // Swap positions in database
+                    const { error: error1 } = await supabase
+                      .from('contribution_group_members')
+                      .update({ position: -1 })
+                      .eq('id', currentRec.id)
+                      .eq('group_id', group.id);
+
+                    if (error1) {
+                      alert(`Error 1: ${error1.message}`);
+                      throw error1;
+                    }
+
+                    const { error: error2 } = await supabase
+                      .from('contribution_group_members')
+                      .update({ position: currentRec.position })
+                      .eq('id', newRec.id)
+                      .eq('group_id', group.id);
+
+                    if (error2) {
+                      alert(`Error 2: ${error2.message}`);
+                      throw error2;
+                    }
+
+                    const { error: error3 } = await supabase
+                      .from('contribution_group_members')
+                      .update({ position: newRec.position })
+                      .eq('id', currentRec.id)
+                      .eq('group_id', group.id);
+
+                    if (error3) {
+                      alert(`Error 3: ${error3.message}`);
+                      throw error3;
+                    }
+
+                    alert('Position swap successful! Reloading...');
+
+                    // Reload group data
+                    const { data: updatedGroup } = await supabase
+                      .from('contribution_groups')
+                      .select(`
+                        *,
+                        members:contribution_group_members(*)
+                      `)
+                      .eq('id', group.id)
+                      .single();
+
+                    if (updatedGroup) {
+                      onUpdate(updatedGroup);
+                      alert('Group data reloaded successfully!');
+                    }
+                  } catch (err) {
+                    alert(`Swap failed: ${err.message}`);
+                    console.error('Swap error:', err);
+                  }
+                }}
+                style={{
+                  width: '200px',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  backgroundColor: '#fff'
+                }}
+              >
+                {group.members
+                  .filter(m => m.position > 0)
+                  .sort((a, b) => a.position - b.position)
+                  .map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.name} (Position {member.position})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Collection Day Banner */}
