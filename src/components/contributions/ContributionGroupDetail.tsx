@@ -2371,12 +2371,21 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   <div
                     key={member.id}
                     onClick={async () => {
+                      console.log('MEMBER TAPPED:', { memberName: member.name, isSelectingRecipient, isCurrent });
                       if (isSelectingRecipient && !isCurrent) {
                         // Confirm recipient change
                         if (confirm(`Make ${member.name} this cycle's recipient?`)) {
                           // Swap positions to change recipient
                           const currentRecipientPos = sortedMembers[recipientIndex].position ?? recipientIndex;
                           const newRecipientPos = member.position ?? index;
+
+                          // DIAGNOSTIC: Log before swap
+                          console.log('SWAP BEFORE:', {
+                            currentRecipient: sortedMembers[recipientIndex].name,
+                            currentPos: currentRecipientPos,
+                            newRecipient: member.name,
+                            newPos: newRecipientPos
+                          });
 
                           // Swap positions in database
                           const { error: error1 } = await supabase
@@ -2388,6 +2397,9 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                             .from('contribution_members')
                             .update({ position: currentRecipientPos })
                             .eq('id', member.id);
+
+                          // DIAGNOSTIC: Log swap results
+                          console.log('SWAP RESULT:', { error1, error2 });
 
                           if (error1 || error2) {
                             alert('Failed to update recipient. Please try again.');
@@ -2480,7 +2492,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             {/* Change Recipient Button */}
             {!isSelectingRecipient ? (
               <button
-                onClick={() => setIsSelectingRecipient(true)}
+                onClick={() => {
+                  console.log('CHANGE RECIPIENT CLICKED, isSelectingRecipient:', isSelectingRecipient);
+                  setIsSelectingRecipient(true);
+                }}
                 style={{
                   width: '100%',
                   padding: '14px',
