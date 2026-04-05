@@ -670,112 +670,67 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </div>
           )}
 
-          {/* Recipient Change Dropdown - Direct on Main View */}
-          {currentRecipient && (
-            <div style={{
-              marginTop: '12px',
-              marginBottom: '16px'
-            }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                color: '#6b7280',
-                marginBottom: '4px'
-              }}>
-                Change Recipient:
-              </label>
-              <select
-                value={currentRecipient.id}
-                onChange={async (e) => {
-                  const newRecipientId = e.target.value;
+          {/* Recipient Change Buttons - Direct on Main View */}
+          {currentRecipient && sortedMembers && (
+            <div style={{ marginTop: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '13px', color: '#888', marginBottom: '6px' }}>Change Recipient:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center' }}>
+                {sortedMembers.map((m, idx) => {
+                  const isCurrentRecipient = m.id === currentRecipient?.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={async () => {
+                        if (isCurrentRecipient) return;
 
-                  // Debug with alerts for mobile
-                  alert(`Changing recipient to: ${newRecipientId}`);
+                        const oldMember = sortedMembers[recipientIndex];
+                        const oldPos = oldMember.position ?? recipientIndex;
+                        const newPos = m.position ?? idx;
 
-                  const currentRec = group.members.find(m => m.position === group.current_round);
-                  const newRec = group.members.find(m => m.id === newRecipientId);
+                        try {
+                          const { error: e1 } = await supabase
+                            .from('contribution_group_members')
+                            .update({ position: newPos })
+                            .eq('id', oldMember.id)
+                            .eq('group_id', group.id);
 
-                  if (!currentRec || !newRec || currentRec.id === newRec.id) {
-                    alert('Invalid recipient selection');
-                    return;
-                  }
+                          const { error: e2 } = await supabase
+                            .from('contribution_group_members')
+                            .update({ position: oldPos })
+                            .eq('id', m.id)
+                            .eq('group_id', group.id);
 
-                  alert(`Swapping positions: ${currentRec.name} (pos ${currentRec.position}) with ${newRec.name} (pos ${newRec.position})`);
-
-                  try {
-                    // Swap positions in database
-                    const { error: error1 } = await supabase
-                      .from('contribution_group_members')
-                      .update({ position: -1 })
-                      .eq('id', currentRec.id)
-                      .eq('group_id', group.id);
-
-                    if (error1) {
-                      alert(`Error 1: ${error1.message}`);
-                      throw error1;
-                    }
-
-                    const { error: error2 } = await supabase
-                      .from('contribution_group_members')
-                      .update({ position: currentRec.position })
-                      .eq('id', newRec.id)
-                      .eq('group_id', group.id);
-
-                    if (error2) {
-                      alert(`Error 2: ${error2.message}`);
-                      throw error2;
-                    }
-
-                    const { error: error3 } = await supabase
-                      .from('contribution_group_members')
-                      .update({ position: newRec.position })
-                      .eq('id', currentRec.id)
-                      .eq('group_id', group.id);
-
-                    if (error3) {
-                      alert(`Error 3: ${error3.message}`);
-                      throw error3;
-                    }
-
-                    alert('Position swap successful! Reloading...');
-
-                    // Reload group data
-                    const { data: updatedGroup } = await supabase
-                      .from('contribution_groups')
-                      .select(`
-                        *,
-                        members:contribution_group_members(*)
-                      `)
-                      .eq('id', group.id)
-                      .single();
-
-                    if (updatedGroup) {
-                      onUpdate(updatedGroup);
-                      alert('Group data reloaded successfully!');
-                    }
-                  } catch (err) {
-                    alert(`Swap failed: ${err.message}`);
-                    console.error('Swap error:', err);
-                  }
-                }}
-                style={{
-                  width: '200px',
-                  padding: '8px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  backgroundColor: '#fff'
-                }}
-              >
-                {group.members
-                  .filter(m => m.position > 0)
-                  .sort((a, b) => a.position - b.position)
-                  .map(member => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} (Position {member.position})
-                    </option>
-                  ))}
-              </select>
+                          if (e1 || e2) {
+                            window.alert('Error saving: ' + JSON.stringify(e1 || e2));
+                          } else {
+                            const updated = group.members.map(mem => {
+                              if (mem.id === oldMember.id) return { ...mem, position: newPos };
+                              if (mem.id === m.id) return { ...mem, position: oldPos };
+                              return mem;
+                            });
+                            if (onUpdate) onUpdate({ ...group, members: updated });
+                          }
+                        } catch (err) {
+                          window.alert('Exception: ' + err.message);
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '20px',
+                        border: isCurrentRecipient ? '2px solid #0F6E56' : '1px solid #ddd',
+                        background: isCurrentRecipient ? '#E1F5EE' : 'white',
+                        color: isCurrentRecipient ? '#0F6E56' : '#333',
+                        fontWeight: isCurrentRecipient ? '600' : '400',
+                        fontSize: '13px',
+                        cursor: isCurrentRecipient ? 'default' : 'pointer',
+                        opacity: isCurrentRecipient ? 1 : 0.8
+                      }}
+                    >
+                      {m.name} {isCurrentRecipient ? '✓' : ''}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
