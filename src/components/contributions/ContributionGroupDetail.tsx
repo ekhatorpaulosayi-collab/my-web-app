@@ -108,7 +108,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showPayoutSchedule, setShowPayoutSchedule] = useState(false);
-  const [isSelectingRecipient, setIsSelectingRecipient] = useState(false);
 
   // Load payments for current cycle on mount
   React.useEffect(() => {
@@ -2306,7 +2305,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           }}
           onClick={() => {
             setShowPayoutSchedule(false);
-            setIsSelectingRecipient(false);
           }}
         >
           <div
@@ -2339,7 +2337,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               <button
                 onClick={() => {
                   setShowPayoutSchedule(false);
-                  setIsSelectingRecipient(false);
                 }}
                 style={{
                   width: '32px',
@@ -2370,82 +2367,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 return (
                   <div
                     key={member.id}
-                    onClick={async () => {
-                      console.log('MEMBER TAPPED:', { memberName: member.name, isSelectingRecipient, isCurrent });
-                      if (isSelectingRecipient && !isCurrent) {
-                        // Confirm recipient change
-                        if (confirm(`Make ${member.name} this cycle's recipient?`)) {
-                          // Swap positions to change recipient
-                          const currentRecipientPos = sortedMembers[recipientIndex].position ?? recipientIndex;
-                          const newRecipientPos = member.position ?? index;
-
-                          // DIAGNOSTIC: Log before swap
-                          console.log('SWAP BEFORE:', {
-                            currentRecipient: sortedMembers[recipientIndex].name,
-                            currentPos: currentRecipientPos,
-                            newRecipient: member.name,
-                            newPos: newRecipientPos
-                          });
-
-                          // Swap positions in database
-                          const { error: error1 } = await supabase
-                            .from('contribution_members')
-                            .update({ position: newRecipientPos })
-                            .eq('id', sortedMembers[recipientIndex].id);
-
-                          const { error: error2 } = await supabase
-                            .from('contribution_members')
-                            .update({ position: currentRecipientPos })
-                            .eq('id', member.id);
-
-                          // DIAGNOSTIC: Log swap results
-                          console.log('SWAP RESULT:', { error1, error2 });
-
-                          if (error1 || error2) {
-                            alert('Failed to update recipient. Please try again.');
-                            console.error('Position swap error:', error1 || error2);
-                          } else {
-                            // Update local state with swapped positions
-                            const updatedMembers = group.members.map(m => {
-                              if (m.id === sortedMembers[recipientIndex].id) {
-                                return { ...m, position: newRecipientPos };
-                              } else if (m.id === member.id) {
-                                return { ...m, position: currentRecipientPos };
-                              }
-                              return m;
-                            });
-
-                            // Notify parent to refresh
-                            if (onUpdate) {
-                              onUpdate({ ...group, members: updatedMembers });
-                            }
-
-                            setIsSelectingRecipient(false);
-                            setShowPayoutSchedule(false);
-                          }
-                        }
-                      }
-                    }}
                     style={{
                       padding: '12px 16px',
-                      background: isCurrent ? '#D1FAE5' : isSelectingRecipient ? '#F9FAFB' : 'white',
+                      background: isCurrent ? '#D1FAE5' : 'white',
                       border: isCurrent ? '2px solid #10B981' : '1px solid #E5E7EB',
                       borderRadius: '8px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      cursor: isSelectingRecipient ? 'pointer' : 'default',
+                      cursor: 'default',
                       transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isSelectingRecipient && !isCurrent) {
-                        e.currentTarget.style.background = '#F3F4F6';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (isSelectingRecipient && !isCurrent) {
-                        e.currentTarget.style.background = '#F9FAFB';
-                      }
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -2489,39 +2420,66 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               })}
             </div>
 
-            {/* Change Recipient Button */}
-            {!isSelectingRecipient ? (
-              <button
-                onClick={() => {
-                  console.log('CHANGE RECIPIENT CLICKED, isSelectingRecipient:', isSelectingRecipient);
-                  setIsSelectingRecipient(true);
+            {/* Change Recipient Dropdown */}
+            <div style={{ marginTop: '16px' }}>
+              <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151', display: 'block', marginBottom: '8px' }}>
+                Change Recipient:
+              </label>
+              <select
+                value={currentRecipient?.id || ''}
+                onChange={async (e) => {
+                  const newRecipientId = e.target.value;
+                  const newRecipient = sortedMembers.find(m => m.id === newRecipientId);
+                  if (!newRecipient) return;
+
+                  const oldRecipient = sortedMembers[recipientIndex];
+                  const oldPos = oldRecipient.position ?? recipientIndex;
+                  const newPos = newRecipient.position ?? sortedMembers.indexOf(newRecipient);
+
+                  console.log('SWAPPING:', { old: oldRecipient.name, oldPos, new: newRecipient.name, newPos });
+
+                  // Swap positions in database
+                  const { error: e1 } = await supabase
+                    .from('contribution_members')
+                    .update({ position: newPos })
+                    .eq('id', oldRecipient.id);
+
+                  const { error: e2 } = await supabase
+                    .from('contribution_members')
+                    .update({ position: oldPos })
+                    .eq('id', newRecipient.id);
+
+                  console.log('SWAP RESULT:', { e1, e2 });
+
+                  if (e1 || e2) {
+                    alert('Failed to change recipient');
+                  } else {
+                    // Update local state
+                    const updated = group.members.map(m => {
+                      if (m.id === oldRecipient.id) return { ...m, position: newPos };
+                      if (m.id === newRecipient.id) return { ...m, position: oldPos };
+                      return m;
+                    });
+                    if (onUpdate) onUpdate({ ...group, members: updated });
+                    alert(newRecipient.name + ' is now this cycle\'s recipient');
+                    setShowPayoutSchedule(false);
+                  }
                 }}
                 style={{
                   width: '100%',
-                  padding: '14px',
-                  background: '#F3F4F6',
-                  color: '#374151',
-                  border: 'none',
+                  padding: '12px',
                   borderRadius: '8px',
+                  border: '1px solid #ddd',
                   fontSize: '14px',
-                  fontWeight: '500',
+                  background: 'white',
                   cursor: 'pointer'
                 }}
               >
-                Change Recipient
-              </button>
-            ) : (
-              <div style={{
-                padding: '12px',
-                background: '#FEF3C7',
-                borderRadius: '8px',
-                fontSize: '13px',
-                color: '#92400E',
-                textAlign: 'center'
-              }}>
-                Tap any member to make them this cycle's recipient
-              </div>
-            )}
+                {sortedMembers.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       )}
