@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Swap Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            background: #0F6E56;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0a5240;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .members-list {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .member-item {
+            padding: 8px;
+            background: white;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .current-recipient {
+            background: #E1F5EE;
+            border: 1px solid #0F6E56;
+        }
+        .log {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            background: white;
+            border-radius: 3px;
+        }
+        .error {
+            color: #dc3545;
+            background: #fee;
+        }
+        .success {
+            color: #28a745;
+            background: #efe;
+        }
+        .info {
+            color: #17a2b8;
+            background: #e7f5ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Debug Swap Tool</h1>
+        <p class="subtitle">Test position swapping for contribution groups</p>
+
+        <div class="input-group">
+            <label for="supabaseUrl">Supabase URL:</label>
+            <input type="text" id="supabaseUrl" placeholder="https://xxxxx.supabase.co" />
+        </div>
+
+        <div class="input-group">
+            <label for="supabaseKey">Supabase Anon Key:</label>
+            <input type="text" id="supabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+        </div>
+
+        <div class="input-group">
+            <label for="groupId">Group ID:</label>
+            <input type="text" id="groupId" placeholder="Enter contribution group ID" />
+        </div>
+
+        <button onclick="loadGroup()">Load Group</button>
+        <button onclick="clearLog()">Clear Log</button>
+
+        <div id="membersContainer" style="display:none;">
+            <div class="members-list" id="membersList"></div>
+
+            <div class="input-group">
+                <label>Swap Members:</label>
+                <select id="member1Select"></select>
+                <select id="member2Select" style="margin-top:10px;"></select>
+            </div>
+
+            <button onclick="performSwap()">Perform Swap</button>
+            <button onclick="reloadGroup()">Reload Group</button>
+        </div>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        let supabase = null;
+        let currentGroup = null;
+
+        window.log = (message, type = 'info') => {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        };
+
+        window.clearLog = () => {
+            document.getElementById('log').innerHTML = '';
+        };
+
+        window.loadGroup = async () => {
+            try {
+                const url = document.getElementById('supabaseUrl').value;
+                const key = document.getElementById('supabaseKey').value;
+                const groupId = document.getElementById('groupId').value;
+
+                if (!url || !key || !groupId) {
+                    log('Please fill in all fields', 'error');
+                    return;
+                }
+
+                // Initialize Supabase client
+                supabase = createClient(url, key);
+                log('Supabase client initialized');
+
+                // Load group data
+                log(`Loading group ${groupId}...`);
+                const { data: group, error } = await supabase
+                    .from('contribution_groups')
+                    .select(`
+                        *,
+                        members:contribution_group_members(*)
+                    `)
+                    .eq('id', groupId)
+                    .single();
+
+                if (error) {
+                    log(`Error loading group: ${error.message}`, 'error');
+                    return;
+                }
+
+                currentGroup = group;
+                log(`Group loaded: ${group.name}`, 'success');
+                log(`Current round: ${group.current_round}`);
+                log(`Total members: ${group.members.length}`);
+
+                displayMembers(group);
+                document.getElementById('membersContainer').style.display = 'block';
+
+            } catch (err) {
+                log(`Exception: ${err.message}`, 'error');
+            }
+        };
+
+        window.displayMembers = (group) => {
+            const membersList = document.getElementById('membersList');
+            const member1Select = document.getElementById('member1Select');
+            const member2Select = document.getElementById('member2Select');
+
+            // Sort members by position
+            const sortedMembers = group.members
+                .filter(m => m.position > 0)
+                .sort((a, b) => a.position - b.position);
+
+            // Clear existing content
+            membersList.innerHTML = '<h3>Members (sorted by position):</h3>';
+            member1Select.innerHTML = '';
+            member2Select.innerHTML = '';
+
+            sortedMembers.forEach(member => {
+                // Add to list display
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'member-item';
+                if (member.position === group.current_round) {
+                    memberDiv.classList.add('current-recipient');
+                }
+                memberDiv.innerHTML = `
+                    <span>${member.name}</span>
+                    <span>Position: ${member.position} ${member.position === group.current_round ? '(Current)' : ''}</span>
+                `;
+                membersList.appendChild(memberDiv);
+
+                // Add to select dropdowns
+                const option1 = document.createElement('option');
+                option1.value = member.id;
+                option1.textContent = `${member.name} (Pos ${member.position})`;
+                member1Select.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = member.id;
+                option2.textContent = `${member.name} (Pos ${member.position})`;
+                member2Select.appendChild(option2);
+            });
+
+            // Set different default selections
+            if (sortedMembers.length > 1) {
+                member2Select.value = sortedMembers[1].id;
+            }
+        };
+
+        window.performSwap = async () => {
+            try {
+                const member1Id = document.getElementById('member1Select').value;
+                const member2Id = document.getElementById('member2Select').value;
+
+                if (member1Id === member2Id) {
+                    log('Cannot swap a member with themselves', 'error');
+                    return;
+                }
+
+                const member1 = currentGroup.members.find(m => m.id === member1Id);
+                const member2 = currentGroup.members.find(m => m.id === member2Id);
+
+                log(`Starting swap: ${member1.name} (pos ${member1.position}) ↔ ${member2.name} (pos ${member2.position})`);
+
+                // Step 1: Set member1 to temporary position
+                log('Step 1: Setting temporary position...');
+                const { error: error1 } = await supabase
+                    .from('contribution_group_members')
+                    .update({ position: -1 })
+                    .eq('id', member1.id)
+                    .eq('group_id', currentGroup.id);
+
+                if (error1) {
+                    log(`Error step 1: ${error1.message}`, 'error');
+                    return;
+                }
+                log('Step 1 complete', 'success');
+
+                // Step 2: Move member2 to member1's position
+                log(`Step 2: Moving ${member2.name} to position ${member1.position}...`);
+                const { error: error2 } = await supabase
+                    .from('contribution_group_members')
+                    .update({ position: member1.position })
+                    .eq('id', member2.id)
+                    .eq('group_id', currentGroup.id);
+
+                if (error2) {
+                    log(`Error step 2: ${error2.message}`, 'error');
+                    return;
+                }
+                log('Step 2 complete', 'success');
+
+                // Step 3: Move member1 to member2's position
+                log(`Step 3: Moving ${member1.name} to position ${member2.position}...`);
+                const { error: error3 } = await supabase
+                    .from('contribution_group_members')
+                    .update({ position: member2.position })
+                    .eq('id', member1.id)
+                    .eq('group_id', currentGroup.id);
+
+                if (error3) {
+                    log(`Error step 3: ${error3.message}`, 'error');
+                    return;
+                }
+                log('Step 3 complete', 'success');
+
+                log('Swap completed successfully! Reloading...', 'success');
+                setTimeout(() => reloadGroup(), 1000);
+
+            } catch (err) {
+                log(`Exception during swap: ${err.message}`, 'error');
+            }
+        };
+
+        window.reloadGroup = async () => {
+            const groupId = document.getElementById('groupId').value;
+            if (groupId && supabase) {
+                log('Reloading group data...');
+                await loadGroup();
+            }
+        };
+
+        // Auto-fill if URL params are present
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('url')) {
+                document.getElementById('supabaseUrl').value = params.get('url');
+            }
+            if (params.get('key')) {
+                document.getElementById('supabaseKey').value = params.get('key');
+            }
+            if (params.get('groupId')) {
+                document.getElementById('groupId').value = params.get('groupId');
+            }
+
+            log('Debug Swap Tool ready', 'info');
+        });
+    </script>
+</body>
+</html>
