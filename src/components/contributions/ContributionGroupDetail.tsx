@@ -13,6 +13,7 @@ interface Member {
   status?: 'active' | 'late' | 'defaulted' | 'frozen';
   paidAt?: string;
   created_at?: string;
+  position?: number;
 }
 
 interface ContributionGroup {
@@ -155,6 +156,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
   // Calculate recipient using rotation logic
   const sortedMembers = [...group.members].sort((a, b) => {
+    // Sort by position first, fallback to created_at if positions are equal
+    if (a.position !== undefined && b.position !== undefined) {
+      return a.position - b.position;
+    }
     const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
     const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
     return dateA - dateB;
@@ -2365,15 +2370,47 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 return (
                   <div
                     key={member.id}
-                    onClick={() => {
-                      if (isSelectingRecipient) {
+                    onClick={async () => {
+                      if (isSelectingRecipient && !isCurrent) {
                         // Confirm recipient change
                         if (confirm(`Make ${member.name} this cycle's recipient?`)) {
-                          // Update recipient for current cycle
-                          // Note: This would need backend support to actually change the recipient
-                          alert(`${member.name} is now the recipient for cycle ${group.cycleNumber}`);
-                          setIsSelectingRecipient(false);
-                          setShowPayoutSchedule(false);
+                          // Swap positions to change recipient
+                          const currentRecipientPos = sortedMembers[recipientIndex].position ?? recipientIndex;
+                          const newRecipientPos = member.position ?? index;
+
+                          // Swap positions in database
+                          const { error: error1 } = await supabase
+                            .from('contribution_members')
+                            .update({ position: newRecipientPos })
+                            .eq('id', sortedMembers[recipientIndex].id);
+
+                          const { error: error2 } = await supabase
+                            .from('contribution_members')
+                            .update({ position: currentRecipientPos })
+                            .eq('id', member.id);
+
+                          if (error1 || error2) {
+                            alert('Failed to update recipient. Please try again.');
+                            console.error('Position swap error:', error1 || error2);
+                          } else {
+                            // Update local state with swapped positions
+                            const updatedMembers = group.members.map(m => {
+                              if (m.id === sortedMembers[recipientIndex].id) {
+                                return { ...m, position: newRecipientPos };
+                              } else if (m.id === member.id) {
+                                return { ...m, position: currentRecipientPos };
+                              }
+                              return m;
+                            });
+
+                            // Notify parent to refresh
+                            if (onUpdate) {
+                              onUpdate({ ...group, members: updatedMembers });
+                            }
+
+                            setIsSelectingRecipient(false);
+                            setShowPayoutSchedule(false);
+                          }
                         }
                       }
                     }}
