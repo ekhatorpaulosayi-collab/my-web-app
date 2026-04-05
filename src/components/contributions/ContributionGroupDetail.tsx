@@ -670,93 +670,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </div>
           )}
 
-          {/* Recipient Change Buttons - Direct on Main View */}
-          {currentRecipient && sortedMembers && (
-            <div style={{ marginTop: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '13px', color: '#888', marginBottom: '6px' }}>Change Recipient:</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center' }}>
-                {sortedMembers.map((m, idx) => {
-                  const isCurrentRecipient = m.id === currentRecipient?.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={async () => {
-                        if (isCurrentRecipient) return;
-
-                        try {
-                          // Fetch REAL positions from database
-                          const { data: dbMembers, error: fetchErr } = await supabase
-                            .from('contribution_members')
-                            .select('id, name, payout_position')
-                            .eq('group_id', group.id)
-                            .order('payout_position');
-
-                          if (fetchErr || !dbMembers) {
-                            console.error('Fetch error:', fetchErr);
-                            return;
-                          }
-
-                          const currentCycle = group.currentCycle || group.current_cycle || 1;
-                          const currentRecipientDb = dbMembers.find(mem => mem.payout_position === currentCycle);
-                          const newRecipientDb = dbMembers.find(mem => mem.id === m.id);
-
-                          if (!currentRecipientDb || !newRecipientDb) {
-                            console.error('Members not found:', { currentRecipientDb, newRecipientDb });
-                            return;
-                          }
-
-                          console.log('DB SWAP:', {
-                            old: currentRecipientDb.name,
-                            oldPos: currentRecipientDb.payout_position,
-                            new: newRecipientDb.name,
-                            newPos: newRecipientDb.payout_position
-                          });
-
-                          // Swap positions
-                          const { error: e1 } = await supabase
-                            .from('contribution_members')
-                            .update({ payout_position: newRecipientDb.payout_position })
-                            .eq('id', currentRecipientDb.id);
-
-                          const { error: e2 } = await supabase
-                            .from('contribution_members')
-                            .update({ payout_position: currentRecipientDb.payout_position })
-                            .eq('id', newRecipientDb.id);
-
-                          console.log('DB SWAP RESULT:', { e1, e2 });
-
-                          if (!e1 && !e2) {
-                            // Refresh parent
-                            const updated = group.members.map(mem => {
-                              if (mem.id === currentRecipientDb.id) return { ...mem, payout_position: newRecipientDb.payout_position };
-                              if (mem.id === newRecipientDb.id) return { ...mem, payout_position: currentRecipientDb.payout_position };
-                              return mem;
-                            });
-                            if (onUpdate) onUpdate({ ...group, members: updated });
-                          }
-                        } catch (err) {
-                          console.error('Swap exception:', err);
-                        }
-                      }}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '20px',
-                        border: isCurrentRecipient ? '2px solid #0F6E56' : '1px solid #ddd',
-                        background: isCurrentRecipient ? '#E1F5EE' : 'white',
-                        color: isCurrentRecipient ? '#0F6E56' : '#333',
-                        fontWeight: isCurrentRecipient ? '600' : '400',
-                        fontSize: '13px',
-                        cursor: isCurrentRecipient ? 'default' : 'pointer',
-                        opacity: isCurrentRecipient ? 1 : 0.8
-                      }}
-                    >
-                      {m.name} {isCurrentRecipient ? '✓' : ''}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Collection Day Banner */}
@@ -2509,6 +2422,98 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 );
               })}
             </div>
+
+            {/* Recipient Change Buttons - Moved to Popup */}
+            {currentRecipient && sortedMembers && (
+              <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid #E5E7EB', paddingTop: '20px' }}>
+                <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px', fontWeight: '500' }}>Change Recipient:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                  {sortedMembers.map((m, idx) => {
+                    const isCurrentRecipient = m.id === currentRecipient?.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={async () => {
+                          if (isCurrentRecipient) return;
+
+                          try {
+                            // Fetch REAL positions from database
+                            const { data: dbMembers, error: fetchErr } = await supabase
+                              .from('contribution_members')
+                              .select('id, name, payout_position')
+                              .eq('group_id', group.id)
+                              .order('payout_position');
+
+                            if (fetchErr || !dbMembers) {
+                              console.error('Fetch error:', fetchErr);
+                              return;
+                            }
+
+                            const currentCycle = group.currentCycle || group.current_cycle || 1;
+                            const currentRecipientDb = dbMembers.find(mem => mem.payout_position === currentCycle);
+                            const newRecipientDb = dbMembers.find(mem => mem.id === m.id);
+
+                            if (!currentRecipientDb || !newRecipientDb) {
+                              console.error('Members not found:', { currentRecipientDb, newRecipientDb });
+                              return;
+                            }
+
+                            console.log('DB SWAP:', {
+                              old: currentRecipientDb.name,
+                              oldPos: currentRecipientDb.payout_position,
+                              new: newRecipientDb.name,
+                              newPos: newRecipientDb.payout_position
+                            });
+
+                            // Swap positions
+                            const { error: e1 } = await supabase
+                              .from('contribution_members')
+                              .update({ payout_position: newRecipientDb.payout_position })
+                              .eq('id', currentRecipientDb.id);
+
+                            const { error: e2 } = await supabase
+                              .from('contribution_members')
+                              .update({ payout_position: currentRecipientDb.payout_position })
+                              .eq('id', newRecipientDb.id);
+
+                            console.log('DB SWAP RESULT:', { e1, e2 });
+
+                            if (!e1 && !e2) {
+                              // Refresh parent
+                              const updated = group.members.map(mem => {
+                                if (mem.id === currentRecipientDb.id) return { ...mem, payout_position: newRecipientDb.payout_position };
+                                if (mem.id === newRecipientDb.id) return { ...mem, payout_position: currentRecipientDb.payout_position };
+                                return mem;
+                              });
+                              if (onUpdate) onUpdate({ ...group, members: updated });
+
+                              // Close modal after successful swap
+                              setShowPayoutSchedule(false);
+                            }
+                          } catch (err) {
+                            console.error('Swap exception:', err);
+                          }
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          border: isCurrentRecipient ? '2px solid #0F6E56' : '1px solid #ddd',
+                          background: isCurrentRecipient ? '#E1F5EE' : 'white',
+                          color: isCurrentRecipient ? '#0F6E56' : '#333',
+                          fontWeight: isCurrentRecipient ? '600' : '400',
+                          fontSize: '13px',
+                          cursor: isCurrentRecipient ? 'default' : 'pointer',
+                          opacity: isCurrentRecipient ? 1 : 0.8,
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {m.name} {isCurrentRecipient ? '✓' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
