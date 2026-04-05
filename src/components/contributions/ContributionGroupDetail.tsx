@@ -689,13 +689,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
                         try {
                           const { error: e1 } = await supabase
-                            .from('contribution_group_members')
+                            .from('contribution_members')
                             .update({ position: newPos })
                             .eq('id', oldMember.id)
                             .eq('group_id', group.id);
 
                           const { error: e2 } = await supabase
-                            .from('contribution_group_members')
+                            .from('contribution_members')
                             .update({ position: oldPos })
                             .eq('id', m.id)
                             .eq('group_id', group.id);
