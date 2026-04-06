@@ -2453,44 +2453,56 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       <button
                         key={pos}
                         onClick={async () => {
-                          // Fetch all members from DB
-                          const { data: dbMembers } = await supabase
-                            .from('contribution_members')
-                            .select('id, name, payout_position')
-                            .eq('group_id', group.id)
-                            .order('payout_position');
-
-                          if (!dbMembers) return;
-
-                          // Remove the member from current position
-                          const others = dbMembers.filter(m => m.id !== selectedMember.id);
-
-                          // Insert at target position (0-indexed for array, 1-indexed for position)
-                          others.splice(pos - 1, 0, dbMembers.find(m => m.id === selectedMember.id));
-
-                          // Reassign all positions 1, 2, 3, 4...
-                          const updates = others.map((m, index) =>
-                            supabase
+                          try {
+                            // Fetch all members from DB
+                            const { data: dbMembers, error: fetchErr } = await supabase
                               .from('contribution_members')
-                              .update({ payout_position: index + 1 })
-                              .eq('id', m.id)
-                          );
-
-                          const results = await Promise.all(updates);
-                          const errors = results.filter(r => r.error);
-
-                          if (errors.length === 0) {
-                            // Refresh the group with updated positions
-                            const { data: freshMembers } = await supabase
-                              .from('contribution_members')
-                              .select('id, name, phone, payout_position, status')
+                              .select('id, name, payout_position')
                               .eq('group_id', group.id)
                               .order('payout_position');
 
-                            if (freshMembers && onUpdate) {
-                              onUpdate({ ...group, members: freshMembers, contribution_members: freshMembers });
+                            if (fetchErr || !dbMembers) {
+                              console.error('Fetch error:', fetchErr);
+                              return;
                             }
-                            setSelectedMember(null);
+
+                            // Remove the member from current position
+                            const others = dbMembers.filter(m => m.id !== selectedMember.id);
+                            const movingMember = dbMembers.find(m => m.id === selectedMember.id);
+                            if (!movingMember) return;
+
+                            // Insert at target position (0-indexed for array)
+                            others.splice(pos - 1, 0, movingMember);
+
+                            // Reassign all positions 1, 2, 3, 4...
+                            const updates = others.map((m, index) =>
+                              supabase
+                                .from('contribution_members')
+                                .update({ payout_position: index + 1 })
+                                .eq('id', m.id)
+                            );
+
+                            const results = await Promise.all(updates);
+                            const errors = results.filter(r => r.error);
+
+                            console.log('MOVE RESULT:', { errors: errors.length, targetPos: pos, member: selectedMember.name });
+
+                            if (errors.length === 0) {
+                              // DO NOT call onBack or onUpdate — they unmount the component
+                              // Instead just close the member popup and stay on the page
+                              setSelectedMember(null);
+
+                              // Force a re-render by updating local state
+                              // The payout schedule will still show old data until next full load
+                              // So show a simple success message
+                              alert(selectedMember.name + ' moved to position ' + pos + '. Close and reopen the group to see the update.');
+                            } else {
+                              console.error('Move errors:', errors);
+                              alert('Failed to move member. Try again.');
+                            }
+                          } catch (err) {
+                            console.error('Move exception:', err);
+                            alert('Error: ' + err.message);
                           }
                         }}
                         style={{
