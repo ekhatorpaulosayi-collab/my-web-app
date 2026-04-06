@@ -109,6 +109,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showPayoutSchedule, setShowPayoutSchedule] = useState(false);
 
+  // Add local state for members to enable immediate UI updates
+  const [localMembers, setLocalMembers] = useState<Member[]>(
+    group.members || group.contribution_members || []
+  );
+
+  // Sync local members when group prop changes
+  React.useEffect(() => {
+    setLocalMembers(group.members || group.contribution_members || []);
+  }, [group]);
+
   // Load payments for current cycle on mount
   React.useEffect(() => {
     loadCyclePayments();
@@ -148,13 +158,13 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
   // Initialize recipient order from members
   React.useEffect(() => {
-    if (group.members && recipientOrder.length === 0) {
-      setRecipientOrder(group.members.map(m => m.id));
+    if (localMembers && recipientOrder.length === 0) {
+      setRecipientOrder(localMembers.map(m => m.id));
     }
-  }, [group.members]);
+  }, [localMembers]);
 
   // Calculate recipient using rotation logic
-  const sortedMembers = [...group.members].sort((a, b) => {
+  const sortedMembers = [...localMembers].sort((a, b) => {
     // Sort by position first, fallback to created_at if positions are equal
     if (a.position !== undefined && b.position !== undefined) {
       return a.position - b.position;
@@ -174,9 +184,9 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     return cyclePayments.some(payment => payment.member_id === memberId);
   };
 
-  const paidMembers = group.members.filter(m => getMemberPaidStatus(m.id));
-  const unpaidMembers = group.members.filter(m => !getMemberPaidStatus(m.id));
-  const totalMembers = group.members.length;
+  const paidMembers = localMembers.filter(m => getMemberPaidStatus(m.id));
+  const unpaidMembers = localMembers.filter(m => !getMemberPaidStatus(m.id));
+  const totalMembers = localMembers.length;
   const totalCollected = paidMembers.length * group.amount;
   const totalExpected = totalMembers * group.amount;
   const allPaid = unpaidMembers.length === 0;
@@ -686,7 +696,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
           const isCollectionDay = group.collectionDay && today.toLowerCase() === group.collectionDay.toLowerCase();
           const paidToday = paidMembers.length;
-          const totalToday = group.members.length;
+          const totalToday = localMembers.length;
 
           if (isCollectionDay) {
             const allPaidToday = paidToday === totalToday;
@@ -765,7 +775,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           flexDirection: 'column',
           gap: '8px'
         }}>
-          {group.members.map((member) => {
+          {localMembers.map((member) => {
             const isPaid = getMemberPaidStatus(member.id);
             const paymentStatus = !isPaid ? getPaymentStatus(group.collectionDay) : null;
             const isLate = paymentStatus?.status === 'late';
@@ -1559,7 +1569,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
               <div style={{ fontSize: '14px', color: '#6b7280' }}>
                 {recipientOrder.map((memberId, index) => {
-                  const member = group.members.find(m => m.id === memberId);
+                  const member = localMembers.find(m => m.id === memberId);
                   if (!member) return null;
                   const isCurrent = member.id === currentRecipient?.id;
 
@@ -1654,7 +1664,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               }}>
                 Member Management
               </h3>
-              {group.members.map((member) => (
+              {localMembers.map((member) => (
                 <div
                   key={member.id}
                   style={{
@@ -2488,14 +2498,20 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                             console.log('MOVE RESULT:', { errors: errors.length, targetPos: pos, member: selectedMember.name });
 
                             if (errors.length === 0) {
-                              // DO NOT call onBack or onUpdate — they unmount the component
-                              // Instead just close the member popup and stay on the page
-                              setSelectedMember(null);
+                              // Fetch fresh members with updated positions
+                              const { data: freshMembers } = await supabase
+                                .from('contribution_members')
+                                .select('id, name, phone, payout_position, status, created_at')
+                                .eq('group_id', group.id)
+                                .order('payout_position');
 
-                              // Force a re-render by updating local state
-                              // The payout schedule will still show old data until next full load
-                              // So show a simple success message
-                              alert(selectedMember.name + ' moved to position ' + pos + '. Close and reopen the group to see the update.');
+                              if (freshMembers) {
+                                // Update local state with fresh members
+                                setLocalMembers(freshMembers);
+                              }
+
+                              // Close the member selector popup
+                              setSelectedMember(null);
                             } else {
                               console.error('Move errors:', errors);
                               alert('Failed to move member. Try again.');
