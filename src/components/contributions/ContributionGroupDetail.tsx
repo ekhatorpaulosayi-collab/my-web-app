@@ -2480,11 +2480,17 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                           const errors = results.filter(r => r.error);
 
                           if (errors.length === 0) {
-                            setSelectedMember(null);
-                            if (onUpdate) {
-                              const updatedGroup = { ...group };
-                              if (onBack) onBack();
+                            // Refresh the group with updated positions
+                            const { data: freshMembers } = await supabase
+                              .from('contribution_members')
+                              .select('id, name, phone, payout_position, status')
+                              .eq('group_id', group.id)
+                              .order('payout_position');
+
+                            if (freshMembers && onUpdate) {
+                              onUpdate({ ...group, members: freshMembers, contribution_members: freshMembers });
                             }
+                            setSelectedMember(null);
                           }
                         }}
                         style={{
