@@ -180,6 +180,17 @@ export async function getGroups(userId: string) {
         .eq('cycle_number', group.current_cycle);
 
       // Get current recipient
+      console.log('RECIPIENT CALC:', {
+        current_cycle: group.current_cycle,
+        cycleType: typeof group.current_cycle,
+        members: group.contribution_members?.map(m => ({
+          name: m.name,
+          pos: m.payout_position,
+          posType: typeof m.payout_position,
+          match: m.payout_position === group.current_cycle,
+          looseMatch: m.payout_position == group.current_cycle
+        }))
+      });
       const currentRecipient = group.contribution_members?.find(
         (m: ContributionMember) => m.payout_position === group.current_cycle
       );
