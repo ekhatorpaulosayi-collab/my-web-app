@@ -2462,7 +2462,14 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                           console.log('CYCLE UPDATE RESULT:', { error });
 
                           if (!error) {
-                            if (onBack) onBack();
+                            // Update local group with new cycle
+                            const updatedGroup = {
+                              ...group,
+                              current_cycle: dbMember.payout_position,
+                              currentCycle: dbMember.payout_position
+                            };
+                            if (onUpdate) onUpdate(updatedGroup);
+                            setShowPayoutSchedule(false);
                           }
                         }}
                         style={{
