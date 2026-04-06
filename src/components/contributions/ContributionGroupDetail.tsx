@@ -1491,7 +1491,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 </label>
                 <input
                   type="date"
-                  value={editedCycleStartDate}
+                  value={group.cycle_start_date ? new Date(group.cycle_start_date).toISOString().split('T')[0] : ''}
                   onChange={(e) => setEditedCycleStartDate(e.target.value)}
                   style={{
                     width: '100%',
@@ -2379,6 +2379,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 return (
                   <div
                     key={member.id}
+                    onClick={() => setSelectedMember(member)}
                     style={{
                       padding: '12px 16px',
                       background: isCurrent ? '#D1FAE5' : 'white',
@@ -2387,7 +2388,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      cursor: 'default',
+                      cursor: 'pointer',
                       transition: 'all 0.2s'
                     }}
                   >
@@ -2431,6 +2432,133 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 );
               })}
             </div>
+
+            {/* Member Position Picker */}
+            {selectedMember && (
+              <div style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '12px',
+                margin: '4px 0',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                  {selectedMember.name}
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>Move to position:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {Array.from({ length: sortedMembers.length }, (_, i) => i + 1).map(pos => (
+                      <button
+                        key={pos}
+                        onClick={async () => {
+                          // Fetch all members from DB
+                          const { data: dbMembers } = await supabase
+                            .from('contribution_members')
+                            .select('id, name, payout_position')
+                            .eq('group_id', group.id)
+                            .order('payout_position');
+
+                          if (!dbMembers) return;
+
+                          // Remove the member from current position
+                          const others = dbMembers.filter(m => m.id !== selectedMember.id);
+
+                          // Insert at target position (0-indexed for array, 1-indexed for position)
+                          others.splice(pos - 1, 0, dbMembers.find(m => m.id === selectedMember.id));
+
+                          // Reassign all positions 1, 2, 3, 4...
+                          const updates = others.map((m, index) =>
+                            supabase
+                              .from('contribution_members')
+                              .update({ payout_position: index + 1 })
+                              .eq('id', m.id)
+                          );
+
+                          const results = await Promise.all(updates);
+                          const errors = results.filter(r => r.error);
+
+                          if (errors.length === 0) {
+                            setSelectedMember(null);
+                            if (onUpdate) {
+                              const updatedGroup = { ...group };
+                              if (onBack) onBack();
+                            }
+                          }
+                        }}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          border: pos === selectedMember.payout_position ? '2px solid #0F6E56' : '1px solid #ddd',
+                          background: pos === selectedMember.payout_position ? '#E1F5EE' : 'white',
+                          fontWeight: pos === selectedMember.payout_position ? '600' : '400',
+                          cursor: 'pointer'
+                        }}
+                      >{pos}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const { data: dbMember } = await supabase
+                      .from('contribution_members')
+                      .select('payout_position')
+                      .eq('id', selectedMember.id)
+                      .single();
+
+                    if (!dbMember) return;
+
+                    const { error } = await supabase
+                      .from('contribution_groups')
+                      .update({ current_cycle: dbMember.payout_position })
+                      .eq('id', group.id);
+
+                    if (!error) {
+                      const updatedGroup = {
+                        ...group,
+                        current_cycle: dbMember.payout_position,
+                        currentCycle: dbMember.payout_position
+                      };
+                      if (onUpdate) onUpdate(updatedGroup);
+                      setShowPayoutSchedule(false);
+                      setSelectedMember(null);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#0F6E56',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Collect this cycle
+                </button>
+
+                <button
+                  onClick={() => setSelectedMember(null)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    marginTop: '6px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#888',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* Recipient Change Buttons - Moved to Popup */}
             {currentRecipient && sortedMembers && (
