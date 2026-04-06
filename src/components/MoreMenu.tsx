@@ -65,76 +65,47 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     };
   }, [onClose]);
 
-  // Organize menu items into sections
+  // Organize menu items into sections with premium color themes
   const sections = [
     {
-      title: 'Sell',
+      title: 'SELL',
+      theme: 'teal',
       items: [
         {
           icon: Share2,
           label: 'Online Store',
-          description: 'Share your online catalog - customers browse & order 24/7',
+          description: 'Share your catalog — customers browse 24/7',
           action: onShowOnlineStore
         },
         {
           icon: QrCode,
           label: 'WhatsApp Store Link',
-          description: 'Share your store link via WhatsApp or QR code',
+          description: 'Share via WhatsApp or QR code',
           action: onShowOnlineStore // Reuse the same action as Online Store
         }
       ]
     },
     {
-      title: 'Track',
-      items: [
-        {
-          icon: Send,
-          label: 'Daily Sales Summary',
-          description: 'Get daily sales digest via email or WhatsApp',
-          action: onSendDailySummary
-        },
-        {
-          icon: BarChart3,
-          label: 'Sales by Channel',
-          description: 'See which channels drive the most sales (Instagram, WhatsApp, Walk-in)',
-          action: onViewChannelAnalytics
-        },
-        {
-          icon: UserCircle2,
-          label: 'Customers',
-          description: 'Track customer purchases, loyalty, and outstanding payments',
-          action: () => navigate('/customers') // Fixed: Navigate to customers page, not credits
-        },
-        {
-          icon: Receipt,
-          label: 'Professional Invoices',
-          description: 'Send invoices in 30 seconds. Track payments & send auto-reminders',
-          action: () => navigate('/invoices')
-        },
-        {
-          icon: TrendingUp,
-          label: 'Money & Profits',
-          description: 'View item costs, prices, and profit margins',
-          action: onViewMoney // This opens the Money & Profits page
-        }
-      ]
-    },
-    {
-      title: 'Manage',
+      title: 'MANAGE',
+      theme: 'purple',
       items: [
         {
           icon: BookOpen,
           label: 'Money Book',
-          description: 'Track credit sales and manage ajo/contribution groups',
-          action: onViewCustomers, // Fixed: This opens CustomerDebtDrawer (Money Book with Credit Sales + Contributions tabs)
-          badge: 'NEW'
+          description: 'Credit sales and ajo/contribution groups',
+          action: onViewCustomers // Fixed: This opens CustomerDebtDrawer (Money Book with Credit Sales + Contributions tabs)
         },
         {
           icon: MessageCircle,
           label: 'Customer Chats',
-          description: 'View and manage conversations from your online store visitors',
-          action: () => navigate('/conversations'),
-          badge: 'NEW'
+          description: 'Conversations from your online store',
+          action: () => navigate('/conversations')
+        },
+        {
+          icon: Receipt,
+          label: 'Professional Invoices',
+          description: 'Send invoices in 30 seconds',
+          action: () => navigate('/invoices')
         },
         // Staff Management (owner only)
         ...(canManageStaff() && !isStaffMode ? [{
@@ -146,36 +117,68 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
         {
           icon: FileSpreadsheet,
           label: 'Export Data',
-          description: 'Download your data for Excel or Google Sheets',
+          description: 'Download for Excel or Google Sheets',
           action: onExportData
         }
       ]
     },
     {
-      title: 'Growth',
+      title: 'TRACK',
+      theme: 'amber',
+      items: [
+        {
+          icon: TrendingUp,
+          label: 'Money & Profits',
+          description: 'Item costs, prices, and margins',
+          action: onViewMoney // This opens the Money & Profits page
+        },
+        {
+          icon: Send,
+          label: 'Daily Sales Summary',
+          description: 'Daily digest via email or WhatsApp',
+          action: onSendDailySummary
+        },
+        {
+          icon: BarChart3,
+          label: 'Sales by Channel',
+          description: 'Instagram, WhatsApp, Walk-in',
+          action: onViewChannelAnalytics
+        },
+        {
+          icon: UserCircle2,
+          label: 'Customers',
+          description: 'Purchases, loyalty, outstanding payments',
+          action: () => navigate('/customers') // Fixed: Navigate to customers page, not credits
+        }
+      ]
+    },
+    {
+      title: 'GROWTH',
+      theme: 'green',
       items: [
         {
           icon: Star,
           label: 'Customer Reviews',
-          description: 'Collect & display customer testimonials',
+          description: 'Collect and display testimonials',
           action: () => navigate('/reviews')
         },
         {
           icon: Gift,
           label: 'Partner Program',
-          description: 'Earn 30% recurring commission on every paid referral',
+          description: '30% recurring commission on referrals',
           action: () => navigate('/affiliate/signup'),
-          badge: 'Earn Money'
+          badge: 'EARN MONEY'
         }
       ]
     },
     {
-      title: 'Account',
+      title: 'ACCOUNT',
+      theme: 'grey',
       items: [
         {
           icon: CreditCard,
           label: 'Subscription & Billing',
-          description: 'Upgrade plan, manage subscription, cancel or switch billing',
+          description: 'Upgrade plan, manage billing',
           action: () => navigate('/upgrade')
         },
         // Staff Mode Login (show if owner and not in staff mode)
@@ -234,30 +237,32 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
         <div className="more-menu-sections">
           {sections.map((section) => (
             <div key={section.title} className="more-menu-section">
-              <h4 className="more-menu-section-title">{section.title}</h4>
-              <div className="more-menu-grid">
-                {section.items.map((item) => {
+              <h4 className={`more-menu-section-title more-menu-section-title--${section.theme}`}>
+                {section.title}
+              </h4>
+              <div className={`more-menu-card more-menu-card--${section.theme}`}>
+                {section.items.map((item, index) => {
                   const Icon = item.icon;
                   const isCustomerChats = item.label === 'Customer Chats';
 
                   return (
                     <button
                       key={item.label}
-                      className="more-menu-item"
+                      className={`more-menu-item ${index > 0 ? 'more-menu-item--bordered' : ''}`}
                       onClick={() => handleItemClick(item.action)}
                       disabled={!item.action}
                       style={{ position: 'relative' }}
                     >
                       <div className="more-menu-item-content">
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
-                          <Icon size={22} className="more-menu-icon" />
+                        <div className={`more-menu-icon-wrapper more-menu-icon-wrapper--${section.theme}`}>
+                          <Icon size={18} className="more-menu-icon" />
                           {isCustomerChats && <NotificationBadge />}
                         </div>
                         <div className="more-menu-text">
                           <div className="more-menu-label">
                             {item.label}
                             {(item as any).badge && (
-                              <span className="more-menu-badge">
+                              <span className={`more-menu-badge ${(item as any).badge === 'EARN MONEY' ? 'more-menu-badge--earn' : ''}`}>
                                 {(item as any).badge}
                               </span>
                             )}

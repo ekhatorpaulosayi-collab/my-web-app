@@ -1,5 +1,5 @@
 /**
- * More Menu Styles
+ * More Menu Premium Fintech Styles
  */
 
 .more-menu {
@@ -9,31 +9,34 @@
   transform: translate(-50%, -50%);
   width: 90%;
   max-width: 500px;
-  max-height: 80vh;
+  max-height: 85vh;
   border: none;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
   padding: 0;
   z-index: 1000;
   overflow: hidden;
 }
 
 .more-menu::backdrop {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .more-menu-content {
   background: white;
-  border-radius: 16px;
-  overflow-y: auto;
-  max-height: 80vh;
+  border-radius: 20px;
+  overflow: hidden;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
 }
 
+/* Header */
 .more-menu-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 20px 16px;
   border-bottom: 1px solid #e5e7eb;
   position: sticky;
   top: 0;
@@ -43,8 +46,8 @@
 
 .more-menu-header h3 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 500;
   color: #111827;
 }
 
@@ -56,7 +59,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #6b7280;
   transition: all 0.2s;
 }
@@ -66,30 +69,119 @@
   color: #111827;
 }
 
-.more-menu-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 16px;
+/* Sections container */
+.more-menu-sections {
+  padding: 20px 16px;
+  padding-bottom: 140px;
+  overflow-y: auto;
+  flex: 1;
 }
 
-.more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: white;
-  border: 1px solid #e5e7eb;
+/* Section */
+.more-menu-section {
+  margin-bottom: 24px;
+}
+
+.more-menu-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Section titles with colored themes */
+.more-menu-section-title {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+  padding-bottom: 6px;
+}
+
+.more-menu-section-title--teal {
+  color: #0F6E56;
+}
+
+.more-menu-section-title--purple {
+  color: #534AB7;
+}
+
+.more-menu-section-title--amber {
+  color: #BA7517;
+}
+
+.more-menu-section-title--green {
+  color: #3B6D11;
+}
+
+.more-menu-section-title--grey {
+  color: #888780;
+}
+
+/* Card containers */
+.more-menu-card {
+  background: #f8f8f6;
   border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Dark mode card backgrounds */
+@media (prefers-color-scheme: dark) {
+  .more-menu-content {
+    background: #1a1a1a;
+  }
+
+  .more-menu-header {
+    background: #1a1a1a;
+    border-bottom-color: #2a2a2a;
+  }
+
+  .more-menu-header h3 {
+    color: #f3f4f6;
+  }
+
+  .more-menu-close {
+    color: #9ca3af;
+  }
+
+  .more-menu-close:hover {
+    background: #2a2a2a;
+    color: #f3f4f6;
+  }
+
+  .more-menu-card {
+    background: #242424;
+  }
+}
+
+/* Menu item */
+.more-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s;
   text-align: left;
 }
 
+.more-menu-item--bordered {
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .more-menu-item--bordered {
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
 .more-menu-item:hover:not(:disabled) {
-  background: #f9fafb;
-  border-color: #d1d5db;
-  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+@media (prefers-color-scheme: dark) {
+  .more-menu-item:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.03);
+  }
 }
 
 .more-menu-item:disabled {
@@ -97,167 +189,234 @@
   cursor: not-allowed;
 }
 
-.more-menu-icon {
-  flex-shrink: 0;
-  color: #667eea;
+.more-menu-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
 }
 
+/* Icon wrappers with colored backgrounds */
+.more-menu-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* Light mode icon colors */
+.more-menu-icon-wrapper--teal {
+  background: #E1F5EE;
+}
+
+.more-menu-icon-wrapper--teal .more-menu-icon {
+  color: #0F6E56;
+}
+
+.more-menu-icon-wrapper--purple {
+  background: #EEEDFE;
+}
+
+.more-menu-icon-wrapper--purple .more-menu-icon {
+  color: #534AB7;
+}
+
+.more-menu-icon-wrapper--amber {
+  background: #FAEEDA;
+}
+
+.more-menu-icon-wrapper--amber .more-menu-icon {
+  color: #854F0B;
+}
+
+.more-menu-icon-wrapper--green {
+  background: #EAF3DE;
+}
+
+.more-menu-icon-wrapper--green .more-menu-icon {
+  color: #3B6D11;
+}
+
+.more-menu-icon-wrapper--grey {
+  background: #F1EFE8;
+}
+
+.more-menu-icon-wrapper--grey .more-menu-icon {
+  color: #5F5E5A;
+}
+
+/* Dark mode icon colors */
+@media (prefers-color-scheme: dark) {
+  .more-menu-icon-wrapper--teal {
+    background: #04342C;
+  }
+
+  .more-menu-icon-wrapper--teal .more-menu-icon {
+    color: #5DCAA5;
+  }
+
+  .more-menu-icon-wrapper--purple {
+    background: #26215C;
+  }
+
+  .more-menu-icon-wrapper--purple .more-menu-icon {
+    color: #AFA9EC;
+  }
+
+  .more-menu-icon-wrapper--amber {
+    background: #412402;
+  }
+
+  .more-menu-icon-wrapper--amber .more-menu-icon {
+    color: #FAC775;
+  }
+
+  .more-menu-icon-wrapper--green {
+    background: #173404;
+  }
+
+  .more-menu-icon-wrapper--green .more-menu-icon {
+    color: #C0DD97;
+  }
+
+  .more-menu-icon-wrapper--grey {
+    background: #2C2C2A;
+  }
+
+  .more-menu-icon-wrapper--grey .more-menu-icon {
+    color: #B4B2A9;
+  }
+}
+
+/* Text content */
 .more-menu-text {
   flex: 1;
   min-width: 0;
 }
 
 .more-menu-label {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: #111827;
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .more-menu-label {
+    color: #f3f4f6;
+  }
 }
 
 .more-menu-description {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-/* Highlight for special items (Affiliate) */
-.more-menu-item.highlight {
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8ecff 100%);
-  border-color: #667eea;
-}
-
-.more-menu-item.highlight:hover:not(:disabled) {
-  background: linear-gradient(135deg, #e8ecff 0%, #dce1ff 100%);
-  border-color: #5568d3;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-}
-
-.more-menu-item.highlight .more-menu-label {
-  color: #667eea;
-  font-weight: 700;
-}
-
-/* Section styles */
-.more-menu-sections {
-  padding: 0;
-}
-
-.more-menu-section {
-  padding: 0;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.more-menu-section:last-child {
-  border-bottom: none;
-}
-
-.more-menu-section-title {
   font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #9ca3af;
-  margin: 0;
-  padding: 16px 20px 8px;
-  background: #fafafa;
-}
-
-/* Updated grid styles */
-.more-menu-section .more-menu-grid {
-  padding: 8px 16px 16px;
-  gap: 4px;
-  background: white;
-}
-
-/* Updated item styles for consistency */
-.more-menu-item {
-  display: block;
-  width: 100%;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-}
-
-.more-menu-item:hover:not(:disabled) {
-  background: #f9fafb;
-  transform: none;
-}
-
-.more-menu-item-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-}
-
-/* Icon styling */
-.more-menu-icon {
-  flex-shrink: 0;
   color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.more-menu-item:hover .more-menu-icon {
-  color: #4b5563;
+@media (prefers-color-scheme: dark) {
+  .more-menu-description {
+    color: #9ca3af;
+  }
 }
 
-/* Badge styles */
+/* Badges */
 .more-menu-badge {
-  margin-left: 8px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   background: #ef4444;
   color: white;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
-.more-menu-badge:has-text("Earn Money") {
-  background: #10b981;
+.more-menu-badge--earn {
+  background: #FCEBEB;
+  color: #A32D2D;
 }
 
-/* Chevron arrow */
+@media (prefers-color-scheme: dark) {
+  .more-menu-badge--earn {
+    background: #3B1515;
+    color: #E89999;
+  }
+}
+
+/* Chevron */
 .more-menu-chevron {
   margin-left: auto;
   color: #d1d5db;
   font-size: 20px;
   line-height: 1;
+  flex-shrink: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .more-menu-chevron {
+    color: #4b5563;
+  }
 }
 
 .more-menu-item:hover .more-menu-chevron {
   color: #9ca3af;
 }
 
-/* Remove highlight styles - no colored borders */
-.more-menu-item.highlight {
-  background: transparent;
-  border: none;
+@media (prefers-color-scheme: dark) {
+  .more-menu-item:hover .more-menu-chevron {
+    color: #6b7280;
+  }
 }
 
-.more-menu-item.highlight:hover:not(:disabled) {
-  background: #f9fafb;
-  border: none;
-  transform: none;
-  box-shadow: none;
+/* Notification Badge positioning fix */
+.more-menu-icon-wrapper .notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
 }
 
-.more-menu-item.highlight .more-menu-label {
-  color: #111827;
-  font-weight: 600;
-}
-
-@media (min-width: 640px) {
+/* Mobile optimizations */
+@media (max-width: 480px) {
   .more-menu {
-    max-width: 600px;
+    width: 95%;
+    max-height: 90vh;
   }
 
-  .more-menu-section .more-menu-grid {
-    display: grid;
-    grid-template-columns: 1fr;
+  .more-menu-content {
+    max-height: 90vh;
   }
+
+  .more-menu-sections {
+    padding: 16px 12px;
+    padding-bottom: 120px;
+  }
+
+  .more-menu-item-content {
+    padding: 11px 12px;
+  }
+
+  .more-menu-description {
+    font-size: 11px;
+  }
+}
+
+/* Smooth scrolling */
+.more-menu-sections {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Need Help button space (if present) */
+.more-menu-sections {
+  padding-bottom: 140px;
 }
