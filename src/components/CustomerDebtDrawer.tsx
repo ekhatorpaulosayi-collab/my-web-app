@@ -1017,12 +1017,38 @@ Thank you for your payment! 🙏`;
               <ContributionGroupDetail
                 group={selectedGroup}
                 onBack={() => setSelectedGroup(null)}
-                onUpdate={(updatedGroup) => {
-                  // Update the group in the list
-                  setContributionGroups(contributionGroups.map(g =>
-                    g.id === updatedGroup.id ? updatedGroup : g
-                  ));
-                  setSelectedGroup(updatedGroup);
+                onUpdate={async (updatedGroup) => {
+                  // Re-fetch all groups from Supabase to get fresh data
+                  // This ensures we have the correct recipient after position swaps
+                  setLoadingGroups(true);
+                  try {
+                    const result = await getGroups(currentUser.uid);
+                    if (!result.error && result.data) {
+                      console.log('Re-fetched groups after update:', result.data);
+                      setContributionGroups(result.data);
+                      // Update selected group with fresh data
+                      const freshGroup = result.data.find(g => g.id === updatedGroup.id);
+                      if (freshGroup) {
+                        setSelectedGroup(freshGroup);
+                      }
+                    } else {
+                      console.error('Error re-fetching groups:', result.error);
+                      // Fallback to local update if fetch fails
+                      setContributionGroups(contributionGroups.map(g =>
+                        g.id === updatedGroup.id ? updatedGroup : g
+                      ));
+                      setSelectedGroup(updatedGroup);
+                    }
+                  } catch (error) {
+                    console.error('Error re-fetching groups:', error);
+                    // Fallback to local update if fetch fails
+                    setContributionGroups(contributionGroups.map(g =>
+                      g.id === updatedGroup.id ? updatedGroup : g
+                    ));
+                    setSelectedGroup(updatedGroup);
+                  } finally {
+                    setLoadingGroups(false);
+                  }
                 }}
                 onSettingsVisibilityChange={(isVisible) => setIsSettingsVisible(isVisible)}
                 onSettings={() => {
