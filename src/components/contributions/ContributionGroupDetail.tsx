@@ -2479,16 +2479,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                             console.log('DB SWAP RESULT:', { e1, e2 });
 
                             if (!e1 && !e2) {
-                              // Refresh parent
-                              const updated = group.members.map(mem => {
-                                if (mem.id === currentRecipientDb.id) return { ...mem, payout_position: newRecipientDb.payout_position };
-                                if (mem.id === newRecipientDb.id) return { ...mem, payout_position: currentRecipientDb.payout_position };
-                                return mem;
-                              });
-                              if (onUpdate) onUpdate({ ...group, members: updated });
-
-                              // Close modal after successful swap
-                              setShowPayoutSchedule(false);
+                              // Return to group list for fresh data
+                              if (onBack) onBack();
                             }
                           } catch (err) {
                             console.error('Swap exception:', err);
