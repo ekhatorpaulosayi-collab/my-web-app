@@ -163,8 +163,9 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
     return dateA - dateB;
   });
-  const recipientIndex = (group.cycleNumber - 1) % sortedMembers.length;
-  const currentRecipient = sortedMembers[recipientIndex];
+  // Use current_cycle from DB or fall back to cycleNumber
+  const currentCycle = group.current_cycle || group.currentCycle || group.cycleNumber;
+  const currentRecipient = sortedMembers.find(m => m.payout_position == currentCycle) || sortedMembers[0];
   const nextRecipientIndex = group.cycleNumber % sortedMembers.length;
   const nextRecipient = sortedMembers[nextRecipientIndex];
 
