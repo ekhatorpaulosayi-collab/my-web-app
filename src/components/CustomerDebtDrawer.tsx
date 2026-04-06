@@ -9,6 +9,7 @@ import ContributionGroupDetail from './contributions/ContributionGroupDetail';
 import GroupSettings from './contributions/GroupSettings';
 import { getGroups, createGroup, updateGroup, deleteGroup, addMember } from '../services/contributionService';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 // Adapter type to match the component's expected format
 type Debt = {
@@ -1141,20 +1142,44 @@ Thank you for your payment! 🙏`;
             ) : (
               <ContributionGroupList
                 groups={contributionGroups}
-                onGroupClick={(group) => {
+                onGroupClick={async (group) => {
+                  // Fetch fresh members from Supabase
+                  const { data: freshMembers } = await supabase
+                    .from('contribution_members')
+                    .select('id, name, phone, payout_position, status')
+                    .eq('group_id', group.id)
+                    .order('payout_position');
+
                   // Normalize the group data structure for the detail component
-                  const normalizedGroup = {
-                    ...group,
-                    members: group.contribution_members || group.members || [],
-                    currentRecipientId: group.currentRecipient?.id || '',
-                    cycleNumber: group.current_cycle || 1,
-                    totalCycles: group.totalMembers || group.total_members || 0,
-                    nextCollectionDate: new Date().toISOString(),
-                    isActive: group.status === 'active',
-                    collectionDay: group.collection_day || group.collectionDay || ''
-                  };
-                  console.log('Opening group detail with:', normalizedGroup); // Debug log
-                  setSelectedGroup(normalizedGroup);
+                  if (freshMembers) {
+                    const normalizedGroup = {
+                      ...group,
+                      members: freshMembers,
+                      contribution_members: freshMembers,
+                      currentRecipientId: group.currentRecipient?.id || '',
+                      cycleNumber: group.current_cycle || 1,
+                      totalCycles: group.totalMembers || group.total_members || 0,
+                      nextCollectionDate: new Date().toISOString(),
+                      isActive: group.status === 'active',
+                      collectionDay: group.collection_day || group.collectionDay || ''
+                    };
+                    console.log('Opening group detail with fresh members:', normalizedGroup); // Debug log
+                    setSelectedGroup(normalizedGroup);
+                  } else {
+                    // Fallback to existing data if fetch fails
+                    const normalizedGroup = {
+                      ...group,
+                      members: group.contribution_members || group.members || [],
+                      currentRecipientId: group.currentRecipient?.id || '',
+                      cycleNumber: group.current_cycle || 1,
+                      totalCycles: group.totalMembers || group.total_members || 0,
+                      nextCollectionDate: new Date().toISOString(),
+                      isActive: group.status === 'active',
+                      collectionDay: group.collection_day || group.collectionDay || ''
+                    };
+                    console.log('Opening group detail with cached data:', normalizedGroup); // Debug log
+                    setSelectedGroup(normalizedGroup);
+                  }
                 }}
                 onCreateGroup={() => {
                   setShowCreateGroupForm(true);
