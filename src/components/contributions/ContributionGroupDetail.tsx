@@ -1561,7 +1561,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 {recipientOrder.map((memberId, index) => {
                   const member = group.members.find(m => m.id === memberId);
                   if (!member) return null;
-                  const isCurrent = index === recipientIndex;
+                  const isCurrent = member.id === currentRecipient?.id;
 
                   return (
                     <div
@@ -2373,8 +2373,8 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               marginBottom: '20px'
             }}>
               {sortedMembers.map((member, index) => {
-                const isCurrent = index === recipientIndex;
-                const cycleNum = index + 1;
+                const isCurrent = member.id === currentRecipient?.id;
+                const cycleNum = member.payout_position || (index + 1);
 
                 return (
                   <div
