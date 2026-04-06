@@ -398,17 +398,25 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
   const saveRecipientOrder = async () => {
     try {
-      // Update the position field for each member
+      // Update the payout_position field for each member
       const updates = recipientOrder.map((memberId, index) =>
         supabase
           .from('contribution_members')
-          .update({ position: index })
+          .update({ payout_position: index + 1 })  // Use index + 1 to avoid position 0
           .eq('id', memberId)
           .eq('group_id', group.id)
       );
 
-      await Promise.all(updates);
-      alert('Recipient order saved!');
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+
+      if (errors.length === 0) {
+        alert('Order saved!');
+        if (onBack) onBack();  // Return to group list for fresh data
+      } else {
+        console.error('Errors saving order:', errors);
+        alert('Error saving order');
+      }
     } catch (error) {
       console.error('Failed to save order:', error);
       alert('Failed to save order. Please try again.');
@@ -2436,54 +2444,25 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         onClick={async () => {
                           if (isCurrentRecipient) return;
 
-                          try {
-                            // Fetch REAL positions from database
-                            const { data: dbMembers, error: fetchErr } = await supabase
-                              .from('contribution_members')
-                              .select('id, name, payout_position')
-                              .eq('group_id', group.id)
-                              .order('payout_position');
+                          const { data: dbMember } = await supabase
+                            .from('contribution_members')
+                            .select('payout_position')
+                            .eq('id', m.id)
+                            .single();
 
-                            if (fetchErr || !dbMembers) {
-                              console.error('Fetch error:', fetchErr);
-                              return;
-                            }
+                          if (!dbMember) return;
 
-                            const currentCycle = group.currentCycle || group.current_cycle || 1;
-                            const currentRecipientDb = dbMembers.find(mem => mem.payout_position === currentCycle);
-                            const newRecipientDb = dbMembers.find(mem => mem.id === m.id);
+                          console.log('CHANGING CYCLE TO:', { member: m.name, newCycle: dbMember.payout_position });
 
-                            if (!currentRecipientDb || !newRecipientDb) {
-                              console.error('Members not found:', { currentRecipientDb, newRecipientDb });
-                              return;
-                            }
+                          const { error } = await supabase
+                            .from('contribution_groups')
+                            .update({ current_cycle: dbMember.payout_position })
+                            .eq('id', group.id);
 
-                            console.log('DB SWAP:', {
-                              old: currentRecipientDb.name,
-                              oldPos: currentRecipientDb.payout_position,
-                              new: newRecipientDb.name,
-                              newPos: newRecipientDb.payout_position
-                            });
+                          console.log('CYCLE UPDATE RESULT:', { error });
 
-                            // Swap positions
-                            const { error: e1 } = await supabase
-                              .from('contribution_members')
-                              .update({ payout_position: newRecipientDb.payout_position })
-                              .eq('id', currentRecipientDb.id);
-
-                            const { error: e2 } = await supabase
-                              .from('contribution_members')
-                              .update({ payout_position: currentRecipientDb.payout_position })
-                              .eq('id', newRecipientDb.id);
-
-                            console.log('DB SWAP RESULT:', { e1, e2 });
-
-                            if (!e1 && !e2) {
-                              // Return to group list for fresh data
-                              if (onBack) onBack();
-                            }
-                          } catch (err) {
-                            console.error('Swap exception:', err);
+                          if (!error) {
+                            if (onBack) onBack();
                           }
                         }}
                         style={{
