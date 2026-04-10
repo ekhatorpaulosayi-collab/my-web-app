@@ -43,6 +43,7 @@ const ConversationsPage = lazy(() => import('./pages/ConversationsPage.tsx'));
 const AgentTakeoverDebugger = lazy(() => import('./components/debug/AgentTakeoverDebugger.tsx'));
 const DebugCenter = lazy(() => import('./pages/DebugCenter.tsx'));
 const ContributionPublicView = lazy(() => import('./components/contributions/ContributionPublicView.tsx'));
+const BusinessInsights = lazy(() => import('./pages/BusinessInsights.tsx'));
 
 /**
  * App Routes
@@ -294,6 +295,18 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <DebugCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Business Insights - AI-powered business summaries */}
+        <Route
+          path="/dashboard/insights"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<div>Loading...</div>}>
+                <BusinessInsights />
+              </Suspense>
             </ProtectedRoute>
           }
         />

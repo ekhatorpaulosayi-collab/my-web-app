@@ -1,380 +1,229 @@
 import { supabase } from '../lib/supabase';
 
-interface PushSubscriptionKeys {
-  p256dh: string;
-  auth: string;
+// VAPID public key (from environment variable)
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BJT0RJYTrJDZN70mYJH0NTFPKE4L9srwqSsdcpnEZeKXWupXpOOitwjmGT_wJ_Vznp-KpmZn57cOHEUx4QSmJcE';
+
+/**
+ * Check if push notifications are supported
+ */
+export function isPushSupported(): boolean {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
-interface PushSubscriptionData {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  device_name?: string;
-  browser_info?: string;
+/**
+ * Get current push notification permission state
+ */
+export function getPushPermissionState(): NotificationPermission {
+  return Notification.permission;
 }
 
-class PushNotificationService {
-  private static instance: PushNotificationService;
-  private vapidPublicKey: string | null = null;
-  private isSupported = false;
-  private serviceWorkerReady = false;
-
-  private constructor() {
-    // Check browser support
-    this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-
-    // Get VAPID public key from environment
-    this.vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || null;
-
-    if (!this.vapidPublicKey) {
-      console.warn('[PushNotifications] VAPID public key not configured');
-    }
-
-    // Initialize service worker readiness check
-    if (this.isSupported) {
-      this.checkServiceWorkerReady();
-    }
+/**
+ * Request push notification permission from user
+ */
+export async function requestPushPermission(): Promise<NotificationPermission> {
+  if (!isPushSupported()) {
+    console.log('[Push] Push notifications not supported on this device');
+    return 'denied';
   }
 
-  static getInstance(): PushNotificationService {
-    if (!PushNotificationService.instance) {
-      PushNotificationService.instance = new PushNotificationService();
-    }
-    return PushNotificationService.instance;
+  const permission = await Notification.requestPermission();
+  console.log('[Push] Permission result:', permission);
+  return permission;
+}
+
+/**
+ * Convert VAPID key to Uint8Array
+ */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * Initialize push notifications and register service worker
+ */
+export async function initPushNotifications(): Promise<ServiceWorkerRegistration | null> {
+  if (!isPushSupported()) {
+    console.log('[Push] Push notifications not supported');
+    return null;
   }
 
-  private async checkServiceWorkerReady() {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      this.serviceWorkerReady = !!registration;
-      console.log('[PushNotifications] Service worker ready');
-    } catch (error) {
-      console.error('[PushNotifications] Service worker not ready:', error);
-      this.serviceWorkerReady = false;
-    }
+  try {
+    // Register service worker
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    console.log('[Push] Service Worker registered:', registration);
+
+    // Wait for the service worker to be ready
+    await navigator.serviceWorker.ready;
+    console.log('[Push] Service Worker is ready');
+
+    return registration;
+  } catch (error) {
+    console.error('[Push] Service Worker registration failed:', error);
+    return null;
   }
+}
 
-  /**
-   * Check if push notifications are supported and configured
-   */
-  isAvailable(): boolean {
-    return this.isSupported && !!this.vapidPublicKey && this.serviceWorkerReady;
-  }
-
-  /**
-   * Check if user has already granted permission
-   */
-  hasPermission(): boolean {
-    return this.isSupported && Notification.permission === 'granted';
-  }
-
-  /**
-   * Check if we should prompt the user (hasn't been asked or said "later")
-   */
-  shouldPrompt(): boolean {
-    if (!this.isAvailable()) return false;
-
-    const lastPrompt = localStorage.getItem('push_prompt_timestamp');
-    const promptResult = localStorage.getItem('push_prompt_result');
-
-    // Never asked
-    if (!lastPrompt) return true;
-
-    // User said "later" - re-prompt after 7 days
-    if (promptResult === 'later') {
-      const daysSincePrompt = (Date.now() - parseInt(lastPrompt)) / (1000 * 60 * 60 * 24);
-      return daysSincePrompt >= 7;
-    }
-
-    // User explicitly declined or accepted
+/**
+ * Subscribe to push notifications
+ */
+export async function subscribeToPush(userId: string, storeId: string): Promise<boolean> {
+  if (!isPushSupported()) {
+    console.log('[Push] Push notifications not supported');
     return false;
   }
 
-  /**
-   * Record user's response to the prompt
-   */
-  recordPromptResponse(response: 'enabled' | 'later' | 'declined') {
-    localStorage.setItem('push_prompt_timestamp', Date.now().toString());
-    localStorage.setItem('push_prompt_result', response);
-  }
+  try {
+    // Get service worker registration
+    const registration = await navigator.serviceWorker.ready;
+    console.log('[Push] Service Worker ready, getting subscription');
 
-  /**
-   * Request notification permission from the user
-   */
-  async requestPermission(): Promise<NotificationPermission> {
-    if (!this.isSupported) {
-      console.warn('[PushNotifications] Not supported in this browser');
-      return 'denied';
-    }
+    // Check if already subscribed
+    let subscription = await registration.pushManager.getSubscription();
 
-    try {
-      const permission = await Notification.requestPermission();
-      console.log('[PushNotifications] Permission result:', permission);
-      return permission;
-    } catch (error) {
-      console.error('[PushNotifications] Error requesting permission:', error);
-      return 'denied';
-    }
-  }
+    if (!subscription) {
+      console.log('[Push] No existing subscription, creating new one');
 
-  /**
-   * Get or create a push subscription
-   */
-  async subscribeToPush(userId: string): Promise<boolean> {
-    if (!this.isAvailable()) {
-      console.error('[PushNotifications] Push not available');
-      return false;
-    }
+      // Subscribe to push notifications
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
 
-    if (!this.vapidPublicKey) {
-      console.error('[PushNotifications] VAPID public key not configured');
-      return false;
-    }
-
-    try {
-      // Get service worker registration
-      const registration = await navigator.serviceWorker.ready;
-
-      // Check for existing subscription
-      let subscription = await registration.pushManager.getSubscription();
-
-      // Create new subscription if needed
-      if (!subscription) {
-        const urlBase64ToUint8Array = (base64String: string) => {
-          const padding = '='.repeat((4 - base64String.length % 4) % 4);
-          const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
-          const rawData = window.atob(base64);
-          const outputArray = new Uint8Array(rawData.length);
-          for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
-          }
-          return outputArray;
-        };
-
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(this.vapidPublicKey)
-        });
-      }
-
-      // Extract subscription data
-      const subscriptionJSON = subscription.toJSON();
-      const keys = subscriptionJSON.keys as PushSubscriptionKeys;
-
-      if (!subscriptionJSON.endpoint || !keys?.p256dh || !keys?.auth) {
-        throw new Error('Invalid subscription data');
-      }
-
-      // Get device info
-      const deviceName = this.getDeviceName();
-      const browserInfo = this.getBrowserInfo();
-
-      // Save to database
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: userId,
-          endpoint: subscriptionJSON.endpoint,
-          p256dh: keys.p256dh,
-          auth: keys.auth,
-          device_name: deviceName,
-          browser_info: browserInfo,
-          last_used_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,endpoint'
-        });
-
-      if (error) {
-        console.error('[PushNotifications] Error saving subscription:', error);
-        return false;
-      }
-
-      console.log('[PushNotifications] Successfully subscribed to push notifications');
-      return true;
-    } catch (error) {
-      console.error('[PushNotifications] Error subscribing:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Unsubscribe from push notifications
-   */
-  async unsubscribeFromPush(userId: string): Promise<boolean> {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-
-      if (subscription) {
-        // Unsubscribe from browser
-        await subscription.unsubscribe();
-
-        // Remove from database
-        const subscriptionJSON = subscription.toJSON();
-        if (subscriptionJSON.endpoint) {
-          await supabase
-            .from('push_subscriptions')
-            .delete()
-            .eq('user_id', userId)
-            .eq('endpoint', subscriptionJSON.endpoint);
-        }
-      }
-
-      console.log('[PushNotifications] Successfully unsubscribed');
-      return true;
-    } catch (error) {
-      console.error('[PushNotifications] Error unsubscribing:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get current subscription status
-   */
-  async getSubscriptionStatus(): Promise<{ isSubscribed: boolean; subscription: PushSubscription | null }> {
-    if (!this.isAvailable()) {
-      return { isSubscribed: false, subscription: null };
-    }
-
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      return {
-        isSubscribed: !!subscription,
-        subscription
-      };
-    } catch (error) {
-      console.error('[PushNotifications] Error checking subscription:', error);
-      return { isSubscribed: false, subscription: null };
-    }
-  }
-
-  /**
-   * Get all subscriptions for the current user
-   */
-  async getUserSubscriptions(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from('push_subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('[PushNotifications] Error fetching subscriptions:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Delete a specific subscription
-   */
-  async deleteSubscription(subscriptionId: string) {
-    try {
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('id', subscriptionId);
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('[PushNotifications] Error deleting subscription:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Send a test notification (for testing purposes)
-   */
-  async sendTestNotification(userId: string): Promise<boolean> {
-    try {
-      // This would typically call an API endpoint that triggers a push
-      // For now, we'll just show a local notification
-      if (this.hasPermission()) {
-        const notification = new Notification('Test Notification', {
-          body: 'Push notifications are working correctly!',
-          icon: '/icon-192x192.png',
-          badge: '/icon-72x72.png',
-          tag: 'test-notification',
-          requireInteraction: false
-        });
-
-        setTimeout(() => notification.close(), 5000);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('[PushNotifications] Error sending test notification:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get device name for identification
-   */
-  private getDeviceName(): string {
-    const userAgent = navigator.userAgent;
-    const platform = navigator.platform;
-
-    // Try to identify device type
-    if (/iPhone|iPad|iPod/.test(userAgent)) {
-      return `iOS Device (${platform})`;
-    } else if (/Android/.test(userAgent)) {
-      return `Android Device`;
-    } else if (/Windows/.test(platform)) {
-      return `Windows PC`;
-    } else if (/Mac/.test(platform)) {
-      return `Mac`;
-    } else if (/Linux/.test(platform)) {
-      return `Linux PC`;
+      console.log('[Push] New subscription created:', subscription);
     } else {
-      return `${platform || 'Unknown Device'}`;
+      console.log('[Push] Using existing subscription');
     }
-  }
 
-  /**
-   * Get browser information
-   */
-  private getBrowserInfo(): string {
-    const userAgent = navigator.userAgent;
+    // Extract keys from subscription
+    const subscriptionJSON = subscription.toJSON();
+    const p256dh = subscriptionJSON.keys?.p256dh;
+    const auth = subscriptionJSON.keys?.auth;
 
-    if (userAgent.indexOf('Firefox') > -1) {
-      return 'Firefox';
-    } else if (userAgent.indexOf('Chrome') > -1) {
-      if (userAgent.indexOf('Edg') > -1) {
-        return 'Edge';
-      }
-      return 'Chrome';
-    } else if (userAgent.indexOf('Safari') > -1) {
-      return 'Safari';
-    } else {
-      return 'Unknown Browser';
+    if (!p256dh || !auth) {
+      console.error('[Push] Missing subscription keys');
+      return false;
     }
-  }
 
-  /**
-   * Check if we're in a PWA context (for iOS)
-   */
-  isPWA(): boolean {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-           (window.navigator as any).standalone === true;
-  }
+    // Get device info
+    const deviceName = navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+    const browserInfo = navigator.userAgent;
 
-  /**
-   * Check if this is iOS Safari that needs PWA installation
-   */
-  needsPWAInstall(): boolean {
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-    return isIOS && isSafari && !this.isPWA();
+    // Save subscription to database
+    console.log('[Push] Saving subscription to database');
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .upsert({
+        user_id: userId,
+        store_id: storeId,
+        endpoint: subscription.endpoint,
+        p256dh: p256dh,
+        auth: auth,
+        device_name: deviceName,
+        browser_info: browserInfo,
+        last_used_at: new Date().toISOString(),
+        is_active: true
+      }, {
+        onConflict: 'endpoint'
+      });
+
+    if (error) {
+      console.error('[Push] Error saving subscription:', error);
+      return false;
+    }
+
+    console.log('[Push] Subscription saved successfully');
+    return true;
+  } catch (error) {
+    console.error('[Push] Error subscribing to push:', error);
+    return false;
   }
 }
 
-// Export singleton instance
-export const pushNotificationService = PushNotificationService.getInstance();
+/**
+ * Unsubscribe from push notifications
+ */
+export async function unsubscribeFromPush(): Promise<boolean> {
+  if (!isPushSupported()) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (subscription) {
+      // Unsubscribe from browser
+      await subscription.unsubscribe();
+
+      // Mark as inactive in database
+      const endpoint = subscription.endpoint;
+      await supabase
+        .from('push_subscriptions')
+        .update({ is_active: false })
+        .eq('endpoint', endpoint);
+
+      console.log('[Push] Unsubscribed successfully');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('[Push] Error unsubscribing:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if user is subscribed to push notifications
+ */
+export async function isSubscribedToPush(): Promise<boolean> {
+  if (!isPushSupported()) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return subscription !== null;
+  } catch (error) {
+    console.error('[Push] Error checking subscription:', error);
+    return false;
+  }
+}
+
+/**
+ * Send test notification (for testing only)
+ */
+export async function sendTestNotification(userId: string): Promise<void> {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        userId: userId,
+        customerName: 'Test Customer',
+        messagePreview: 'This is a test notification',
+        conversationId: 'test-' + Date.now()
+      })
+    });
+
+    const data = await response.json();
+    console.log('[Push] Test notification result:', data);
+  } catch (error) {
+    console.error('[Push] Error sending test notification:', error);
+  }
+}

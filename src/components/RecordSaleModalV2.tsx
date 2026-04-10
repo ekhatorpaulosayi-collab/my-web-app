@@ -631,6 +631,12 @@ export default function RecordSaleModalV2({
 
   // Complete sale
   const handleCompleteSale = async () => {
+    // CRITICAL: Prevent double submission on mobile tap
+    if (isProcessing) {
+      console.log('[RecordSale] Double submission prevented - already processing');
+      return;
+    }
+
     if (cart.length === 0) {
       setError('Cart is empty. Please add items first.');
       return;
@@ -649,7 +655,7 @@ export default function RecordSaleModalV2({
     }
 
     try {
-      setIsProcessing(true);
+      setIsProcessing(true); // Set immediately to prevent double tap
       setError('');
 
       // Handle Paystack payment if Card method selected

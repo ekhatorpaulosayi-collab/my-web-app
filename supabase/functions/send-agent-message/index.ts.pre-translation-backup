@@ -18,47 +18,27 @@ serve(async (req) => {
   try {
     const { conversationId, message, agentId } = await req.json();
 
-    console.log('[SendAgentMessage] Starting - conversationId:', conversationId);
-    console.log('[SendAgentMessage] Message to send:', message);
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Get last customer message language - look for ALL customer messages
-    console.log('[SendAgentMessage] Querying for customer language...');
-    const { data: customerMessages, error: queryError } = await supabase
+    // Get last customer message language
+    const { data: lastCustomerMsg } = await supabase
       .from('ai_chat_messages')
-      .select('detected_language, content, role')
+      .select('detected_language')
       .eq('conversation_id', conversationId)
       .eq('role', 'user')
+      .not('detected_language', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(5);
-
-    console.log('[SendAgentMessage] Customer messages query result:', {
-      error: queryError,
-      messagesFound: customerMessages?.length || 0,
-      messages: customerMessages?.map(m => ({
-        role: m.role,
-        detected_language: m.detected_language,
-        contentPreview: m.content?.substring(0, 30)
-      }))
-    });
-
-    // Find the first message with a detected language
-    const lastCustomerMsg = customerMessages?.find(msg => msg.detected_language && msg.detected_language !== null);
-
-    console.log('[SendAgentMessage] Found customer message with language:', lastCustomerMsg);
+      .limit(1)
+      .single();
 
     let translatedText = null;
     const customerLanguage = lastCustomerMsg?.detected_language;
 
-    console.log('[SendAgentMessage] Customer language detected:', customerLanguage);
-
-    if (customerLanguage && customerLanguage.toLowerCase() !== 'english' && customerLanguage.toLowerCase() !== 'en') {
+    if (customerLanguage && customerLanguage.toLowerCase() !== 'english') {
       // Translate owner's message to customer's language
-      console.log('[SendAgentMessage] Attempting translation to:', customerLanguage);
       try {
         const reverseTranslation = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -85,12 +65,9 @@ serve(async (req) => {
 
         const reverseData = await reverseTranslation.json();
         translatedText = reverseData.choices[0].message.content.trim();
-        console.log('[SendAgentMessage] Translation successful:', translatedText);
       } catch (e) {
-        console.error('[SendAgentMessage] Error translating owner message:', e);
+        console.error('[Translation] Error translating owner message:', e);
       }
-    } else {
-      console.log('[SendAgentMessage] No translation needed - customer language is English or not detected');
     }
 
     // Save owner message with translation

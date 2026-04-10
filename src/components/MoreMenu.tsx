@@ -3,10 +3,12 @@
  * Hidden features accessible via "More" button
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, QrCode, FileSpreadsheet } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, QrCode, FileSpreadsheet, Sparkles, Lock } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getUserTier } from '../services/subscriptionService';
 import { NotificationBadge } from './dashboard/OwnerNotificationManager';
 import './MoreMenu.css';
 
@@ -24,6 +26,7 @@ interface MoreMenuProps {
   onExportData?: () => void;
   onStaffModeToggle?: () => void;
   onViewChannelAnalytics?: () => void;
+  onViewHistory?: () => void;
 }
 
 export const MoreMenu: React.FC<MoreMenuProps> = ({
@@ -39,11 +42,34 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
   onSendDailySummary,
   onExportData,
   onStaffModeToggle,
-  onViewChannelAnalytics
+  onViewChannelAnalytics,
+  onViewHistory
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const navigate = useNavigate();
-  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff } = useStaff();
+  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, currentRole } = useStaff();
+  const { currentUser } = useAuth();
+  const [userTier, setUserTier] = useState<string>('Free');
+  const [isOwner, setIsOwner] = useState(false);
+
+  // Check if current user is the store owner and fetch tier
+  useEffect(() => {
+    const checkOwnerAndTier = async () => {
+      if (currentUser) {
+        // Check if user is in owner mode (not staff mode)
+        const ownerCheck = currentRole === 'owner';
+        setIsOwner(ownerCheck);
+
+        // Fetch user tier
+        const tierData = await getUserTier(currentUser.uid);
+        if (tierData) {
+          setUserTier(tierData.tier_name || 'Free');
+        }
+      }
+    };
+
+    checkOwnerAndTier();
+  }, [currentUser, currentRole]);
 
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -71,6 +97,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       title: 'SELL',
       theme: 'teal',
       items: [
+        {
+          icon: BarChart2,
+          label: 'Sales History',
+          description: 'View and search all your sales',
+          action: onViewHistory
+        },
         {
           icon: Share2,
           label: 'Online Store',
@@ -126,6 +158,24 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       title: 'TRACK',
       theme: 'amber',
       items: [
+        // Business Insights - Only show to owners, not staff
+        ...(isOwner ? [{
+          icon: Sparkles,
+          label: 'Business Insights',
+          description: 'AI-powered daily summary of your business',
+          action: () => {
+            const isPro = ['Pro', 'Business'].includes(userTier);
+            if (isPro) {
+              navigate('/dashboard/insights');
+            } else {
+              // Show upgrade prompt
+              alert(`Business Insights is available for Pro and Business tiers. You're currently on ${userTier} tier. Upgrade to unlock AI-powered insights!`);
+              navigate('/upgrade');
+            }
+          },
+          badge: ['Pro', 'Business'].includes(userTier) ? undefined : 'PRO',
+          locked: !['Pro', 'Business'].includes(userTier)
+        }] : []),
         {
           icon: TrendingUp,
           label: 'Money & Profits',
@@ -244,25 +294,32 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                 {section.items.map((item, index) => {
                   const Icon = item.icon;
                   const isCustomerChats = item.label === 'Customer Chats';
+                  const isLocked = (item as any).locked;
 
                   return (
                     <button
                       key={item.label}
-                      className={`more-menu-item ${index > 0 ? 'more-menu-item--bordered' : ''}`}
+                      className={`more-menu-item ${index > 0 ? 'more-menu-item--bordered' : ''} ${isLocked ? 'more-menu-item--locked' : ''}`}
                       onClick={() => handleItemClick(item.action)}
                       disabled={!item.action}
                       style={{ position: 'relative' }}
                     >
                       <div className="more-menu-item-content">
                         <div className={`more-menu-icon-wrapper more-menu-icon-wrapper--${section.theme}`}>
-                          <Icon size={18} className="more-menu-icon" />
-                          {isCustomerChats && <NotificationBadge />}
+                          {isLocked ? (
+                            <Lock size={18} className="more-menu-icon" />
+                          ) : (
+                            <>
+                              <Icon size={18} className="more-menu-icon" />
+                              {isCustomerChats && <NotificationBadge />}
+                            </>
+                          )}
                         </div>
                         <div className="more-menu-text">
                           <div className="more-menu-label">
                             {item.label}
                             {(item as any).badge && (
-                              <span className={`more-menu-badge ${(item as any).badge === 'EARN MONEY' ? 'more-menu-badge--earn' : ''}`}>
+                              <span className={`more-menu-badge ${(item as any).badge === 'EARN MONEY' ? 'more-menu-badge--earn' : (item as any).badge === 'PRO' ? 'more-menu-badge--pro' : ''}`}>
                                 {(item as any).badge}
                               </span>
                             )}

@@ -1,6 +1,7 @@
 -- Create push_subscriptions table for Web Push notifications
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID NOT NULL,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   endpoint TEXT NOT NULL,
   p256dh TEXT NOT NULL,
@@ -10,7 +11,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   last_used_at TIMESTAMPTZ DEFAULT NOW(),
   is_active BOOLEAN DEFAULT true,
-  UNIQUE(user_id, endpoint)
+  UNIQUE(endpoint)
 );
 
 -- Create index for faster lookups

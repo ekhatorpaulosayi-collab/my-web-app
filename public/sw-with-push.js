@@ -12,7 +12,7 @@
 
 // Auto-incrementing version based on deployment timestamp
 const BUILD_TIMESTAMP = '2026-03-26-' + Date.now();
-const CACHE_VERSION = `storehouse-v6-${BUILD_TIMESTAMP}`;
+const CACHE_VERSION = `storehouse-v5-${BUILD_TIMESTAMP}`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;

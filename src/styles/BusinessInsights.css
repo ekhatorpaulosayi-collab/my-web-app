@@ -1,0 +1,454 @@
+/**
+ * Business Insights Page Styles
+ * Matches Storehouse design language
+ */
+
+/* Loading State */
+.business-insights-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #F0F7FF 0%, #FFFFFF 100%);
+}
+
+/* Main App Container */
+.business-insights-app {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #F0F7FF 0%, #FFFFFF 100%);
+}
+
+/* Header - Matching Dashboard Blue Header */
+.business-insights-header {
+  background: #2063F0;
+  box-shadow: 0 2px 8px rgba(32, 99, 240, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.business-insights-header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.business-insights-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Back Button - Proper Styled Arrow */
+.business-insights-back-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.business-insights-back-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateX(-2px);
+}
+
+.business-insights-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.business-insights-icon {
+  color: white;
+}
+
+.business-insights-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+}
+
+/* Period Toggle - Pill-shaped buttons */
+.business-insights-period-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+}
+
+.business-insights-period-btn {
+  padding: 8px 20px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.business-insights-period-btn:hover {
+  color: white;
+}
+
+.business-insights-period-btn.active {
+  background: white;
+  color: #2063F0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Main Content Area */
+.business-insights-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Error State */
+.business-insights-error {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #991B1B;
+}
+
+.business-insights-error svg {
+  flex-shrink: 0;
+}
+
+/* Main Summary Card - White rounded with shadow */
+.business-insights-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.business-insights-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.business-insights-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6B7280;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.business-insights-date svg {
+  color: #9CA3AF;
+}
+
+.business-insights-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.business-insights-refresh-btn:hover {
+  background: #FDE68A;
+}
+
+.business-insights-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* AI Summary Text */
+.business-insights-summary {
+  background: linear-gradient(135deg, #F0F7FF 0%, #E8F2FF 100%);
+  border: 1px solid #DCE2EB;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.business-insights-summary-text {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #171F2D;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* Stats Grid */
+.business-insights-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .business-insights-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Stat Cards - Mini dashboard widgets */
+.business-insights-stat-card {
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid;
+}
+
+.business-insights-stat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.business-insights-stat-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.business-insights-stat-content {
+  font-size: 14px;
+}
+
+.business-insights-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.business-insights-stat-label {
+  color: #6B7280;
+  font-size: 13px;
+  margin: 0 0 8px 0;
+}
+
+.business-insights-stat-change {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.business-insights-stat-change.positive {
+  color: #10B981;
+}
+
+.business-insights-stat-change.negative {
+  color: #EF4444;
+}
+
+.business-insights-stat-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #6B7280;
+  margin-top: 8px;
+}
+
+.business-insights-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.business-insights-stat-list p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Color Themes for Stats */
+.business-insights-stat-green {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+}
+
+.business-insights-stat-green .business-insights-stat-header {
+  color: #10B981;
+}
+
+.business-insights-stat-purple {
+  background: #FAF5FF;
+  border-color: #E9D5FF;
+}
+
+.business-insights-stat-purple .business-insights-stat-header {
+  color: #9333EA;
+}
+
+.business-insights-stat-blue {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+}
+
+.business-insights-stat-blue .business-insights-stat-header {
+  color: #3B82F6;
+}
+
+.business-insights-stat-red {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.business-insights-stat-red .business-insights-stat-header {
+  color: #EF4444;
+}
+
+/* Empty State - White rounded card */
+.business-insights-empty-state {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 48px 24px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.business-insights-empty-icon {
+  background: linear-gradient(135deg, #2063F0 0%, #1850C9 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 20px;
+}
+
+.business-insights-empty-state h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #171F2D;
+  margin: 0 0 12px 0;
+}
+
+.business-insights-empty-state p {
+  font-size: 15px;
+  color: #6B7280;
+  margin: 0 0 24px 0;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Generate Summary Button - Matching Record Sale button */
+.business-insights-generate-btn {
+  width: 100%;
+  max-width: 280px;
+  padding: 16px 24px;
+  background: #2063F0;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(32, 99, 240, 0.3);
+}
+
+.business-insights-generate-btn:hover {
+  background: #1850C9;
+  box-shadow: 0 4px 12px rgba(32, 99, 240, 0.4);
+  transform: translateY(-1px);
+}
+
+.business-insights-generate-btn:active {
+  transform: scale(0.98);
+}
+
+.business-insights-generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Footer - Small grey text */
+.business-insights-footer {
+  text-align: center;
+  padding-top: 24px;
+  margin-top: auto;
+}
+
+.business-insights-footer p {
+  font-size: 13px;
+  color: #9CA3AF;
+  margin: 4px 0;
+}
+
+/* Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .business-insights-header-content {
+    padding: 16px;
+  }
+
+  .business-insights-title {
+    font-size: 20px;
+  }
+
+  .business-insights-period-toggle {
+    scale: 0.9;
+  }
+
+  .business-insights-main {
+    padding: 16px;
+  }
+
+  .business-insights-card {
+    padding: 20px 16px;
+  }
+
+  .business-insights-empty-state {
+    padding: 32px 16px;
+  }
+
+  .business-insights-generate-btn {
+    max-width: 100%;
+  }
+}

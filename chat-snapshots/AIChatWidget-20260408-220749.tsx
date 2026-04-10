@@ -16,7 +16,6 @@ interface Message {
   isLocal?: boolean; // Flag for optimistically added messages
   role: 'user' | 'assistant' | 'system';
   content: string;
-  translated_text?: string; // Translated version of content for multi-language support
   timestamp: Date;
   docReferences?: string[]; // IDs of referenced docs
   quickActions?: QuickAction[];
@@ -29,13 +28,7 @@ interface QuickAction {
 
 // Simple markdown-to-JSX renderer for chat messages
 function renderMarkdown(text: string): React.ReactNode {
-  // Log what text is being rendered - this helps debug translation issues
   console.log('[renderMarkdown] Rendering text:', text.substring(0, 100));
-
-  // Check if this is a takeover message that should have been translated
-  if (text && !text.includes('Ina son') && !text.includes('yana') && !text.includes('za')) {
-    console.log('[renderMarkdown] WARNING: Possibly untranslated agent message detected');
-  }
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
 
@@ -850,9 +843,6 @@ export default function AIChatWidget({
           .gt('created_at', lastMessageTimestampRef.current)
           .order('created_at', { ascending: true });
 
-        // Debug: Log raw Supabase response
-        console.log('[RAW-POLL-DATA]', JSON.stringify(newMessages?.[0]));
-
         // FALLBACK: If we've polled 3+ times and found nothing, but have few/no messages, do a full fetch
         // This handles the case where mobile clock skew causes timestamp mismatch
         // Note: Using a simple counter that's incremented on each poll attempt
@@ -866,9 +856,6 @@ export default function AIChatWidget({
             .eq('conversation_id', conversationId)
             .order('created_at', { ascending: true });
 
-          // Debug: Log raw Supabase response from fallback query
-          console.log('[RAW-FALLBACK-DATA]', JSON.stringify(allMessages?.[0]));
-
           if (!fallbackError && allMessages && allMessages.length > 0) {
             console.log('[AIChatWidget] Fallback found', allMessages.length, 'total messages');
 
@@ -880,7 +867,6 @@ export default function AIChatWidget({
               id: msg.id,
               role: msg.is_agent_message ? 'assistant' : (msg.role as 'user' | 'assistant'),
               content: msg.content,
-              translated_text: msg.translated_text, // CRITICAL: Include translated_text field
               timestamp: new Date(msg.created_at),
             }));
 
@@ -907,7 +893,6 @@ export default function AIChatWidget({
             id: msg.id, // Preserve UUID from database
             role: msg.is_agent_message ? 'assistant' : (msg.role as 'user' | 'assistant'),
             content: msg.content,
-            translated_text: msg.translated_text, // CRITICAL: Include translated_text field
             timestamp: new Date(msg.created_at),
           }));
 
@@ -1650,18 +1635,8 @@ export default function AIChatWidget({
             )}
 
 
-            {messages.map((msg, index) => {
-              // Debug: Log every message being rendered
-              console.log(`[MESSAGE-${index}]`, {
-                role: msg.role,
-                hasTranslatedText: !!msg.translated_text,
-                contentPreview: msg.content?.substring(0, 30),
-                translatedPreview: msg.translated_text?.substring(0, 30),
-                isAgentMessage: msg.is_agent_message
-              });
-
-              return (
-                <div key={index}>
+            {messages.map((msg, index) => (
+              <div key={index}>
                 <div
                   style={{
                     display: 'flex',
@@ -1685,52 +1660,40 @@ export default function AIChatWidget({
                     overflowWrap: 'break-word',
                     minHeight: '1px', // Ensure container has height
                   }}>
-                    {(() => {
-                      // Debug logging for message display
-                      console.log('[MSG-DISPLAY]', msg.role, msg.content?.substring(0, 50), msg.translated_text?.substring(0, 50));
-
-                      if (msg.role === 'assistant' || msg.role === 'ai') {
-                        return (
-                          <div style={{ display: 'block', width: '100%' }}>
-                            {/* Display translated text for any assistant messages that have translations */}
-                            {msg.translated_text ? (
-                              <div>
-                                {renderMarkdown(msg.translated_text)}
-                                <div style={{
-                                  fontSize: '11px',
-                                  color: '#999',
-                                  marginTop: '4px',
-                                  fontStyle: 'italic'
-                                }}>
-                                  Translated from English
-                                </div>
-                              </div>
-                            ) : (
-                              renderMarkdown(msg.content)
-                            )}
+                    {(msg.role === 'assistant' || msg.role === 'ai') ? (
+                      <div style={{ display: 'block', width: '100%' }}>
+                        {/* Display translated text for agent messages if available */}
+                        {msg.is_agent_message && msg.translated_text ? (
+                          <div>
+                            {renderMarkdown(msg.translated_text)}
+                            <div style={{
+                              fontSize: '11px',
+                              color: msg.role === 'user' ? 'rgba(255, 255, 255, 0.8)' : '#999',
+                              marginTop: '4px',
+                              fontStyle: 'italic'
+                            }}>
+                              Translated from English
+                            </div>
                           </div>
-                        );
-                      } else {
-                        return msg.content;
-                      }
-                    })()}
+                        ) : (
+                          renderMarkdown(msg.content)
+                        )}
+                      </div>
+                    ) : (
+                      msg.content
+                    )}
                   </div>
                 </div>
-              </div>
-            );
-          })}
 
-            {/* Quick Actions for last assistant message */}
-            {messages.length > 0 && (() => {
-              const lastMsg = messages[messages.length - 1];
-              return (lastMsg.role === 'assistant' || lastMsg.role === 'ai') && lastMsg.quickActions && lastMsg.quickActions.length > 0 && (
+                {/* Quick Actions for assistant messages */}
+                {(msg.role === 'assistant' || msg.role === 'ai') && msg.quickActions && msg.quickActions.length > 0 && (
                   <div style={{
                     display: 'flex',
                     gap: '8px',
                     marginTop: '8px',
                     flexWrap: 'wrap',
                   }}>
-                    {lastMsg.quickActions.map((action, actionIdx) => (
+                    {msg.quickActions.map((action, actionIdx) => (
                       <button
                         key={actionIdx}
                         onClick={action.action}
@@ -1762,7 +1725,8 @@ export default function AIChatWidget({
                     ))}
                   </div>
                 )}
-            )()}
+              </div>
+            ))}
 
             {loading && (
               <div style={{

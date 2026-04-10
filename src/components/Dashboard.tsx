@@ -738,6 +738,27 @@ export function Dashboard({
           {todaySales.count === 0 && (
             <div className="empty-state">No sales yet today</div>
           )}
+
+          {/* View all link */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(0,0,0,0.05)'
+          }}>
+            <span style={{
+              color: '#2563eb',
+              fontSize: '14px',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              View all
+              <ChevronRight size={16} />
+            </span>
+          </div>
         </div>
       )}
 
@@ -769,6 +790,27 @@ export function Dashboard({
           {todaySales.count === 0 && (
             <div className="empty-state">No sales yet today</div>
           )}
+
+          {/* View all link */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(0,0,0,0.05)'
+          }}>
+            <span style={{
+              color: '#2563eb',
+              fontSize: '14px',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              View all
+              <ChevronRight size={16} />
+            </span>
+          </div>
         </div>
       )}
 
@@ -1300,6 +1342,7 @@ export function Dashboard({
           onViewLowStock={onViewLowStock}
           onViewMoney={onViewMoney}
           onViewReports={onViewHistory}
+          onViewHistory={onViewHistory}
           onViewCustomers={onManageCredits}
           onViewExpenses={onViewExpenses}
           onViewSettings={onViewSettings}

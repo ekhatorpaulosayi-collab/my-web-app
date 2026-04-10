@@ -583,10 +583,10 @@ export function detectLanguage(message: string): string {
 
 export function getLanguageInstruction(language: string): string {
   const instructions = {
-    pidgin: 'Respond in Nigerian Pidgin English. Use "abeg", "wetin", "dey". Be friendly.',
-    yoruba: 'Respond in Yoruba language. Be respectful.',
-    igbo: 'Respond in Igbo language. Be respectful.',
-    hausa: 'Respond in Hausa language. Be respectful.',
+    pidgin: 'CRITICAL: Respond ONLY in Nigerian Pidgin English. Use "abeg", "wetin", "dey". Do NOT use English. Be friendly.',
+    yoruba: 'CRITICAL: Respond ONLY in Yoruba language. Do NOT mix with English. Be respectful. Every word must be in Yoruba.',
+    igbo: 'CRITICAL: Respond ONLY in Igbo language. Do NOT mix with English. Be respectful. Every word must be in Igbo.',
+    hausa: 'CRITICAL: Respond ONLY in Hausa language. Do NOT mix with English. Be respectful. Every word must be in Hausa. Example: "Ina son..." not "I want..."',
     english: 'Respond in clear, simple English.',
   };
   return instructions[language] || instructions.english;

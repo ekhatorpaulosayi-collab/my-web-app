@@ -6,6 +6,8 @@
 class NotificationSound {
   private audioContext: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
+  private isUserActivated: boolean = false;
+  private userInteractionListenerAdded: boolean = false;
 
   /**
    * Initialize and generate the notification sound
@@ -14,7 +16,14 @@ class NotificationSound {
     if (this.audioBuffer) return; // Already initialized
 
     try {
+      // Create AudioContext in suspended state initially
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+      // Add user interaction listener if not already added
+      if (!this.userInteractionListenerAdded) {
+        this.setupUserInteractionListener();
+      }
+
       const sampleRate = this.audioContext.sampleRate;
       const duration = 0.5; // 500ms total
       const numSamples = Math.floor(sampleRate * duration);
@@ -69,6 +78,80 @@ class NotificationSound {
   }
 
   /**
+   * Setup user interaction listener to enable AudioContext
+   */
+  private setupUserInteractionListener(): void {
+    const enableAudio = async () => {
+      if (!this.audioContext) return;
+
+      try {
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+          console.log('🔊 [NotificationSound] AudioContext resumed after user interaction');
+        }
+        this.isUserActivated = true;
+
+        // Remove listeners after successful activation
+        document.removeEventListener('click', enableAudio);
+        document.removeEventListener('touchstart', enableAudio);
+        document.removeEventListener('keydown', enableAudio);
+
+        // Dispatch custom event to notify UI
+        window.dispatchEvent(new CustomEvent('audioContextEnabled'));
+      } catch (error) {
+        console.error('[NotificationSound] Failed to resume AudioContext:', error);
+      }
+    };
+
+    // Add multiple event listeners for better coverage
+    document.addEventListener('click', enableAudio, { once: true });
+    document.addEventListener('touchstart', enableAudio, { once: true });
+    document.addEventListener('keydown', enableAudio, { once: true });
+    this.userInteractionListenerAdded = true;
+
+    console.log('🔊 [NotificationSound] Waiting for user interaction to enable audio...');
+  }
+
+  /**
+   * Check if AudioContext is suspended (sound blocked)
+   */
+  isSoundBlocked(): boolean {
+    return this.audioContext?.state === 'suspended' || !this.isUserActivated;
+  }
+
+  /**
+   * Get AudioContext state
+   */
+  getAudioState(): 'suspended' | 'running' | 'closed' | 'not-initialized' {
+    if (!this.audioContext) return 'not-initialized';
+    return this.audioContext.state;
+  }
+
+  /**
+   * Manually trigger audio enable (useful for button clicks)
+   */
+  async enableAudio(): Promise<boolean> {
+    if (!this.audioContext) {
+      await this.init();
+    }
+
+    if (this.audioContext?.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+        this.isUserActivated = true;
+        console.log('🔊 [NotificationSound] AudioContext manually enabled');
+        window.dispatchEvent(new CustomEvent('audioContextEnabled'));
+        return true;
+      } catch (error) {
+        console.error('[NotificationSound] Failed to enable audio:', error);
+        return false;
+      }
+    }
+
+    return this.isUserActivated;
+  }
+
+  /**
    * Play the notification sound
    * @param volume - Volume level from 0 to 1 (default: 0.5)
    */
@@ -83,10 +166,16 @@ class NotificationSound {
       return;
     }
 
+    // Log current audio state
+    console.log(`🔊 [NotificationSound] Attempting to play sound. State: ${this.audioContext.state}, User activated: ${this.isUserActivated}`);
+
     try {
       // Resume context if suspended (Chrome autoplay policy)
       if (this.audioContext.state === 'suspended') {
+        console.log('⚠️ [NotificationSound] AudioContext is suspended, attempting to resume...');
         await this.audioContext.resume();
+        this.isUserActivated = true;
+        console.log('✅ [NotificationSound] AudioContext resumed successfully');
       }
 
       // Create and play the sound
@@ -126,4 +215,24 @@ export async function playNotificationSound(volume: number = 0.5): Promise<void>
   } catch (error) {
     console.error('[NotificationSound] Error playing sound:', error);
   }
+}
+
+// Export additional helper functions
+export function isSoundBlocked(): boolean {
+  return notificationSound.isSoundBlocked();
+}
+
+export function getAudioState(): 'suspended' | 'running' | 'closed' | 'not-initialized' {
+  return notificationSound.getAudioState();
+}
+
+export async function enableAudio(): Promise<boolean> {
+  return notificationSound.enableAudio();
+}
+
+// Initialize on module load
+if (typeof window !== 'undefined') {
+  notificationSound.init().catch(err => {
+    console.error('[NotificationSound] Failed to auto-initialize:', err);
+  });
 }

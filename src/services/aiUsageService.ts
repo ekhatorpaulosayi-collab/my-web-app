@@ -23,17 +23,58 @@ export interface AIUsageData {
  */
 export async function getAIUsage(userId: string): Promise<AIUsageData | null> {
   try {
-    // Skip RPC call since it doesn't exist, go directly to subscription data
-    const subscription = await getUserTier(userId);
-    if (!subscription) return null;
+    // Call the check_ai_chat_quota RPC to get real-time usage data
+    const { data, error } = await supabase.rpc('check_ai_chat_quota', {
+      p_user_id: userId
+    });
 
-    const chatsUsed = subscription.ai_chats_used || 0;
-    const totalLimit = subscription.max_ai_chats_monthly || 30;
-    const chatsRemaining = Math.max(0, totalLimit - chatsUsed);
-    const tierName = subscription.tier_name || 'Free';
+    if (error) {
+      console.error('[AIUsageService] Error calling check_ai_chat_quota:', error);
+      // Fallback to subscription data if RPC fails
+      const subscription = await getUserTier(userId);
+      if (!subscription) return null;
+
+      const chatsUsed = subscription.ai_chats_used || 0;
+      const totalLimit = subscription.max_ai_chats_monthly || 30;
+      const chatsRemaining = Math.max(0, totalLimit - chatsUsed);
+      const tierName = subscription.tier_name || 'Free';
+      const percentageUsed = totalLimit > 0 ? (chatsUsed / totalLimit) * 100 : 0;
+      const isApproachingLimit = chatsRemaining <= 5 && chatsRemaining > 0;
+      const hasExhausted = chatsRemaining === 0;
+
+      return {
+        chatsUsed,
+        chatsRemaining,
+        totalLimit,
+        tierName: tierName,
+        isApproachingLimit,
+        hasExhausted,
+        percentageUsed,
+        upgradeMessage: undefined,
+        valueMetric: undefined
+      };
+    }
+
+    if (!data) return null;
+
+    // Map the RPC response to our expected format
+    const chatsUsed = data.chats_used || 0;
+    const totalLimit = data.chat_limit || 30;
+    const chatsRemaining = data.chats_remaining || Math.max(0, totalLimit - chatsUsed);
+
+    // Map tier_id to tier name
+    const tierMapping: Record<string, string> = {
+      'free': 'Free',
+      'basic': 'Basic',
+      'starter': 'Starter',
+      'pro': 'Pro',
+      'business': 'Business'
+    };
+    const tierName = tierMapping[data.tier_id?.toLowerCase()] || 'Free';
+
     const percentageUsed = totalLimit > 0 ? (chatsUsed / totalLimit) * 100 : 0;
     const isApproachingLimit = chatsRemaining <= 5 && chatsRemaining > 0;
-    const hasExhausted = chatsRemaining === 0;
+    const hasExhausted = chatsRemaining === 0 || !data.allowed;
 
     // Generate contextual upgrade message
     let upgradeMessage: string | undefined;
