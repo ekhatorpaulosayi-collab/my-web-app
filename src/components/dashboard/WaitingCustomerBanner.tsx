@@ -7,6 +7,8 @@ interface WaitingCustomerBannerProps {
   onToggleMute: () => void;
   onGoToChats: () => void;
   onDismiss?: () => void;
+  audioBlocked?: boolean;
+  onEnableAudio?: () => void;
 }
 
 const WaitingCustomerBanner: React.FC<WaitingCustomerBannerProps> = ({
@@ -14,7 +16,9 @@ const WaitingCustomerBanner: React.FC<WaitingCustomerBannerProps> = ({
   isMuted,
   onToggleMute,
   onGoToChats,
-  onDismiss
+  onDismiss,
+  audioBlocked = false,
+  onEnableAudio
 }) => {
   return (
     <div
@@ -60,38 +64,76 @@ const WaitingCustomerBanner: React.FC<WaitingCustomerBannerProps> = ({
             {waitingCount} customer{waitingCount !== 1 ? 's' : ''} waiting for help!
           </div>
           <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            They requested assistance and are waiting for you to respond
+            {audioBlocked ?
+              'Sound alerts are blocked - Enable sound to hear notifications' :
+              'They requested assistance and are waiting for you to respond'}
           </div>
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleMute();
-          }}
-          className="mute-button"
-          style={{
-            background: 'rgba(255, 255, 255, 0.2)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-            borderRadius: '6px',
-            padding: '8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            color: 'white',
-            transition: 'background 0.2s',
-            position: 'relative',
-            zIndex: 1001
-          }}
-          type="button"
-        >
-          {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          <span style={{ fontSize: '14px' }}>{isMuted ? 'Unmute' : 'Mute'}</span>
-        </button>
+        {audioBlocked && onEnableAudio ? (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEnableAudio();
+            }}
+            style={{
+              background: 'white',
+              color: '#DC2626',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+            type="button"
+          >
+            <Volume2 size={18} />
+            Enable Sound
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleMute();
+            }}
+            className="mute-button"
+            style={{
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '6px',
+              padding: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'white',
+              transition: 'background 0.2s',
+              position: 'relative',
+              zIndex: 1001
+            }}
+            type="button"
+          >
+            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            <span style={{ fontSize: '14px' }}>{isMuted ? 'Unmute' : 'Mute'}</span>
+          </button>
+        )}
 
         <button
           onClick={onGoToChats}

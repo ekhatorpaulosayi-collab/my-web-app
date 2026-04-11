@@ -4052,7 +4052,7 @@ Low Stock: ${lowStockItems.length}
       {/* Offline Status Banner */}
       <OfflineBanner />
 
-      {/* CRITICAL: Waiting Customer Alert Banner */}
+      {/* Unified Banner for Waiting Customers - Combines Red Alert and Sound Alert */}
       {console.log('🎯 [APP-DEBUG-13] Banner render check. waitingCustomers.length:', waitingCustomers.length)}
       {waitingCustomers.length > 0 && !isBannerDismissed && (
         <>
@@ -4075,53 +4075,10 @@ Low Stock: ${lowStockItems.length}
               setIsBannerDismissed(true);
               sessionStorage.setItem('banner-dismissed', 'true');
             }}
+            audioBlocked={showSoundPrompt && audioBlocked}
+            onEnableAudio={handleEnableAudio}
           />
         </>
-      )}
-
-      {/* Audio Enable Prompt */}
-      {showSoundPrompt && audioBlocked && waitingCustomers.length > 0 && (
-        <div
-          style={{
-            background: 'linear-gradient(90deg, #FEF3C7, #FDE68A)',
-            color: '#92400E',
-            padding: '12px 16px',
-            margin: '8px 16px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-            cursor: 'pointer'
-          }}
-          onClick={handleEnableAudio}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '20px' }}>🔇</span>
-            <div>
-              <div style={{ fontWeight: 'bold' }}>Sound alerts are blocked</div>
-              <div style={{ fontSize: '14px', opacity: 0.9 }}>Tap here to enable notification sounds</div>
-            </div>
-          </div>
-          <button
-            style={{
-              background: '#92400E',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              cursor: 'pointer'
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEnableAudio();
-            }}
-          >
-            Enable Sound
-          </button>
-        </div>
       )}
 
       {/* Header */}

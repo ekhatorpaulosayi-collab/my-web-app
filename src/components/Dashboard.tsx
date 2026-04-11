@@ -516,14 +516,7 @@ export function Dashboard({
         onSetupStore={onViewSettings || (() => {})}
       /> */}
 
-      {/* 1. Share Store Banner */}
-      {!heroDismissed && (
-        <ShareStoreBanner
-          storeUrl={storeUrl}
-          storeName={businessName}
-          onDismiss={handleDismissHero}
-        />
-      )}
+      {/* ShareStoreBanner moved to MoreMenu */}
 
       {/* Payment Setup Nudge - Shows after 3+ products added, no payment methods */}
       {shouldShowPaymentNudge && (
@@ -696,7 +689,10 @@ export function Dashboard({
       {(!isStaffMode || canViewReports()) && (
         <div className="sales-card clickable-card" onClick={onViewHistory} style={{ cursor: 'pointer' }}>
           <div className="sales-header">
-            <h3>Today's Sales</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h3>Today's Sales</h3>
+              <span style={{ fontSize: '14px', color: '#666', marginLeft: 'auto' }}>View all →</span>
+            </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
                 className="toggle-visibility-btn"
@@ -1346,7 +1342,7 @@ export function Dashboard({
           onViewCustomers={onManageCredits}
           onViewExpenses={onViewExpenses}
           onViewSettings={onViewSettings}
-          onShowOnlineStore={heroDismissed ? handleShowHero : undefined}
+          onShowOnlineStore={handleShowHero}
           onSendDailySummary={onSendDailySummary}
           onExportData={onExportData}
           onStaffModeToggle={() => {

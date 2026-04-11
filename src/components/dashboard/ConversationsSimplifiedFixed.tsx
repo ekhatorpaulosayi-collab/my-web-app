@@ -1,8 +1,9 @@
-// SIMPLIFIED CONVERSATIONS - WITH DEDUPLICATION & SINGLE TAKEOVER MESSAGE
+// REDESIGNED CONVERSATIONS PAGE - MODERN UI WITH TABS AND AVATARS
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, MessageSquare, X, UserCheck, UserX, AlertCircle, Clock } from 'lucide-react';
+import { ChevronLeft, Search, Send, MessageSquare, X, UserCheck, UserX, AlertCircle, Check } from 'lucide-react';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import QuotaAlert from './QuotaAlert';
 
 interface Message {
@@ -31,7 +32,11 @@ interface Conversation {
   agent_id?: string;
   takeover_status?: string;
   waiting_for_owner_since?: string;
+  first_message?: string;
+  detected_language?: string;
 }
+
+type TabFilter = 'waiting' | 'active' | 'all';
 
 export default function ConversationsSimplifiedFixed() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -42,33 +47,68 @@ export default function ConversationsSimplifiedFixed() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [isTakeoverActive, setIsTakeoverActive] = useState(false);
   const [hasTakeoverMessageSent, setHasTakeoverMessageSent] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabFilter>('all');
 
   const { currentUser: user } = useAuth();
+  const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const lastMessageIds = useRef<Set<string>>(new Set());
   const processedMessageIds = useRef<Set<string>>(new Set());
 
-  // Helper function to calculate elapsed time
-  const getElapsedTime = (waitingSince: string): string => {
-    const start = new Date(waitingSince);
+  // Helper function to get relative time
+  const getRelativeTime = (dateStr: string): string => {
+    const date = new Date(dateStr);
     const now = new Date();
-    const elapsedMs = now.getTime() - start.getTime();
-    const seconds = Math.floor(elapsedMs / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInSeconds = Math.floor(diffInMs / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
 
-    if (hours > 0) {
-      return `${hours}h ${remainingMinutes}m`;
-    }
-    if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    }
-    return `${seconds}s`;
+    if (diffInDays > 1) return `${diffInDays} days ago`;
+    if (diffInDays === 1) return 'Yesterday';
+    if (diffInHours > 1) return `${diffInHours} hours ago`;
+    if (diffInHours === 1) return '1 hour ago';
+    if (diffInMinutes > 1) return `${diffInMinutes} min ago`;
+    if (diffInMinutes === 1) return '1 min ago';
+    return 'Just now';
   };
 
-  // Load conversations
+  // Helper to get conversation status
+  const getConversationStatus = (conv: Conversation): 'waiting' | 'active' | 'missed' | 'ended' => {
+    if (conv.takeover_status === 'requested') {
+      if (conv.waiting_for_owner_since) {
+        const waitingTime = Date.now() - new Date(conv.waiting_for_owner_since).getTime();
+        if (waitingTime > 30 * 60 * 1000) { // 30 minutes
+          return 'missed';
+        }
+      }
+      return 'waiting';
+    }
+    if (conv.is_agent_active) return 'active';
+    return 'ended';
+  };
+
+  // Get customer name with language detection
+  const getCustomerName = (conv: Conversation): string => {
+    if (conv.visitor_name) return conv.visitor_name;
+
+    // Check for detected language in conversation or first message
+    if (conv.detected_language && conv.detected_language.toLowerCase() !== 'english') {
+      const langMap: Record<string, string> = {
+        'hausa': 'Hausa speaker',
+        'yoruba': 'Yoruba speaker',
+        'igbo': 'Igbo speaker',
+        'pidgin': 'Pidgin speaker'
+      };
+      return langMap[conv.detected_language.toLowerCase()] || 'Anonymous visitor';
+    }
+
+    return 'Anonymous visitor';
+  };
+
+  // Load conversations with first message
   const loadConversations = async () => {
     try {
       // First get stores for this user
@@ -79,7 +119,7 @@ export default function ConversationsSimplifiedFixed() {
 
       const storeIds = stores?.map(s => s.id) || [];
 
-      // Then get conversations for those stores with takeover_status and waiting_for_owner_since
+      // Get conversations
       const { data, error } = await supabase
         .from('ai_chat_conversations')
         .select('*, takeover_status, waiting_for_owner_since')
@@ -88,24 +128,48 @@ export default function ConversationsSimplifiedFixed() {
         .limit(50);
 
       if (!error && data) {
-        // Sort conversations: requested takeover status at the top
-        const sortedConversations = [...data].sort((a, b) => {
-          // Priority 1: Conversations with takeover_status = 'requested'
-          if (a.takeover_status === 'requested' && b.takeover_status !== 'requested') return -1;
-          if (b.takeover_status === 'requested' && a.takeover_status !== 'requested') return 1;
+        // Load first message for each conversation
+        const conversationsWithMessages = await Promise.all(
+          data.map(async (conv) => {
+            const { data: firstMsg } = await supabase
+              .from('ai_chat_messages')
+              .select('content, detected_language')
+              .eq('conversation_id', conv.id)
+              .eq('role', 'user')
+              .order('created_at', { ascending: true })
+              .limit(1)
+              .single();
 
-          // Priority 2: If both are requested, sort by waiting_for_owner_since (oldest first)
-          if (a.takeover_status === 'requested' && b.takeover_status === 'requested') {
-            const aTime = a.waiting_for_owner_since ? new Date(a.waiting_for_owner_since).getTime() : 0;
-            const bTime = b.waiting_for_owner_since ? new Date(b.waiting_for_owner_since).getTime() : 0;
-            return aTime - bTime; // Older waiting times come first
+            return {
+              ...conv,
+              first_message: firstMsg?.content || '',
+              detected_language: firstMsg?.detected_language || conv.detected_language
+            };
+          })
+        );
+
+        // Sort conversations
+        const sortedConversations = [...conversationsWithMessages].sort((a, b) => {
+          const statusA = getConversationStatus(a);
+          const statusB = getConversationStatus(b);
+
+          // Priority: waiting > active > missed > ended
+          const priorityMap = { waiting: 0, active: 1, missed: 2, ended: 3 };
+          if (priorityMap[statusA] !== priorityMap[statusB]) {
+            return priorityMap[statusA] - priorityMap[statusB];
           }
 
-          // Default: Sort by updated_at (most recent first)
+          // Within same status, sort by time
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
         });
 
         setConversations(sortedConversations);
+
+        // Set default tab based on conversations
+        const hasWaiting = sortedConversations.some(c => getConversationStatus(c) === 'waiting');
+        if (hasWaiting && activeTab === 'all') {
+          setActiveTab('waiting');
+        }
       }
     } catch (error) {
       console.error('Error loading conversations:', error);
@@ -131,21 +195,16 @@ export default function ConversationsSimplifiedFixed() {
         const seenContents = new Map<string, number>();
 
         messages.forEach((msg) => {
-          // Create a unique key based on content, sender, and timestamp
           const contentKey = `${msg.content}-${msg.sender_type}-${msg.role}`;
           const timeKey = new Date(msg.created_at).getTime();
 
-          // Check if we've seen this exact content recently (within 5 seconds)
           const lastSeenTime = seenContents.get(contentKey);
           if (lastSeenTime && Math.abs(timeKey - lastSeenTime) < 5000) {
-            // Skip duplicate message within 5 second window
             return;
           }
 
-          // Use message ID if available, otherwise create composite key
           const messageKey = msg.id || `${contentKey}-${timeKey}`;
 
-          // Only add if not already processed
           if (!uniqueMessages.has(messageKey)) {
             uniqueMessages.set(messageKey, msg);
             seenContents.set(contentKey, timeKey);
@@ -159,7 +218,6 @@ export default function ConversationsSimplifiedFixed() {
           return { ...prev, messages: deduplicatedMessages };
         });
 
-        // Update processed message IDs
         deduplicatedMessages.forEach(msg => {
           if (msg.id) {
             processedMessageIds.current.add(msg.id);
@@ -171,15 +229,13 @@ export default function ConversationsSimplifiedFixed() {
     }
   };
 
-  // Take over conversation - with single message check
+  // Take over conversation
   const initiateTakeover = async () => {
     if (!selectedConversation || !user) return;
 
-    // Set UI state immediately to prevent flicker
     setIsTakeoverActive(true);
 
     try {
-      // First check if takeover is already active
       const { data: currentConv } = await supabase
         .from('ai_chat_conversations')
         .select('is_agent_active, agent_id')
@@ -187,12 +243,10 @@ export default function ConversationsSimplifiedFixed() {
         .single();
 
       if (currentConv?.is_agent_active) {
-        // Already taken over, just update UI
         setHasTakeoverMessageSent(true);
         return;
       }
 
-      // Update conversation status
       const { error } = await supabase
         .from('ai_chat_conversations')
         .update({
@@ -203,13 +257,11 @@ export default function ConversationsSimplifiedFixed() {
         .eq('id', selectedConversation.id);
 
       if (error) {
-        // Revert UI state on error
         setIsTakeoverActive(false);
         console.error('Failed to take over chat:', error);
         return;
       }
 
-      // Update local conversation state to prevent polling from resetting
       setSelectedConversation(prev => prev ? {
         ...prev,
         is_agent_active: true,
@@ -217,7 +269,6 @@ export default function ConversationsSimplifiedFixed() {
         takeover_status: 'agent_active'
       } : null);
 
-      // Check if takeover message already exists in database
       const { data: existingTakeoverMsg } = await supabase
         .from('ai_chat_messages')
         .select('id')
@@ -228,7 +279,6 @@ export default function ConversationsSimplifiedFixed() {
         .limit(1)
         .single();
 
-      // Only add system message if it doesn't already exist
       if (!existingTakeoverMsg) {
         await supabase
           .from('ai_chat_messages')
@@ -241,17 +291,14 @@ export default function ConversationsSimplifiedFixed() {
       }
 
       setHasTakeoverMessageSent(true);
-
-      // Delay message reload slightly to ensure DB updates propagate
       setTimeout(() => loadMessages(), 200);
     } catch (error) {
-      // Revert UI state on error
       setIsTakeoverActive(false);
       console.error('Error taking over chat:', error);
     }
   };
 
-  // Send agent message - USE EDGE FUNCTION FOR TRANSLATION
+  // Send agent message
   const sendAgentMessage = async () => {
     if (!messageText.trim() || !selectedConversation || !user || sendingMessage) return;
 
@@ -260,7 +307,6 @@ export default function ConversationsSimplifiedFixed() {
     setMessageText('');
 
     try {
-      // Get auth session for edge function
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
@@ -269,7 +315,6 @@ export default function ConversationsSimplifiedFixed() {
         return;
       }
 
-      // Use new edge function for translation support
       const response = await fetch(`${supabaseUrl}/functions/v1/send-agent-message`, {
         method: 'POST',
         headers: {
@@ -287,15 +332,13 @@ export default function ConversationsSimplifiedFixed() {
 
       if (!response.ok || data.error) {
         console.error('Error sending message via edge function:', data.error);
-        setMessageText(messageToSend); // Restore message on failure
+        setMessageText(messageToSend);
       } else {
-        // Mark message as processed to avoid duplication
         if (data.message?.id) {
           processedMessageIds.current.add(data.message.id);
         }
       }
 
-      // Reload messages after sending
       await loadMessages();
     } catch (error) {
       console.error('Error sending message:', error);
@@ -322,7 +365,6 @@ export default function ConversationsSimplifiedFixed() {
         setIsTakeoverActive(false);
         setHasTakeoverMessageSent(false);
 
-        // Check if end message already exists
         const { data: existingEndMsg } = await supabase
           .from('ai_chat_messages')
           .select('id')
@@ -334,7 +376,6 @@ export default function ConversationsSimplifiedFixed() {
           .single();
 
         if (!existingEndMsg) {
-          // Add system message only if it doesn't exist
           await supabase
             .from('ai_chat_messages')
             .insert({
@@ -352,16 +393,38 @@ export default function ConversationsSimplifiedFixed() {
     }
   };
 
+  // Filter conversations based on active tab
+  const getFilteredConversations = () => {
+    let filtered = conversations;
+
+    // Apply tab filter
+    if (activeTab === 'waiting') {
+      filtered = filtered.filter(conv => getConversationStatus(conv) === 'waiting');
+    } else if (activeTab === 'active') {
+      filtered = filtered.filter(conv => getConversationStatus(conv) === 'active');
+    }
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(conv =>
+        getCustomerName(conv).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        conv.first_message?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        conv.session_id.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return filtered;
+  };
+
+  // Count waiting conversations
+  const waitingCount = conversations.filter(c => getConversationStatus(c) === 'waiting').length;
+
   // Setup polling for messages
   useEffect(() => {
     if (selectedConversation) {
-      // Initial load
       loadMessages();
-
-      // Reset takeover message flag when conversation changes
       setHasTakeoverMessageSent(false);
 
-      // Setup polling every 2 seconds
       if (pollingInterval.current) {
         clearInterval(pollingInterval.current);
       }
@@ -383,7 +446,6 @@ export default function ConversationsSimplifiedFixed() {
     if (user) {
       loadConversations();
 
-      // Refresh conversations every 5 seconds
       const interval = setInterval(loadConversations, 5000);
       return () => clearInterval(interval);
     }
@@ -397,26 +459,19 @@ export default function ConversationsSimplifiedFixed() {
   // Check takeover status when selecting conversation
   useEffect(() => {
     if (selectedConversation) {
-      // Don't override if already active (prevent flicker)
       if (!isTakeoverActive) {
         const isActive = selectedConversation.is_agent_active === true ||
                         selectedConversation.takeover_status === 'agent_active';
         setIsTakeoverActive(isActive);
 
-        // If already active, mark takeover message as sent
         if (isActive) {
           setHasTakeoverMessageSent(true);
         }
       }
     }
-  }, [selectedConversation?.id]); // Only re-run when conversation ID changes
+  }, [selectedConversation?.id]);
 
-  const filteredConversations = conversations.filter(conv =>
-    !searchTerm ||
-    conv.visitor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conv.visitor_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conv.session_id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredConversations = getFilteredConversations();
 
   if (loading) {
     return (
@@ -429,13 +484,95 @@ export default function ConversationsSimplifiedFixed() {
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Sidebar */}
-      <div style={{ width: '320px', backgroundColor: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>Conversations</h2>
+      <div style={{ width: '380px', backgroundColor: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+        {/* Blue Gradient Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '20px',
+          color: 'white'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'white'
+              }}
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <h2 style={{ fontSize: '24px', fontWeight: '600', margin: 0 }}>Conversations</h2>
+          </div>
 
-          {/* Quota Alert Bar */}
+          {/* Quota Alert */}
           <QuotaAlert userId={user?.uid} />
+        </div>
 
+        {/* Tab Filter Bar */}
+        <div style={{ padding: '12px 16px', backgroundColor: 'white', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setActiveTab('waiting')}
+              style={{
+                padding: '6px 16px',
+                borderRadius: '20px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                backgroundColor: activeTab === 'waiting' ? 'white' : '#f3f4f6',
+                color: activeTab === 'waiting' ? '#3b82f6' : '#6b7280',
+                boxShadow: activeTab === 'waiting' ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'
+              }}
+            >
+              Waiting {waitingCount > 0 && `(${waitingCount})`}
+            </button>
+            <button
+              onClick={() => setActiveTab('active')}
+              style={{
+                padding: '6px 16px',
+                borderRadius: '20px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                backgroundColor: activeTab === 'active' ? 'white' : '#f3f4f6',
+                color: activeTab === 'active' ? '#3b82f6' : '#6b7280',
+                boxShadow: activeTab === 'active' ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'
+              }}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              style={{
+                padding: '6px 16px',
+                borderRadius: '20px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                backgroundColor: activeTab === 'all' ? 'white' : '#f3f4f6',
+                color: activeTab === 'all' ? '#3b82f6' : '#6b7280',
+                boxShadow: activeTab === 'all' ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'
+              }}
+            >
+              All
+            </button>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
           <div style={{ position: 'relative' }}>
             <Search style={{ position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' }} size={20} />
             <input
@@ -445,126 +582,111 @@ export default function ConversationsSimplifiedFixed() {
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px 8px 40px',
+                padding: '10px 12px 10px 40px',
                 border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                fontSize: '14px'
+                borderRadius: '24px',
+                fontSize: '14px',
+                backgroundColor: '#f9fafb'
               }}
             />
           </div>
         </div>
 
+        {/* Conversation List */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {filteredConversations.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
               No conversations found
             </div>
           ) : (
-            filteredConversations.map(conv => (
-              <div
-                key={conv.id}
-                onClick={() => setSelectedConversation(conv)}
-                style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid #f3f4f6',
-                  cursor: 'pointer',
-                  backgroundColor: selectedConversation?.id === conv.id ? '#f3f4f6' :
-                    conv.takeover_status === 'requested' ? '#fef2f2' : 'white',
-                  transition: 'background-color 0.2s',
-                  position: 'relative'
-                }}
-              >
-                {/* Urgent indicator for waiting customers */}
-                {conv.takeover_status === 'requested' && (
+            filteredConversations.map(conv => {
+              const status = getConversationStatus(conv);
+              const isEnded = status === 'ended' || status === 'missed';
+
+              return (
+                <div
+                  key={conv.id}
+                  onClick={() => setSelectedConversation(conv)}
+                  style={{
+                    padding: '16px',
+                    borderBottom: '1px solid #f3f4f6',
+                    cursor: 'pointer',
+                    backgroundColor: selectedConversation?.id === conv.id ? '#f0f9ff' : 'white',
+                    transition: 'background-color 0.2s',
+                    opacity: isEnded ? 0.6 : 1,
+                    display: 'flex',
+                    gap: '12px',
+                    alignItems: 'center'
+                  }}
+                >
+                  {/* Avatar Circle */}
                   <div style={{
-                    position: 'absolute',
-                    left: '0',
-                    top: '0',
-                    bottom: '0',
-                    width: '4px',
-                    backgroundColor: '#ef4444'
-                  }} />
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ fontWeight: '500', fontSize: '14px' }}>
-                        {conv.visitor_name || 'Anonymous'}
-                      </div>
-                      {conv.takeover_status === 'requested' && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          animation: 'pulse 2s infinite'
-                        }}>
-                          <div style={{
-                            width: '8px',
-                            height: '8px',
-                            backgroundColor: '#ef4444',
-                            borderRadius: '50%',
-                            animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite'
-                          }} />
-                          <AlertCircle size={14} style={{ color: '#ef4444' }} />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Waiting indicator */}
-                    {conv.takeover_status === 'requested' && conv.waiting_for_owner_since && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        marginTop: '4px',
-                        color: '#dc2626',
-                        fontSize: '12px',
-                        fontWeight: '600'
-                      }}>
-                        <Clock size={12} />
-                        <span>Customer waiting for {getElapsedTime(conv.waiting_for_owner_since)}</span>
-                      </div>
-                    )}
-
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                      {conv.visitor_email || conv.session_id.slice(0, 8)}
-                    </div>
-
-                    <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                      {new Date(conv.updated_at).toLocaleString()}
-                    </div>
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: status === 'waiting' ? '#ef4444' :
+                                   status === 'active' ? '#10b981' :
+                                   status === 'missed' ? '#f59e0b' : '#9ca3af',
+                    color: 'white',
+                    flexShrink: 0
+                  }}>
+                    {status === 'waiting' ? '!' :
+                     status === 'active' ? <Check size={20} /> :
+                     status === 'missed' ? '!' :
+                     <Check size={20} />}
                   </div>
 
-                  {/* Status badges */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
-                    {conv.takeover_status === 'requested' && (
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
+                      <div style={{ fontWeight: '600', fontSize: '14px', color: '#111827' }}>
+                        {getCustomerName(conv)}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', flexShrink: 0 }}>
+                        {getRelativeTime(conv.updated_at)}
+                      </div>
+                    </div>
+
+                    {/* Message Preview */}
+                    {conv.first_message && (
+                      <div style={{
+                        fontSize: '13px',
+                        color: '#6b7280',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginBottom: '6px'
+                      }}>
+                        {conv.first_message}
+                      </div>
+                    )}
+
+                    {/* Status Badge */}
+                    <div>
                       <span style={{
                         padding: '2px 8px',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        borderRadius: '4px',
+                        borderRadius: '12px',
                         fontSize: '11px',
-                        fontWeight: '600'
+                        fontWeight: '500',
+                        backgroundColor: status === 'waiting' ? '#fef2f2' :
+                                       status === 'active' ? '#f0fdf4' :
+                                       status === 'missed' ? '#fef3c7' : '#f3f4f6',
+                        color: status === 'waiting' ? '#dc2626' :
+                               status === 'active' ? '#059669' :
+                               status === 'missed' ? '#d97706' : '#6b7280'
                       }}>
-                        WAITING
+                        {status === 'waiting' ? 'Waiting for you' :
+                         status === 'active' ? 'Agent active' :
+                         status === 'missed' ? 'Missed' : 'Ended'}
                       </span>
-                    )}
-                    {conv.is_agent_active && conv.takeover_status !== 'requested' && (
-                      <span style={{
-                        padding: '2px 8px',
-                        backgroundColor: '#10b981',
-                        color: 'white',
-                        borderRadius: '4px',
-                        fontSize: '11px'
-                      }}>
-                        Agent Active
-                      </span>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -573,143 +695,242 @@ export default function ConversationsSimplifiedFixed() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {selectedConversation ? (
           <>
-            {/* Header */}
+            {/* Header with Blue Gradient */}
             <div style={{
-              padding: '16px',
-              backgroundColor: 'white',
-              borderBottom: '1px solid #e5e7eb',
+              padding: '16px 24px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '600' }}>
-                  {selectedConversation.visitor_name || 'Anonymous Visitor'}
-                </h3>
-                <p style={{ fontSize: '12px', color: '#6b7280' }}>
-                  Session: {selectedConversation.session_id.slice(0, 16)}...
-                </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                {/* Back Chevron */}
+                <button
+                  onClick={() => setSelectedConversation(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'white',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <ChevronLeft size={24} />
+                </button>
+
+                {/* Customer Name and Translation Info */}
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
+                    {getCustomerName(selectedConversation)}
+                  </h3>
+                  {selectedConversation.detected_language &&
+                   selectedConversation.detected_language.toLowerCase() !== 'english' && (
+                    <p style={{
+                      fontSize: '12px',
+                      opacity: 0.9,
+                      marginTop: '2px',
+                      margin: 0
+                    }}>
+                      Translating: {selectedConversation.detected_language} ↔ English
+                    </p>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {!isTakeoverActive ? (
-                  <button
-                    onClick={initiateTakeover}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#10b981',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <UserCheck size={16} />
-                    Take Over Chat
-                  </button>
-                ) : (
-                  <button
-                    onClick={endTakeover}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#ef4444',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <UserX size={16} />
-                    End Takeover
-                  </button>
-                )}
-              </div>
+
+              {/* End Takeover Button */}
+              {isTakeoverActive && (
+                <button
+                  onClick={endTakeover}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: 'transparent',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.5)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                  }}
+                >
+                  End takeover
+                </button>
+              )}
+
+              {/* Take Over Button (if not active) */}
+              {!isTakeoverActive && (
+                <button
+                  onClick={initiateTakeover}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.5)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                  }}
+                >
+                  Take over chat
+                </button>
+              )}
             </div>
 
             {/* Messages */}
             <div style={{
               flex: 1,
               overflowY: 'auto',
-              padding: '16px',
+              padding: '24px',
               backgroundColor: '#f9fafb'
             }}>
-              {selectedConversation.messages?.map((msg, idx) => (
-                <div
-                  key={msg.id || `msg-${idx}-${msg.created_at}`}
-                  style={{
-                    marginBottom: '12px',
-                    display: 'flex',
-                    justifyContent: msg.role === 'user' ? 'flex-start' : 'flex-end'
-                  }}
-                >
-                  <div style={{
-                    maxWidth: '70%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    backgroundColor: msg.role === 'user' ? 'white' :
-                                   msg.sender_type === 'agent' ? '#10b981' :
-                                   msg.sender_type === 'system' ? '#fbbf24' : '#3b82f6',
-                    color: msg.role === 'user' ? '#111827' : 'white',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                  }}>
-                    {msg.sender_type === 'agent' && (
-                      <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px' }}>
-                        👤 Agent
-                      </div>
-                    )}
-                    {msg.sender_type === 'system' && (
-                      <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px' }}>
-                        ⚡ System
-                      </div>
-                    )}
-                    <div>{msg.content}</div>
-                    {/* Show translation for customer messages */}
-                    {msg.role === 'user' && msg.translated_text && msg.detected_language?.toLowerCase() !== 'english' && (
+              {selectedConversation.messages?.map((msg, idx) => {
+                // Determine message alignment and styling
+                const isCustomer = msg.role === 'user' && !msg.is_agent_message;
+                const isOwner = msg.is_agent_message || msg.sender_type === 'agent';
+                const isAI = !isCustomer && !isOwner && msg.role === 'assistant';
+                const isSystem = msg.sender_type === 'system';
+
+                // System messages are centered
+                if (isSystem) {
+                  return (
+                    <div
+                      key={msg.id || `msg-${idx}-${msg.created_at}`}
+                      style={{
+                        marginBottom: '16px',
+                        display: 'flex',
+                        justifyContent: 'center'
+                      }}
+                    >
                       <div style={{
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: '#fef3c7',
+                        color: '#92400e',
                         fontSize: '12px',
-                        color: '#666',
-                        fontStyle: 'italic',
-                        marginTop: '4px',
-                        borderTop: '1px solid #eee',
-                        paddingTop: '4px'
+                        fontWeight: '500'
                       }}>
-                        🌐 {msg.translated_text}
+                        {msg.content}
                       </div>
-                    )}
-                    {/* Show language info for agent messages */}
-                    {msg.is_agent_message && msg.translated_text && (
+                    </div>
+                  );
+                }
+
+                // Format time
+                const msgTime = new Date(msg.created_at).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                });
+
+                return (
+                  <div
+                    key={msg.id || `msg-${idx}-${msg.created_at}`}
+                    style={{
+                      marginBottom: '16px',
+                      display: 'flex',
+                      justifyContent: isOwner ? 'flex-end' : 'flex-start'
+                    }}
+                  >
+                    <div style={{
+                      maxWidth: '70%',
+                      padding: '10px 14px',
+                      borderRadius: isCustomer ? '16px 16px 16px 4px' :
+                                  isOwner ? '16px 16px 4px 16px' :
+                                  '16px 16px 16px 4px',
+                      backgroundColor: isCustomer ? '#f3f4f6' :
+                                     isOwner ? '#2563eb' :
+                                     '#f0f7ff',
+                      color: isCustomer ? '#111827' :
+                            isOwner ? 'white' :
+                            '#111827',
+                      border: isAI ? '1px solid #d0e2ff' : 'none',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                    }}>
+                      {/* Main message content */}
+                      <div style={{ lineHeight: '1.5', wordBreak: 'break-word' }}>
+                        {msg.content}
+                      </div>
+
+                      {/* Translation display for customer messages */}
+                      {isCustomer && msg.translated_text && msg.detected_language?.toLowerCase() !== 'english' && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          fontStyle: 'italic',
+                          marginTop: '8px',
+                          paddingTop: '8px',
+                          borderTop: '1px solid #e5e7eb'
+                        }}>
+                          🌐 {msg.translated_text}
+                        </div>
+                      )}
+
+                      {/* Translation display for owner messages */}
+                      {isOwner && msg.translated_text && (
+                        <div style={{
+                          fontSize: '12px',
+                          opacity: 0.85,
+                          fontStyle: 'italic',
+                          marginTop: '8px',
+                          paddingTop: '8px',
+                          borderTop: '1px solid rgba(255, 255, 255, 0.2)'
+                        }}>
+                          🌐 → {msg.translated_text}
+                        </div>
+                      )}
+
+                      {/* Timestamp metadata */}
                       <div style={{
                         fontSize: '11px',
-                        color: '#999',
-                        marginTop: '2px'
+                        opacity: isOwner ? 0.8 : 0.6,
+                        marginTop: '4px',
+                        color: isOwner ? 'inherit' : '#6b7280'
                       }}>
-                        Sent in {msg.detected_language === 'english' ? 'customer language' : msg.detected_language}
+                        {isCustomer ? msgTime :
+                         isAI ? `${msgTime} · AI` :
+                         isOwner ? `${msgTime} · You` : msgTime}
                       </div>
-                    )}
-                    <div style={{ fontSize: '11px', opacity: 0.8, marginTop: '4px' }}>
-                      {new Date(msg.created_at).toLocaleTimeString()}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {/* Input Area */}
             {isTakeoverActive && (
               <div style={{
-                padding: '16px',
+                padding: '16px 24px',
                 backgroundColor: 'white',
                 borderTop: '1px solid #e5e7eb'
               }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  alignItems: 'center'
+                }}>
                   <input
                     type="text"
                     value={messageText}
@@ -720,13 +941,22 @@ export default function ConversationsSimplifiedFixed() {
                         sendAgentMessage();
                       }
                     }}
-                    placeholder="Type your message..."
+                    placeholder="Reply in English..."
                     style={{
                       flex: 1,
                       padding: '10px 14px',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      fontSize: '14px'
+                      border: '1px solid #d1d5db',
+                      borderRadius: '24px',
+                      fontSize: '14px',
+                      backgroundColor: 'white',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
                     }}
                     disabled={sendingMessage}
                   />
@@ -734,20 +964,33 @@ export default function ConversationsSimplifiedFixed() {
                     onClick={sendAgentMessage}
                     disabled={sendingMessage || !messageText.trim()}
                     style={{
-                      padding: '10px 20px',
-                      backgroundColor: sendingMessage ? '#9ca3af' : '#3b82f6',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: sendingMessage || !messageText.trim() ? '#e5e7eb' : '#2563eb',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      cursor: sendingMessage ? 'not-allowed' : 'pointer',
+                      cursor: sendingMessage || !messageText.trim() ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px'
+                      justifyContent: 'center',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!sendingMessage && messageText.trim()) {
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.background = '#1e40af';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                      if (!sendingMessage && messageText.trim()) {
+                        e.currentTarget.style.background = '#2563eb';
+                      }
                     }}
                   >
-                    <Send size={16} />
-                    {sendingMessage ? 'Sending...' : 'Send'}
+                    <Send size={18} />
                   </button>
                 </div>
               </div>
@@ -762,30 +1005,11 @@ export default function ConversationsSimplifiedFixed() {
             justifyContent: 'center',
             color: '#6b7280'
           }}>
-            <MessageSquare size={48} />
-            <p style={{ marginTop: '16px' }}>Select a conversation to start</p>
+            <MessageSquare size={64} style={{ marginBottom: '16px', opacity: 0.5 }} />
+            <p style={{ fontSize: '18px', fontWeight: '500' }}>Select a conversation to start</p>
           </div>
         )}
       </div>
-
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-
-        @keyframes ping {
-          75%, 100% {
-            transform: scale(2);
-            opacity: 0;
-          }
-        }
-      `}</style>
     </div>
   );
 }

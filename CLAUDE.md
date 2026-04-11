@@ -404,6 +404,81 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 3. Check browser DevTools Memory tab for orphan timers
 4. Use unique interval IDs to prevent conflicts
 
+## DEPLOYMENT RULES
+
+**CRITICAL**: Follow these rules EVERY TIME you deploy to production:
+
+### Pre-Deployment Checklist
+1. **Save Current State**:
+   - Run `git stash` to temporarily save uncommitted changes, OR
+   - Run `git add -A && git commit -m "WIP: before deployment"` to commit current state
+
+2. **Run Integrity Check**:
+   - Execute: `npm run check:chat`
+   - **MUST PASS** all critical checks before proceeding
+   - If warnings appear, evaluate if they're acceptable
+
+3. **Build Locally**:
+   - Execute: `npm run build`
+   - **MUST COMPLETE** without errors
+   - Check for TypeScript errors or missing dependencies
+
+4. **Test Locally** (if possible):
+   - Test the specific feature you're deploying
+   - Check browser console for errors
+   - Verify polling/real-time updates work
+
+### Deployment Process
+5. **Deploy to Production**:
+   ```bash
+   vercel --prod --force --yes
+   ```
+   - Always use `--force` to ensure cache busting
+   - Always use `--yes` to skip confirmation prompts
+   - Wait for deployment to complete fully
+
+6. **Test on Production Immediately**:
+   - Navigate to https://smartstock-v2.vercel.app
+   - Test the specific feature that was changed
+   - Check browser console for any errors
+   - Verify Service Worker updated (check Application tab in DevTools)
+
+### Post-Deployment Actions
+7. **If Deployment is Broken**:
+   - **Immediate Rollback**:
+     ```bash
+     git stash pop  # If you used git stash
+     # OR
+     git reset --hard HEAD~1  # If you committed
+     ```
+   - Rebuild and redeploy immediately:
+     ```bash
+     npm run build && vercel --prod --force --yes
+     ```
+   - Notify team of the issue
+
+8. **If Deployment is Working**:
+   - Commit the successful changes:
+     ```bash
+     git add -A
+     git commit -m "✅ [FEATURE]: Description of what was changed"
+     ```
+   - Example commit messages:
+     - `✅ [FIX]: Fixed translated_text field being stripped in chat widget`
+     - `✅ [FEATURE]: Added multi-language support to chat`
+     - `✅ [UPDATE]: Improved polling performance`
+
+### Emergency Procedures
+- **Kill Switch**: See [docs/CHAT_WIDGET_SYSTEM.md](docs/CHAT_WIDGET_SYSTEM.md) for emergency procedures
+- **Rollback Command**: `git reset --hard HEAD~1 && npm run build && vercel --prod --force --yes`
+- **Check Logs**: `vercel logs smartstock-v2.vercel.app --follow`
+
+### Important Notes
+- **Never skip the chat integrity check** - it prevents duplicate message bugs
+- **Always test immediately after deploy** - catch issues before users do
+- **Use descriptive commit messages** - helps track what changed when
+- **Cache busting is automatic** - Service Worker version updates on build
+
 ## Version History
 
 - **v1.0** (March 26, 2026): Initial fix for agent message visibility
