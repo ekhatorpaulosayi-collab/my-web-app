@@ -72,13 +72,13 @@ export const AIUsageCounter: React.FC<AIUsageCounterProps> = ({
     return (
       <div
         className={`ai-usage-compact ${isExhausted ? 'exhausted' : isLowCredits ? 'low' : ''}`}
-        title={`${usage.tierName} Tier: ${usage.chatsUsed.toLocaleString()} of ${usage.totalLimit.toLocaleString()} AI chats used this month`}
+        title={`${usage.tierName} Tier: ${usage.chatsUsed.toLocaleString()} of ${usage.totalLimit.toLocaleString()} AI chats used this month (${usage.chatsRemaining.toLocaleString()} remaining)`}
       >
         <div className="usage-icon">
           {isExhausted ? <Lock size={16} /> : <Zap size={16} />}
         </div>
         <span className="usage-text">
-          {isExhausted ? 'AI Locked' : `${usage.chatsRemaining.toLocaleString()} AI left`}
+          {isExhausted ? 'AI Locked' : `${usage.chatsUsed.toLocaleString()}/${usage.totalLimit.toLocaleString()} AI`}
         </span>
         {(isLowCredits || isExhausted) && (
           <button className="upgrade-btn-compact" onClick={handleUpgradeClick}>

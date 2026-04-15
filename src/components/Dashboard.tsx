@@ -70,6 +70,7 @@ export function Dashboard({
   const [showChannelAnalytics, setShowChannelAnalytics] = useState(false);
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showShareBanner, setShowShareBanner] = useState(false);
 
   // Three-dot menu state
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -516,7 +517,15 @@ export function Dashboard({
         onSetupStore={onViewSettings || (() => {})}
       /> */}
 
-      {/* ShareStoreBanner moved to MoreMenu */}
+      {/* Share Store Banner - Shows when user clicks "Online Store" from More Features */}
+      {showShareBanner && (
+        <ShareStoreBanner
+          storeUrl={storeUrl}
+          storeName={businessName}
+          onDismiss={() => setShowShareBanner(false)}
+          showDismiss={true}
+        />
+      )}
 
       {/* Payment Setup Nudge - Shows after 3+ products added, no payment methods */}
       {shouldShowPaymentNudge && (
@@ -1342,9 +1351,14 @@ export function Dashboard({
           onViewCustomers={onManageCredits}
           onViewExpenses={onViewExpenses}
           onViewSettings={onViewSettings}
-          onShowOnlineStore={handleShowHero}
+          onShowOnlineStore={() => {
+            setShowMoreMenu(false);
+            setShowShareBanner(true);
+          }}
           onSendDailySummary={onSendDailySummary}
           onExportData={onExportData}
+          storeUrl={storeUrl}
+          storeName={store?.store_name || 'My Store'}
           onStaffModeToggle={() => {
             setShowMoreMenu(false);
             setShowStaffLogin(true);

@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertCircle, Volume2, VolumeX, MessageSquare, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Volume2, VolumeX, X } from 'lucide-react';
 
 interface WaitingCustomerBannerProps {
   waitingCount: number;
@@ -20,6 +20,28 @@ const WaitingCustomerBanner: React.FC<WaitingCustomerBannerProps> = ({
   audioBlocked = false,
   onEnableAudio
 }) => {
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  useEffect(() => {
+    // Check if banner was dismissed in this session
+    const dismissed = sessionStorage.getItem('waiting-customer-banner-dismissed');
+    if (dismissed === 'true') {
+      setIsDismissed(true);
+    }
+  }, []);
+
+  const handleDismiss = () => {
+    sessionStorage.setItem('waiting-customer-banner-dismissed', 'true');
+    setIsDismissed(true);
+    if (onDismiss) {
+      onDismiss();
+    }
+  };
+
+  if (isDismissed) {
+    return null;
+  }
+
   return (
     <div
       className="waiting-customer-banner"
@@ -30,7 +52,6 @@ const WaitingCustomerBanner: React.FC<WaitingCustomerBannerProps> = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         borderRadius: '8px',
         margin: '8px 16px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
@@ -40,157 +61,132 @@ const WaitingCustomerBanner: React.FC<WaitingCustomerBannerProps> = ({
       }}
     >
       <style>{`
-        @keyframes pulse {
+        @keyframes whitePulse {
           0%, 100% {
             opacity: 1;
           }
           50% {
-            opacity: 0.9;
+            opacity: 0.3;
           }
         }
-        .mute-button:hover {
+        .waiting-customer-banner .mute-button:hover {
           background: rgba(255, 255, 255, 0.3) !important;
         }
-        .mute-button:active {
+        .waiting-customer-banner .mute-button:active {
           background: rgba(255, 255, 255, 0.4) !important;
-          transform: scale(0.98);
+        }
+        .waiting-customer-banner .view-chats-btn:hover {
+          background: #f5f5f5 !important;
+        }
+        .waiting-customer-banner .dismiss-btn:hover {
+          background: rgba(255, 255, 255, 0.3) !important;
         }
       `}</style>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <AlertCircle size={24} style={{ animation: 'bounce 1s infinite' }} />
+        {/* White pulsing dot with opacity animation */}
+        <div
+          style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            backgroundColor: 'white',
+            animation: 'whitePulse 1.5s ease-in-out infinite',
+            flexShrink: 0
+          }}
+        />
         <div>
-          <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
-            {waitingCount} customer{waitingCount !== 1 ? 's' : ''} waiting for help!
+          <div style={{ fontWeight: 'bold', fontSize: '15px', lineHeight: '1.2' }}>
+            {waitingCount} customer{waitingCount !== 1 ? 's' : ''} waiting
           </div>
-          <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            {audioBlocked ?
-              'Sound alerts are blocked - Enable sound to hear notifications' :
-              'They requested assistance and are waiting for you to respond'}
-          </div>
+          {isMuted && !audioBlocked && (
+            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '4px' }}>
+              Tap speaker to enable sound
+            </div>
+          )}
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {audioBlocked && onEnableAudio ? (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+        {/* Mute/Unmute toggle button */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (audioBlocked && onEnableAudio) {
               onEnableAudio();
-            }}
-            style={{
-              background: 'white',
-              color: '#DC2626',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '8px 16px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              transition: 'transform 0.2s, box-shadow 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-            type="button"
-          >
-            <Volume2 size={18} />
-            Enable Sound
-          </button>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+            } else {
               onToggleMute();
-            }}
-            className="mute-button"
-            style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              borderRadius: '6px',
-              padding: '8px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: 'white',
-              transition: 'background 0.2s',
-              position: 'relative',
-              zIndex: 1001
-            }}
-            type="button"
-          >
-            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            <span style={{ fontSize: '14px' }}>{isMuted ? 'Unmute' : 'Mute'}</span>
-          </button>
-        )}
+            }
+          }}
+          className="mute-button"
+          style={{
+            background: 'rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '6px',
+            width: '32px',
+            height: '32px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            transition: 'background 0.2s',
+            padding: 0
+          }}
+          type="button"
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        </button>
 
+        {/* View chats button */}
         <button
           onClick={onGoToChats}
+          className="view-chats-btn"
           style={{
             background: 'white',
             color: '#DC2626',
             border: 'none',
             borderRadius: '6px',
-            padding: '8px 16px',
+            padding: '0 14px',
+            height: '32px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            fontWeight: 'bold',
-            fontSize: '14px',
-            transition: 'transform 0.2s, box-shadow 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = 'none';
+            gap: '4px',
+            fontWeight: '600',
+            fontSize: '13px',
+            transition: 'background 0.2s',
+            whiteSpace: 'nowrap'
           }}
         >
-          <MessageSquare size={18} />
-          Go to Customer Chats
+          View chats
         </button>
 
-        {onDismiss && (
-          <button
-            onClick={onDismiss}
-            style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              borderRadius: '6px',
-              padding: '6px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              color: 'white',
-              transition: 'background 0.2s',
-              marginLeft: '8px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-            }}
-            title="Dismiss for this session"
-            type="button"
-          >
-            <X size={20} />
-          </button>
-        )}
+        {/* Dismiss button */}
+        <button
+          onClick={handleDismiss}
+          className="dismiss-btn"
+          style={{
+            background: 'rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '6px',
+            width: '32px',
+            height: '32px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            transition: 'background 0.2s',
+            padding: 0
+          }}
+          title="Dismiss for this session"
+          type="button"
+        >
+          <X size={16} />
+        </button>
       </div>
     </div>
   );

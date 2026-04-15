@@ -27,6 +27,8 @@ interface MoreMenuProps {
   onStaffModeToggle?: () => void;
   onViewChannelAnalytics?: () => void;
   onViewHistory?: () => void;
+  storeUrl?: string;
+  storeName?: string;
 }
 
 export const MoreMenu: React.FC<MoreMenuProps> = ({
@@ -43,7 +45,9 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
   onExportData,
   onStaffModeToggle,
   onViewChannelAnalytics,
-  onViewHistory
+  onViewHistory,
+  storeUrl,
+  storeName = 'My Store'
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const navigate = useNavigate();
@@ -113,7 +117,27 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           icon: QrCode,
           label: 'WhatsApp Store Link',
           description: 'Share via WhatsApp or QR code',
-          action: onShowOnlineStore // Reuse the same action as Online Store
+          action: () => {
+            if (storeUrl) {
+              // Create WhatsApp share message
+              const message = `🏪 *${storeName}*\n\n` +
+                `🛍️ Browse all my products!\n\n` +
+                `✨ Easy ordering via WhatsApp\n` +
+                `💳 Pay with card or bank transfer\n` +
+                `📦 Fast delivery across Nigeria\n\n` +
+                `👉 Visit store: ${storeUrl}\n\n` +
+                `🔥 Start shopping now!`;
+
+              const fullMessage = message + '\n\n' + storeUrl;
+              const encodedMessage = encodeURIComponent(fullMessage);
+              const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+
+              // Open WhatsApp share
+              window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+            } else {
+              alert('Store URL is not configured. Please check your store settings.');
+            }
+          }
         }
       ]
     },

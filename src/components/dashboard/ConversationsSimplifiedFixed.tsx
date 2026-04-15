@@ -38,6 +38,125 @@ interface Conversation {
 
 type TabFilter = 'waiting' | 'active' | 'all';
 
+// Markdown rendering functions (copied from AIChatWidget)
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, lineIndex) => {
+    // Handle horizontal rules (---)
+    if (line.trim() === '---') {
+      elements.push(<hr key={lineIndex} style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />);
+      return;
+    }
+
+    // Handle headings (## text)
+    const headingMatch = line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ fontWeight: 700, fontSize: '1.0625rem', marginTop: '8px', marginBottom: '4px' }}>
+          {parseInlineMarkdown(headingMatch[1])}
+        </div>
+      );
+      return;
+    }
+
+    // Handle numbered lists (1️⃣ or 1. text)
+    const numberedMatch = line.match(/^(\d+[️⃣.])\s+(.+)$/);
+    if (numberedMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ marginLeft: '8px', marginTop: '4px' }}>
+          <span style={{ fontWeight: 600 }}>{numberedMatch[1]}</span> {parseInlineMarkdown(numberedMatch[2])}
+        </div>
+      );
+      return;
+    }
+
+    // Handle bullet lists (✅ or - or • text)
+    const bulletMatch = line.match(/^([✅🎉📧💬📞🔵🟢🟣→•-])\s+(.+)$/);
+    if (bulletMatch) {
+      elements.push(
+        <div key={lineIndex} style={{ marginLeft: '8px', marginTop: '4px' }}>
+          {bulletMatch[1]} {parseInlineMarkdown(bulletMatch[2])}
+        </div>
+      );
+      return;
+    }
+
+    // Regular text with inline markdown
+    if (line.trim()) {
+      elements.push(
+        <div key={lineIndex} style={{ marginTop: '4px' }}>
+          {parseInlineMarkdown(line)}
+        </div>
+      );
+    } else {
+      // Empty line = spacing
+      elements.push(<div key={lineIndex} style={{ height: '4px' }} />);
+    }
+  });
+
+  // Wrap in a div for better mobile rendering instead of Fragment
+  return <div style={{ display: 'contents' }}>{elements}</div>;
+}
+
+// Parse inline markdown (bold, links)
+function parseInlineMarkdown(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Check for markdown link [text](url)
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (linkMatch) {
+      const linkText = linkMatch[1];
+      const linkUrl = linkMatch[2];
+      parts.push(
+        <a
+          key={key++}
+          href={linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#667eea',
+            fontWeight: 600,
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          }}
+        >
+          {linkText}
+        </a>
+      );
+      remaining = remaining.substring(linkMatch[0].length);
+      continue;
+    }
+
+    // Check for bold **text**
+    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
+    if (boldMatch) {
+      parts.push(<strong key={key++}>{boldMatch[1]}</strong>);
+      remaining = remaining.substring(boldMatch[0].length);
+      continue;
+    }
+
+    // Regular text until next markdown
+    const nextSpecial = remaining.search(/\[|\*\*/);
+    if (nextSpecial === -1) {
+      // No more markdown, add rest as text
+      parts.push(<span key={key++}>{remaining}</span>);
+      break;
+    } else {
+      // Add text before next markdown
+      parts.push(<span key={key++}>{remaining.substring(0, nextSpecial)}</span>);
+      remaining = remaining.substring(nextSpecial);
+    }
+  }
+
+  return <span style={{ display: 'inline' }}>{parts}</span>;
+}
+
 export default function ConversationsSimplifiedFixed() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -48,6 +167,7 @@ export default function ConversationsSimplifiedFixed() {
   const [isTakeoverActive, setIsTakeoverActive] = useState(false);
   const [hasTakeoverMessageSent, setHasTakeoverMessageSent] = useState(false);
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
+  const [isMobile, setIsMobile] = useState(false);
 
   const { currentUser: user } = useAuth();
   const navigate = useNavigate();
@@ -128,6 +248,64 @@ export default function ConversationsSimplifiedFixed() {
         .limit(50);
 
       if (!error && data) {
+        // Auto-expire stale conversations
+        for (const conv of data) {
+          try {
+            // Check if waiting for too long (> 30 minutes)
+            if (conv.waiting_for_owner_since) {
+              const waitingTime = Date.now() - new Date(conv.waiting_for_owner_since).getTime();
+              if (waitingTime > 30 * 60 * 1000) {
+                // Update database to end the waiting state
+                await supabase
+                  .from('ai_chat_conversations')
+                  .update({
+                    waiting_for_owner_since: null,
+                    is_agent_active: false,
+                    takeover_status: 'ai'
+                  })
+                  .eq('id', conv.id);
+
+                // Update local object
+                conv.waiting_for_owner_since = null;
+                conv.is_agent_active = false;
+                conv.takeover_status = 'ai';
+              }
+            }
+
+            // Check if agent session is too old (> 24 hours since last message)
+            if (conv.is_agent_active) {
+              const { data: lastMessage } = await supabase
+                .from('ai_chat_messages')
+                .select('created_at')
+                .eq('conversation_id', conv.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (lastMessage) {
+                const timeSinceLastMessage = Date.now() - new Date(lastMessage.created_at).getTime();
+                if (timeSinceLastMessage > 24 * 60 * 60 * 1000) {
+                  // Update database to end the agent session
+                  await supabase
+                    .from('ai_chat_conversations')
+                    .update({
+                      is_agent_active: false,
+                      takeover_status: 'ai'
+                    })
+                    .eq('id', conv.id);
+
+                  // Update local object
+                  conv.is_agent_active = false;
+                  conv.takeover_status = 'ai';
+                }
+              }
+            }
+          } catch (expireError) {
+            // If update fails, just display as-is
+            console.error('Error expiring conversation:', expireError);
+          }
+        }
+
         // Load first message for each conversation
         const conversationsWithMessages = await Promise.all(
           data.map(async (conv) => {
@@ -274,7 +452,7 @@ export default function ConversationsSimplifiedFixed() {
         .select('id')
         .eq('conversation_id', selectedConversation.id)
         .eq('sender_type', 'system')
-        .eq('content', 'A human agent has joined the chat')
+        .or('content.eq.A human agent has joined the chat,content.eq.You joined the chat')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -285,7 +463,7 @@ export default function ConversationsSimplifiedFixed() {
           .insert({
             conversation_id: selectedConversation.id,
             role: 'system',
-            content: 'A human agent has joined the chat',
+            content: 'You joined the chat',
             sender_type: 'system'
           });
       }
@@ -441,6 +619,23 @@ export default function ConversationsSimplifiedFixed() {
     };
   }, [selectedConversation?.id]);
 
+  // Detect mobile/desktop and handle resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    // Check on mount
+    checkMobile();
+
+    // Listen for resize events
+    window.addEventListener('resize', checkMobile);
+
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
   // Load conversations on mount
   useEffect(() => {
     if (user) {
@@ -483,11 +678,17 @@ export default function ConversationsSimplifiedFixed() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f9fafb' }}>
-      {/* Sidebar */}
-      <div style={{ width: '380px', backgroundColor: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
-        {/* Blue Gradient Header */}
+      {/* Sidebar - hide on mobile when conversation is selected */}
+      <div style={{
+        width: isMobile ? '100%' : '380px',
+        backgroundColor: 'white',
+        borderRight: isMobile ? 'none' : '1px solid #e5e7eb',
+        display: (isMobile && selectedConversation) ? 'none' : 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* Blue Header (matching main dashboard) */}
         <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          backgroundColor: '#2063F0',
           padding: '20px',
           color: 'white'
         }}>
@@ -510,12 +711,12 @@ export default function ConversationsSimplifiedFixed() {
             <h2 style={{ fontSize: '24px', fontWeight: '600', margin: 0 }}>Conversations</h2>
           </div>
 
-          {/* Quota Alert */}
-          <QuotaAlert userId={user?.uid} />
+          {/* Quota Alert - Hidden on this page as dashboard already handles it */}
+          {/* <QuotaAlert userId={user?.uid} /> */}
         </div>
 
         {/* Tab Filter Bar */}
-        <div style={{ padding: '12px 16px', backgroundColor: 'white', borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ padding: '12px 0 12px 16px', backgroundColor: 'white', borderBottom: '1px solid #e5e7eb' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={() => setActiveTab('waiting')}
@@ -527,9 +728,9 @@ export default function ConversationsSimplifiedFixed() {
                 fontSize: '14px',
                 fontWeight: '500',
                 transition: 'all 0.2s',
-                backgroundColor: activeTab === 'waiting' ? 'white' : '#f3f4f6',
-                color: activeTab === 'waiting' ? '#3b82f6' : '#6b7280',
-                boxShadow: activeTab === 'waiting' ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'
+                backgroundColor: activeTab === 'waiting' ? '#2063F0' : '#f0f0f0',
+                color: activeTab === 'waiting' ? 'white' : '#666',
+                boxShadow: activeTab === 'waiting' ? '0 2px 4px rgba(32, 99, 240, 0.25)' : 'none'
               }}
             >
               Waiting {waitingCount > 0 && `(${waitingCount})`}
@@ -544,9 +745,9 @@ export default function ConversationsSimplifiedFixed() {
                 fontSize: '14px',
                 fontWeight: '500',
                 transition: 'all 0.2s',
-                backgroundColor: activeTab === 'active' ? 'white' : '#f3f4f6',
-                color: activeTab === 'active' ? '#3b82f6' : '#6b7280',
-                boxShadow: activeTab === 'active' ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'
+                backgroundColor: activeTab === 'active' ? '#2063F0' : '#f0f0f0',
+                color: activeTab === 'active' ? 'white' : '#666',
+                boxShadow: activeTab === 'active' ? '0 2px 4px rgba(32, 99, 240, 0.25)' : 'none'
               }}
             >
               Active
@@ -561,9 +762,9 @@ export default function ConversationsSimplifiedFixed() {
                 fontSize: '14px',
                 fontWeight: '500',
                 transition: 'all 0.2s',
-                backgroundColor: activeTab === 'all' ? 'white' : '#f3f4f6',
-                color: activeTab === 'all' ? '#3b82f6' : '#6b7280',
-                boxShadow: activeTab === 'all' ? '0 1px 3px rgba(0, 0, 0, 0.12)' : 'none'
+                backgroundColor: activeTab === 'all' ? '#2063F0' : '#f0f0f0',
+                color: activeTab === 'all' ? 'white' : '#666',
+                boxShadow: activeTab === 'all' ? '0 2px 4px rgba(32, 99, 240, 0.25)' : 'none'
               }}
             >
               All
@@ -601,7 +802,7 @@ export default function ConversationsSimplifiedFixed() {
           ) : (
             filteredConversations.map(conv => {
               const status = getConversationStatus(conv);
-              const isEnded = status === 'ended' || status === 'missed';
+              const isOld = Date.now() - new Date(conv.updated_at).getTime() > 24 * 60 * 60 * 1000; // 24 hours
 
               return (
                 <div
@@ -613,7 +814,7 @@ export default function ConversationsSimplifiedFixed() {
                     cursor: 'pointer',
                     backgroundColor: selectedConversation?.id === conv.id ? '#f0f9ff' : 'white',
                     transition: 'background-color 0.2s',
-                    opacity: isEnded ? 0.6 : 1,
+                    opacity: isOld ? 0.45 : 1,
                     display: 'flex',
                     gap: '12px',
                     alignItems: 'center'
@@ -627,16 +828,20 @@ export default function ConversationsSimplifiedFixed() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: status === 'waiting' ? '#ef4444' :
-                                   status === 'active' ? '#10b981' :
-                                   status === 'missed' ? '#f59e0b' : '#9ca3af',
-                    color: 'white',
-                    flexShrink: 0
+                    backgroundColor: status === 'waiting' ? '#FEE2E2' :
+                                   status === 'active' ? '#DCFCE7' :
+                                   status === 'missed' ? '#FEF3C7' : '#F3F4F6',
+                    color: status === 'waiting' ? '#DC2626' :
+                          status === 'active' ? '#16A34A' :
+                          status === 'missed' ? '#92400E' : '#9CA3AF',
+                    flexShrink: 0,
+                    fontSize: '16px',
+                    fontWeight: '600'
                   }}>
                     {status === 'waiting' ? '!' :
-                     status === 'active' ? <Check size={20} /> :
-                     status === 'missed' ? '!' :
-                     <Check size={20} />}
+                     status === 'active' ? '●' :
+                     status === 'missed' ? '⚠' :
+                     '✓'}
                   </div>
 
                   {/* Content */}
@@ -665,18 +870,19 @@ export default function ConversationsSimplifiedFixed() {
                     )}
 
                     {/* Status Badge */}
-                    <div>
+                    <div style={{ marginTop: '5px' }}>
                       <span style={{
-                        padding: '2px 8px',
+                        padding: '3px 10px',
                         borderRadius: '12px',
-                        fontSize: '11px',
+                        fontSize: '10px',
                         fontWeight: '500',
-                        backgroundColor: status === 'waiting' ? '#fef2f2' :
-                                       status === 'active' ? '#f0fdf4' :
-                                       status === 'missed' ? '#fef3c7' : '#f3f4f6',
-                        color: status === 'waiting' ? '#dc2626' :
-                               status === 'active' ? '#059669' :
-                               status === 'missed' ? '#d97706' : '#6b7280'
+                        backgroundColor: status === 'waiting' ? '#FEE2E2' :
+                                       status === 'active' ? '#DCFCE7' :
+                                       status === 'missed' ? '#FEF3C7' : '#F3F4F6',
+                        color: status === 'waiting' ? '#DC2626' :
+                               status === 'active' ? '#16A34A' :
+                               status === 'missed' ? '#92400E' : '#6B7280',
+                        display: 'inline-block'
                       }}>
                         {status === 'waiting' ? 'Waiting for you' :
                          status === 'active' ? 'Agent active' :
@@ -691,21 +897,26 @@ export default function ConversationsSimplifiedFixed() {
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Chat Area - show full width on mobile when conversation selected, or hide when no conversation */}
+      <div style={{
+        flex: 1,
+        display: (isMobile && !selectedConversation) ? 'none' : 'flex',
+        flexDirection: 'column',
+        width: isMobile ? '100%' : 'auto'
+      }}>
         {selectedConversation ? (
           <>
-            {/* Header with Blue Gradient */}
+            {/* Header with Blue background */}
             <div style={{
               padding: '16px 24px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              backgroundColor: '#2063F0',
               color: 'white',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                {/* Back Chevron */}
+                {/* Back Chevron - always visible on mobile, optional on desktop */}
                 <button
                   onClick={() => setSelectedConversation(null)}
                   style={{
@@ -727,17 +938,28 @@ export default function ConversationsSimplifiedFixed() {
                   <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
                     {getCustomerName(selectedConversation)}
                   </h3>
-                  {selectedConversation.detected_language &&
-                   selectedConversation.detected_language.toLowerCase() !== 'english' && (
-                    <p style={{
-                      fontSize: '12px',
-                      opacity: 0.9,
-                      marginTop: '2px',
-                      margin: 0
-                    }}>
-                      Translating: {selectedConversation.detected_language} ↔ English
-                    </p>
-                  )}
+                  {(() => {
+                    // Get the most recent customer message's detected language
+                    const recentCustomerMsg = selectedConversation.messages
+                      ?.filter(m => m.role === 'user' && !m.is_agent_message)
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+                    const detectedLang = recentCustomerMsg?.detected_language || selectedConversation.detected_language;
+
+                    if (detectedLang && detectedLang.toLowerCase() !== 'english') {
+                      return (
+                        <p style={{
+                          fontSize: '12px',
+                          opacity: 0.9,
+                          marginTop: '2px',
+                          margin: 0
+                        }}>
+                          Translating: {detectedLang} ↔ English
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 
@@ -831,7 +1053,7 @@ export default function ConversationsSimplifiedFixed() {
                         fontSize: '12px',
                         fontWeight: '500'
                       }}>
-                        {msg.content}
+                        {msg.content === 'A human agent has joined the chat' ? 'You joined the chat' : msg.content}
                       </div>
                     </div>
                   );
@@ -870,14 +1092,16 @@ export default function ConversationsSimplifiedFixed() {
                     }}>
                       {/* Main message content */}
                       <div style={{ lineHeight: '1.5', wordBreak: 'break-word' }}>
-                        {msg.content}
+                        {isAI ? renderMarkdown(msg.content) : msg.content}
                       </div>
 
                       {/* Translation display for customer messages */}
-                      {isCustomer && msg.translated_text && msg.detected_language?.toLowerCase() !== 'english' && (
+                      {isCustomer && msg.translated_text && msg.detected_language &&
+                       msg.detected_language.toLowerCase() !== 'english' &&
+                       msg.detected_language.toLowerCase() !== 'en' && (
                         <div style={{
-                          fontSize: '12px',
-                          color: '#6b7280',
+                          fontSize: '11px',
+                          color: '#666',
                           fontStyle: 'italic',
                           marginTop: '8px',
                           paddingTop: '8px',
