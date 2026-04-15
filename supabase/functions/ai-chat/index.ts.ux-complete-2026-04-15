@@ -860,9 +860,8 @@ serve(async (req) => {
       confidence = aiResult.confidence;
     }
 
-    // SAFEGUARD 3: Validate AI response stayed on-topic (skip for help and onboarding contexts)
-    // Help and onboarding contexts are about Storehouse features by definition, so they don't need strict validation
-    if (contextType !== 'help' && contextType !== 'onboarding' && !validateResponse(aiResponse, message)) {
+    // SAFEGUARD 3: Validate AI response stayed on-topic
+    if (!validateResponse(aiResponse, message)) {
       await logAbuseAttempt(supabase, userId, ipAddress, 'suspicious_response', message);
       console.warn('[Validation] AI went off-topic, using fallback', {
         userId,
@@ -894,27 +893,40 @@ serve(async (req) => {
     }
 
     // Save AI response (including for storefront visitors)
-    if (conversation && aiResponse) {
-      try {
-        const responseData: any = {
-          conversation_id: conversation.id,
-          role: 'assistant',
-          content: aiResponse,
-        };
-        // Add store_id if available
-        if (storeId) {
-          responseData.store_id = storeId;
-        }
-        await supabase.from('ai_chat_messages').insert(responseData);
-        console.log('[ai-chat] Saved assistant response to conversation');
-      } catch (error) {
-        console.error('[ai-chat] Error saving assistant response:', error);
+    if (conversation) {
+      const responseData: any = {
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: aiResponse,
+      };
+      // Add store_id if available
+      if (storeId) {
+        responseData.store_id = storeId;
       }
+      await supabase.from('ai_chat_messages').insert(responseData);
     }
 
     // Update user preferences based on conversation (skip for visitors)
     if (userId && userType !== 'visitor') {
       await updateUserPreferences(supabase, userId, message, userContext);
+    }
+
+    // Save assistant response to conversation (for authenticated users)
+    if (conversation && aiResponse) {
+      try {
+        const assistantMessageData: any = {
+          conversation_id: conversation.id,
+          role: 'assistant',
+          content: aiResponse,
+        };
+        if (storeId) {
+          assistantMessageData.store_id = storeId;
+        }
+        await supabase.from('ai_chat_messages').insert(assistantMessageData);
+        console.log('[ai-chat] Saved assistant response to conversation');
+      } catch (error) {
+        console.error('[ai-chat] Error saving assistant response:', error);
+      }
     }
 
     console.log('[ai-chat] Returning response, length:', aiResponse?.length || 0);
@@ -923,7 +935,6 @@ serve(async (req) => {
       response: aiResponse,
       confidence: confidence,  // NEW: For escalation logic
       quotaInfo: quotaInfo,
-      conversationId: conversation?.id || null,  // CRITICAL: Include conversation ID for polling
       context: {
         productCount: userContext.product_count,
         salesCount: userContext.sales_count,

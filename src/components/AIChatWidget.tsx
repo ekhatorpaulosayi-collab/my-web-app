@@ -1257,6 +1257,11 @@ export default function AIChatWidget({
 
       const data = await response.json();
 
+      // DEBUG: Log the edge function response for help context
+      if (contextType === 'help') {
+        console.log('[HELP-DEBUG] Edge function response:', data);
+      }
+
       if (!response.ok) {
         console.error('[AIChatWidget] API Error:', {
           status: response.status,
