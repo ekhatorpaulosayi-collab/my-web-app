@@ -1,0 +1,504 @@
+/**
+ * More Menu Component
+ * Hidden features accessible via "More" button
+ */
+
+import React, { useRef, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, QrCode, FileSpreadsheet, Sparkles, Lock } from 'lucide-react';
+import { useStaff } from '../contexts/StaffContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getUserTier } from '../services/subscriptionService';
+import { NotificationBadge } from './dashboard/OwnerNotificationManager';
+import './MoreMenu.css';
+
+interface MoreMenuProps {
+  onClose: () => void;
+  onViewInventory?: () => void;
+  onViewLowStock?: () => void;
+  onViewMoney?: () => void;
+  onViewReports?: () => void;
+  onViewCustomers?: () => void;
+  onViewExpenses?: () => void;
+  onViewSettings?: () => void;
+  onShowOnlineStore?: () => void;
+  onSendDailySummary?: () => void;
+  onExportData?: () => void;
+  onStaffModeToggle?: () => void;
+  onViewChannelAnalytics?: () => void;
+  onViewHistory?: () => void;
+  storeUrl?: string;
+  storeName?: string;
+}
+
+export const MoreMenu: React.FC<MoreMenuProps> = ({
+  onClose,
+  onViewInventory,
+  onViewLowStock,
+  onViewMoney,
+  onViewReports,
+  onViewCustomers,
+  onViewExpenses,
+  onViewSettings,
+  onShowOnlineStore,
+  onSendDailySummary,
+  onExportData,
+  onStaffModeToggle,
+  onViewChannelAnalytics,
+  onViewHistory,
+  storeUrl,
+  storeName = 'My Store'
+}) => {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const navigate = useNavigate();
+  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, currentRole } = useStaff();
+  const { currentUser } = useAuth();
+  const [userTier, setUserTier] = useState<string>('Free');
+  const [isOwner, setIsOwner] = useState(false);
+
+  // Check if current user is the store owner and fetch tier
+  useEffect(() => {
+    const checkOwnerAndTier = async () => {
+      if (currentUser) {
+        // Check if user is in owner mode (not staff mode)
+        const ownerCheck = currentRole === 'owner';
+        setIsOwner(ownerCheck);
+
+        // Fetch user tier
+        const tierData = await getUserTier(currentUser.uid);
+        if (tierData) {
+          setUserTier(tierData.tier_name || 'Free');
+        }
+      }
+    };
+
+    checkOwnerAndTier();
+  }, [currentUser, currentRole]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    dialog.showModal();
+
+    // Prevent closing on backdrop click
+    const handleDialogClick = (e: MouseEvent) => {
+      const rect = dialog.getBoundingClientRect();
+      const isInDialog = (
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width
+      );
+      // If click is outside dialog bounds (on backdrop), prevent default
+      if (!isInDialog) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    // Handle Escape key separately
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault(); // Prevent default dialog close
+        dialog.close();
+        onClose();
+      }
+    };
+
+    // Add event listeners
+    dialog.addEventListener('click', handleDialogClick);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      dialog.removeEventListener('click', handleDialogClick);
+      document.removeEventListener('keydown', handleEscape);
+      // Clean up dialog on unmount
+      if (dialog.open) {
+        dialog.close();
+      }
+    };
+  }, [onClose]);
+
+  // Helper function to check if feature is available for user's tier
+  const isFeatureLocked = (requiredTier: string) => {
+    const tierOrder = ['Free', 'Starter', 'Pro'];
+    const userTierIndex = tierOrder.indexOf(userTier);
+    const requiredTierIndex = tierOrder.indexOf(requiredTier);
+    return userTierIndex < requiredTierIndex;
+  };
+
+  // Helper function to get tier badge for feature
+  const getTierBadge = (requiredTier: string) => {
+    if (requiredTier === 'Free') return '[FREE]';
+    if (requiredTier === 'Starter') return '[STARTER]';
+    if (requiredTier === 'Pro') return '[PRO]';
+    return '';
+  };
+
+  // Organize menu items into sections with premium color themes
+  const sections = [
+    {
+      title: 'SELL',
+      theme: 'teal',
+      items: [
+        {
+          icon: BarChart2,
+          label: 'Sales History',
+          description: 'View and search all your sales',
+          action: onViewHistory,
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: Share2,
+          label: 'Online Store (Free Mini Website)',
+          description: '🌐 Share your catalog — customers browse 24/7',
+          action: onShowOnlineStore,
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: QrCode,
+          label: 'WhatsApp Store Link',
+          description: 'Share via WhatsApp or QR code',
+          action: () => {
+            if (storeUrl) {
+              // Create WhatsApp share message
+              const message = `🏪 *${storeName}*\n\n` +
+                `🛍️ Browse all my products!\n\n` +
+                `✨ Easy ordering via WhatsApp\n` +
+                `💳 Pay with card or bank transfer\n` +
+                `📦 Fast delivery across Nigeria\n\n` +
+                `👉 Visit store: ${storeUrl}\n\n` +
+                `🔥 Start shopping now!`;
+
+              const fullMessage = message + '\n\n' + storeUrl;
+              const encodedMessage = encodeURIComponent(fullMessage);
+              const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+
+              // Open WhatsApp share
+              window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+            } else {
+              alert('Store URL is not configured. Please check your store settings.');
+            }
+          },
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: CreditCard,
+          label: 'Paystack Payments',
+          description: 'Accept card payments online',
+          action: () => {
+            if (isFeatureLocked('Starter')) {
+              navigate('/upgrade');
+            } else {
+              // Navigate to payment settings
+              navigate('/settings#payment');
+            }
+          },
+          requiredTier: 'Starter',
+          badge: '[STARTER]',
+          locked: isFeatureLocked('Starter')
+        }
+      ]
+    },
+    {
+      title: 'MANAGE',
+      theme: 'purple',
+      items: [
+        {
+          icon: BookOpen,
+          label: 'Money Book',
+          description: 'Credit sales and ajo/contribution groups',
+          action: onViewCustomers, // Fixed: This opens CustomerDebtDrawer (Money Book with Credit Sales + Contributions tabs)
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: MessageCircle,
+          label: 'AI Customer Chat',
+          description: 'Conversations from your online store',
+          action: () => navigate('/conversations'),
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: Receipt,
+          label: 'Professional Invoices',
+          description: 'Send invoices in 30 seconds',
+          action: () => navigate('/invoices'),
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: UserCog,
+          label: 'Staff Management',
+          description: 'Add and manage team members',
+          action: () => {
+            if (isFeatureLocked('Starter')) {
+              navigate('/upgrade');
+            } else if (canManageStaff() && !isStaffMode) {
+              navigate('/staff');
+            } else {
+              alert('Staff management is only available for store owners.');
+            }
+          },
+          requiredTier: 'Starter',
+          badge: '[STARTER]',
+          locked: isFeatureLocked('Starter')
+        },
+        {
+          icon: FileSpreadsheet,
+          label: 'Export Data',
+          description: 'Download for Excel or Google Sheets',
+          action: () => {
+            if (isFeatureLocked('Starter')) {
+              navigate('/upgrade');
+            } else {
+              onExportData?.();
+            }
+          },
+          requiredTier: 'Starter',
+          badge: '[STARTER]',
+          locked: isFeatureLocked('Starter')
+        }
+      ]
+    },
+    {
+      title: 'TRACK',
+      theme: 'amber',
+      items: [
+        {
+          icon: Sparkles,
+          label: 'Business Insights',
+          description: 'AI-powered daily summary of your business',
+          action: () => {
+            if (isFeatureLocked('Pro')) {
+              navigate('/upgrade');
+            } else {
+              navigate('/dashboard/insights');
+            }
+          },
+          requiredTier: 'Pro',
+          badge: '[PRO]',
+          locked: isFeatureLocked('Pro')
+        },
+        {
+          icon: TrendingUp,
+          label: 'Money & Profits',
+          description: 'Item costs, prices, and margins',
+          action: onViewMoney, // This opens the Money & Profits page
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: Send,
+          label: 'Daily Sales Summary',
+          description: 'Daily digest via email or WhatsApp',
+          action: onSendDailySummary,
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        },
+        {
+          icon: BarChart3,
+          label: 'Sales by Channel',
+          description: 'Instagram, WhatsApp, Walk-in',
+          action: () => {
+            if (isFeatureLocked('Pro')) {
+              navigate('/upgrade');
+            } else {
+              onViewChannelAnalytics?.();
+            }
+          },
+          requiredTier: 'Pro',
+          badge: '[PRO]',
+          locked: isFeatureLocked('Pro')
+        },
+        {
+          icon: UserCircle2,
+          label: 'Customers',
+          description: 'Purchases, loyalty, outstanding payments',
+          action: () => navigate('/customers'), // Fixed: Navigate to customers page, not credits
+          requiredTier: 'Free',
+          badge: '[FREE]'
+        }
+      ]
+    },
+    {
+      title: 'GROWTH',
+      theme: 'green',
+      items: [
+        {
+          icon: Star,
+          label: 'Customer Reviews',
+          description: 'Collect and display testimonials',
+          action: () => {
+            if (isFeatureLocked('Pro')) {
+              navigate('/upgrade');
+            } else {
+              navigate('/reviews');
+            }
+          },
+          requiredTier: 'Pro',
+          badge: '[PRO]',
+          locked: isFeatureLocked('Pro')
+        },
+        {
+          icon: Gift,
+          label: 'Partner Program',
+          description: '30% recurring commission on referrals',
+          action: () => {
+            if (isFeatureLocked('Starter')) {
+              navigate('/upgrade');
+            } else {
+              navigate('/affiliate/signup');
+            }
+          },
+          requiredTier: 'Starter',
+          badge: '[STARTER] EARN MONEY',
+          locked: isFeatureLocked('Starter')
+        }
+      ]
+    },
+    {
+      title: 'ACCOUNT',
+      theme: 'grey',
+      items: [
+        {
+          icon: CreditCard,
+          label: 'Subscription & Billing',
+          description: 'Upgrade plan, manage billing',
+          action: () => navigate('/upgrade')
+        },
+        // Staff Mode Login (show if owner and not in staff mode)
+        ...(!isStaffMode && canManageStaff() ? [{
+          icon: Users,
+          label: 'Staff Mode',
+          description: 'Login as staff member',
+          action: onStaffModeToggle
+        }] : []),
+        // Staff Mode Toggle (show if in staff mode)
+        ...(isStaffMode ? [{
+          icon: LogOut,
+          label: 'Exit Staff Mode',
+          description: `Logged in as ${currentStaff?.name}`,
+          action: () => {
+            exitStaffMode();
+            alert('Exited staff mode');
+          }
+        }] : []),
+        {
+          icon: HelpCircle,
+          label: 'Getting Started Guide',
+          description: 'Show setup checklist',
+          action: () => {
+            window.dispatchEvent(new Event('show-getting-started'));
+          }
+        }
+      ]
+    }
+  ];
+
+  const handleItemClick = (action?: () => void) => {
+    // Close dialog first
+    dialogRef.current?.close();
+    onClose();
+    // Execute action immediately
+    action?.();
+  };
+
+  // Handle cancel event (ESC key or backdrop click in some browsers)
+  const handleCancel = (e: Event) => {
+    e.preventDefault(); // Prevent the dialog from closing
+  };
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="more-menu"
+      onClose={onClose}
+      onCancel={handleCancel as any}
+    >
+      <div className="more-menu-content">
+        <div className="more-menu-header">
+          <h3>More Features</h3>
+          <button
+            onClick={() => {
+              dialogRef.current?.close();
+              onClose();
+            }}
+            className="more-menu-close"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="more-menu-sections">
+          {sections.map((section) => (
+            <div key={section.title} className="more-menu-section">
+              <h4 className={`more-menu-section-title more-menu-section-title--${section.theme}`}>
+                {section.title}
+              </h4>
+              <div className={`more-menu-card more-menu-card--${section.theme}`}>
+                {section.items.map((item, index) => {
+                  const Icon = item.icon;
+                  const isCustomerChats = item.label === 'AI Customer Chat';
+                  const isLocked = (item as any).locked;
+
+                  return (
+                    <button
+                      key={item.label}
+                      className={`more-menu-item ${index > 0 ? 'more-menu-item--bordered' : ''} ${isLocked ? 'more-menu-item--locked' : ''}`}
+                      onClick={() => {
+                        if (isLocked) {
+                          // Navigate to upgrade page if locked
+                          handleItemClick(() => navigate('/upgrade'));
+                        } else {
+                          handleItemClick(item.action);
+                        }
+                      }}
+                      disabled={!item.action && !isLocked}
+                      style={{ position: 'relative' }}
+                    >
+                      <div className="more-menu-item-content">
+                        <div className={`more-menu-icon-wrapper more-menu-icon-wrapper--${section.theme}`}>
+                          {isLocked ? (
+                            <Lock size={18} className="more-menu-icon" />
+                          ) : (
+                            <>
+                              <Icon size={18} className="more-menu-icon" />
+                              {isCustomerChats && <NotificationBadge />}
+                            </>
+                          )}
+                        </div>
+                        <div className="more-menu-text">
+                          <div className="more-menu-label">
+                            {item.label}
+                            {(item as any).badge && (
+                              <span className={`more-menu-badge ${
+                                (item as any).badge.includes('EARN MONEY') ? 'more-menu-badge--earn' :
+                                (item as any).badge.includes('[PRO]') ? 'more-menu-badge--pro' :
+                                (item as any).badge.includes('[STARTER]') ? 'more-menu-badge--starter' :
+                                'more-menu-badge--free'
+                              }`}>
+                                {(item as any).badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="more-menu-description">{item.description}</div>
+                        </div>
+                        <div className="more-menu-chevron">›</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </dialog>
+  );
+};
