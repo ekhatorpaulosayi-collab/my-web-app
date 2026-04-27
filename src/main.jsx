@@ -57,13 +57,7 @@ if ('serviceWorker' in navigator) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               // New version available
-              console.log('[SW] New version available! Reload to update.');
-
-              // Optionally show a notification to user
-              if (confirm('A new version of Storehouse is available. Reload to update?')) {
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                window.location.reload();
-              }
+              console.log('[SW] New version available, will apply on next visit');
             }
           });
         });
