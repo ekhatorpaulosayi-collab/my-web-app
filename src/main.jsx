@@ -56,9 +56,14 @@ if ('serviceWorker' in navigator) {
 
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New version available, activate it silently
-              console.log('[SW] New version available, activating silently...');
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
+              // New version available
+              console.log('[SW] New version available! Reload to update.');
+
+              // Optionally show a notification to user
+              if (confirm('A new version of Storehouse is available. Reload to update?')) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+              }
             }
           });
         });
@@ -69,9 +74,7 @@ if ('serviceWorker' in navigator) {
 
     // Listen for controller change (new SW activated)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[SW] New service worker activated, reloading page silently...');
-      // Reload silently when the new service worker takes control
-      window.location.reload();
+      console.log('[SW] New service worker activated');
     });
 
     // Listen for messages from service worker
@@ -86,7 +89,15 @@ if ('serviceWorker' in navigator) {
         window.dispatchEvent(new CustomEvent('processPendingQueue'));
       }
 
-      // Cache update notifications are now handled silently via controllerchange event
+      // Handle cache update notification
+      if (event.data && event.data.type === 'CACHE_UPDATED') {
+        console.log('[SW] Cache updated to version:', event.data.version);
+        console.log('[SW] Auto-refreshing page with new version...');
+        // Force reload to get latest version
+        setTimeout(() => {
+          window.location.reload(true);
+        }, 1000);
+      }
     });
   });
 

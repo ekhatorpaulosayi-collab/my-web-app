@@ -87,7 +87,19 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
-        console.log('[SW] Service worker activated, taking control of all clients');
+        console.log('[SW] Service worker activated, notifying all clients');
+        // Notify all clients that cache was updated
+        return self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'CACHE_UPDATED',
+              version: CACHE_VERSION,
+              message: 'New version available! Page will refresh.'
+            });
+          });
+        });
+      })
+      .then(() => {
         return self.clients.claim(); // Take control immediately
       })
   );
