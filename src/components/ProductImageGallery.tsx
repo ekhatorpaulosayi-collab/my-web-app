@@ -191,8 +191,8 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
 
   return (
     <div style={{ width: '100%', position: 'relative' }}>
-      {/* Debug Overlay - visible on mobile */}
-      {debugInfo.length > 0 && (
+      {/* Debug Overlay - disabled for production */}
+      {false && debugInfo.length > 0 && (
         <div style={{
           position: 'fixed',
           bottom: '10px',

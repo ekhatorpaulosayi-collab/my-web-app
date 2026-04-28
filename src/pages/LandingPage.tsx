@@ -892,38 +892,47 @@ export default function LandingPage() {
               </div>
 
               <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
-                Get Started Free
+                Free Forever
               </button>
 
               <div className="pricing-features-section">
-                <h4 className="features-category">Core Features</h4>
+                <h4 className="features-category">Core Limits</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> 30 products, 1 image each</li>
-                  <li><CheckCircle size={16} /> 1 user account</li>
-                  <li><CheckCircle size={16} /> Unlimited AI chats (beta testing)</li>
+                  <li><CheckCircle size={16} /> 30 products</li>
+                  <li><CheckCircle size={16} /> 1 image per product</li>
+                  <li><CheckCircle size={16} /> 1 team member (owner only)</li>
+                  <li><CheckCircle size={16} /> 30 AI chats/month</li>
                 </ul>
 
-                <h4 className="features-category">🛍️ Online Store</h4>
+                <h4 className="features-category">Included Features</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Public storefront</li>
-                  <li><CheckCircle size={16} /> Custom URL</li>
-                  <li><CheckCircle size={16} /> Paystack payments</li>
-                  <li><CheckCircle size={16} /> ⚡ Lightning fast loading</li>
-                </ul>
-
-                <h4 className="features-category">Basic Operations</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Record sales</li>
-                  <li><CheckCircle size={16} /> Customer database</li>
+                  <li><CheckCircle size={16} /> Multilingual AI chat (Hausa, Yoruba, Igbo, Pidgin)</li>
+                  <li><CheckCircle size={16} /> Store owner takeover (human chat)</li>
+                  <li><CheckCircle size={16} /> Mini website (online store page)</li>
+                  <li><CheckCircle size={16} /> Record sales & track profit</li>
+                  <li><CheckCircle size={16} /> Money Book (credit/debt tracking)</li>
+                  <li><CheckCircle size={16} /> Invoicing</li>
                   <li><CheckCircle size={16} /> WhatsApp receipts</li>
-                  <li><CheckCircle size={16} /> Works offline</li>
+                  <li><CheckCircle size={16} /> Contributions/Ajo (1 group, max 10 members)</li>
+                  <li><CheckCircle size={16} /> Export data</li>
+                </ul>
+
+                <h4 className="features-category not-included-heading">Not Included</h4>
+                <ul className="pricing-features-list locked-list">
+                  <li className="locked-item"><span className="locked-text">🔒 Product variants</span><span className="locked-tier-pill">Starter</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Sales by Channel</span><span className="locked-tier-pill">Starter</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Customer management</span><span className="locked-tier-pill">Starter</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Daily Sales Summary</span><span className="locked-tier-pill">Starter</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Additional staff users</span><span className="locked-tier-pill">Starter</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Business Insights (AI)</span><span className="locked-tier-pill">Pro</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Online payments</span><span className="locked-tier-pill">Coming Soon</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Priority support</span><span className="locked-tier-pill">Pro</span></li>
                 </ul>
               </div>
             </div>
 
             {/* STARTER TIER */}
-            <div className="pricing-card-new pricing-card-popular">
-              <div className="popular-badge-new">Most Popular</div>
+            <div className="pricing-card-new">
               <div className="pricing-tier-header">
                 <h3 className="tier-name">Starter</h3>
                 <p className="tier-desc">For small shops with 1-3 staff</p>
@@ -935,56 +944,45 @@ export default function LandingPage() {
                 billingCycle={billingCycle}
               />
 
-              <button className="pricing-cta pricing-cta-primary" onClick={() => navigate('/signup')}>
-                Get Started Free
+              <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
+                Subscribe Now
               </button>
 
               <div className="pricing-features-section">
-                <h4 className="features-category">Everything in Free, plus:</h4>
-
-                <h4 className="features-category">Inventory & Products</h4>
+                <h4 className="features-category">Core Limits</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> 200 products, 3 images each</li>
-                  <li><CheckCircle size={16} /> Product variants (sizes, colors)</li>
-                  <li><CheckCircle size={16} /> Bulk CSV import/export</li>
-                </ul>
-
-                <h4 className="features-category">🛍️ Online Store Advanced</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Custom branding & logo</li>
-                  <li><CheckCircle size={16} /> Delivery settings</li>
-                  <li><CheckCircle size={16} /> ⚡ Lightning fast loading</li>
-                </ul>
-
-                <h4 className="features-category">💰 Debt & Credit Sales</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Credit sales tracking</li>
-                  <li><CheckCircle size={16} /> Installment plans</li>
-                  <li><CheckCircle size={16} /> Customer payment records</li>
-                </ul>
-
-                <h4 className="features-category">📄 Professional Invoicing</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Create & send invoices</li>
-                  <li><CheckCircle size={16} /> Payment links</li>
-                </ul>
-
-                <h4 className="features-category">📊 Analytics & Reports</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Basic sales analytics</li>
-                  <li><CheckCircle size={16} /> Export to Excel</li>
-                </ul>
-
-                <h4 className="features-category">Team & AI</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> 3 users with roles</li>
+                  <li><CheckCircle size={16} /> 200 products</li>
+                  <li><CheckCircle size={16} /> 3 images per product</li>
+                  <li><CheckCircle size={16} /> 3 team members (owner + 2 staff)</li>
                   <li><CheckCircle size={16} /> 500 AI chats/month</li>
+                </ul>
+
+                <h4 className="features-category">Everything in Free, plus:</h4>
+                <ul className="pricing-features-list">
+                  <li><CheckCircle size={16} /> Product variants</li>
+                  <li><CheckCircle size={16} /> Sales by Channel tracking</li>
+                  <li><CheckCircle size={16} /> Customer management</li>
+                  <li><CheckCircle size={16} /> Daily Sales Summary</li>
+                  <li><CheckCircle size={16} /> Contributions/Ajo (5 groups, max 30 members each)</li>
+                  <li>
+                    <CheckCircle size={16} /> Online payments
+                    <span className="coming-soon-pill">Coming Soon</span>
+                  </li>
+                  <li><CheckCircle size={16} /> Email support</li>
+                </ul>
+
+                <h4 className="features-category not-included-heading">Not Included</h4>
+                <ul className="pricing-features-list locked-list">
+                  <li className="locked-item"><span className="locked-text">🔒 Business Insights (AI)</span><span className="locked-tier-pill">Pro</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Unlimited Ajo groups</span><span className="locked-tier-pill">Pro</span></li>
+                  <li className="locked-item"><span className="locked-text">🔒 Priority WhatsApp support</span><span className="locked-tier-pill">Pro</span></li>
                 </ul>
               </div>
             </div>
 
             {/* PRO TIER */}
-            <div className="pricing-card-new">
+            <div className="pricing-card-new pricing-card-popular">
+              <div className="popular-badge-new">MOST POPULAR</div>
               <div className="pricing-tier-header">
                 <h3 className="tier-name">Pro</h3>
                 <p className="tier-desc">For established businesses</p>
@@ -996,73 +994,29 @@ export default function LandingPage() {
                 billingCycle={billingCycle}
               />
 
-              <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
-                Get Started
+              <button className="pricing-cta pricing-cta-primary" onClick={() => navigate('/signup')}>
+                Subscribe Now
               </button>
+              <p className="pricing-cta-tagline">Everything you need to dominate your market</p>
 
               <div className="pricing-features-section">
-                <h4 className="features-category">Everything in Starter, plus:</h4>
-
-                <h4 className="features-category">Unlimited Power</h4>
+                <h4 className="features-category">Core Limits</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> <strong>UNLIMITED products</strong></li>
+                  <li><CheckCircle size={16} /> <strong>Unlimited products</strong></li>
                   <li><CheckCircle size={16} /> 5 images per product</li>
-                  <li><CheckCircle size={16} /> 5 users</li>
-                  <li><CheckCircle size={16} /> ⚡ Lightning fast loading</li>
-                </ul>
-
-                <h4 className="features-category">💬 24/7 AI Shopping Assistant</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> <strong>Make sales while you sleep</strong></li>
-                  <li><CheckCircle size={16} /> Answers price & availability questions</li>
-                  <li><CheckCircle size={16} /> Guides customers through ordering</li>
-                  <li><CheckCircle size={16} /> Works via WhatsApp & web chat</li>
-                </ul>
-
-                <h4 className="features-category">Advanced Features</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Manual recurring invoices</li>
+                  <li><CheckCircle size={16} /> 10 team members (owner + 9 staff)</li>
                   <li><CheckCircle size={16} /> 1,500 AI chats/month</li>
-                  <li><CheckCircle size={16} /> Daily AI business tips</li>
-                  <li><CheckCircle size={16} /> Priority support</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* BUSINESS TIER */}
-            <div className="pricing-card-new">
-              <div className="pricing-tier-header">
-                <h3 className="tier-name">Business</h3>
-                <p className="tier-desc">Enterprise power</p>
-              </div>
-
-              <PricingAmount
-                monthly={15000}
-                annual={144000}
-                billingCycle={billingCycle}
-              />
-
-              <button className="pricing-cta pricing-cta-outline" onClick={() => navigate('/signup')}>
-                Get Started
-              </button>
-
-              <div className="pricing-features-section">
-                <h4 className="features-category">Everything in Pro, plus:</h4>
-
-                <h4 className="features-category">Maximum Scale</h4>
-                <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> 10 images per product</li>
-                  <li><CheckCircle size={16} /> 10 users</li>
-                  <li><CheckCircle size={16} /> 10,000 AI chats/month</li>
-                  <li><CheckCircle size={16} /> ⚡ Lightning fast loading</li>
                 </ul>
 
-                <h4 className="features-category">Dedicated Support</h4>
+                <h4 className="features-category">Everything in Starter, plus:</h4>
                 <ul className="pricing-features-list">
-                  <li><CheckCircle size={16} /> Account manager</li>
-                  <li><CheckCircle size={16} /> 1-on-1 training session</li>
-                  <li><CheckCircle size={16} /> 24/7 priority support</li>
-                  <li><CheckCircle size={16} /> Quarterly business review</li>
+                  <li><CheckCircle size={16} /> Business Insights (AI-powered daily summary)</li>
+                  <li><CheckCircle size={16} /> Contributions/Ajo (Unlimited groups & members)</li>
+                  <li>
+                    <CheckCircle size={16} /> Online payments
+                    <span className="coming-soon-pill">Coming Soon</span>
+                  </li>
+                  <li><CheckCircle size={16} /> Priority WhatsApp support</li>
                 </ul>
               </div>
             </div>
@@ -1091,7 +1045,7 @@ export default function LandingPage() {
               },
               {
                 question: 'How much does it cost?',
-                answer: 'Start free with 30 products and unlimited AI chats (during beta testing). When you need more, upgrade to Starter (₦5,000/month for 200 products), Pro (₦10,000/month for unlimited products + WhatsApp AI), or Business (₦15,000/month for maximum scale). No credit card required to start.'
+                answer: 'Start free with 30 products and 30 AI chats per month, including multilingual AI (Hausa, Yoruba, Igbo, Pidgin) and store owner takeover. When you need more, upgrade to Starter (₦5,000/month for 200 products and 500 AI chats) or Pro (₦10,000/month for unlimited products and 1,500 AI chats). No credit card required to start.'
               },
               {
                 question: 'Can I try it before paying?',

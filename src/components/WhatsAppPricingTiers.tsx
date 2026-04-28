@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
 interface Tier {
-  id: 'free' | 'starter' | 'pro' | 'business';
+  id: 'free' | 'starter' | 'pro';
   name: string;
   price: string;
   priceValue: number;
@@ -19,14 +19,14 @@ const TIERS: Tier[] = [
     name: 'Free',
     price: '₦0',
     priceValue: 0,
-    chats: 50,
+    chats: 30,
     features: [
-      '50 products',
-      '50 AI chats/month (3 months)',
-      '20 AI chats/month (after)',
+      '30 products',
+      '30 AI chats/month',
       '1 image per product',
-      '1 user',
-      'Online storefront',
+      '1 team member (owner only)',
+      'Multilingual AI (Hausa, Yoruba, Igbo, Pidgin)',
+      'Store owner takeover',
     ],
     color: '#9ca3af',
   },
@@ -40,12 +40,11 @@ const TIERS: Tier[] = [
       '200 products',
       '500 AI chats/month',
       '3 images per product',
-      '2 users',
-      'Profit tracking',
-      'Advanced analytics',
+      '3 team members',
+      'Sales by Channel tracking',
+      'Daily Sales Summary',
     ],
     color: '#10b981',
-    recommended: true,
   },
   {
     id: 'pro',
@@ -57,27 +56,12 @@ const TIERS: Tier[] = [
       'Unlimited products',
       '1,500 AI chats/month',
       '5 images per product',
-      '5 users',
-      'Everything in Starter',
-      'Daily AI tips',
+      '10 team members',
+      'Business Insights (AI daily summary)',
+      'Priority WhatsApp support',
     ],
     color: '#6366f1',
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    price: '₦15,000',
-    priceValue: 15000,
-    chats: 10000,
-    features: [
-      'Unlimited products',
-      '10,000 AI chats/month',
-      '10 images per product',
-      'Unlimited users',
-      'API access',
-      'White-label options',
-    ],
-    color: '#f59e0b',
+    recommended: true,
   },
 ];
 

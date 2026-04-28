@@ -645,7 +645,7 @@ export default function MultiImageUpload({
         onClose={() => setShowUpgradeModal(false)}
         limitType="images"
         currentTier={tierInfo?.tier_name || 'Free'}
-        suggestedTier={tierInfo?.limit === 1 ? 'Starter' : tierInfo?.limit === 3 ? 'Pro' : 'Business'}
+        suggestedTier={tierInfo?.limit === 1 ? 'Starter' : 'Pro'}
         currentCount={images.length}
         limit={tierInfo?.limit || 1}
         reason={`Your ${tierInfo?.tier_name || 'Free'} tier allows ${tierInfo?.limit || 1} images per product`}

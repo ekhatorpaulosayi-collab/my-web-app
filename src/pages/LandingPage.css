@@ -1700,6 +1700,78 @@ body {
   box-shadow: 0 24px 48px -12px rgba(16, 185, 129, 0.3);
 }
 
+/* "Not Included" Section Heading */
+.not-included-heading {
+  margin-top: 1.5rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8 !important;
+}
+
+/* Locked Items List */
+.locked-list {
+  margin-top: 0.5rem;
+}
+
+.locked-item {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  opacity: 0.5;
+  padding: 4px 0;
+}
+
+.locked-text {
+  color: #64748b;
+  text-decoration: line-through;
+  font-size: 0.875rem;
+}
+
+.locked-tier-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(148, 163, 184, 0.15);
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Pro tier subscribe-button tagline */
+.pricing-cta-tagline {
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #6366f1;
+  margin: 0.5rem 0 0 0;
+  font-style: italic;
+}
+
+/* Coming Soon Pill */
+.coming-soon-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* Popular Badge */
 .popular-badge-new {
   position: absolute;

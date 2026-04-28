@@ -22,40 +22,32 @@ interface UpgradeModalProps {
 const TIER_BENEFITS = {
   Starter: [
     '200 products with 3 images each',
-    'Debt tracking & installment plans',
-    'Professional invoicing system',
-    '3 staff members with roles',
-    'Profit tracking & analytics',
-    '500 AI chats per month'
+    '3 team members (owner + 2 staff)',
+    '500 AI chats per month',
+    'Product variants & customer management',
+    'Sales by Channel tracking',
+    'Daily Sales Summary',
+    'Email support'
   ],
   Pro: [
-    'UNLIMITED products',
-    'WhatsApp AI Assistant (24/7)',
-    'Recurring invoices',
-    '5 staff members',
-    '2,000 AI chats per month',
-    'Priority support'
-  ],
-  Business: [
-    'UNLIMITED products',
-    '10 staff members',
-    '5,000 AI chats per month',
-    'Dedicated account manager',
-    'Custom training session',
-    '24/7 priority support'
+    'Unlimited products',
+    '5 images per product',
+    '10 team members',
+    '1,500 AI chats per month',
+    'Business Insights (AI-powered daily summary)',
+    'Staff Mode',
+    'Priority WhatsApp support'
   ]
 };
 
 const TIER_PRICES = {
   Starter: { monthly: 5000, annual: 48000 },
-  Pro: { monthly: 10000, annual: 96000 },
-  Business: { monthly: 15000, annual: 144000 }
+  Pro: { monthly: 10000, annual: 96000 }
 };
 
 const TIER_COLORS = {
   Starter: '#10b981',
-  Pro: '#6366f1',
-  Business: '#f59e0b'
+  Pro: '#6366f1'
 };
 
 export default function UpgradeModal({

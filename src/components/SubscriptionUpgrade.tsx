@@ -10,6 +10,122 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Check, X, Loader2, CreditCard, XCircle } from 'lucide-react';
 
+// Hardcoded tier display data — keeps the in-app subscription page in lock-step
+// with the landing page pricing section. DB drives prices/limits; this drives
+// the human-readable feature lists and badges.
+const TIER_DISPLAY: Record<string, {
+  tagline: string;
+  ctaLabel: string;
+  ctaTagline?: string;
+  badge?: string;
+  sections: Array<{
+    heading: string;
+    items: Array<{ text: string; bold?: boolean; comingSoon?: boolean }>;
+  }>;
+  lockedItems?: Array<{ text: string; tier: string }>;
+}> = {
+  Free: {
+    tagline: 'Perfect for solo entrepreneurs',
+    ctaLabel: 'Free Forever',
+    sections: [
+      {
+        heading: 'Core Limits',
+        items: [
+          { text: '30 products' },
+          { text: '1 image per product' },
+          { text: '1 team member (owner only)' },
+          { text: '30 AI chats/month' },
+        ],
+      },
+      {
+        heading: 'Included Features',
+        items: [
+          { text: 'Multilingual AI chat (Hausa, Yoruba, Igbo, Pidgin)' },
+          { text: 'Store owner takeover (human chat)' },
+          { text: 'Mini website (online store page)' },
+          { text: 'Record sales & track profit' },
+          { text: 'Money Book (credit/debt tracking)' },
+          { text: 'Invoicing' },
+          { text: 'WhatsApp receipts' },
+          { text: 'Contributions/Ajo (1 group, max 10 members)' },
+          { text: 'Export data' },
+        ],
+      },
+    ],
+    lockedItems: [
+      { text: 'Product variants', tier: 'Starter' },
+      { text: 'Sales by Channel', tier: 'Starter' },
+      { text: 'Customer management', tier: 'Starter' },
+      { text: 'Daily Sales Summary', tier: 'Starter' },
+      { text: 'Additional staff users', tier: 'Starter' },
+      { text: 'Business Insights (AI)', tier: 'Pro' },
+      { text: 'Online payments', tier: 'Coming Soon' },
+      { text: 'Priority support', tier: 'Pro' },
+    ],
+  },
+  Starter: {
+    tagline: 'For small shops with 1-3 staff',
+    ctaLabel: 'Subscribe Now',
+    sections: [
+      {
+        heading: 'Core Limits',
+        items: [
+          { text: '200 products' },
+          { text: '3 images per product' },
+          { text: '3 team members (owner + 2 staff)' },
+          { text: '500 AI chats/month' },
+        ],
+      },
+      {
+        heading: 'Everything in Free, plus:',
+        items: [
+          { text: 'Product variants' },
+          { text: 'Sales by Channel tracking' },
+          { text: 'Customer management' },
+          { text: 'Daily Sales Summary' },
+          { text: 'Contributions/Ajo (5 groups, max 30 members each)' },
+          { text: 'Online payments', comingSoon: true },
+          { text: 'Email support' },
+        ],
+      },
+    ],
+    lockedItems: [
+      { text: 'Business Insights (AI)', tier: 'Pro' },
+      { text: 'Unlimited Ajo groups', tier: 'Pro' },
+      { text: 'Priority WhatsApp support', tier: 'Pro' },
+    ],
+  },
+  Pro: {
+    tagline: 'For established businesses',
+    ctaLabel: 'Subscribe Now',
+    ctaTagline: 'Everything you need to dominate your market',
+    badge: 'MOST POPULAR',
+    sections: [
+      {
+        heading: 'Core Limits',
+        items: [
+          { text: 'Unlimited products', bold: true },
+          { text: '5 images per product' },
+          { text: '10 team members (owner + 9 staff)' },
+          { text: '1,500 AI chats/month' },
+        ],
+      },
+      {
+        heading: 'Everything in Starter, plus:',
+        items: [
+          { text: 'Business Insights (AI-powered daily summary)' },
+          { text: 'Contributions/Ajo (Unlimited groups & members)' },
+          { text: 'Online payments', comingSoon: true },
+          { text: 'Priority WhatsApp support' },
+        ],
+      },
+    ],
+  },
+};
+
+// Tiers we display (Business is intentionally excluded)
+const VISIBLE_TIER_NAMES = new Set(['Free', 'Starter', 'Pro']);
+
 interface SubscriptionTier {
   id: string;
   name: string;
@@ -751,24 +867,27 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
       {/* Pricing Cards */}
       <div className="pricing-grid">
-        {tiers.map((tier) => {
+        {tiers
+          .filter((tier) => VISIBLE_TIER_NAMES.has(tier.name))
+          .map((tier) => {
           const price = getPrice(tier);
           const monthlyPrice = getMonthlyPrice(tier);
           const savings = getSavings(tier);
           const isCurrent = isCurrentTier(tier.id);
           const isUpgradeable = canUpgrade(tier);
+          const display = TIER_DISPLAY[tier.name];
 
           return (
             <div
               key={tier.id}
               className={`pricing-card ${isCurrent ? 'current' : ''} ${tier.name === 'Pro' ? 'popular' : ''}`}
             >
-              {tier.name === 'Pro' && <div className="popular-badge">Most Popular</div>}
+              {display?.badge && <div className="popular-badge">{display.badge}</div>}
               {isCurrent && <div className="current-badge">Current Plan</div>}
 
               <div className="tier-header">
                 <h3>{tier.name}</h3>
-                <p className="tier-description">{tier.description}</p>
+                <p className="tier-description">{display?.tagline || tier.description}</p>
               </div>
 
               <div className="tier-pricing">
@@ -798,46 +917,33 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
               </div>
 
               <div className="tier-features">
-                <div className="feature">
-                  <Check size={16} className="check-icon" />
-                  <span>{tier.max_products === -1 ? 'Unlimited' : tier.max_products} products</span>
-                </div>
-                <div className="feature">
-                  <Check size={16} className="check-icon" />
-                  <span>{tier.max_images_per_product} images per product</span>
-                </div>
-                <div className="feature">
-                  <Check size={16} className="check-icon" />
-                  <span>{tier.max_users} team {tier.max_users === 1 ? 'member' : 'members'}</span>
-                </div>
-                <div className="feature">
-                  <Check size={16} className="check-icon" />
-                  <span>{tier.max_ai_chats_monthly} AI chats/month</span>
-                </div>
+                {display?.sections.map((section, sIdx) => (
+                  <React.Fragment key={sIdx}>
+                    <div className="feature-heading">{section.heading}</div>
+                    {section.items.map((item, iIdx) => (
+                      <div className="feature" key={iIdx}>
+                        <Check size={16} className="check-icon" />
+                        <span>
+                          {item.bold ? <strong>{item.text}</strong> : item.text}
+                          {item.comingSoon && (
+                            <span className="coming-soon-pill">Coming Soon</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </React.Fragment>
+                ))}
 
-                {(tier.has_product_variants || tier.features?.product_variants) && (
-                  <div className="feature">
-                    <Check size={16} className="check-icon" />
-                    <span>Product variants</span>
-                  </div>
-                )}
-                {(tier.has_invoicing || tier.features?.invoicing) && (
-                  <div className="feature">
-                    <Check size={16} className="check-icon" />
-                    <span>Invoicing</span>
-                  </div>
-                )}
-                {(tier.has_whatsapp_ai || tier.features?.whatsapp_ai_integration) && (
-                  <div className="feature">
-                    <Check size={16} className="check-icon" />
-                    <span>WhatsApp AI</span>
-                  </div>
-                )}
-                {(tier.has_priority_support || tier.features?.priority_support) && (
-                  <div className="feature">
-                    <Check size={16} className="check-icon" />
-                    <span>Priority support</span>
-                  </div>
+                {display?.lockedItems && display.lockedItems.length > 0 && (
+                  <>
+                    <div className="feature-heading not-included-heading">Not Included</div>
+                    {display.lockedItems.map((item, lIdx) => (
+                      <div className="locked-feature" key={`locked-${lIdx}`}>
+                        <span className="locked-text">🔒 {item.text}</span>
+                        <span className="locked-tier-pill">{item.tier}</span>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
 
@@ -854,14 +960,18 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
                 ) : isCurrent && billingCycle === currentSubscription?.billing_cycle ? (
                   'Current Plan'
                 ) : tier.name === 'Free' ? (
-                  'Free Forever'
+                  display?.ctaLabel || 'Free Forever'
                 ) : (
                   <>
                     <CreditCard size={16} />
-                    {isCurrent ? `Switch to ${billingCycle}` : 'Subscribe Now'}
+                    {isCurrent ? `Switch to ${billingCycle}` : (display?.ctaLabel || 'Subscribe Now')}
                   </>
                 )}
               </button>
+
+              {display?.ctaTagline && (
+                <p className="cta-tagline">{display.ctaTagline}</p>
+              )}
             </div>
           );
         })}
@@ -1149,11 +1259,90 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .feature {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 12px;
-          padding: 8px 0;
+          padding: 6px 0;
           font-size: 0.9375rem;
           color: #4b5563;
+        }
+
+        .feature .check-icon {
+          margin-top: 3px;
+        }
+
+        .feature-heading {
+          font-size: 0.8125rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #6b7280;
+          margin: 16px 0 4px 0;
+        }
+
+        .feature-heading:first-child {
+          margin-top: 0;
+        }
+
+        .coming-soon-pill {
+          display: inline-block;
+          margin-left: 8px;
+          padding: 2px 8px;
+          background: rgba(99, 102, 241, 0.1);
+          color: #4f46e5;
+          border: 1px solid rgba(99, 102, 241, 0.25);
+          border-radius: 999px;
+          font-size: 0.6875rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          vertical-align: middle;
+          white-space: nowrap;
+        }
+
+        .not-included-heading {
+          margin-top: 20px;
+          color: #94a3b8;
+          font-size: 0.75rem;
+          letter-spacing: 0.08em;
+        }
+
+        .locked-feature {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          opacity: 0.5;
+          padding: 4px 0;
+        }
+
+        .locked-text {
+          color: #64748b;
+          text-decoration: line-through;
+          font-size: 0.875rem;
+        }
+
+        .locked-tier-pill {
+          display: inline-block;
+          padding: 2px 8px;
+          background: rgba(148, 163, 184, 0.15);
+          color: #64748b;
+          border: 1px solid rgba(148, 163, 184, 0.3);
+          border-radius: 999px;
+          font-size: 0.625rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .cta-tagline {
+          text-align: center;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: #6366f1;
+          margin: 8px 0 0 0;
+          font-style: italic;
         }
 
         .check-icon {

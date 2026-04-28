@@ -22,32 +22,18 @@ export const PRICING_TIERS: Record<string, PricingTier> = {
   },
   STARTER: {
     name: 'Starter',
-    chats: 300,
+    chats: 500,
     price: 5000,
     priceUSD: 3.13,
     description: 'For small businesses getting started',
   },
   PRO: {
     name: 'Pro',
-    chats: 750,
+    chats: 1500,
     price: 10000,
     priceUSD: 6.25,
     description: 'For growing businesses',
     popular: true,
-  },
-  BUSINESS: {
-    name: 'Business',
-    chats: 1500,
-    price: 20000,
-    priceUSD: 12.50,
-    description: 'For established businesses',
-  },
-  ENTERPRISE: {
-    name: 'Enterprise',
-    chats: 10000,
-    price: 50000,
-    priceUSD: 31.25,
-    description: 'For large organizations with high volume needs',
   },
 };
 
@@ -73,10 +59,8 @@ export function formatPrice(amount: number): string {
 // Chat limits for quick reference
 export const CHAT_LIMITS = {
   FREE: 30,
-  STARTER: 300,
-  PRO: 750,
-  BUSINESS: 1500,
-  ENTERPRISE: 10000,
+  STARTER: 500,
+  PRO: 1500,
 } as const;
 
 // Export tier names for type safety

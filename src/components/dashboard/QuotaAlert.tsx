@@ -14,8 +14,8 @@ const QuotaAlert = ({ userId }) => {
 
   if (!quota) return null;
 
-  const percentUsed = (quota.used / quota.limit) * 100;
-  const remaining = quota.limit - quota.used;
+  const percentUsed = (quota.chats_used / quota.chat_limit) * 100;
+  const remaining = quota.chat_limit - quota.chats_used;
 
   if (percentUsed < 70) return null;
 
@@ -23,7 +23,7 @@ const QuotaAlert = ({ userId }) => {
     return (
       <div style={{ background: '#FEF3C7', borderRadius: '8px', padding: '12px 16px', margin: '8px 0' }}>
         <p style={{ fontSize: '13px', fontWeight: 500, color: '#92400E', margin: 0 }}>
-          ⚡ {quota.used} of {quota.limit} AI chats used this month
+          ⚡ {quota.chats_used} of {quota.chat_limit} AI chats used this month
         </p>
         <p style={{ fontSize: '11px', color: '#B45309', margin: '2px 0 0' }}>
           {remaining} remaining — customers will be redirected to WhatsApp after

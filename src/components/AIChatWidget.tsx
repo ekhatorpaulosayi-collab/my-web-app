@@ -243,6 +243,7 @@ export default function AIChatWidget({
   const [customerMessageCount, setCustomerMessageCount] = useState(0); // Track number of customer messages
   const [needsHumanHelp, setNeedsHumanHelp] = useState(false); // Track if AI suggested human help
   const [isWithinBusinessHours, setIsWithinBusinessHours] = useState<boolean | null>(null); // Track business hours
+  const [hasDismissedTakeoverOption, setHasDismissedTakeoverOption] = useState(false); // Track if user chose to continue with AI
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastMessageTimestampRef = useRef<string | null>(null);
@@ -1805,9 +1806,9 @@ export default function AIChatWidget({
               takeoverStatus={takeoverStatus}
               lastCustomerMessage={lastCustomerMessage}
               onReset={() => {
-                console.log('[AIChatWidget] Fallback timer reset - clearing takeover status');
-                // Clear the takeover status when cancelled
-                setTakeoverStatus(null);
+                console.log('[AIChatWidget] Fallback timer reset - returning to AI mode');
+                // Reset to AI mode properly when cancelled
+                setTakeoverStatus('ai');  // Set to 'ai' not null to properly resume AI
                 setIsAgentActive(false);
                 isAgentActiveRef.current = false;
               }}
@@ -1859,15 +1860,16 @@ export default function AIChatWidget({
             {/* Request Human Agent Button with smart timing and business hours awareness */}
             {(() => {
               // Debug logging for button visibility
-              const shouldShowButton = contextType === 'storefront' &&
+              const shouldShowButtons = contextType === 'storefront' &&
                                      conversationId &&
                                      messages.length > 0 &&
                                      takeoverStatus === 'ai' &&
                                      isWithinBusinessHours === true &&
-                                     (customerMessageCount >= 3 || needsHumanHelp);
+                                     !hasDismissedTakeoverOption &&  // Don't show if user already chose to continue with AI
+                                     (customerMessageCount >= 5 || needsHumanHelp);  // Changed from 3 to 5
 
               if (contextType === 'storefront' && conversationId) {
-                console.log('🔘 [BUTTON-DEBUG] Talk to Owner button conditions:', {
+                console.log('🔘 [BUTTON-DEBUG] Takeover options button conditions:', {
                   contextType,
                   hasConversationId: !!conversationId,
                   messagesLength: messages.length,
@@ -1875,41 +1877,82 @@ export default function AIChatWidget({
                   isWithinBusinessHours,
                   customerMessageCount,
                   needsHumanHelp,
-                  shouldShowButton
+                  hasDismissedTakeoverOption,
+                  shouldShowButtons
                 });
               }
 
-              return shouldShowButton;
+              return shouldShowButtons;
             })() && (
-              <button
-                onClick={requestHumanAgent}
-                style={{
-                  marginTop: '8px',
-                  width: '100%',
-                  padding: '10px',
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '0.9';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-              >
-                <UserCheck size={16} />
-                Talk to Store Owner
-              </button>
+              <div style={{
+                marginTop: '8px',
+                display: 'flex',
+                gap: '8px',
+                width: '100%'
+              }}>
+                {/* Talk to Store Owner Button */}
+                <button
+                  onClick={requestHumanAgent}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = '0.9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                >
+                  <span style={{ fontSize: '16px' }}>🗣️</span>
+                  Talk to Store Owner
+                </button>
+
+                {/* Continue with AI Button */}
+                <button
+                  onClick={() => {
+                    setHasDismissedTakeoverOption(true);
+                    console.log('[AIChatWidget] User chose to continue with AI');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: '#f3f4f6',
+                    color: '#1f2937',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#e5e7eb';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f3f4f6';
+                  }}
+                >
+                  <span style={{ fontSize: '16px' }}>🤖</span>
+                  Continue with AI
+                </button>
+              </div>
             )}
 
             {/* New Topic Button */}
@@ -1920,6 +1963,7 @@ export default function AIChatWidget({
                   setInputMessage('');
                   setCustomerMessageCount(0); // Reset message count
                   setNeedsHumanHelp(false); // Reset help flag
+                  setHasDismissedTakeoverOption(false); // Reset takeover dismissal
                   console.log('[AIChatWidget] Conversation cleared - starting new topic');
                 }}
                 style={{
