@@ -494,3 +494,52 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 Last Updated: March 28, 2026
 Author: Claude & Paul
 Status: ✅ Production Ready (Polling-based, Deduplication Fixed)
+## EMERGENCY PLAYBOOK
+
+If frontend is broken:
+1. Go to vercel.com → Deployments → find last working deployment → Promote to Production
+2. This fixes it in 10 seconds without touching code
+
+If edge function is broken:
+cp supabase/functions/ai-chat/index.ts.ux-complete-2026-04-15 supabase/functions/ai-chat/index.ts
+supabase functions deploy ai-chat --project-ref yzlniqwzqlsftxrtapdl
+
+If database is broken:
+Contact Supabase support immediately. Do NOT run DELETE or UPDATE without WHERE clause.
+
+If everything is broken:
+git checkout v1.0-stable -- .
+npm run build
+vercel --prod --force --yes
+supabase functions deploy ai-chat --project-ref yzlniqwzqlsftxrtapdl
+
+## DEPLOYMENT RULES (follow every time)
+1. Before any changes: git stash or git commit current state
+2. Run npm run check:chat — must pass
+3. Run npm run build — must pass
+4. Deploy: vercel --prod --force --yes
+5. Test on production immediately after deploy
+6. If broken: git stash pop (or restore backup) and redeploy
+7. If working: git add -A && git commit -m "description of change"
+
+## PRE-DEPLOY CHECKLIST
+[ ] Record a sale — correct price, no duplicate
+[ ] Open storefront — AI chat responds
+[ ] Send Hausa message — responds in Hausa
+[ ] Click "Talk to Store Owner" — notification appears on dashboard
+[ ] Take over chat — translation shows
+[ ] Open More Features — all items clickable, modal stays open
+[ ] Open Business Insights — page loads (Pro tier only)
+[ ] Share store on WhatsApp — link works
+[ ] Check AI badge — shows correct X/Y count
+
+## PRE-DEPLOY CHECKLIST
+[ ] Record a sale — correct price, no duplicate
+[ ] Open storefront — AI chat responds
+[ ] Send Hausa message — responds in Hausa
+[ ] Click "Talk to Store Owner" — notification appears on dashboard
+[ ] Take over chat — translation shows
+[ ] Open More Features — all items clickable, modal stays open
+[ ] Open Business Insights — page loads (Pro tier only)
+[ ] Share store on WhatsApp — link works
+[ ] Check AI badge — shows correct X/Y count
