@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useStore, useStoreActions } from '../lib/supabase-hooks';
 import { supabase } from '../lib/supabase';
 import { uploadStoreLogo } from '../lib/supabase-storage';
 import { makeAllItemsPublic } from '../utils/makeItemsPublic';
@@ -16,45 +17,9 @@ import '../styles/store-settings.css';
 export const StoreSettings: React.FC = () => {
   const { currentUser: user } = useAuth();
 
-  // Direct, uncached load of the store row owned by this user.
-  // stores.user_id is TEXT (not UUID), so coerce user.uid to string explicitly
-  // to match the RLS policy `user_id = auth.uid()::text`. Bypassing useStore
-  // avoids the 5-min cache holding a stale null when an earlier read raced
-  // ahead of the auth session.
-  const [store, setStore] = useState<any>(null);
-  const [storeLoading, setStoreLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const reloadStore = useCallback(async () => {
-    if (!user?.uid) {
-      setStore(null);
-      setStoreLoading(false);
-      return;
-    }
-    setStoreLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('user_id', String(user.uid))
-        .maybeSingle();
-      if (error) {
-        console.error('[StoreSettings] Store load error:', error);
-        setStore(null);
-      } else {
-        setStore(data);
-      }
-    } catch (err) {
-      console.error('[StoreSettings] Store load threw:', err);
-      setStore(null);
-    } finally {
-      setStoreLoading(false);
-    }
-  }, [user?.uid]);
-
-  useEffect(() => {
-    reloadStore();
-  }, [reloadStore]);
+  // Load store from Supabase
+  const { store, loading: storeLoading } = useStore(user?.uid);
+  const { updateStore, saving } = useStoreActions(user?.uid);
 
   const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -264,18 +229,7 @@ export const StoreSettings: React.FC = () => {
 
   // Save store settings (Supabase)
   const handleSave = async () => {
-    // Make the silent-return path explicit — this was previously masking real
-    // bugs ("clicked save, nothing happened") with no console output.
-    if (!user) {
-      console.error('[StoreSettings] handleSave aborted: no signed-in user');
-      alert('❌ You are not signed in. Please refresh and sign in again.');
-      return;
-    }
-    if (!store?.id) {
-      console.error('[StoreSettings] handleSave aborted: store row not loaded', { userId: user?.uid });
-      alert('❌ Could not load your store. Please refresh and try again.');
-      return;
-    }
+    if (!user || !store?.id) return;
 
     // Validate required fields
     const missingFields: string[] = [];
@@ -344,82 +298,21 @@ export const StoreSettings: React.FC = () => {
         return_policy: returnPolicy.trim()
       };
 
-      // Verify the auth session is alive *right before* the write. An expired
-      // JWT silently downgrades the request to anon, RLS returns zero rows, and
-      // .maybeSingle() returns {data: null, error: null} — the classic
-      // "shows saved but DB never updated" path.
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('[StoreSettings] Auth session check failed:', sessionError);
-        throw new Error('Could not verify your session. Please refresh and sign in again.');
-      }
-      if (!sessionData?.session) {
-        console.error('[StoreSettings] No active session — token likely expired');
-        throw new Error('Your session has expired. Please refresh and sign in again.');
-      }
-      console.debug('[StoreSettings] Auth session OK, expires_at=', sessionData.session.expires_at);
-
-      // Direct update: filter by store.id AND user_id (TEXT) so the write
-      // matches the RLS policy `user_id = auth.uid()::text`. Use maybeSingle
-      // so an RLS-blocked update returns `data: null` instead of throwing
-      // PGRST116 (which would mask the real cause).
-      setSaving(true);
-      console.debug('[StoreSettings] Updating stores row:', {
-        storeId: store.id,
-        userId: String(user.uid),
-        businessName: profileData.business_name,
-      });
-      const { data: updatedStore, error: updateError } = await supabase
-        .from('stores')
-        .update(profileData)
-        .eq('id', store.id)
-        .eq('user_id', String(user.uid))
-        .select()
-        .maybeSingle();
-
-      if (updateError) {
-        console.error('[StoreSettings] stores update error:', {
-          code: updateError.code,
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-        });
-        throw updateError;
-      }
-      if (!updatedStore) {
-        console.error('[StoreSettings] stores update matched zero rows', {
-          storeId: store.id,
-          userId: String(user.uid),
-        });
-        throw new Error('Save did not update any row. Your session may have expired — please refresh and try again.');
-      }
-      console.debug('[StoreSettings] stores updated:', {
-        id: updatedStore.id,
-        business_name: updatedStore.business_name,
-      });
+      await updateStore(store.id, profileData);
 
       // Mirror business_name to users table so dashboard header survives logout/login
       const { error: userSyncError } = await supabase
         .from('users')
         .update({ business_name: businessName.trim(), updated_at: new Date().toISOString() })
-        .eq('id', String(user.uid));
+        .eq('id', user.uid);
       if (userSyncError) {
-        console.warn('[StoreSettings] users mirror update failed (non-fatal):', {
-          code: userSyncError.code,
-          message: userSyncError.message,
-        });
+        console.warn('[StoreSettings] Could not sync business_name to users table:', userSyncError);
       }
-
-      // Refresh local state from the freshly-written row so the form reflects
-      // the canonical server value (and so any subsequent save sees store.id).
-      setStore(updatedStore);
 
       alert('Store settings saved successfully!');
 
     } catch (error: any) {
-      console.error('[StoreSettings] Save error:', error);
-      if (error?.message) console.error('[StoreSettings] Save error message:', error.message);
-      if (error?.code) console.error('[StoreSettings] Save error code:', error.code);
+      console.error('Error saving:', error);
 
       // Show friendly error message
       if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
@@ -429,7 +322,6 @@ export const StoreSettings: React.FC = () => {
       }
     } finally {
       setLoading(false);
-      setSaving(false);
     }
   };
 

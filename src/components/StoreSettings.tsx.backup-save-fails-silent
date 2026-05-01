@@ -264,18 +264,7 @@ export const StoreSettings: React.FC = () => {
 
   // Save store settings (Supabase)
   const handleSave = async () => {
-    // Make the silent-return path explicit — this was previously masking real
-    // bugs ("clicked save, nothing happened") with no console output.
-    if (!user) {
-      console.error('[StoreSettings] handleSave aborted: no signed-in user');
-      alert('❌ You are not signed in. Please refresh and sign in again.');
-      return;
-    }
-    if (!store?.id) {
-      console.error('[StoreSettings] handleSave aborted: store row not loaded', { userId: user?.uid });
-      alert('❌ Could not load your store. Please refresh and try again.');
-      return;
-    }
+    if (!user || !store?.id) return;
 
     // Validate required fields
     const missingFields: string[] = [];
@@ -344,31 +333,11 @@ export const StoreSettings: React.FC = () => {
         return_policy: returnPolicy.trim()
       };
 
-      // Verify the auth session is alive *right before* the write. An expired
-      // JWT silently downgrades the request to anon, RLS returns zero rows, and
-      // .maybeSingle() returns {data: null, error: null} — the classic
-      // "shows saved but DB never updated" path.
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('[StoreSettings] Auth session check failed:', sessionError);
-        throw new Error('Could not verify your session. Please refresh and sign in again.');
-      }
-      if (!sessionData?.session) {
-        console.error('[StoreSettings] No active session — token likely expired');
-        throw new Error('Your session has expired. Please refresh and sign in again.');
-      }
-      console.debug('[StoreSettings] Auth session OK, expires_at=', sessionData.session.expires_at);
-
       // Direct update: filter by store.id AND user_id (TEXT) so the write
       // matches the RLS policy `user_id = auth.uid()::text`. Use maybeSingle
       // so an RLS-blocked update returns `data: null` instead of throwing
       // PGRST116 (which would mask the real cause).
       setSaving(true);
-      console.debug('[StoreSettings] Updating stores row:', {
-        storeId: store.id,
-        userId: String(user.uid),
-        businessName: profileData.business_name,
-      });
       const { data: updatedStore, error: updateError } = await supabase
         .from('stores')
         .update(profileData)
@@ -378,25 +347,11 @@ export const StoreSettings: React.FC = () => {
         .maybeSingle();
 
       if (updateError) {
-        console.error('[StoreSettings] stores update error:', {
-          code: updateError.code,
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-        });
         throw updateError;
       }
       if (!updatedStore) {
-        console.error('[StoreSettings] stores update matched zero rows', {
-          storeId: store.id,
-          userId: String(user.uid),
-        });
         throw new Error('Save did not update any row. Your session may have expired — please refresh and try again.');
       }
-      console.debug('[StoreSettings] stores updated:', {
-        id: updatedStore.id,
-        business_name: updatedStore.business_name,
-      });
 
       // Mirror business_name to users table so dashboard header survives logout/login
       const { error: userSyncError } = await supabase
@@ -404,10 +359,7 @@ export const StoreSettings: React.FC = () => {
         .update({ business_name: businessName.trim(), updated_at: new Date().toISOString() })
         .eq('id', String(user.uid));
       if (userSyncError) {
-        console.warn('[StoreSettings] users mirror update failed (non-fatal):', {
-          code: userSyncError.code,
-          message: userSyncError.message,
-        });
+        console.warn('[StoreSettings] Could not sync business_name to users table:', userSyncError);
       }
 
       // Refresh local state from the freshly-written row so the form reflects
@@ -417,9 +369,7 @@ export const StoreSettings: React.FC = () => {
       alert('Store settings saved successfully!');
 
     } catch (error: any) {
-      console.error('[StoreSettings] Save error:', error);
-      if (error?.message) console.error('[StoreSettings] Save error message:', error.message);
-      if (error?.code) console.error('[StoreSettings] Save error code:', error.code);
+      console.error('Error saving:', error);
 
       // Show friendly error message
       if (error.message?.includes('duplicate') || error.message?.includes('unique')) {

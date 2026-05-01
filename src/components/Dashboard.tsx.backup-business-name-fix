@@ -18,7 +18,7 @@ import { StaffPerformanceWidget } from './StaffPerformanceWidget';
 import { ReferralRewardsWidget } from './ReferralRewardsWidget';
 import { useStaff } from '../contexts/StaffContext';
 import { currencyNGN } from '../utils/format';
-import { useStore, useUser } from '../lib/supabase-hooks';
+import { useStore } from '../lib/supabase-hooks';
 import { SalesChart } from './SalesChart';
 import { useNavigate } from 'react-router-dom';
 import '../styles/dashboard-minimal.css';
@@ -100,11 +100,8 @@ export function Dashboard({
 
   // Load store from Supabase
   const { store, loading: storeLoading } = useStore(userId);
-  // Also load user record so business name can fall back to users.business_name
-  // before the final "My Store" default (never "Storehouse").
-  const { user: storeOwnerUser } = useUser(userId ? { uid: userId } : null);
   const storeSlug = store?.store_slug || '';
-  const businessName = store?.business_name || storeOwnerUser?.business_name || 'My Store';
+  const businessName = store?.business_name || 'My Store';
 
   // Load showSalesData from localStorage (default to true if not set)
   const [showSalesData, setShowSalesData] = useState(() => {

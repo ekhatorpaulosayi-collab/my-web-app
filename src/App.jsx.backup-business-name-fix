@@ -85,7 +85,7 @@ import { hasPinSet, verifyPin, isUnlocked, unlock, lock } from './lib/pinService
 import ShareStoreCard from './components/ShareStoreCard.jsx';
 import QuotaAlert from './components/dashboard/QuotaAlert.tsx';
 import { useAuth } from './contexts/AuthContext';
-import { useUser, useStore } from './lib/supabase-hooks';
+import { useUser } from './lib/supabase-hooks';
 import {
   getProducts,
   subscribeToProducts,
@@ -133,16 +133,6 @@ function App() {
   // Get Supabase user (converts Firebase UID to Supabase UUID)
   // COMMENTED OUT - Not needed since we're using Supabase Auth directly
   // const { user: supabaseUser } = useUser(currentUser);
-
-  // Source of truth for the dashboard header business name:
-  // stores.business_name → users.business_name → "My Store" (never "Storehouse").
-  // Both reads survive logout/login because they hit Supabase, not localStorage.
-  const { store: headerStore } = useStore(currentUser?.uid);
-  const { user: headerUser } = useUser(currentUser);
-  const headerBusinessName =
-    headerStore?.business_name ||
-    headerUser?.business_name ||
-    'My Store';
 
   // Preferences context - dashboard widgets and customization
   const { isFirstTimeSetup, completeSetup, businessType } = usePreferences();
@@ -4095,7 +4085,7 @@ Low Stock: ${lowStockItems.length}
       <header className="dashboard-header">
         <div className="header-left">
           <div className="business-name">
-            {headerBusinessName}
+            {profile.businessName || strings.app.name}
           </div>
           <CurrentDate className="date-display" />
         </div>

@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateStoreSlug, checkSlugAvailability } from '../utils/storeSlug';
 import { isValidNigerianPhone, formatPhoneDisplay, formatPhoneForWhatsApp } from '../utils/whatsapp';
 import { useUser, useStoreActions } from '../lib/supabase-hooks';
-import { supabase } from '../lib/supabase';
 import type { StoreProfile } from '../types';
 
 /**
@@ -127,15 +126,6 @@ export default function StoreQuickSetup() {
         whatsapp_number: formatPhoneForWhatsApp(whatsappNumber),
         is_public: false, // Default to private, user can make public later
       });
-
-      // Mirror business_name to users table so dashboard header survives logout/login
-      const { error: userSyncError } = await supabase
-        .from('users')
-        .update({ business_name: businessName.trim(), updated_at: new Date().toISOString() })
-        .eq('id', supabaseUser.id);
-      if (userSyncError) {
-        console.warn('[StoreQuickSetup] Could not sync business_name to users table:', userSyncError);
-      }
 
       // Navigate to setup complete page
       navigate('/setup-complete', { replace: true });

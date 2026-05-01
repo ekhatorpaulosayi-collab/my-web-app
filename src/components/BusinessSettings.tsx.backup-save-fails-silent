@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { getSettings, saveSettings, savePartial, saveAll, type Settings } from '../utils/settings';
 import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import '../styles/BusinessSettings.css';
 import PaymentSettings from './PaymentSettings';
 import PaymentMethodsManager from './PaymentMethodsManager';
@@ -373,87 +372,7 @@ export default function BusinessSettings({
       const storeSlug = generateStoreSlug(formData.businessName);
       saveStoreSlug(storeSlug);
 
-      // PRIMARY: Write business_name to the Supabase `stores` row owned by this
-      // user. This is the source of truth for the dashboard header, the
-      // storefront, and the AI chat widget — localStorage alone is not enough.
-      //
-      // stores.user_id is TEXT (not UUID), so coerce to String() to match the
-      // RLS policy `user_id = auth.uid()::text`. We do an explicit auth-session
-      // check first because an expired JWT silently downgrades the request to
-      // the anon role, which makes RLS return zero rows with no error — the
-      // exact "shows saved but DB unchanged" symptom.
-      if (!currentUser?.uid) {
-        const noUserErr = new Error('Not signed in — cannot save store details to the server.');
-        console.error('[Settings] Save blocked:', noUserErr.message);
-        throw noUserErr;
-      }
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('[Settings] Auth session check failed:', sessionError);
-        throw new Error('Could not verify your session. Please refresh and sign in again.');
-      }
-      if (!sessionData?.session) {
-        console.error('[Settings] No active session — token likely expired');
-        throw new Error('Your session has expired. Please refresh and sign in again.');
-      }
-      console.debug('[Settings] Auth session OK, expires_at=', sessionData.session.expires_at);
-
-      const trimmedBusinessName = formData.businessName.trim();
-      const userIdText = String(currentUser.uid);
-
-      // Write to stores. Filter by user_id only (no need for store.id — there's
-      // one store per user) so this works whether or not we know the row's PK.
-      // Use .select().maybeSingle() so an RLS-blocked or zero-match update
-      // surfaces as data:null instead of throwing PGRST116.
-      const { data: updatedStore, error: storeUpdateError } = await supabase
-        .from('stores')
-        .update({
-          business_name: trimmedBusinessName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userIdText)
-        .select('id, user_id, business_name, updated_at')
-        .maybeSingle();
-
-      if (storeUpdateError) {
-        console.error('[Settings] stores update error:', {
-          code: storeUpdateError.code,
-          message: storeUpdateError.message,
-          details: storeUpdateError.details,
-          hint: storeUpdateError.hint,
-        });
-        throw new Error(`Could not save business name: ${storeUpdateError.message}`);
-      }
-      if (!updatedStore) {
-        console.error('[Settings] stores update matched zero rows', {
-          userIdText,
-          businessName: trimmedBusinessName,
-        });
-        throw new Error('Save did not update any row. Your session may have expired or your store row is missing — please refresh and try again.');
-      }
-      console.debug('[Settings] stores updated:', updatedStore);
-
-      // Mirror to users.business_name so the dashboard header survives a fresh
-      // login on a new device (when stores cache is empty).
-      const { error: userUpdateError } = await supabase
-        .from('users')
-        .update({
-          business_name: trimmedBusinessName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userIdText);
-
-      if (userUpdateError) {
-        console.warn('[Settings] users mirror update failed (non-fatal):', {
-          code: userUpdateError.code,
-          message: userUpdateError.message,
-        });
-        // Non-fatal: stores is already updated; continue.
-      }
-
-      // SECONDARY: localStorage profile. Drives the in-tab UI immediately and
-      // keeps document.title in sync. Now safe to call — the DB write succeeded.
+      // Save profile (all fields)
       setProfile({
         businessName: formData.businessName,
         ownerName: formData.ownerName,
@@ -501,18 +420,11 @@ export default function BusinessSettings({
       setTimeout(() => {
         setSaveStatus(null);
       }, 2000);
-    } catch (error: any) {
-      // Surface the real reason in console so we can diagnose silent-fail bugs
-      // (expired token, RLS mismatch, zero-row updates).
-      console.error('[Settings] Save error:', error);
-      if (error?.message) console.error('[Settings] Save error message:', error.message);
-      if (error?.code) console.error('[Settings] Save error code:', error.code);
+    } catch (error) {
+      console.debug('[Settings] Save error:', error);
       setSaveStatus('error');
       setIsSaving(false);
-      const userMessage = error?.message
-        ? `Failed to save: ${error.message}`
-        : 'Failed to save settings. Please try again.';
-      showToast(userMessage, 'error');
+      showToast('Failed to save settings. Please try again.', 'error');
     }
   };
 

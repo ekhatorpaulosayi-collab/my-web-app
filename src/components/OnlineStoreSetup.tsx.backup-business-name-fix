@@ -261,15 +261,6 @@ export default function OnlineStoreSetup() {
         await createStore(storeData);
       }
 
-      // Mirror business_name to users table so dashboard header survives logout/login
-      const { error: userSyncError } = await supabase
-        .from('users')
-        .update({ business_name: businessName, updated_at: new Date().toISOString() })
-        .eq('id', currentUser.uid);
-      if (userSyncError) {
-        console.warn('[OnlineStoreSetup] Could not sync business_name to users table:', userSyncError);
-      }
-
       console.log('[OnlineStoreSetup] Save successful!');
       setSaveStatus('saved');
       setMainSetupComplete(true);
@@ -940,17 +931,6 @@ export default function OnlineStoreSetup() {
                         whatsapp_number: whatsappNumber,
                         store_slug: storeSlug,
                       });
-
-                      // Mirror business_name to users table
-                      if (currentUser?.uid) {
-                        const { error: userSyncError } = await supabase
-                          .from('users')
-                          .update({ business_name: businessName, updated_at: new Date().toISOString() })
-                          .eq('id', currentUser.uid);
-                        if (userSyncError) {
-                          console.warn('[OnlineStoreSetup] Could not sync business_name to users table:', userSyncError);
-                        }
-                      }
 
                       setSaveStatus('saved');
                       setIsEditingMain(false);
