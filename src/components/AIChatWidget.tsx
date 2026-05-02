@@ -246,6 +246,16 @@ export default function AIChatWidget({
   const [hasDismissedTakeoverOption, setHasDismissedTakeoverOption] = useState(false); // Track if user chose to continue with AI
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Scrollable messages container — used by onScroll to track whether the
+  // user is at the bottom, so polling-driven message updates don't yank
+  // them away from older history they're trying to read.
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // True when the user is at (or within 50px of) the bottom of the thread.
+  // Default true so the very first messages render scrolls to bottom.
+  const isAtBottomRef = useRef(true);
+  // Set to true right before the user's own message is appended so the
+  // next scroll effect fires regardless of where they are.
+  const justSentRef = useRef(false);
   const lastMessageTimestampRef = useRef<string | null>(null);
 
   // Handle desktop detection
@@ -694,9 +704,14 @@ export default function AIChatWidget({
     setSuggestedQuestions(suggestions);
   }, [appContext, userType, contextType, location.pathname]);
 
-  // Scroll to bottom on new message
+  // Scroll to bottom on new message — but only if the user is already at
+  // the bottom, OR if they just sent a message. Lets long threads stay
+  // scrolled up while polling adds new messages further down.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isAtBottomRef.current || justSentRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      justSentRef.current = false;
+    }
   }, [messages]);
 
   // Progressive feature showcasing: Detect milestones and suggest next steps
@@ -1157,6 +1172,9 @@ export default function AIChatWidget({
       timestamp: new Date(),
       isLocal: true, // Mark as optimistically added - will be replaced by DB version
     };
+    // Force the next scroll effect to run so the user always sees their
+    // own message even if they were scrolled up reading history.
+    justSentRef.current = true;
     setMessages(prev => [...prev, newMessage]);
 
     // Track last customer message for WhatsApp context
@@ -1612,7 +1630,16 @@ export default function AIChatWidget({
           )}
 
           {/* Messages */}
-          <div style={{
+          <div
+            ref={messagesContainerRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              // 50px tolerance — treat "near bottom" as bottom so the
+              // gate doesn't flicker when scrollHeight changes by a pixel.
+              isAtBottomRef.current =
+                el.scrollTop + el.clientHeight >= el.scrollHeight - 50;
+            }}
+            style={{
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',

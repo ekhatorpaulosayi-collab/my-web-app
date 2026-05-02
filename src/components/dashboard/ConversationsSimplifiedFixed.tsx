@@ -173,6 +173,16 @@ export default function ConversationsSimplifiedFixed() {
   const { currentUser: user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Scrollable messages container — used by onScroll to track whether the
+  // owner is at the bottom, so polling-driven message updates don't yank
+  // them away from older history they're trying to read.
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // True when the owner is at (or within 50px of) the bottom of the thread.
+  // Default true so the very first messages render scrolls to bottom.
+  const isAtBottomRef = useRef(true);
+  // Set to true right before the agent's own message is appended so the
+  // next scroll effect fires regardless of where they are.
+  const justSentRef = useRef(false);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const lastMessageIds = useRef<Set<string>>(new Set());
   const processedMessageIds = useRef<Set<string>>(new Set());
@@ -496,6 +506,11 @@ export default function ConversationsSimplifiedFixed() {
     const messageToSend = messageText.trim();
     setMessageText('');
 
+    // Force the next scroll effect to run so the agent always sees their
+    // own reply land, even if they were scrolled up reviewing older
+    // history before hitting send.
+    justSentRef.current = true;
+
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -658,9 +673,14 @@ export default function ConversationsSimplifiedFixed() {
     }
   }, [user]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages — but only if the owner is already
+  // at the bottom, OR if they just sent a message. Lets long threads stay
+  // scrolled up while polling adds new messages further down.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isAtBottomRef.current || justSentRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      justSentRef.current = false;
+    }
   }, [selectedConversation?.messages]);
 
   // Check takeover status when selecting conversation
@@ -819,7 +839,12 @@ export default function ConversationsSimplifiedFixed() {
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setSelectedConversation(conv)}
+                  onClick={() => {
+                    // Reset scroll-position tracking when switching threads,
+                    // so the new conversation always starts at the bottom.
+                    isAtBottomRef.current = true;
+                    setSelectedConversation(conv);
+                  }}
                   style={{
                     padding: '16px',
                     borderBottom: '1px solid #f3f4f6',
@@ -1033,7 +1058,16 @@ export default function ConversationsSimplifiedFixed() {
             </div>
 
             {/* Messages */}
-            <div style={{
+            <div
+              ref={messagesContainerRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                // 50px tolerance — treat "near bottom" as bottom so the
+                // gate doesn't flicker when scrollHeight changes by a pixel.
+                isAtBottomRef.current =
+                  el.scrollTop + el.clientHeight >= el.scrollHeight - 50;
+              }}
+              style={{
               flex: 1,
               overflowY: 'auto',
               padding: '24px',
