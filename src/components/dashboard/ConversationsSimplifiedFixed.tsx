@@ -177,27 +177,21 @@ export default function ConversationsSimplifiedFixed() {
   const lastMessageIds = useRef<Set<string>>(new Set());
   const processedMessageIds = useRef<Set<string>>(new Set());
 
+  // Some Supabase responses return timestamptz columns without a
+  // timezone suffix. Treat naked ISO strings as UTC.
+  const parseUtc = (dateStr: string): Date => {
+    if (!dateStr) return new Date(NaN);
+    // If string already has Z or +/- offset, parseISO handles it.
+    // Otherwise, append Z to force UTC interpretation.
+    const hasTz = /Z$|[+-]\d{2}:?\d{2}$/.test(dateStr);
+    return parseISO(hasTz ? dateStr : dateStr + 'Z');
+  };
+
   // Helper function to get relative time
   const getRelativeTime = (dateStr: string): string => {
-    // parseISO strictly handles ISO 8601 with timezone offsets, so a string
-    // missing a 'Z'/'+00' suffix isn't silently reinterpreted as local time
-    // (the BST-as-UTC misparse that produced ~60min skew on the dashboard).
-    const date = parseISO(dateStr);
+    const date = parseUtc(dateStr);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
-    // TEMP DIAGNOSTIC — remove after root-cause confirmed.
-    // parseISO fix (efa2dd3) did not resolve the ~60min skew. Capture raw
-    // input, parsed value, and current time so we can see the actual
-    // arithmetic in the browser.
-    console.log('[TS-DEBUG]', {
-      raw: dateStr,
-      rawType: typeof dateStr,
-      parsedIso: date.toISOString(),
-      nowIso: now.toISOString(),
-      diffMs: diffInMs,
-      diffMin: Math.round(diffInMs / 60000),
-      diffHrs: Math.floor(diffInMs / 3600000),
-    });
     const diffInSeconds = Math.floor(diffInMs / 1000);
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     const diffInHours = Math.floor(diffInMinutes / 60);
@@ -354,9 +348,9 @@ export default function ConversationsSimplifiedFixed() {
             return priorityMap[statusA] - priorityMap[statusB];
           }
 
-          // Within same status, sort by time. Use parseISO for the same
-          // reason as getRelativeTime above — strict ISO 8601 / tz handling.
-          return parseISO(b.updated_at).getTime() - parseISO(a.updated_at).getTime();
+          // Within same status, sort by time. Use parseUtc so naked ISO
+          // strings from Supabase aren't misread as local time.
+          return parseUtc(b.updated_at).getTime() - parseUtc(a.updated_at).getTime();
         });
 
         setConversations(sortedConversations);
