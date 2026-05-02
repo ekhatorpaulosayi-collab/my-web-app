@@ -494,6 +494,51 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 Last Updated: March 28, 2026
 Author: Claude & Paul
 Status: ✅ Production Ready (Polling-based, Deduplication Fixed)
+
+## TIMESTAMP HANDLING (post-2026-05-02)
+
+**Root cause now fixed at the database level.** A migration on
+2026-05-02 converted 39 `timestamp without time zone` columns across
+14 tables to `timestamptz`, treating existing values as UTC. The
+affected tables are: `affiliate_clicks`, `affiliate_payouts`,
+`affiliate_sales`, `affiliates`, `ai_chat_conversations`,
+`ai_chat_messages`, `ai_chat_rate_limits`, `ai_chat_usage`,
+`product_images`, `subscription_tiers`, `user_onboarding_preferences`,
+`user_subscriptions`, `whatsapp_chats`, `whatsapp_settings`. The
+`store_conversations` view was dropped and recreated.
+
+**Effect on the frontend.** PostgREST now serializes these columns
+with proper `+00:00` (or `Z`) suffixes, so `new Date(...)` and
+`parseISO(...)` parse them correctly without coercion.
+
+**The `parseUtc` helper in `src/components/dashboard/ConversationsSimplifiedFixed.tsx`
+is now a defensive band-aid.** It is NO LONGER strictly required for
+correct behavior. **Keep it in place for at least one stable release**
+as a safety net against:
+- An older client cache that still has stale strings in memory
+  (unlikely with our SW cache-busting but possible in long-lived tabs).
+- Some other code path that writes a naked-ISO string back to the
+  database before the migration takes full effect everywhere.
+- Future tables/columns added without TZ awareness.
+
+**Future cleanup (no rush).** Code that previously had to use
+`parseUtc` can eventually use plain `parseISO` again. Recommended
+order when you do clean it up:
+1. Wait at least one stable release after 2026-05-02 with no
+   timestamp-related bug reports.
+2. Spot-check the response shape for each call site (browser console:
+   look for `+00:00` or `Z` on the relevant column).
+3. Replace `parseUtc(...)` → `parseISO(...)` one site at a time, run
+   `npm run check:chat`, build, deploy, verify.
+4. Remove the `parseUtc` helper itself only after every call site is
+   migrated.
+
+**Schema-level invariant going forward.** All new timestamp columns
+in this project MUST be declared `TIMESTAMPTZ`, never plain
+`TIMESTAMP`. Plain `timestamp without time zone` is what produced the
+~60-minute BST skew on the conversations dashboard before the
+2026-05-02 migration.
+
 ## EMERGENCY PLAYBOOK
 
 If frontend is broken:
