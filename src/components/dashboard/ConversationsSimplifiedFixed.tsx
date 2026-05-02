@@ -185,6 +185,19 @@ export default function ConversationsSimplifiedFixed() {
     const date = parseISO(dateStr);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
+    // TEMP DIAGNOSTIC — remove after root-cause confirmed.
+    // parseISO fix (efa2dd3) did not resolve the ~60min skew. Capture raw
+    // input, parsed value, and current time so we can see the actual
+    // arithmetic in the browser.
+    console.log('[TS-DEBUG]', {
+      raw: dateStr,
+      rawType: typeof dateStr,
+      parsedIso: date.toISOString(),
+      nowIso: now.toISOString(),
+      diffMs: diffInMs,
+      diffMin: Math.round(diffInMs / 60000),
+      diffHrs: Math.floor(diffInMs / 3600000),
+    });
     const diffInSeconds = Math.floor(diffInMs / 1000);
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     const diffInHours = Math.floor(diffInMinutes / 60);
