@@ -183,79 +183,64 @@ serve(async (req) => {
       previousPeriodEnd.setUTCDate(previousPeriodEnd.getUTCDate() - 7);
     }
 
-    // ============================================================
-    // FIX (2026-05-02 night): Sales / products queries previously used
-    // .eq('store_id', ...) and .select('total', ...) — but neither
-    // column exists on these tables. Real schema:
-    //   sales:    user_id (TEXT), product_id, product_name, quantity,
-    //             unit_price (kobo), total_amount (kobo), created_at
-    //   products: user_id (TEXT), name, quantity (stock), selling_price
-    //             (kobo), cost_price (kobo)
-    // The store row already gives us user_id from the ownership check
-    // above, so reuse it as the canonical owner for all per-user
-    // queries. ai_chat_conversations stays on store_id (correct schema).
-    // ============================================================
-    const userId = String(store.user_id);
-
-    // Query sales data for current period (kobo from DB → naira below)
+    // Query sales data for current period
     const { data: sales } = await supabase
       .from('sales')
-      .select('total_amount, product_id, product_name, quantity, created_at')
-      .eq('user_id', userId)
+      .select('total, created_at')
+      .eq('store_id', store_id)
       .gte('created_at', periodStart.toISOString())
       .lte('created_at', periodEnd.toISOString());
 
-    const totalSalesKobo = sales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
+    const totalSales = sales?.reduce((sum, sale) => sum + (sale.total || 0), 0) || 0;
     const salesCount = sales?.length || 0;
 
-    // Query sales data for previous period (for trend comparison, kobo)
+    // Query sales data for previous period
     const { data: previousSales } = await supabase
       .from('sales')
-      .select('total_amount')
-      .eq('user_id', userId)
+      .select('total')
+      .eq('store_id', store_id)
       .gte('created_at', previousPeriodStart.toISOString())
       .lte('created_at', previousPeriodEnd.toISOString());
 
-    const previousTotalSalesKobo = previousSales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
+    const previousTotalSales = previousSales?.reduce((sum, sale) => sum + (sale.total || 0), 0) || 0;
 
-    // Aggregate top products from the sales rows themselves — sales is
-    // denormalized (product_id + product_name + quantity + total_amount
-    // live on each row), so no join with sale_items/products is needed.
+    // Query top products sold
+    const { data: topProducts } = await supabase
+      .from('sale_items')
+      .select('product_id, quantity, products!inner(name, price)')
+      .eq('products.store_id', store_id)
+      .gte('created_at', periodStart.toISOString())
+      .lte('created_at', periodEnd.toISOString())
+      .limit(5);
+
+    // Aggregate top products
     const productSales = new Map();
-    sales?.forEach(sale => {
-      const key = sale.product_id;
-      if (!key) return;
+    topProducts?.forEach(item => {
+      const key = item.product_id;
       if (!productSales.has(key)) {
         productSales.set(key, {
-          name: sale.product_name || 'Unknown product',
+          name: item.products.name,
           quantity: 0,
-          revenueKobo: 0,
+          revenue: 0
         });
       }
       const product = productSales.get(key);
-      product.quantity += sale.quantity || 0;
-      product.revenueKobo += sale.total_amount || 0;
+      product.quantity += item.quantity;
+      product.revenue += item.quantity * item.products.price;
     });
 
     const topProductsList = Array.from(productSales.values())
-      .sort((a, b) => b.revenueKobo - a.revenueKobo)
-      .slice(0, 5)
-      // Convert revenue from kobo to naira at the snapshot boundary so
-      // the snapshot is uniformly in naira.
-      .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenueKobo / 100 }));
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
 
-    // Query low-stock products. Schema: column is `quantity`, not
-    // `stock`; ownership is `user_id`. Map to `stock` in the snapshot
-    // because the renderer (BusinessInsights.tsx:364) reads `item.stock`.
-    const { data: lowStockRows } = await supabase
+    // Query low stock items
+    const { data: lowStock } = await supabase
       .from('products')
-      .select('name, quantity')
-      .eq('user_id', userId)
-      .lt('quantity', 5)
-      .order('quantity', { ascending: true })
+      .select('name, stock')
+      .eq('store_id', store_id)
+      .lt('stock', 5)
+      .order('stock', { ascending: true })
       .limit(5);
-
-    const lowStock = (lowStockRows || []).map(p => ({ name: p.name, stock: p.quantity }));
 
     // Query outstanding credit
     const { data: credits } = await supabase
@@ -322,17 +307,7 @@ serve(async (req) => {
         .map(([topic]) => topic);
     }
 
-    // ============================================================
-    // Snapshot boundary: all monetary values below are in NAIRA.
-    // The DB stores kobo on `sales.total_amount`, `products.selling_price`,
-    // etc; we divide by 100 once here so the renderer (which calls
-    // formatCurrency() expecting naira) and the LLM prompt below both
-    // see the same units. If you ever surface kobo numbers from this
-    // function again, document that field explicitly.
-    // ============================================================
-    const totalSales = totalSalesKobo / 100;
-    const previousTotalSales = previousTotalSalesKobo / 100;
-
+    // Prepare data snapshot
     const dataSnapshot = {
       period: {
         type: period,
@@ -340,14 +315,13 @@ serve(async (req) => {
         end: periodEnd.toISOString()
       },
       sales: {
-        // total/previousTotal are in naira; topProductsList revenue too.
         total: totalSales,
         count: salesCount,
         previousTotal: previousTotalSales,
         change: previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales * 100).toFixed(1) : null
       },
       topProducts: topProductsList,
-      lowStock: lowStock,
+      lowStock: lowStock || [],
       outstandingCredit,
       chatInsights: {
         totalConversations,
