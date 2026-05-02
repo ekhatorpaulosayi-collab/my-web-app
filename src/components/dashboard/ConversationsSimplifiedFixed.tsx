@@ -210,7 +210,7 @@ export default function ConversationsSimplifiedFixed() {
   const getConversationStatus = (conv: Conversation): 'waiting' | 'active' | 'missed' | 'ended' => {
     if (conv.takeover_status === 'requested') {
       if (conv.waiting_for_owner_since) {
-        const waitingTime = Date.now() - new Date(conv.waiting_for_owner_since).getTime();
+        const waitingTime = Date.now() - parseUtc(conv.waiting_for_owner_since).getTime();
         if (waitingTime > 30 * 60 * 1000) { // 30 minutes
           return 'missed';
         }
@@ -1072,7 +1072,7 @@ export default function ConversationsSimplifiedFixed() {
                 }
 
                 // Format time
-                const msgTime = new Date(msg.created_at).toLocaleTimeString('en-US', {
+                const msgTime = parseUtc(msg.created_at).toLocaleTimeString('en-US', {
                   hour: '2-digit',
                   minute: '2-digit',
                   hour12: false
