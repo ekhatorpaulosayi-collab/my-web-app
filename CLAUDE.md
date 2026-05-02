@@ -488,6 +488,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 - **v1.4** (March 27, 2026): Replaced WebSocket with polling (Supabase free tier compatibility)
 - **v1.5** (March 28, 2026): Fixed AI response duplication - removed duplicate insertion from ChatTracking service
 - **v1.6** (March 28, 2026): Created comprehensive operations manual at docs/CHAT_WIDGET_SYSTEM.md
+- **v1.6.1** (DB-only, 2026-05-02): TIMESTAMPTZ migration: converted 39 timestamp columns across 14 tables from `timestamp without time zone` to `timestamptz`. Root-cause fix for 60-minute clock skew that necessitated parseUtc band-aid in v1.2.1-stable. See migration `20260502_fix_naked_timestamp_columns.sql` and the TIMESTAMP HANDLING section below.
 
 ---
 
