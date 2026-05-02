@@ -264,7 +264,7 @@ export default function ConversationsSimplifiedFixed() {
           try {
             // Check if waiting for too long (> 30 minutes)
             if (conv.waiting_for_owner_since) {
-              const waitingTime = Date.now() - new Date(conv.waiting_for_owner_since).getTime();
+              const waitingTime = Date.now() - parseUtc(conv.waiting_for_owner_since).getTime();
               if (waitingTime > 30 * 60 * 1000) {
                 // Update database to end the waiting state
                 await supabase
@@ -294,7 +294,7 @@ export default function ConversationsSimplifiedFixed() {
                 .single();
 
               if (lastMessage) {
-                const timeSinceLastMessage = Date.now() - new Date(lastMessage.created_at).getTime();
+                const timeSinceLastMessage = Date.now() - parseUtc(lastMessage.created_at).getTime();
                 if (timeSinceLastMessage > 24 * 60 * 60 * 1000) {
                   // Update database to end the agent session
                   await supabase
@@ -386,7 +386,7 @@ export default function ConversationsSimplifiedFixed() {
 
         messages.forEach((msg) => {
           const contentKey = `${msg.content}-${msg.sender_type}-${msg.role}`;
-          const timeKey = new Date(msg.created_at).getTime();
+          const timeKey = parseUtc(msg.created_at).getTime();
 
           const lastSeenTime = seenContents.get(contentKey);
           if (lastSeenTime && Math.abs(timeKey - lastSeenTime) < 5000) {
