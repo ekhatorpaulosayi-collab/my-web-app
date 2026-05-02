@@ -4,6 +4,7 @@ import { ChevronLeft, Search, Send, MessageSquare, X, UserCheck, UserX, AlertCir
 import { supabase, supabaseUrl, supabaseAnonKey } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { parseISO } from 'date-fns';
 import QuotaAlert from './QuotaAlert';
 
 interface Message {
@@ -178,7 +179,10 @@ export default function ConversationsSimplifiedFixed() {
 
   // Helper function to get relative time
   const getRelativeTime = (dateStr: string): string => {
-    const date = new Date(dateStr);
+    // parseISO strictly handles ISO 8601 with timezone offsets, so a string
+    // missing a 'Z'/'+00' suffix isn't silently reinterpreted as local time
+    // (the BST-as-UTC misparse that produced ~60min skew on the dashboard).
+    const date = parseISO(dateStr);
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
     const diffInSeconds = Math.floor(diffInMs / 1000);
@@ -337,8 +341,9 @@ export default function ConversationsSimplifiedFixed() {
             return priorityMap[statusA] - priorityMap[statusB];
           }
 
-          // Within same status, sort by time
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          // Within same status, sort by time. Use parseISO for the same
+          // reason as getRelativeTime above — strict ISO 8601 / tz handling.
+          return parseISO(b.updated_at).getTime() - parseISO(a.updated_at).getTime();
         });
 
         setConversations(sortedConversations);
