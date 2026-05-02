@@ -64,37 +64,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // ============================================================
-    // AUTH REQUIRED — added 2026-05-01 to close M11 in security audit.
-    // Previously anyone could trigger pushes for any store with attacker-
-    // controlled customerName/messagePreview (phishing + harassment vector).
-    // Now we require a valid JWT and verify the caller owns the target store.
-    //
-    // ⚠️ KNOWN BREAKING CHANGE: storefront customers (unauthenticated) calling
-    // this function via AIChatWidget "Talk to Store Owner" (line 1088) will
-    // now get 401. That call path needs a separate server-to-server route
-    // (e.g. proxy through ai-chat which already validates the customer's
-    // session and can use the service-role key internally), or a signed
-    // request token issued by the storefront flow. Until then, the in-app
-    // push for waiting-customer notifications is OFF.
-    // ============================================================
-    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-    const token = authHeader.replace(/^Bearer\s+/i, '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-    if (authError || !user) {
-      console.warn('[Push] Invalid token:', authError?.message);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Get VAPID keys from environment
     const vapidPublicKey = Deno.env.get('VITE_VAPID_PUBLIC_KEY') || 'BJT0RJYTrJDZN70mYJH0NTFPKE4L9srwqSsdcpnEZeKXWupXpOOitwjmGT_wJ_Vznp-KpmZn57cOHEUx4QSmJcE'
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || ''
@@ -102,7 +71,7 @@ serve(async (req) => {
 
     const { store_id, userId, conversationId, customerName, messagePreview } = await req.json()
 
-    console.log('[Push] Received request for store:', store_id, 'user:', userId, 'authUser:', user.id)
+    console.log('[Push] Received request for store:', store_id, 'user:', userId)
 
     // Get the user ID from store if store_id is provided
     let targetUserId = userId;
@@ -117,21 +86,6 @@ serve(async (req) => {
       if (store) {
         targetUserId = store.user_id
       }
-    }
-
-    // OWNERSHIP CHECK — caller must be the user receiving the push.
-    // If a store_id was supplied, targetUserId was resolved from that store's
-    // owner above; we then check that owner == authenticated caller.
-    if (!targetUserId || String(targetUserId) !== String(user.id)) {
-      console.warn('[Push] Caller does not own target user', {
-        authUser: user.id,
-        targetUserId,
-        store_id,
-      })
-      return new Response(
-        JSON.stringify({ error: 'Forbidden' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
     }
 
     if (!targetUserId) {

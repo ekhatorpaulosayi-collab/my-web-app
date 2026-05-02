@@ -38,31 +38,16 @@ serve(async (req) => {
       );
     }
 
-    // ============================================================
-    // AUTH REQUIRED — added 2026-05-01 to close H1 in security audit.
-    // Previously the ownership check was `if (userId && ...)`, so a
-    // caller with no Authorization header skipped ownership entirely
-    // and could trigger summary generation for any Pro/Business store.
-    // Now we require a valid JWT before doing any work.
-    // ============================================================
-    const authorization = req.headers.get('Authorization') || req.headers.get('authorization');
-    if (!authorization) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
+    // Get authorization header to verify caller
+    const authorization = req.headers.get('Authorization');
+    let userId: string | null = null;
+
+    if (authorization) {
+      const token = authorization.replace('Bearer ', '');
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (user) userId = user.id;
+      console.log('[BusinessSummary] Authenticated user ID:', userId);
     }
-    const token = authorization.replace(/^Bearer\s+/i, '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      console.warn('[BusinessSummary] Invalid token:', authError?.message);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-    const userId: string = user.id;
-    console.log('[BusinessSummary] Authenticated user ID:', userId);
 
     // Verify store ownership and get store details
     console.log('[BusinessSummary] Querying store with ID:', store_id);
@@ -100,12 +85,11 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is the owner. stores.user_id is TEXT, so coerce
-    // both sides with String() to avoid a type-driven mismatch.
-    if (String(store.user_id) !== String(userId)) {
+    // Check if user is the owner (if userId is provided)
+    if (userId && store.user_id !== userId) {
       console.log('[BusinessSummary] User is not the store owner:', { userId, storeUserId: store.user_id });
       return new Response(
-        JSON.stringify({ error: 'Forbidden - not store owner' }),
+        JSON.stringify({ error: 'Unauthorized - not store owner' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
@@ -123,7 +107,7 @@ serve(async (req) => {
     const { data: tierData } = await supabase
       .from('subscription_tiers')
       .select('name')
-      .eq('id', subscription?.tier_id || 'free') // Default to 'free' tier id when no subscription row exists
+      .eq('id', subscription?.tier_id || 1) // Default to tier 1 (Free) if no subscription
       .single();
 
     const tierName = tierData?.name || 'Free';

@@ -1065,52 +1065,44 @@ export default function AIChatWidget({
 
       console.log('🚨 [CHAT-DEBUG-12] Update successful! waiting_for_owner_since has been set');
 
-      // Send push notification to store owner via the ai-chat edge function (non-blocking).
-      // We can't call send-push-notification directly anymore — its public HTTP entry
-      // requires a user JWT (security audit M11) and storefront customers don't have one.
-      // ai-chat acts as the relay using the service-role key server-side.
+      // Send push notification to store owner (non-blocking)
       try {
-        console.log('🚨 [CHAT-DEBUG-13] Sending push notification to store owner via ai-chat relay');
+        console.log('🚨 [CHAT-DEBUG-13] Sending push notification to store owner');
 
+        // Get the last customer message for preview
         const lastCustomerMessage = messages
           .filter(m => m.role === 'user')
           .slice(-1)[0]?.content || 'Customer needs help';
 
-        const relayPayload = {
-          // Required by ai-chat's existing schema, even though this branch
-          // short-circuits before the message-validation gate.
-          message: '[owner-notification-relay]',
-          contextType: 'storefront' as const,
-          storeSlug,
-          sessionId: sessionId || undefined,
-          // Owner-notification relay fields (added 2026-05-01).
-          requestOwnerNotification: true,
-          conversationId,
+        const notificationPayload = {
+          store_id: storeData?.id,
+          userId: storeData?.user_id,
+          conversationId: conversationId,
           customerName: customerName || 'Customer',
-          messagePreview: lastCustomerMessage.substring(0, 100),
+          messagePreview: lastCustomerMessage.substring(0, 100)
         };
 
-        console.log('🚨 [CHAT-DEBUG-14] Owner-notification relay payload:', relayPayload);
+        console.log('🚨 [CHAT-DEBUG-14] Push notification payload:', notificationPayload);
 
-        fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+        // Call the send-push-notification edge function
+        fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`
           },
-          body: JSON.stringify(relayPayload),
+          body: JSON.stringify(notificationPayload)
         }).then(response => {
-          console.log('🚨 [CHAT-DEBUG-15] Owner-notification relay response:', response.status);
+          console.log('🚨 [CHAT-DEBUG-15] Push notification response:', response.status);
           return response.json();
         }).then(data => {
-          console.log('🚨 [CHAT-DEBUG-16] Owner-notification relay result:', data);
+          console.log('🚨 [CHAT-DEBUG-16] Push notification result:', data);
         }).catch(err => {
-          console.error('🚨 [CHAT-DEBUG-17] Owner-notification relay failed:', err);
+          console.error('🚨 [CHAT-DEBUG-17] Push notification failed:', err);
           // Don't fail the main flow if push fails
         });
       } catch (err) {
-        console.error('🚨 [CHAT-DEBUG-18] Error sending owner notification:', err);
+        console.error('🚨 [CHAT-DEBUG-18] Error sending push notification:', err);
         // Continue without push notification
       }
 

@@ -37,35 +37,6 @@ interface DailyMetrics {
 
 serve(async (req) => {
   try {
-    // ============================================================
-    // CRON SECRET CHECK — added 2026-05-01 to close M12 in security audit.
-    // This function is meant to be triggered only by the Supabase scheduler
-    // (or another trusted cron). Without this gate, any caller could iterate
-    // every business with reports enabled and burn Twilio credits.
-    //
-    // The caller must send `x-cron-secret: <value>` matching the env var
-    // CRON_SECRET. Configure with:
-    //   supabase secrets set CRON_SECRET="<random-strong-value>" \
-    //     --project-ref yzlniqwzqlsftxrtapdl
-    // and configure your scheduler/cron to send the same value.
-    // ============================================================
-    const expectedSecret = Deno.env.get('CRON_SECRET')
-    const providedSecret = req.headers.get('x-cron-secret')
-    if (!expectedSecret) {
-      console.error('[DailyReports] CRON_SECRET env var is not configured — refusing all requests')
-      return new Response(
-        JSON.stringify({ error: 'Server not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      )
-    }
-    if (!providedSecret || providedSecret !== expectedSecret) {
-      console.warn('[DailyReports] Missing or invalid x-cron-secret header')
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

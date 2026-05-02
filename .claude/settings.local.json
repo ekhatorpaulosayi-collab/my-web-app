@@ -15,7 +15,9 @@
       "Bash(npm run dev:*)",
       "Bash(npm run typecheck:*)",
       "Bash(npm run *)",
-      "Bash(xargs -I{} echo {})"
+      "Bash(xargs -I{} echo {})",
+      "Bash(echo \"exit=$?\")",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []

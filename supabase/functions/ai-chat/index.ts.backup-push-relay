@@ -43,19 +43,6 @@ interface ChatRequest {
   appContext?: any; // NEW: User's app state (products, sales, etc.)
   relevantDocs?: any[]; // NEW: Documentation search results (RAG)
   conversationHistory?: Array<{ role: string; content: string }>; // Track conversation
-  // ============================================================
-  // Owner-notification relay (added 2026-05-01) — when an
-  // unauthenticated storefront customer clicks "Talk to Store
-  // Owner", the widget calls this function with these fields so
-  // the push notification can be issued server-side using the
-  // service role. send-push-notification's public HTTP entry
-  // requires a user JWT (security audit M11) which the customer
-  // doesn't have — this is the relay path.
-  // ============================================================
-  requestOwnerNotification?: boolean;
-  conversationId?: string;
-  customerName?: string;
-  messagePreview?: string;
 }
 
 // Conversation state tracking (in-memory for visitors)
@@ -104,91 +91,6 @@ async function trackChatEvent(
     console.error('[trackChatEvent] Error:', error);
     // Don't fail the request if analytics fails
   }
-}
-
-// ============================================================
-// Owner-notification relay (added 2026-05-01).
-// Sends a Web Push to every active subscription belonging to the
-// store owner. Mirrors the logic in send-push-notification but runs
-// in-process so storefront customers don't need a user JWT to trigger
-// it. send-push-notification's HTTP entry stays gated on user auth
-// (security audit M11) — this path is only reachable via the
-// requestOwnerNotification flag below, which is itself rate-limited
-// by the visitor IP gate at line ~551.
-// ============================================================
-async function sendOwnerPushInProcess(
-  supabase: any,
-  args: {
-    targetUserId: string;
-    conversationId: string | null;
-    customerName?: string;
-    messagePreview?: string;
-  }
-): Promise<{ sent: number; total: number }> {
-  const { targetUserId, conversationId, customerName, messagePreview } = args;
-
-  const { data: subscriptions, error: subError } = await supabase
-    .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth')
-    .eq('user_id', targetUserId)
-    .eq('is_active', true);
-
-  if (subError) {
-    console.error('[OwnerPushRelay] Subscription fetch error:', subError);
-    return { sent: 0, total: 0 };
-  }
-  if (!subscriptions || subscriptions.length === 0) {
-    console.log('[OwnerPushRelay] No active push subscriptions for user:', targetUserId);
-    return { sent: 0, total: 0 };
-  }
-
-  const notificationPayload = JSON.stringify({
-    title: customerName ? `${customerName} is waiting!` : 'Customer waiting!',
-    body: messagePreview || 'A customer needs help in your store chat',
-    icon: '/icons/storehouse-icon-192.png',
-    badge: '/icons/storehouse-badge-72.png',
-    tag: conversationId ? `conversation-${conversationId}` : 'customer-waiting',
-    data: {
-      conversationId,
-      timestamp: Date.now(),
-      type: 'customer-waiting',
-    },
-    requireInteraction: true,
-    vibrate: [200, 100, 200],
-  });
-
-  const results = await Promise.allSettled(
-    subscriptions.map(async (sub: any) => {
-      try {
-        const response = await fetch(sub.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'TTL': '86400',
-            'Urgency': 'high',
-            'Topic': 'customer-waiting',
-          },
-          body: notificationPayload,
-        });
-        if (!response.ok) {
-          // Mark dead endpoints inactive so we stop trying.
-          await supabase
-            .from('push_subscriptions')
-            .update({ is_active: false })
-            .eq('id', sub.id);
-          return false;
-        }
-        return true;
-      } catch (err) {
-        console.error('[OwnerPushRelay] Push send error:', err);
-        return false;
-      }
-    })
-  );
-
-  const sent = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
-  console.log('[OwnerPushRelay] Sent', sent, 'of', subscriptions.length, 'pushes for user:', targetUserId);
-  return { sent, total: subscriptions.length };
 }
 
 async function checkAndIncrementRateLimit(
@@ -642,88 +544,8 @@ serve(async (req) => {
       storeInfo,           // Store info (business name, about us, etc.)
       userType = 'user',   // NEW: Visitor/Shopper/User type
       appContext = {},     // NEW: User's app state
-      relevantDocs = [],   // NEW: Documentation search results (RAG)
-      requestOwnerNotification, // Owner-notification relay (added 2026-05-01)
-      conversationId: bodyConversationId,
-      customerName: bodyCustomerName,
-      messagePreview: bodyMessagePreview,
+      relevantDocs = []    // NEW: Documentation search results (RAG)
     } = body;
-
-    // ============================================================
-    // OWNER-NOTIFICATION RELAY — short-circuit early.
-    // The widget calls this when an unauthenticated storefront customer
-    // clicks "Talk to Store Owner". send-push-notification's HTTP entry
-    // requires a user JWT (security audit M11), so we relay the push here
-    // using the service role. No AI call, no message insert — the widget
-    // owns those side-effects independently.
-    //
-    // Rate limit: this branch is reachable by unauthenticated visitors.
-    // We rely on the IP-based rate limit further down to bound abuse, but
-    // we apply a tighter per-conversation guard here too: only one push
-    // per (conversationId, 60s) window.
-    // ============================================================
-    if (requestOwnerNotification === true) {
-      if (!bodyConversationId) {
-        return jsonResponse({ error: 'conversationId is required for owner notification' }, 400);
-      }
-
-      // Look up the conversation → store → owner. Use the existing
-      // service-role supabase client. No user auth needed because the push
-      // target is derived server-side from the conversation, not from
-      // anything the caller asserts.
-      const { data: conv, error: convError } = await supabase
-        .from('ai_chat_conversations')
-        .select('id, store_id')
-        .eq('id', bodyConversationId)
-        .maybeSingle();
-
-      if (convError || !conv) {
-        console.warn('[OwnerPushRelay] Conversation not found:', bodyConversationId, convError?.message);
-        return jsonResponse({ error: 'Conversation not found' }, 404);
-      }
-
-      const { data: store, error: storeError } = await supabase
-        .from('stores')
-        .select('id, user_id')
-        .eq('id', conv.store_id)
-        .maybeSingle();
-
-      if (storeError || !store?.user_id) {
-        console.warn('[OwnerPushRelay] Store/owner not found for conversation:', bodyConversationId, storeError?.message);
-        return jsonResponse({ error: 'Store owner not found' }, 404);
-      }
-
-      // Per-conversation throttle: skip if a takeover system message was
-      // inserted for this conversation in the last 60 seconds. This caps
-      // attacker push-spam to 1/minute per conversation even if they know
-      // a valid conversationId.
-      const { data: recentTakeover } = await supabase
-        .from('ai_chat_messages')
-        .select('id, created_at')
-        .eq('conversation_id', bodyConversationId)
-        .eq('content', 'Customer requested to speak with store owner')
-        .gte('created_at', new Date(Date.now() - 60_000).toISOString())
-        .limit(1);
-
-      if (recentTakeover && recentTakeover.length > 0) {
-        // We still report success so the widget doesn't retry.
-        console.log('[OwnerPushRelay] Throttled — recent takeover request for', bodyConversationId);
-        return jsonResponse({ ownerNotificationSent: true, throttled: true });
-      }
-
-      const result = await sendOwnerPushInProcess(supabase, {
-        targetUserId: String(store.user_id),
-        conversationId: bodyConversationId,
-        customerName: bodyCustomerName,
-        messagePreview: bodyMessagePreview,
-      });
-
-      return jsonResponse({
-        ownerNotificationSent: true,
-        sent: result.sent,
-        total: result.total,
-      });
-    }
 
     // ENHANCED: IP-based rate limiting for visitors
     if (userType === 'visitor' && !userId) {

@@ -16,87 +16,15 @@ serve(async (req) => {
   }
 
   try {
-    // ============================================================
-    // AUTH CHECK — added 2026-05-01 to close H7 in security audit.
-    // Without this, anyone who knew a conversation UUID could inject
-    // arbitrary "agent" messages by spoofing agentId.
-    // ============================================================
-    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { conversationId, message, agentId } = await req.json();
+
+    console.log('[SendAgentMessage] Starting - conversationId:', conversationId);
+    console.log('[SendAgentMessage] Message to send:', message);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      console.warn('[SendAgentMessage] Invalid token:', authError?.message);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const { conversationId, message, agentId } = await req.json();
-
-    console.log('[SendAgentMessage] Starting - conversationId:', conversationId, 'authUser:', user.id);
-    console.log('[SendAgentMessage] Message to send:', message);
-
-    // ============================================================
-    // OWNERSHIP CHECK — verify the authenticated caller owns the
-    // store that owns this conversation. stores.user_id is TEXT,
-    // so coerce user.id with String() to match RLS predicate
-    // (user_id = auth.uid()::text). agentId in the request body
-    // is treated as untrusted; we use user.id as the truth.
-    // ============================================================
-    const { data: conv, error: convError } = await supabase
-      .from('ai_chat_conversations')
-      .select('id, store_id')
-      .eq('id', conversationId)
-      .maybeSingle();
-
-    if (convError || !conv) {
-      console.warn('[SendAgentMessage] Conversation not found:', convError?.message);
-      return new Response(JSON.stringify({ error: 'Conversation not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const { data: store, error: storeError } = await supabase
-      .from('stores')
-      .select('id, user_id')
-      .eq('id', conv.store_id)
-      .maybeSingle();
-
-    if (storeError || !store) {
-      console.warn('[SendAgentMessage] Store not found for conversation:', storeError?.message);
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (String(store.user_id) !== String(user.id)) {
-      console.warn('[SendAgentMessage] User does not own store', {
-        authUser: user.id,
-        storeOwner: store.user_id,
-      });
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Force agent_id to the verified caller — never trust the body.
-    const verifiedAgentId = user.id;
 
     // Get last customer message language - look for ALL customer messages
     console.log('[SendAgentMessage] Querying for customer language...');
@@ -173,7 +101,7 @@ serve(async (req) => {
         role: 'assistant',
         content: message,
         is_agent_message: true,
-        agent_id: verifiedAgentId,
+        agent_id: agentId,
         sender_type: 'agent',
         detected_language: 'english',
         translated_text: translatedText

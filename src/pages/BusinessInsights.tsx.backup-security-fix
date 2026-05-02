@@ -38,6 +38,12 @@ const BusinessInsights: React.FC = () => {
         return;
       }
 
+      // Debug logging
+      console.log('[BusinessInsights] Current user object:', currentUser);
+      console.log('[BusinessInsights] Current user UID:', currentUser.uid);
+      console.log('[BusinessInsights] Expected test user ID: dffba89b-869d-422a-a542-2e2494850b44');
+      console.log('[BusinessInsights] User ID matches test:', currentUser.uid === 'dffba89b-869d-422a-a542-2e2494850b44');
+
       // Check if user is staff
       if (currentRole !== 'owner') {
         alert('Business Insights is only available to store owners.');
@@ -58,22 +64,34 @@ const BusinessInsights: React.FC = () => {
       }
 
       // Get store ID - handle multiple stores like ConversationsSimplifiedFixed
-      const { data: stores } = await supabase
+      console.log('[BusinessInsights] Querying stores with user_id:', currentUser.uid);
+
+      const { data: stores, error } = await supabase
         .from('stores')
         .select('id')
         .eq('user_id', currentUser.uid);
 
+      console.log('[BusinessInsights] Store query result:', { stores, error });
+      console.log('[BusinessInsights] Number of stores found:', stores?.length || 0);
+
       // Use the first store if multiple exist
       if (stores && stores.length > 0) {
+        console.log('[BusinessInsights] Setting store ID to:', stores[0].id);
+        console.log('[BusinessInsights] Expected store ID: d93cd891-7e0a-47a8-9963-5e2a00a2591f');
         setStoreId(stores[0].id);
       } else {
-        // Fallback: legacy single-store setups stored store row with id == user uid
-        const { data: fallbackStore } = await supabase
+        console.log('[BusinessInsights] No stores found for user!');
+        // Try with just the UID as a fallback (for legacy single-store setups)
+        console.log('[BusinessInsights] Trying fallback query with store ID = user UID...');
+        const { data: fallbackStore, error: fallbackError } = await supabase
           .from('stores')
           .select('id')
           .eq('id', currentUser.uid);
 
+        console.log('[BusinessInsights] Fallback query result:', { fallbackStore, fallbackError });
+
         if (fallbackStore && fallbackStore.length > 0) {
+          console.log('[BusinessInsights] Using fallback store ID:', fallbackStore[0].id);
           setStoreId(fallbackStore[0].id);
         }
       }
@@ -142,20 +160,11 @@ const BusinessInsights: React.FC = () => {
     setError(null);
 
     try {
-      // Send the user's JWT (not the anon key) so the edge function can
-      // verify ownership. Previously we sent the anon key, which made the
-      // edge function's `auth.getUser()` return null and bypassed the
-      // ownership check entirely (security audit H1 / M5).
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.access_token) {
-        throw new Error('Your session has expired. Please refresh and sign in again.');
-      }
-
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-business-summary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         },
         body: JSON.stringify({
           store_id: storeId,
