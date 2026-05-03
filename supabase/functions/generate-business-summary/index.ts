@@ -1,441 +1,461 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import OpenAI from "https://deno.land/x/openai@v4.24.0/mod.ts";
+// generate-business-summary
+//
+// Rebuilt 2026-05-03 from scratch. Old file got into a state where the
+// Supabase edge runtime BOOT_ERRORed regardless of which line we cut —
+// archived as `index.ts.archive-broken-2026-05-03` for reference.
+//
+// Architecture mirrors send-agent-message and ai-chat: raw fetch() to
+// OpenAI (no SDK), unpinned `@supabase/supabase-js@2`, OPTIONS handler
+// first, auth before business logic, every Response carries corsHeaders.
+//
+// No TypeScript type annotations on local variables — the runtime has
+// been finicky with TS today, and the working sibling functions also
+// keep locals plain.
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+function jsonResponse(body, status) {
+  return new Response(JSON.stringify(body), {
+    status: status || 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+// WAT (UTC+1) calendar boundaries for a given anchor date.
+// Also returns the previous-period boundaries (same length, shifted back)
+// so we can compute period-over-period change.
+function computePeriod(period, anchorIso) {
+  const watOffsetMs = 60 * 60 * 1000;
+  const anchor = new Date(anchorIso);
+  if (isNaN(anchor.getTime())) {
+    throw new Error('period_start is not a valid ISO date');
+  }
+  const watAnchor = new Date(anchor.getTime() + watOffsetMs);
+
+  let startWat;
+  let endWat;
+  let prevStartWat;
+  let prevEndWat;
+
+  if (period === 'daily') {
+    startWat = new Date(watAnchor);
+    startWat.setUTCHours(0, 0, 0, 0);
+    endWat = new Date(watAnchor);
+    endWat.setUTCHours(23, 59, 59, 999);
+    prevEndWat = new Date(startWat.getTime() - 1);
+    prevStartWat = new Date(prevEndWat);
+    prevStartWat.setUTCHours(0, 0, 0, 0);
+  } else if (period === 'weekly') {
+    const dayOfWeek = watAnchor.getUTCDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startWat = new Date(watAnchor);
+    startWat.setUTCDate(startWat.getUTCDate() - daysToMonday);
+    startWat.setUTCHours(0, 0, 0, 0);
+    endWat = new Date(startWat);
+    endWat.setUTCDate(endWat.getUTCDate() + 6);
+    endWat.setUTCHours(23, 59, 59, 999);
+    prevStartWat = new Date(startWat);
+    prevStartWat.setUTCDate(prevStartWat.getUTCDate() - 7);
+    prevEndWat = new Date(endWat);
+    prevEndWat.setUTCDate(prevEndWat.getUTCDate() - 7);
+  } else if (period === 'monthly') {
+    startWat = new Date(watAnchor);
+    startWat.setUTCDate(1);
+    startWat.setUTCHours(0, 0, 0, 0);
+    endWat = new Date(startWat);
+    endWat.setUTCMonth(endWat.getUTCMonth() + 1);
+    endWat.setUTCDate(0);
+    endWat.setUTCHours(23, 59, 59, 999);
+    prevStartWat = new Date(startWat);
+    prevStartWat.setUTCMonth(prevStartWat.getUTCMonth() - 1);
+    prevEndWat = new Date(startWat.getTime() - 1);
+  } else {
+    throw new Error('period must be daily, weekly, or monthly');
+  }
+
+  // Convert WAT-anchored boundaries back to UTC instants for DB query.
+  return {
+    start: new Date(startWat.getTime() - watOffsetMs),
+    end: new Date(endWat.getTime() - watOffsetMs),
+    previousStart: new Date(prevStartWat.getTime() - watOffsetMs),
+    previousEnd: new Date(prevEndWat.getTime() - watOffsetMs),
+  };
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
+  // 1) OPTIONS preflight — first, before anything else.
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!;
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const openai = new OpenAI({ apiKey: openaiApiKey });
-
-    // Parse request
-    const requestBody = await req.json();
-    const { store_id, period } = requestBody;
-
-    // Debug logging
-    console.log('[BusinessSummary] Incoming request body:', requestBody);
-    console.log('[BusinessSummary] Store ID:', store_id);
-    console.log('[BusinessSummary] Period:', period);
-
-    if (!store_id || !period || !['daily', 'weekly'].includes(period)) {
-      console.error('[BusinessSummary] Invalid parameters:', { store_id, period });
-      return new Response(
-        JSON.stringify({ error: 'Invalid store_id or period' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[BusinessSummary] Missing Supabase env vars');
+      return jsonResponse({ error: 'Server not configured' }, 500);
+    }
+    if (!OPENAI_API_KEY) {
+      console.error('[BusinessSummary] Missing OPENAI_API_KEY');
+      return jsonResponse({ error: 'Server not configured' }, 500);
     }
 
-    // ============================================================
-    // AUTH REQUIRED — added 2026-05-01 to close H1 in security audit.
-    // Previously the ownership check was `if (userId && ...)`, so a
-    // caller with no Authorization header skipped ownership entirely
-    // and could trigger summary generation for any Pro/Business store.
-    // Now we require a valid JWT before doing any work.
-    // ============================================================
-    const authorization = req.headers.get('Authorization') || req.headers.get('authorization');
-    if (!authorization) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
+    // 2) Auth — verify Bearer token, extract user_id.
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+    if (!authHeader) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
     }
-    const token = authorization.replace(/^Bearer\s+/i, '');
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      console.warn('[BusinessSummary] Invalid token:', authError?.message);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
+      console.warn('[BusinessSummary] Invalid token:', authError && authError.message);
+      return jsonResponse({ error: 'Unauthorized' }, 401);
     }
-    const userId: string = user.id;
-    console.log('[BusinessSummary] Authenticated user ID:', userId);
+    const userId = user.id;
 
-    // Verify store ownership and get store details
-    console.log('[BusinessSummary] Querying store with ID:', store_id);
+    // Parse body.
+    let body;
+    try {
+      body = await req.json();
+    } catch (_e) {
+      return jsonResponse({ error: 'Invalid JSON body' }, 400);
+    }
+    const { store_id, period, period_start } = body || {};
+    if (!store_id || !period || !period_start) {
+      return jsonResponse({ error: 'store_id, period, and period_start are required' }, 400);
+    }
+    if (!['daily', 'weekly', 'monthly'].includes(period)) {
+      return jsonResponse({ error: 'period must be daily, weekly, or monthly' }, 400);
+    }
 
-    // First try direct store query without the join to avoid potential issues
+    // 3) Store lookup + ownership check (stores.user_id is TEXT).
     const { data: store, error: storeError } = await supabase
       .from('stores')
-      .select('*')
+      .select('id, user_id')
       .eq('id', store_id)
-      .single();
-
-    console.log('[BusinessSummary] Store query result:', { store, storeError });
-    console.log('[BusinessSummary] Store found:', !!store);
-    if (store) {
-      console.log('[BusinessSummary] Store user_id:', store.user_id);
-      console.log('[BusinessSummary] Store has subscription:', !!store.user_subscriptions);
-    }
+      .maybeSingle();
 
     if (storeError || !store) {
-      console.error('[BusinessSummary] Store not found with ID:', store_id);
-      console.error('[BusinessSummary] Error details:', storeError);
-
-      // Also log the type of store_id to check for type mismatches
-      console.log('[BusinessSummary] Type of store_id:', typeof store_id);
-      console.log('[BusinessSummary] Store ID length:', store_id?.length);
-
-      return new Response(
-        JSON.stringify({
-          error: 'Store not found',
-          details: storeError?.message || 'No store with this ID',
-          store_id: store_id,
-          store_id_type: typeof store_id
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-      );
+      console.warn('[BusinessSummary] Store not found:', storeError && storeError.message);
+      return jsonResponse({ error: 'Store not found' }, 404);
     }
-
-    // Check if user is the owner. stores.user_id is TEXT, so coerce
-    // both sides with String() to avoid a type-driven mismatch.
     if (String(store.user_id) !== String(userId)) {
-      console.log('[BusinessSummary] User is not the store owner:', { userId, storeUserId: store.user_id });
-      return new Response(
-        JSON.stringify({ error: 'Forbidden - not store owner' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
-      );
+      console.warn('[BusinessSummary] Caller does not own store', {
+        authUser: userId,
+        storeOwner: store.user_id,
+      });
+      return jsonResponse({ error: 'Forbidden — not store owner' }, 403);
     }
 
-    // Check subscription tier - query separately to avoid join issues
-    console.log('[BusinessSummary] Checking subscription for user:', store.user_id);
-    const { data: subscription } = await supabase
+    // 4) Tier check — Pro or Business only.
+    const { data: subRow } = await supabase
       .from('user_subscriptions')
-      .select('tier_id, status')
-      .eq('user_id', store.user_id)
-      .single();
+      .select('tier_id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    console.log('[BusinessSummary] Subscription data:', subscription);
-
-    const { data: tierData } = await supabase
+    const { data: tierRow } = await supabase
       .from('subscription_tiers')
       .select('name')
-      .eq('id', subscription?.tier_id || 'free') // Default to 'free' tier id when no subscription row exists
-      .single();
+      .eq('id', (subRow && subRow.tier_id) || 'free')
+      .maybeSingle();
 
-    const tierName = tierData?.name || 'Free';
-    console.log('[BusinessSummary] User tier:', tierName);
-
+    const tierName = (tierRow && tierRow.name) || 'Free';
     if (!['Pro', 'Business'].includes(tierName)) {
-      return new Response(
-        JSON.stringify({
-          error: 'Upgrade required',
-          message: 'Business Insights is available for Pro and Business tiers only',
-          tier: tierName
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      return jsonResponse(
+        { error: 'This feature requires a Pro subscription', tier: tierName },
+        403
       );
     }
 
-    // Calculate date ranges in WAT (UTC+1)
-    const now = new Date();
-    const watOffset = 1; // WAT is UTC+1
-    const watNow = new Date(now.getTime() + watOffset * 60 * 60 * 1000);
-
-    let periodStart: Date;
-    let periodEnd: Date;
-    let previousPeriodStart: Date;
-    let previousPeriodEnd: Date;
-
-    if (period === 'daily') {
-      // Today in WAT
-      periodEnd = new Date(watNow);
-      periodEnd.setUTCHours(23, 59, 59, 999);
-
-      periodStart = new Date(watNow);
-      periodStart.setUTCHours(0, 0, 0, 0);
-
-      // Yesterday for comparison
-      previousPeriodEnd = new Date(periodStart.getTime() - 1);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setUTCHours(0, 0, 0, 0);
-    } else {
-      // Weekly: Monday to Sunday in WAT
-      const dayOfWeek = watNow.getUTCDay();
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-      periodStart = new Date(watNow);
-      periodStart.setUTCDate(periodStart.getUTCDate() - daysToMonday);
-      periodStart.setUTCHours(0, 0, 0, 0);
-
-      periodEnd = new Date(periodStart);
-      periodEnd.setUTCDate(periodEnd.getUTCDate() + 6);
-      periodEnd.setUTCHours(23, 59, 59, 999);
-
-      // Previous week for comparison
-      previousPeriodStart = new Date(periodStart);
-      previousPeriodStart.setUTCDate(previousPeriodStart.getUTCDate() - 7);
-
-      previousPeriodEnd = new Date(periodEnd);
-      previousPeriodEnd.setUTCDate(previousPeriodEnd.getUTCDate() - 7);
+    // 5) Compute date range.
+    let range;
+    try {
+      range = computePeriod(period, period_start);
+    } catch (rangeErr) {
+      return jsonResponse({ error: rangeErr.message }, 400);
     }
 
-    // ============================================================
-    // FIX (2026-05-02 night): Sales / products queries previously used
-    // .eq('store_id', ...) and .select('total', ...) — but neither
-    // column exists on these tables. Real schema:
-    //   sales:    user_id (TEXT), product_id, product_name, quantity,
-    //             unit_price (kobo), total_amount (kobo), created_at
-    //   products: user_id (TEXT), name, quantity (stock), selling_price
-    //             (kobo), cost_price (kobo)
-    // The store row already gives us user_id from the ownership check
-    // above, so reuse it as the canonical owner for all per-user
-    // queries. ai_chat_conversations stays on store_id (correct schema).
-    // ============================================================
-    const userId = String(store.user_id);
-
-    // Query sales data for current period (kobo from DB → naira below)
-    const { data: sales } = await supabase
+    // 6) Query sales for the period (sales.user_id is TEXT, money in naira —
+    // the actual production writer (RecordSaleModal) stores naira values in
+    // total_amount, despite the legacy interface comment in supabaseSales.ts
+    // claiming kobo. Confirmed via direct SQL inspection on 2026-05-03.)
+    const { data: salesRows, error: salesError } = await supabase
       .from('sales')
-      .select('total_amount, product_id, product_name, quantity, created_at')
+      .select('total_amount, created_at, payment_method, product_name, quantity')
       .eq('user_id', userId)
-      .gte('created_at', periodStart.toISOString())
-      .lte('created_at', periodEnd.toISOString());
+      .gte('created_at', range.start.toISOString())
+      .lte('created_at', range.end.toISOString());
 
-    const totalSalesKobo = sales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
-    const salesCount = sales?.length || 0;
+    if (salesError) {
+      console.error('[BusinessSummary] Sales query failed:', salesError);
+      return jsonResponse({ error: 'Sales query failed', details: salesError.message }, 500);
+    }
+    const sales = salesRows || [];
 
-    // Query sales data for previous period (for trend comparison, kobo)
-    const { data: previousSales } = await supabase
+    // 7) Totals (values already in naira from DB — no conversion).
+    let total = 0;
+    const byMethod = { cash: 0, card: 0, transfer: 0, credit: 0, other: 0 };
+    for (const s of sales) {
+      const amt = s.total_amount || 0;
+      total += amt;
+      const m = (s.payment_method || 'other').toLowerCase();
+      if (byMethod[m] !== undefined) {
+        byMethod[m] += amt;
+      } else {
+        byMethod.other += amt;
+      }
+    }
+    const totalSales = total;
+    const byPaymentMethod = {
+      cash: byMethod.cash,
+      card: byMethod.card,
+      transfer: byMethod.transfer,
+      credit: byMethod.credit,
+      other: byMethod.other,
+    };
+
+    // 8) Top products from denormalized sales rows.
+    const productMap = new Map();
+    for (const s of sales) {
+      const name = (s.product_name || '').trim();
+      if (!name) continue;
+      const prev = productMap.get(name) || { name, quantity: 0, revenue: 0 };
+      prev.quantity += s.quantity || 0;
+      prev.revenue += s.total_amount || 0;
+      productMap.set(name, prev);
+    }
+    const topProducts = Array.from(productMap.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 3);
+
+    // 8b) Previous-period sales for change comparison (totals only).
+    const { data: prevSalesRows } = await supabase
       .from('sales')
       .select('total_amount')
       .eq('user_id', userId)
-      .gte('created_at', previousPeriodStart.toISOString())
-      .lte('created_at', previousPeriodEnd.toISOString());
+      .gte('created_at', range.previousStart.toISOString())
+      .lte('created_at', range.previousEnd.toISOString());
 
-    const previousTotalSalesKobo = previousSales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
+    let prevTotal = 0;
+    for (const s of prevSalesRows || []) {
+      prevTotal += s.total_amount || 0;
+    }
+    const previousTotalSales = prevTotal;
+    // change is a string (matches old shape: renderer parses with parseFloat).
+    // Null when prior period had zero sales — avoids divide-by-zero / Infinity.
+    const change = previousTotalSales > 0
+      ? (((totalSales - previousTotalSales) / previousTotalSales) * 100).toFixed(1)
+      : null;
 
-    // Aggregate top products from the sales rows themselves — sales is
-    // denormalized (product_id + product_name + quantity + total_amount
-    // live on each row), so no join with sale_items/products is needed.
-    const productSales = new Map();
-    sales?.forEach(sale => {
-      const key = sale.product_id;
-      if (!key) return;
-      if (!productSales.has(key)) {
-        productSales.set(key, {
-          name: sale.product_name || 'Unknown product',
-          quantity: 0,
-          revenueKobo: 0,
-        });
-      }
-      const product = productSales.get(key);
-      product.quantity += sale.quantity || 0;
-      product.revenueKobo += sale.total_amount || 0;
-    });
-
-    const topProductsList = Array.from(productSales.values())
-      .sort((a, b) => b.revenueKobo - a.revenueKobo)
-      .slice(0, 5)
-      // Convert revenue from kobo to naira at the snapshot boundary so
-      // the snapshot is uniformly in naira.
-      .map(p => ({ name: p.name, quantity: p.quantity, revenue: p.revenueKobo / 100 }));
-
-    // Query low-stock products. Schema: column is `quantity`, not
-    // `stock`; ownership is `user_id`. Map to `stock` in the snapshot
-    // because the renderer (BusinessInsights.tsx:364) reads `item.stock`.
+    // 9) Low stock from products (column is `quantity`, not `stock`).
     const { data: lowStockRows } = await supabase
       .from('products')
       .select('name, quantity')
       .eq('user_id', userId)
       .lt('quantity', 5)
       .order('quantity', { ascending: true })
-      .limit(5);
+      .limit(10);
 
     const lowStock = (lowStockRows || []).map(p => ({ name: p.name, stock: p.quantity }));
 
-    // Query outstanding credit
-    const { data: credits } = await supabase
-      .from('customer_credits')
-      .select('amount')
-      .eq('store_id', store_id)
-      .eq('status', 'pending');
-
-    const outstandingCredit = credits?.reduce((sum, credit) => sum + (credit.amount || 0), 0) || 0;
-
-    // Query AI chat conversations for the period
-    const { data: conversations } = await supabase
+    // 9b) Chat insights — counts the renderer reads + a topTopics array
+    // for the LLM prompt. Renderer needs totalConversations, humanTakeovers,
+    // whatsappRedirects (see BusinessInsights.tsx:323-328).
+    const { data: convRows } = await supabase
       .from('ai_chat_conversations')
-      .select('id, takeover_status, chat_status, created_at')
+      .select('id, takeover_status, chat_status')
       .eq('store_id', store_id)
-      .gte('created_at', periodStart.toISOString())
-      .lte('created_at', periodEnd.toISOString());
+      .gte('created_at', range.start.toISOString())
+      .lte('created_at', range.end.toISOString());
 
-    const totalConversations = conversations?.length || 0;
-    const humanTakeovers = conversations?.filter(c =>
-      c.takeover_status === 'requested' || c.takeover_status === 'agent'
-    ).length || 0;
-    const whatsappRedirects = conversations?.filter(c =>
+    const conversations = convRows || [];
+    const totalConversations = conversations.length;
+    const humanTakeovers = conversations.filter(c =>
+      c.takeover_status === 'requested' ||
+      c.takeover_status === 'agent' ||
+      c.takeover_status === 'agent_active'
+    ).length;
+    const whatsappRedirects = conversations.filter(c =>
       c.chat_status === 'moved_to_whatsapp'
-    ).length || 0;
+    ).length;
 
-    // Query most discussed products from chat messages
-    const conversationIds = conversations?.map(c => c.id) || [];
-    let chatTopics: any[] = [];
-    let productMentions = new Map();
-
-    if (conversationIds.length > 0) {
-      const { data: messages } = await supabase
+    let topTopics = [];
+    if (conversations.length > 0) {
+      const convIds = conversations.map(c => c.id);
+      const { data: msgRows } = await supabase
         .from('ai_chat_messages')
         .select('content')
-        .in('conversation_id', conversationIds)
+        .in('conversation_id', convIds)
         .eq('role', 'user');
 
-      // Simple keyword extraction for common topics
       const topicCount = new Map();
-      const productNames = topProductsList.map(p => p.name.toLowerCase());
-
-      messages?.forEach(msg => {
-        const content = msg.content.toLowerCase();
-
-        // Count product mentions
-        productNames.forEach(productName => {
-          if (content.includes(productName)) {
-            productMentions.set(productName, (productMentions.get(productName) || 0) + 1);
-          }
-        });
-
-        // Extract common topics/questions
-        if (content.includes('price')) topicCount.set('pricing', (topicCount.get('pricing') || 0) + 1);
-        if (content.includes('delivery') || content.includes('ship')) topicCount.set('delivery', (topicCount.get('delivery') || 0) + 1);
-        if (content.includes('stock') || content.includes('available')) topicCount.set('availability', (topicCount.get('availability') || 0) + 1);
-        if (content.includes('discount') || content.includes('offer')) topicCount.set('discounts', (topicCount.get('discounts') || 0) + 1);
-        if (content.includes('return') || content.includes('refund')) topicCount.set('returns', (topicCount.get('returns') || 0) + 1);
-      });
-
-      chatTopics = Array.from(topicCount.entries())
+      for (const m of msgRows || []) {
+        const content = (m.content || '').toLowerCase();
+        if (content.includes('price') || content.includes('cost')) {
+          topicCount.set('pricing', (topicCount.get('pricing') || 0) + 1);
+        }
+        if (content.includes('delivery') || content.includes('ship')) {
+          topicCount.set('delivery', (topicCount.get('delivery') || 0) + 1);
+        }
+        if (content.includes('stock') || content.includes('available')) {
+          topicCount.set('availability', (topicCount.get('availability') || 0) + 1);
+        }
+        if (content.includes('discount') || content.includes('offer') || content.includes('sale')) {
+          topicCount.set('discounts', (topicCount.get('discounts') || 0) + 1);
+        }
+        if (content.includes('return') || content.includes('refund')) {
+          topicCount.set('returns', (topicCount.get('returns') || 0) + 1);
+        }
+      }
+      topTopics = Array.from(topicCount.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
-        .map(([topic]) => topic);
+        .map(entry => entry[0]);
     }
 
-    // ============================================================
-    // Snapshot boundary: all monetary values below are in NAIRA.
-    // The DB stores kobo on `sales.total_amount`, `products.selling_price`,
-    // etc; we divide by 100 once here so the renderer (which calls
-    // formatCurrency() expecting naira) and the LLM prompt below both
-    // see the same units. If you ever surface kobo numbers from this
-    // function again, document that field explicitly.
-    // ============================================================
-    const totalSales = totalSalesKobo / 100;
-    const previousTotalSales = previousTotalSalesKobo / 100;
+    const chatInsights = {
+      totalConversations,
+      humanTakeovers,
+      whatsappRedirects,
+      topTopics,
+    };
 
+    // 10) Build snapshot. All amounts in naira (matches DB).
     const dataSnapshot = {
       period: {
         type: period,
-        start: periodStart.toISOString(),
-        end: periodEnd.toISOString()
+        start: range.start.toISOString(),
+        end: range.end.toISOString(),
       },
       sales: {
-        // total/previousTotal are in naira; topProductsList revenue too.
         total: totalSales,
-        count: salesCount,
+        count: sales.length,
+        byPaymentMethod,
         previousTotal: previousTotalSales,
-        change: previousTotalSales > 0 ? ((totalSales - previousTotalSales) / previousTotalSales * 100).toFixed(1) : null
+        change,
       },
-      topProducts: topProductsList,
-      lowStock: lowStock,
-      outstandingCredit,
-      chatInsights: {
-        totalConversations,
-        humanTakeovers,
-        whatsappRedirects,
-        topTopics: chatTopics,
-        productMentions: Array.from(productMentions.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-          .map(([product]) => product)
-      }
+      topProducts,
+      lowStock,
+      chatInsights,
     };
 
-    // Generate AI summary using GPT-4o Mini
-    const systemPrompt = `You are a friendly Nigerian business advisor for small business owners. Summarize their performance in a warm, encouraging tone. Use ₦ for currency. Keep it under 200 words. Include: what went well, what needs attention, customer chat highlights (what customers asked about most), and one actionable tip for tomorrow.`;
+    // 11) Generate summary via OpenAI raw fetch.
+    const systemPrompt =
+      'You are a Nigerian small-business analyst. Write a short, factual ' +
+      'summary of the data the user provides. Direct, plain English, no ' +
+      'flattery, no motivational fluff, no exclamation marks. Use ₦ for ' +
+      'currency. 4-6 short sentences max. End with one concrete next step ' +
+      'the owner can take based on the data.';
 
-    const userPrompt = `
-    Business Summary for ${period === 'daily' ? 'Today' : 'This Week'}:
+    const breakdownLines = [];
+    if (byPaymentMethod.cash > 0) breakdownLines.push(`cash ₦${byPaymentMethod.cash.toLocaleString()}`);
+    if (byPaymentMethod.transfer > 0) breakdownLines.push(`transfer ₦${byPaymentMethod.transfer.toLocaleString()}`);
+    if (byPaymentMethod.card > 0) breakdownLines.push(`card ₦${byPaymentMethod.card.toLocaleString()}`);
+    if (byPaymentMethod.credit > 0) breakdownLines.push(`credit ₦${byPaymentMethod.credit.toLocaleString()}`);
+    if (byPaymentMethod.other > 0) breakdownLines.push(`other ₦${byPaymentMethod.other.toLocaleString()}`);
 
-    Sales Performance:
-    - Total Revenue: ₦${totalSales.toLocaleString()}
-    - Number of Sales: ${salesCount}
-    - Change from ${period === 'daily' ? 'Yesterday' : 'Last Week'}: ${dataSnapshot.sales.change ? `${dataSnapshot.sales.change}%` : 'N/A'}
+    const previousLabel = period === 'daily' ? 'yesterday' : period === 'weekly' ? 'last week' : 'last month';
+    const changeLine = change === null
+      ? `No sales in the comparable previous ${period.replace('ly', '')} period.`
+      : `Change vs ${previousLabel}: ${change}% (previous total ₦${previousTotalSales.toLocaleString()}).`;
 
-    Top Selling Products:
-    ${topProductsList.map(p => `- ${p.name}: ${p.quantity} sold, ₦${p.revenue.toLocaleString()}`).join('\n')}
+    const chatLine = totalConversations === 0
+      ? 'No customer chats this period.'
+      : `Customer chats: ${totalConversations} total, ${humanTakeovers} requested human help, ${whatsappRedirects} moved to WhatsApp` +
+        (topTopics.length > 0 ? `; top topics: ${topTopics.join(', ')}.` : '.');
 
-    Low Stock Alerts:
-    ${lowStock?.map(p => `- ${p.name}: Only ${p.stock} left`).join('\n') || 'None'}
+    const userPrompt =
+      `Period: ${period} (${range.start.toISOString().slice(0, 10)} to ${range.end.toISOString().slice(0, 10)}).\n` +
+      `Total sales: ₦${totalSales.toLocaleString()} across ${sales.length} transaction(s).\n` +
+      `${changeLine}\n` +
+      `Payment mix: ${breakdownLines.join(', ') || 'none'}.\n` +
+      `Top products: ${topProducts.length === 0 ? 'none' : topProducts.map(p => `${p.name} (${p.quantity} sold, ₦${p.revenue.toLocaleString()})`).join('; ')}.\n` +
+      `Low-stock items: ${lowStock.length === 0 ? 'none' : lowStock.slice(0, 5).map(i => `${i.name} (${i.stock} left)`).join('; ')}.\n` +
+      `${chatLine}`;
 
-    Outstanding Credit: ₦${outstandingCredit.toLocaleString()}
-
-    Customer Chat Insights:
-    - Total Conversations: ${totalConversations}
-    - Requested Human Help: ${humanTakeovers}
-    - Moved to WhatsApp: ${whatsappRedirects}
-    - Top Topics: ${chatTopics.join(', ') || 'General inquiries'}
-    - Most Asked About Products: ${dataSnapshot.chatInsights.productMentions.join(', ') || 'Various products'}
-    `;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 300
-    });
-
-    const summaryText = completion.choices[0]?.message?.content || "Unable to generate summary at this time.";
-
-    // Save summary to database
-    const { data: savedSummary, error: saveError } = await supabase
-      .from('business_summaries')
-      .upsert({
-        store_id,
-        period,
-        period_start: periodStart.toISOString().split('T')[0],
-        period_end: periodEnd.toISOString().split('T')[0],
-        summary_text: summaryText,
-        data_snapshot: dataSnapshot
-      }, {
-        onConflict: 'store_id,period,period_start'
-      })
-      .select()
-      .single();
-
-    if (saveError) {
-      console.error('Error saving summary:', saveError);
-      // Continue anyway, return the generated summary
+    let summaryText = 'Summary unavailable (AI request failed).';
+    try {
+      const openaiResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0.4,
+          max_tokens: 400,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }),
+      });
+      if (!openaiResp.ok) {
+        const errText = await openaiResp.text();
+        console.error('[BusinessSummary] OpenAI error', openaiResp.status, errText);
+      } else {
+        const completion = await openaiResp.json();
+        const text = completion && completion.choices && completion.choices[0]
+          && completion.choices[0].message && completion.choices[0].message.content;
+        if (text && typeof text === 'string') {
+          summaryText = text.trim();
+        }
+      }
+    } catch (openaiErr) {
+      console.error('[BusinessSummary] OpenAI fetch threw:', openaiErr);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        summary: summaryText,
-        data: dataSnapshot,
-        id: savedSummary?.id
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // 12) Upsert into business_summaries.
+    const periodStartIso = range.start.toISOString().slice(0, 10);
+    const periodEndIso = range.end.toISOString().slice(0, 10);
 
-  } catch (error) {
-    console.error('Error in generate-business-summary:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    const { data: saved, error: saveError } = await supabase
+      .from('business_summaries')
+      .upsert(
+        {
+          store_id,
+          period,
+          period_start: periodStartIso,
+          period_end: periodEndIso,
+          summary_text: summaryText,
+          data_snapshot: dataSnapshot,
+        },
+        { onConflict: 'store_id,period,period_start' }
+      )
+      .select()
+      .maybeSingle();
+
+    if (saveError) {
+      console.error('[BusinessSummary] Save failed:', saveError);
+      // Still return the generated summary so the UI shows something.
+    }
+
+    // 13) Return result.
+    return jsonResponse({
+      summary_text: summaryText,
+      data_snapshot: dataSnapshot,
+      id: (saved && saved.id) || null,
+    }, 200);
+
+  } catch (err) {
+    console.error('[BusinessSummary] Unhandled error:', err);
+    return jsonResponse(
+      { error: (err && err.message) || 'Internal server error' },
+      500
     );
   }
 });

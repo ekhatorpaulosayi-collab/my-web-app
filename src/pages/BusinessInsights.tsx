@@ -22,7 +22,7 @@ const BusinessInsights: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { currentRole } = useStaff();
-  const [period, setPeriod] = useState<'daily' | 'weekly'>('daily');
+  const [period, setPeriod] = useState<'daily' | 'weekly'>('weekly');
   const [summary, setSummary] = useState<BusinessSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -159,7 +159,11 @@ const BusinessInsights: React.FC = () => {
         },
         body: JSON.stringify({
           store_id: storeId,
-          period
+          period,
+          // Anchor date inside the requested period — the edge function
+          // snaps this to the proper start/end in WAT (UTC+1) per period
+          // type (daily/weekly/monthly). Sending "now" is enough.
+          period_start: new Date().toISOString()
         })
       });
 
@@ -175,10 +179,10 @@ const BusinessInsights: React.FC = () => {
         id: data.id || crypto.randomUUID(),
         store_id: storeId,
         period,
-        period_start: data.data?.period?.start || new Date().toISOString(),
-        period_end: data.data?.period?.end || new Date().toISOString(),
-        summary_text: data.summary,
-        data_snapshot: data.data,
+        period_start: data.data_snapshot?.period?.start || new Date().toISOString(),
+        period_end: data.data_snapshot?.period?.end || new Date().toISOString(),
+        summary_text: data.summary_text,
+        data_snapshot: data.data_snapshot,
         created_at: new Date().toISOString()
       };
 
