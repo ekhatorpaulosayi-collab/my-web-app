@@ -550,6 +550,10 @@ If edge function is broken:
 cp supabase/functions/ai-chat/index.ts.ux-complete-2026-04-15 supabase/functions/ai-chat/index.ts
 supabase functions deploy ai-chat --project-ref yzlniqwzqlsftxrtapdl
 
+If generate-business-summary is broken (use on BOOT_ERROR or boot-related regression):
+cp supabase/functions/generate-business-summary/index.ts.v1.2.3-stable supabase/functions/generate-business-summary/index.ts
+supabase functions deploy generate-business-summary --project-ref yzlniqwzqlsftxrtapdl
+
 If database is broken:
 Contact Supabase support immediately. Do NOT run DELETE or UPDATE without WHERE clause.
 
