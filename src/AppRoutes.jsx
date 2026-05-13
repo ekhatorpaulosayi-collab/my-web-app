@@ -44,6 +44,8 @@ const AgentTakeoverDebugger = lazy(() => import('./components/debug/AgentTakeove
 const DebugCenter = lazy(() => import('./pages/DebugCenter.tsx'));
 const ContributionPublicView = lazy(() => import('./components/contributions/ContributionPublicView.tsx'));
 const BusinessInsights = lazy(() => import('./pages/BusinessInsights.tsx'));
+const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
+const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
 
 /**
  * App Routes
@@ -155,6 +157,29 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Payment setup landing — two-card hub for bank + KYC.
+            Behind VITE_ENABLE_PAYSTACK_SUBACCOUNTS at the page level. */}
+        <Route
+          path="/settings/payments"
+          element={
+            <ProtectedRoute>
+              <PaymentSetup />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Vendor bank subaccount wizard — flag-gated; redirects
+            to /settings/payments if VITE_ENABLE_PAYSTACK_SUBACCOUNTS
+            is not 'true'. */}
+        <Route
+          path="/settings/payments/bank-setup"
+          element={
+            <ProtectedRoute>
+              <SubaccountWizard />
             </ProtectedRoute>
           }
         />

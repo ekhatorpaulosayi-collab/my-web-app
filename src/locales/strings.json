@@ -57,5 +57,84 @@
 
   "common": {
     "stockLeft": "Stock left: {qty} units"
+  },
+
+  "paystackSetup": {
+    "page": {
+      "title": "Payment setup",
+      "subtitle": "Set up how you receive money from sales.",
+      "back": "Back to settings",
+      "comingSoon": "Coming soon"
+    },
+    "card": {
+      "bank": {
+        "title": "Set up your bank account",
+        "subtitle": "Tell us where to send your earnings.",
+        "cta": "Set up"
+      },
+      "kyc": {
+        "title": "Verify your identity",
+        "subtitle": "We'll need a few details to comply with regulations."
+      }
+    },
+    "wizard": {
+      "stepLabel": "Step {n} of 5",
+      "back": "Back",
+      "step1": {
+        "heading": "What's your business called?",
+        "help": "This is the name that will show on your payment receipts.",
+        "placeholder": "e.g. Adaeze Boutique",
+        "cta": "Continue"
+      },
+      "step2": {
+        "heading": "Which bank should we send your earnings to?",
+        "placeholder": "Choose your bank",
+        "cta": "Continue"
+      },
+      "step3": {
+        "heading": "Enter your account number",
+        "helpWithBank": "We'll check this matches a real account at {bank}.",
+        "digitCount": "{n} of 10 digits",
+        "tooShort": "Account number should be 10 digits. You entered {n}.",
+        "looking": "Looking up your account at {bank}...",
+        "foundHeading": "We found:",
+        "foundIsItYou": "Is this you?",
+        "noFix": "No, fix number",
+        "yesContinue": "Yes, continue",
+        "notFoundHeading": "We couldn't find that account",
+        "notFoundBody": "We checked {bank} and didn't find an account ending in {last4}. Double-check the number and the bank, then try again.",
+        "tryAgain": "Try again",
+        "networkHeading": "Couldn't reach our servers",
+        "networkBody": "Check your internet connection and try again.",
+        "comingSoonHeading": "Bank lookup isn't ready yet",
+        "comingSoonBody": "We'll let you know when it's available."
+      },
+      "step4": {
+        "heading": "Check everything looks right",
+        "labelBusinessName": "Business name",
+        "labelBank": "Bank",
+        "labelAccountNumber": "Account number",
+        "labelAccountName": "Account name",
+        "edit": "Edit",
+        "summary": "We'll send your earnings to {bank} account {account} ({name}) after every sale.",
+        "back": "Go back",
+        "submit": "Yes, set up my account",
+        "submitting": "Setting up...",
+        "toastNetwork": "Couldn't reach our servers. Check your internet and try again.",
+        "toastGeneric": "Something went wrong. Please try again."
+      },
+      "step4_5": {
+        "heading": "Coming soon",
+        "body": "Bank account setup is coming soon. We're putting the finishing touches on this feature. We'll send you a message as soon as it's ready, and you can come back here to finish setting up.",
+        "cta": "Back to settings"
+      },
+      "step5": {
+        "heading": "All done!",
+        "body": "Your bank account is set up. We'll send your earnings to {bank} account {account} ({name}) after every sale.",
+        "next": "Next: verify your identity — coming soon.",
+        "cta": "Back to settings",
+        "referencePrefix": "Reference:"
+      }
+    }
   }
 }
