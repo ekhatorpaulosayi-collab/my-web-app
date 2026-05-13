@@ -3,6 +3,8 @@
 **Date written:** 12 May 2026
 **Status:** Reference for the start of Session 2. Read this BEFORE wiring any live Paystack calls.
 
+**Idempotency note:** Foundation migration 20260509 is apply-once safe via `supabase_migrations.schema_migrations` tracking. Full re-run from scratch (e.g. new staging environment) would require `DROP POLICY IF EXISTS` guards — accepted limitation, not a blocker.
+
 ---
 
 ## Why this exists

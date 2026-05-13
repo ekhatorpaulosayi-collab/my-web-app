@@ -572,16 +572,51 @@ supabase functions deploy ai-chat --project-ref yzlniqwzqlsftxrtapdl
 6. If broken: git stash pop (or restore backup) and redeploy
 7. If working: git add -A && git commit -m "description of change"
 
-## PRE-DEPLOY CHECKLIST
-[ ] Record a sale — correct price, no duplicate
-[ ] Open storefront — AI chat responds
-[ ] Send Hausa message — responds in Hausa
-[ ] Click "Talk to Store Owner" — notification appears on dashboard
-[ ] Take over chat — translation shows
-[ ] Open More Features — all items clickable, modal stays open
-[ ] Open Business Insights — page loads (Pro tier only)
-[ ] Share store on WhatsApp — link works
-[ ] Check AI badge — shows correct X/Y count
+## Paystack Subaccount Work — Session 1 complete (2026-05-13)
+
+### State
+- Foundation migration 20260509 + 4 RPC migrations 20260510–20260513 APPLIED to production via direct psql (Supabase branching unavailable on Free tier; CLI `db push` blocked by drift — see below)
+- 9 tables live: orders, order_items, paystack_subaccounts, vendor_kyc, bank_accounts, paystack_split_transactions, paystack_webhook_events, platform_fee_config, vendor_velocity_limits
+- platform_fee_config seeded (free/starter/pro). basis_points is Storehouse-only take; paystack_wholesale_bps (150) is separate. Customer-total rate = basis_points + paystack_wholesale_bps. Verified.
+- Reviewer UUID dffba89b-869d-422a-a542-2e2494850b44 (Paul) substituted into split_tx_reviewer_select/update RLS policies. Verified.
+- Vault secret `vendor_kyc_key` created (32-byte base64-encoded). Verified.
+- 4 RPCs live: record_successful_payment, complete_subaccount_onboarding, approve_review, reject_review_and_freeze. All SECURITY DEFINER. Verified.
+- Feature flag `ENABLE_PAYSTACK_SUBACCOUNTS` remains OFF. No customer impact. All 7 edge functions check it and return 503 when off.
+- All commits on `feat/paystack-subaccounts` pushed to origin. Commit A1 amended with the substituted UUID; force-pushed once.
+
+### Branch + git
+- Working branch: `feat/paystack-subaccounts`
+- Locked migration: 20260509 only structural changes were the 3 reviewer-UUID substitutions per the migration's own pre-flight checklist. DO NOT modify further.
+- 4 RPC migrations are CREATE OR REPLACE FUNCTION — idempotent, safe to re-run.
+
+### Known issue: migration drift
+- Local `supabase/migrations/` has ~40 files; production `supabase_migrations.schema_migrations` records only a subset. The rest were applied via dashboard SQL Editor or earlier tooling and never recorded.
+- **DO NOT run `supabase db push` against production until reconciled** — it will attempt to replay ~35 backlog migrations and fail (some have CREATE POLICY statements with no IF NOT EXISTS guard).
+- Workaround for new migrations: apply via direct psql with ON_ERROR_STOP=1, then INSERT into supabase_migrations.schema_migrations with empty `statements` array (the CLI only checks `version` for tracking).
+- Pattern used for 20260509–20260513:
+  ```
+  psql "$(cat ~/.supabase-paystack-dburl)" -v ON_ERROR_STOP=1 -f supabase/migrations/<file>.sql
+  psql "$(cat ~/.supabase-paystack-dburl)" -c "INSERT INTO supabase_migrations.schema_migrations (version, name, statements) VALUES ('<ver>', '<name>', ARRAY[]::text[]);"
+  ```
+- Permanent fix: reconcile drift after Paystack v1 ships and before merchant #2 onboards. Use `supabase migration repair --status applied <version>` for each drifted migration.
+
+### DB access
+- Connection string saved to `~/.supabase-paystack-dburl` (chmod 600 — verified).
+- Pattern: `psql "$(cat ~/.supabase-paystack-dburl)" ...` — never echo `$DATABASE_URL`, never commit, never paste into chat.
+
+### Supabase Pro upgrade gate
+- Currently on Free tier.
+- MUST upgrade to Pro ($25/mo) BEFORE either of these happens:
+  - First non-Paul merchant has `ENABLE_PAYSTACK_SUBACCOUNTS` flag enabled (per-store or globally)
+  - First paying subscriber on any tier
+- Reason: PITR (point-in-time recovery) becomes non-optional once real money flows. Branching also unlocks; would have prevented tonight's direct-to-prod workflow.
+
+### Next session (Session 2)
+1. Deploy 7 edge functions to Supabase Functions runtime (flag still OFF). Functions to deploy: initiate-storefront-payment, paystack-subaccount-webhook, create-paystack-subaccount, approve-transaction-for-fulfillment, reject-transaction-and-freeze, resolve-bank-account, initiate-marketplace-payment.
+2. Verify `ENABLE_PAYSTACK_SUBACCOUNTS` is OFF in Supabase function secrets BEFORE deploy (`supabase secrets list --project-ref yzlniqwzqlsftxrtapdl`). Feature flag check belongs in edge function env vars, NOT Vercel.
+3. End-to-end test on Paul's own store with flag flipped ON for that one store only (`stores.paystack_subaccounts_enabled = TRUE` for Paul's store; global flag stays whichever).
+4. Wire real Paystack API calls (replace mock blocks in `create-paystack-subaccount`, `resolve-bank-account`, `initiate-storefront-payment`). REQUIRES: `PAYSTACK_SECRET_KEY` env var, §13.1 wholesale-fee-base verification per docs/PAYSTACK-DEBUG.md §11 (hard gate).
+5. Pre-Session-2 mock data cleanup per docs/SESSION-2-MIGRATION-CHECKLIST.md.
 
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
