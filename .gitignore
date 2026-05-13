@@ -38,3 +38,9 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Supabase CLI transient state
+supabase/.temp/
+
+# Rollback backups (kept on disk for emergency playbook, not version controlled)
+*.v*-stable
