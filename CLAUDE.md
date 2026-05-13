@@ -618,6 +618,53 @@ supabase functions deploy ai-chat --project-ref yzlniqwzqlsftxrtapdl
 4. Wire real Paystack API calls (replace mock blocks in `create-paystack-subaccount`, `resolve-bank-account`, `initiate-storefront-payment`). REQUIRES: `PAYSTACK_SECRET_KEY` env var, §13.1 wholesale-fee-base verification per docs/PAYSTACK-DEBUG.md §11 (hard gate).
 5. Pre-Session-2 mock data cleanup per docs/SESSION-2-MIGRATION-CHECKLIST.md.
 
+## Paystack Subaccount Work — Session 2 complete (2026-05-13)
+
+### State
+- All 7 edge functions DEPLOYED to production Supabase Functions runtime. Flag remains OFF — no customer impact.
+- `ENABLE_PAYSTACK_SUBACCOUNTS` was absent from secrets at session start. Set explicitly to `false` before any deploy. Verified via SHA256 digest comparison (`fcbcf16590...` = sha256("false")).
+- `PAYSTACK_SECRET_KEY` confirmed present (user-confirmed test-mode `sk_test_*`; CLI exposes digest only, not value).
+- Each function invoked via curl with anon key + minimal valid payload immediately post-deploy. All returned HTTP 503 with `{"error":"feature_disabled"}` body (two with extra `detail` field — see table).
+
+### Deploy + 503 verification table
+| # | Function | HTTP | Body |
+|---|----------|------|------|
+| 1 | resolve-bank-account | 503 | `{"error":"feature_disabled"}` |
+| 2 | create-paystack-subaccount | 503 | `{"error":"feature_disabled","detail":"ENABLE_PAYSTACK_SUBACCOUNTS is off"}` |
+| 3 | paystack-subaccount-webhook | 503 | `{"error":"feature_disabled"}` |
+| 4 | initiate-storefront-payment | 503 | `{"error":"feature_disabled"}` |
+| 5 | initiate-marketplace-payment | 503 | `{"error":"feature_disabled","detail":"ENABLE_MARKETPLACE is off; ..."}` |
+| 6 | approve-transaction-for-fulfillment | 503 | `{"error":"feature_disabled"}` |
+| 7 | reject-transaction-and-freeze | 503 | `{"error":"feature_disabled"}` |
+
+### Notable finding: separate flag for marketplace
+- `initiate-marketplace-payment` is gated by `ENABLE_MARKETPLACE`, NOT `ENABLE_PAYSTACK_SUBACCOUNTS`. Flipping the subaccount flag will NOT enable the marketplace endpoint. The marketplace route is reserved-only in Session 1 — even with its own flag on, it returns 501 `not_implemented` because the multi-vendor split flow isn't built. See `supabase/functions/initiate-marketplace-payment/index.ts:25,37`.
+- `ENABLE_MARKETPLACE` is currently absent from Supabase secrets, so it defaults to off. Leave it that way until the marketplace flow is actually implemented.
+
+### Deploy pattern used
+```
+supabase functions deploy <name> --project-ref yzlniqwzqlsftxrtapdl
+curl -sS -X POST "https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/<name>" \
+  -H "Authorization: Bearer $ANON_KEY" -H "apikey: $ANON_KEY" \
+  -H "Content-Type: application/json" -d '<minimal valid payload>'
+```
+- Docker not running is fine — the CLI uploads the bundle directly without a local build step. The "WARNING: Docker is not running" line on every deploy is informational, not an error.
+- Flag check runs FIRST in every function (before auth, payload parse, signature verify), so any payload — even empty — triggers the 503 path. This means flag-off behavior is deterministic regardless of caller.
+
+### Next session (Session 3)
+1. Wire real Paystack API calls per §13.1 wholesale-fee-base verification (docs/PAYSTACK-DEBUG.md §11). Hard gate. Functions with mock blocks to replace: `create-paystack-subaccount`, `resolve-bank-account`, `initiate-storefront-payment`.
+2. Add per-user rate limiting to `resolve-bank-account` BEFORE flipping flag on (Paystack charges per `/bank/resolve`; unrate-limited endpoint = account-number harvesting risk). See TODO at `supabase/functions/resolve-bank-account/index.ts:107`.
+3. Per-store flag flip on Paul's store only (`stores.paystack_subaccounts_enabled = TRUE` for `dffba89b-869d-422a-a542-2e2494850b44`). Keep global `ENABLE_PAYSTACK_SUBACCOUNTS=false` until at least one full E2E round-trip succeeds.
+4. End-to-end test: onboard → resolve bank → create subaccount → initiate storefront payment → simulate webhook → approve → verify split. Use Paystack test cards.
+5. Supabase Pro upgrade ($25/mo) BEFORE flipping flag on for any non-Paul merchant or accepting first paying subscriber (PITR + branching unlock; see Session 1 handoff).
+6. Pre-Session-3 mock data cleanup per docs/SESSION-2-MIGRATION-CHECKLIST.md (still pending from Session 1's next-session list).
+
+### What did NOT happen this session (intentional)
+- Flag NOT enabled. `ENABLE_PAYSTACK_SUBACCOUNTS` remains `false`.
+- No real Paystack API calls. All mock blocks intact.
+- No frontend / Vercel work. Edge-function-only session.
+- No DB migrations. No schema changes.
+
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
 [ ] Open storefront — AI chat responds
