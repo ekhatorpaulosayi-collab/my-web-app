@@ -1,11 +1,20 @@
 // initiate-storefront-payment
 //
-// Session 1 stub. Computes the capped split (§2 + §4.2 of the design doc) and
-// inserts orders / order_items / paystack_split_transactions rows, but returns
-// a MOCK authorization_url instead of calling Paystack. Session 5 wires the
-// real Paystack /transaction/initialize call.
+// Session 3: computes the capped split (§2 + §4.2 of the design doc),
+// inserts orders / order_items / paystack_split_transactions rows,
+// and calls Paystack POST /transaction/initialize with bearer=account
+// so that Storehouse's main account absorbs Paystack's processing
+// fee. Returns the real Paystack authorization_url to the client.
 //
 // Anonymous OK — storefront customers aren't logged in.
+//
+// transaction_charge sent to Paystack is Storehouse's take only,
+// computed on the SUBTOTAL (merchant product price) not the
+// customer-facing total. Storehouse bps applies to what the vendor
+// is actually selling.
+//
+// Paystack errors never leak through the response body. Full
+// diagnostics go to server logs only.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -15,6 +24,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+const PAYSTACK_INITIALIZE_URL = 'https://api.paystack.co/transaction/initialize';
+const PAYSTACK_TIMEOUT_MS = 5000;
+
+// In-memory IP rate limiter: 20 requests per 60s window per IP.
+// Higher than F1/F2 because customers hit this endpoint multiple
+// times in a normal checkout flow (back/forward, retry on slow
+// network).
+// TODO(scale-out): per-isolate Map. Replace with Upstash Redis (or
+// Supabase rate-limit service) before merchant #2.
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitBuckets = new Map<string, number[]>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  const bucket = (rateLimitBuckets.get(ip) || []).filter((t) => t > cutoff);
+  if (bucket.length >= RATE_LIMIT_MAX) {
+    rateLimitBuckets.set(ip, bucket);
+    return false;
+  }
+  bucket.push(now);
+  rateLimitBuckets.set(ip, bucket);
+  return true;
+}
 
 function jsonResponse(body, status) {
   return new Response(JSON.stringify(body), {
@@ -33,9 +68,25 @@ serve(async (req) => {
     return jsonResponse({ error: 'feature_disabled' }, 503);
   }
 
+  // Rate limit by client IP.
+  const clientIp =
+    req.headers.get('cf-connecting-ip') ||
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    'unknown';
+  if (!checkRateLimit(clientIp)) {
+    return jsonResponse({ error: 'rate_limited', message: 'Too many checkout attempts. Please wait a minute and try again.' }, 429);
+  }
+
+  // TODO(remove-before-merchant-2): BYPASS_KYC_FOR_SMOKE skips the
+  // kyc_status gate so smoke tests on a stock store can exercise
+  // the Paystack path end-to-end. MUST be unset before any non-Paul
+  // merchant onboards.
+  const BYPASS_KYC = Deno.env.get('BYPASS_KYC_FOR_SMOKE') === 'true';
+
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !PAYSTACK_SECRET_KEY) {
     return jsonResponse({ error: 'server_misconfigured' }, 500);
   }
 
@@ -53,10 +104,10 @@ serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // 1. Validate store: enabled + not frozen.
+  // 1. Validate store: per-store gate, not frozen, KYC approved.
   const { data: store, error: storeError } = await admin
     .from('stores')
-    .select('id, user_id, paystack_subaccounts_enabled, frozen')
+    .select('id, user_id, paystack_subaccounts_enabled, frozen, kyc_status')
     .eq('id', store_id)
     .single();
   if (storeError || !store) {
@@ -68,34 +119,60 @@ serve(async (req) => {
   if (store.frozen) {
     return jsonResponse({ error: 'store_frozen' }, 412);
   }
+  if (!BYPASS_KYC && store.kyc_status !== 'approved') {
+    return jsonResponse({ error: 'kyc_not_approved' }, 412);
+  }
+  if (BYPASS_KYC) {
+    console.warn('kyc_bypass_active', { store_id });
+  }
 
-  // 2. Look up tier via user_subscriptions.
+  // 2. Resolve effective subscription tier. Parity with F2:
+  // active/non_renewing/trialing AND non-expired period, fallback
+  // 'free'. TODO(consolidate-tier-helper): F2 has the same lookup
+  // inlined; extract to a shared module when convenient.
+  // TODO(billing-dunning): add 'past_due' once dunning policy decided.
   const { data: sub } = await admin
     .from('user_subscriptions')
-    .select('tier_id')
+    .select('tier_id, status, current_period_end')
     .eq('user_id', store.user_id)
-    .eq('status', 'active')
+    .in('status', ['active', 'non_renewing', 'trialing'])
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
-  const tier = sub?.tier_id || 'free';
+  const periodOk =
+    !sub?.current_period_end || new Date(sub.current_period_end).getTime() > Date.now();
+  const tier: 'free' | 'starter' | 'pro' =
+    sub && periodOk && ['free', 'starter', 'pro'].includes(sub.tier_id)
+      ? (sub.tier_id as 'free' | 'starter' | 'pro')
+      : 'free';
 
   // 3. Look up platform_fee_config.
   const { data: feeConfig, error: feeError } = await admin
     .from('platform_fee_config')
     .select('*')
     .eq('tier', tier)
+    .eq('active', true)
     .single();
   if (feeError || !feeConfig) {
     return jsonResponse({ error: 'no_fee_config_for_tier', tier }, 500);
   }
 
-  // 4. Look up subaccount.
+  // 4. Look up subaccount — must be active=TRUE (Storehouse reviewer
+  // approval, separate from Paystack-side verification).
   const { data: subaccount, error: subError } = await admin
     .from('paystack_subaccounts')
     .select('*')
     .eq('store_id', store_id)
-    .single();
+    .eq('active', true)
+    .maybeSingle();
   if (subError || !subaccount) {
-    return jsonResponse({ error: 'no_subaccount' }, 412);
+    return jsonResponse({ error: 'no_active_subaccount' }, 412);
+  }
+  // Defensive — schema marks subaccount_code NOT NULL, but a NULL
+  // here would mean a partial Paystack response slipped through.
+  if (!subaccount.paystack_subaccount_code) {
+    console.error('subaccount_code_null', { store_id, subaccount_id: subaccount.id });
+    return jsonResponse({ error: 'no_active_subaccount' }, 412);
   }
 
   // 5. Compute totals — IN THIS EXACT ORDER. Each take is computed (and capped
@@ -136,26 +213,47 @@ serve(async (req) => {
     return jsonResponse({ error: 'velocity_row_missing' }, 500);
   }
   if (Number(velocity.current_day_volume_kobo) + customerTotalKobo > Number(velocity.daily_cap_kobo)) {
-    return jsonResponse({ error: 'daily_cap_exceeded' }, 429);
+    return jsonResponse({
+      error: 'daily_cap_exceeded',
+      message: "You've reached today's transaction limit. New orders can be accepted tomorrow.",
+    }, 429);
   }
 
   // 7. Free-tier monthly cap.
   if (feeConfig.monthly_volume_cap_kobo !== null) {
     if (Number(velocity.current_month_volume_kobo) + customerTotalKobo > Number(feeConfig.monthly_volume_cap_kobo)) {
-      return jsonResponse({ error: 'monthly_cap_exceeded' }, 429);
+      return jsonResponse({
+        error: 'monthly_cap_exceeded',
+        message: "You've reached this month's transaction limit. New orders can be accepted next month.",
+      }, 429);
     }
   }
 
   // 8. High-value review flag.
   const requiresReview = customerTotalKobo >= Number(feeConfig.large_transaction_review_threshold_kobo);
 
-  // SESSION 5 TODO: wrap inserts 9–11 (orders, order_items,
-  // paystack_split_transactions) in a Supabase RPC transaction. Currently
-  // these are three sequential inserts; a failure between them leaves an
-  // orphan order or an order without a ledger entry. Acceptable for the
-  // Session 1 mock flow where no money moves. Before Session 5 wires the
-  // real Paystack /transaction/initialize call, this must be a single
-  // atomic operation (Postgres function called via supabase.rpc()).
+  // Atomicity boundary: this function executes 3 DB inserts followed
+  // by a Paystack API call. Failure modes:
+  //   (1) Any DB insert fails → currently not wrapped in a transaction.
+  //       PostgREST does not expose multi-statement transactions; the
+  //       fix is a new RPC like initiate_storefront_order(...) that
+  //       runs all 3 inserts in one server-side transaction. Scope
+  //       deferred from Session 3.
+  //   (2) DB inserts succeed but Paystack call fails → orphan rows
+  //       exist with status='pending' and paystack_reference set to
+  //       our ord_<uuid> (which Paystack never echoes back, so the
+  //       webhook handler will never resolve them). Reconciliation
+  //       cron handles cleanup. See PAYSTACK-DEBUG.md §10.1.
+  //   (3) Paystack call succeeds but our DB updates fail → webhook
+  //       handler defensive code reconciles via Paystack reference
+  //       lookup. See §10.2.
+  //
+  // TODO(orphan-reconcile): Cron job to delete orders with
+  // status='pending' AND created_at < NOW() - INTERVAL '1 hour' AND
+  // paystack_reference matches our 'ord_' prefix but has no
+  // corresponding successful paystack_split_transactions row.
+  // Implement in Session 4 or 5 before any merchant onboards.
+  // Tracked in PAYSTACK-DEBUG.md §10.1.
   // 9. Insert orders row.
   const reference = 'ord_' + crypto.randomUUID().replace(/-/g, '');
   const { data: order, error: orderError } = await admin
@@ -209,20 +307,139 @@ serve(async (req) => {
     return jsonResponse({ error: 'split_insert_failed', detail: splitError.message }, 500);
   }
 
-  // 12. SESSION 1 MOCK: return mock authorization_url.
-  // Session 5 replaces this with a real POST to https://api.paystack.co/transaction/initialize
-  // with body:
-  //   {
-  //     email, amount: customerTotalKobo, currency: 'NGN', reference,
-  //     subaccount: subaccount.paystack_subaccount_code,
-  //     transaction_charge: storehouseTakeKobo + paystackTakeKobo,
-  //     bearer: 'subaccount',
-  //     metadata: { order_id: order.id, store_id, customer_phone, customer_name }
-  //   }
-  return jsonResponse({
-    authorization_url: 'https://paystack-mock.local/redirect/' + reference,
+  // 12. Call Paystack POST /transaction/initialize with bearer=account
+  // (Storehouse main account absorbs Paystack's processing fee).
+  // transaction_charge is Storehouse's take only, computed on the
+  // SUBTOTAL (merchant price), capped at feeConfig.cap_kobo. The
+  // subaccount receives gross - transaction_charge - Paystack_fees.
+  //
+  // §13.1 fee-base verification still unresolved (see
+  // docs/PAYSTACK-DEBUG.md §11). If Paystack's wholesale fee is
+  // computed on customer_total rather than subtotal, the split row
+  // we inserted at step 11 will be off by ~paystackTakeKobo. We'll
+  // reconcile from the webhook event later.
+  const transactionChargeKobo = Math.min(
+    Math.floor(subtotalKobo * feeConfig.basis_points / 10000),
+    Number(feeConfig.cap_kobo),
+  );
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PAYSTACK_TIMEOUT_MS);
+  const paystackPayload = {
+    email: customer_email,
+    amount: customerTotalKobo,
+    currency: 'NGN',
     reference,
-    public_key: 'pk_mock',
+    subaccount: subaccount.paystack_subaccount_code,
+    transaction_charge: transactionChargeKobo,
+    // Storehouse main account bears Paystack's processing fee.
+    // CAVEAT: per Paystack's API, a subaccount-level bearer setting
+    // (configured at subaccount creation or via PUT /subaccount/{code})
+    // can OVERRIDE this per-transaction value. Smoke testing on
+    // 2026-05-14 verified that our request of "account" was overridden
+    // to "subaccount" on the live response — meaning Paul's
+    // subaccount has a subaccount-level bearer policy in effect.
+    // TODO(bearer-policy): decide whether to (a) update Paul's
+    // subaccount to bearer=account via Paystack dashboard so this
+    // request is honoured, or (b) change our intent to "subaccount"
+    // to match what's actually happening. Resolve alongside §13.1
+    // fee-base verification.
+    bearer: 'account',
+    metadata: {
+      order_id: order.id,
+      store_id,
+      customer_phone,
+      customer_name: customer_name || null,
+    },
+  };
+
+  let paystackStatus = 0;
+  let paystackBody: any = null;
+  try {
+    const res = await fetch(PAYSTACK_INITIALIZE_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(paystackPayload),
+      signal: controller.signal,
+    });
+    paystackStatus = res.status;
+    try {
+      paystackBody = await res.json();
+    } catch {
+      paystackBody = null;
+    }
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const isTimeout = (e as any)?.name === 'AbortError';
+    console.error('paystack_initialize_fetch_failed', {
+      order_id: order.id,
+      store_id,
+      reference,
+      timeout: isTimeout,
+      error: (e as any)?.message,
+    });
+    return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
+  }
+  clearTimeout(timeoutId);
+
+  if (paystackStatus === 422) {
+    console.log('paystack_initialize_invalid', {
+      order_id: order.id,
+      store_id,
+      reference,
+      paystack_message: paystackBody?.message,
+    });
+    return jsonResponse({
+      error: 'checkout_rejected',
+      message: "Couldn't start the payment. Please check your details and try again.",
+    });
+  }
+
+  if (paystackStatus === 429) {
+    console.warn('paystack_initialize_rate_limited', { order_id: order.id, store_id, reference });
+    return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
+  }
+
+  if (paystackStatus !== 200 && paystackStatus !== 201) {
+    console.error('paystack_initialize_unexpected', {
+      order_id: order.id,
+      store_id,
+      reference,
+      paystack_status: paystackStatus,
+      paystack_body: paystackBody,
+    });
+    return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
+  }
+  const authorizationUrl: string | undefined = paystackBody?.data?.authorization_url;
+  const accessCode: string | undefined = paystackBody?.data?.access_code;
+  const paystackRef: string | undefined = paystackBody?.data?.reference;
+  if (paystackBody?.status !== true || !authorizationUrl || !accessCode) {
+    console.error('paystack_initialize_no_url', {
+      order_id: order.id,
+      store_id,
+      reference,
+      paystack_body: paystackBody,
+    });
+    return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
+  }
+
+  console.log('paystack_initialize_ok', {
+    order_id: order.id,
+    store_id,
+    reference,
+    paystack_reference: paystackRef,
+    transaction_charge_kobo: transactionChargeKobo,
+    tier,
+  });
+
+  return jsonResponse({
+    authorization_url: authorizationUrl,
+    access_code: accessCode,
+    reference,
+    paystack_reference: paystackRef,
     customer_access_token: order.customer_access_token,
     breakdown: {
       subtotal_kobo: subtotalKobo,
@@ -230,8 +447,9 @@ serve(async (req) => {
       paystack_take_kobo: paystackTakeKobo,
       customer_total_kobo: customerTotalKobo,
       vendor_net_kobo: vendorNetKobo,
+      transaction_charge_kobo: transactionChargeKobo,
       requires_review: requiresReview,
     },
-    mock: true,
+    mock: false,
   });
 });

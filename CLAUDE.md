@@ -681,6 +681,16 @@ curl -sS -X POST "https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/<name>" 
   on this field. Same likely applies to other numeric Paystack
   fields (`amount`, `transaction_charge` etc.) — favour numbers
   over strings unless the docs explicitly say string.
+- **F3 transaction_charge formula:** `Math.min(Math.floor(subtotal_kobo
+  * basis_points / 10000), feeConfig.cap_kobo)`. Computed on the
+  SUBTOTAL (merchant product price), not the customer-facing total
+  which already includes Storehouse's markup. Paystack's flat ₦100
+  fee is Paystack's concern, not ours. `bearer: "account"` means
+  Storehouse main account is intended to bear the Paystack
+  processing fee — but a subaccount-level bearer policy
+  (configurable on Paystack's side via subaccount create/update)
+  can override this per-transaction value. Verify the live behaviour
+  against Paystack's verify response, not just the request body.
 
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
