@@ -20,6 +20,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logPaystackInteraction } from '../_shared/paystack-logger.ts';
+import { resolveActiveTier, TierResolverError } from '../_shared/tier-resolver.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -186,35 +187,56 @@ serve(async (req) => {
     console.warn('kyc_bypass_active', { store_id, user_id: user.id });
   }
 
-  // 7. Resolve caller's effective subscription tier. Treat anything
-  // not active/non_renewing/trialing (or past period_end) as 'free'.
-  // TODO(billing-dunning): add 'past_due' to the active set once the
-  // dunning policy is decided.
-  const { data: subRow } = await admin
-    .from('user_subscriptions')
-    .select('tier_id, status, current_period_end')
-    .eq('user_id', user.id)
-    .in('status', ['active', 'non_renewing', 'trialing'])
-    .order('created_at', { ascending: false })
-    .limit(1)
+  // 6.5 Idempotency pre-check. If a paystack_subaccounts row already
+  // exists for this store with a non-null subaccount_code, return it
+  // without calling Paystack. Without this gate, every retry of this
+  // endpoint creates a fresh dangling subaccount on Paystack's side
+  // (our RPC's ON CONFLICT (store_id) keeps the original DB row).
+  const { data: existingSubaccount } = await admin
+    .from('paystack_subaccounts')
+    .select('*')
+    .eq('store_id', store_id)
     .maybeSingle();
-  const periodOk =
-    !subRow?.current_period_end || new Date(subRow.current_period_end).getTime() > Date.now();
-  const effectiveTier: 'free' | 'starter' | 'pro' =
-    subRow && periodOk && ['free', 'starter', 'pro'].includes(subRow.tier_id)
-      ? (subRow.tier_id as 'free' | 'starter' | 'pro')
-      : 'free';
-
-  const { data: feeRow, error: feeErr } = await admin
-    .from('platform_fee_config')
-    .select('basis_points')
-    .eq('tier', effectiveTier)
-    .eq('active', true)
-    .single();
-  if (feeErr || !feeRow) {
-    console.error('platform_fee_config_lookup_failed', { store_id, user_id: user.id, tier: effectiveTier, error: feeErr?.message });
-    return jsonResponse({ error: 'busy', message: 'Onboarding is busy. Please try again in a moment.' }, 503);
+  if (existingSubaccount?.paystack_subaccount_code) {
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'create-paystack-subaccount',
+      direction: 'outbound',
+      paystack_endpoint: PAYSTACK_SUBACCOUNT_URL,
+      http_method: 'POST',
+      store_id,
+      user_id: user.id,
+      paystack_reference: existingSubaccount.paystack_subaccount_code,
+      error_tag: 'paystack_subaccount_reused_existing',
+    });
+    console.log('subaccount_reused_existing', {
+      store_id,
+      user_id: user.id,
+      paystack_subaccount_code: existingSubaccount.paystack_subaccount_code,
+    });
+    return jsonResponse({
+      subaccount: existingSubaccount,
+      reused: true,
+      mock: false,
+    });
   }
+
+  // 7. Resolve caller's effective subscription tier + platform fee
+  // config via the shared helper.
+  let tier;
+  try {
+    tier = await resolveActiveTier(admin, user.id);
+  } catch (e) {
+    if (e instanceof TierResolverError) {
+      console.error('platform_fee_config_lookup_failed', {
+        store_id, user_id: user.id, tier: e.tier, error: e.message,
+      });
+      return jsonResponse({ error: 'busy', message: 'Onboarding is busy. Please try again in a moment.' }, 503);
+    }
+    throw e;
+  }
+  const effectiveTier = tier.tier_id;
+
   // §13.1 fee-base verification is unresolved (see docs/PAYSTACK-DEBUG.md §11).
   // basis_points is Storehouse's take. Paystack's `percentage_charge`
   // field on /subaccount is the percentage that goes to the *main
@@ -225,21 +247,13 @@ serve(async (req) => {
   // Paystack /subaccount validates `percentage_charge` as a JSON
   // number, not a string. Stringified values produce a misleading
   // 400 "Account details are invalid" response. Send as Number.
-  const percentageCharge: number = feeRow.basis_points / 100;
+  const percentageCharge: number = tier.basis_points / 100;
 
   // 8. Call Paystack POST /subaccount with a 5s timeout. All error
   // paths log full diagnostics server-side but return only generic
-  // messages to the client.
-  //
-  // TODO(prevent-orphan-subaccount): Before calling Paystack POST
-  // /subaccount, check if paystack_subaccounts row already exists for
-  // this store_id. If yes, return existing subaccount_code without
-  // hitting Paystack. Current behaviour: every duplicate call creates
-  // a real dangling Paystack subaccount that our RPC ignores via
-  // ON CONFLICT, accumulating orphans. Discovered in logger-wiring
-  // smoke (F2 created ACCT_sl91daalsq2uah6 while RPC returned
-  // pre-existing ACCT_0gm1gv2bb6ue9z3). Fix before merchant #2
-  // onboards.
+  // messages to the client. (Idempotency pre-check at step 6.5
+  // guarantees this only runs for stores that don't yet have a
+  // subaccount row.)
   //
   // TODO(payload-extras): `description` and `primary_contact_email`
   // are intentionally NOT forwarded to Paystack until we verify

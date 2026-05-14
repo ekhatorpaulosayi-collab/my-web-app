@@ -19,6 +19,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logPaystackInteraction } from '../_shared/paystack-logger.ts';
+import { resolveActiveTier, TierResolverError } from '../_shared/tier-resolver.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -130,36 +131,19 @@ serve(async (req) => {
     console.warn('kyc_bypass_active', { store_id });
   }
 
-  // 2. Resolve effective subscription tier. Parity with F2:
-  // active/non_renewing/trialing AND non-expired period, fallback
-  // 'free'. TODO(consolidate-tier-helper): F2 has the same lookup
-  // inlined; extract to a shared module when convenient.
-  // TODO(billing-dunning): add 'past_due' once dunning policy decided.
-  const { data: sub } = await admin
-    .from('user_subscriptions')
-    .select('tier_id, status, current_period_end')
-    .eq('user_id', store.user_id)
-    .in('status', ['active', 'non_renewing', 'trialing'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const periodOk =
-    !sub?.current_period_end || new Date(sub.current_period_end).getTime() > Date.now();
-  const tier: 'free' | 'starter' | 'pro' =
-    sub && periodOk && ['free', 'starter', 'pro'].includes(sub.tier_id)
-      ? (sub.tier_id as 'free' | 'starter' | 'pro')
-      : 'free';
-
-  // 3. Look up platform_fee_config.
-  const { data: feeConfig, error: feeError } = await admin
-    .from('platform_fee_config')
-    .select('*')
-    .eq('tier', tier)
-    .eq('active', true)
-    .single();
-  if (feeError || !feeConfig) {
-    return jsonResponse({ error: 'no_fee_config_for_tier', tier }, 500);
+  // 2. Resolve effective subscription tier + platform fee config
+  // via the shared helper. Parity with F2.
+  let resolvedTier;
+  try {
+    resolvedTier = await resolveActiveTier(admin, store.user_id);
+  } catch (e) {
+    if (e instanceof TierResolverError) {
+      return jsonResponse({ error: 'no_fee_config_for_tier', tier: e.tier }, 500);
+    }
+    throw e;
   }
+  const tier = resolvedTier.tier_id;
+  const feeConfig = resolvedTier.fee_config;
 
   // 4. Look up subaccount — must be active=TRUE (Storehouse reviewer
   // approval, separate from Paystack-side verification).

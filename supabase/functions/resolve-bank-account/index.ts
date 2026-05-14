@@ -26,16 +26,15 @@ const corsHeaders = {
 const PAYSTACK_RESOLVE_URL = 'https://api.paystack.co/bank/resolve';
 const PAYSTACK_TIMEOUT_MS = 5000;
 
-// In-memory IP rate limiter: 10 requests per 60s window per IP.
+// In-memory IP rate limiter: 30 req/min/IP. Calibrated for real
+// users who may correct typos a few times. Revisit with
+// TODO(scale-out) when wiring Upstash.
 // TODO(scale-out): edge functions run as multiple isolates, so this
 // map is per-instance, not global. Before flipping the feature flag
 // to live mode for non-Paul merchants, replace with Upstash Redis
 // (or Supabase rate-limit service if/when it ships) so the cap
 // holds across instances. Account-number harvesting is the threat.
-// TODO(thresholds): 10 req/min/IP is likely too aggressive for real
-// users — fat-fingered account number 11+ times = locked out.
-// Reconsider thresholds when wiring real rate-limiting service.
-const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateLimitBuckets = new Map<string, number[]>();
 
