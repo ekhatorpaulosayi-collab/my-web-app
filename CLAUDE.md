@@ -665,6 +665,23 @@ curl -sS -X POST "https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/<name>" 
 - No frontend / Vercel work. Edge-function-only session.
 - No DB migrations. No schema changes.
 
+## Paystack debugging lessons (Session 3)
+
+- **"Account details are invalid" is misleading.** Paystack returns
+  this generic 400 message for many payload issues, not just bad
+  bank/account combos. When stuck on this error, first reproduce
+  with a direct curl from outside the edge function to isolate
+  which side has the bug — if your direct curl works and the edge
+  function fails, the bug is in how the function constructs the
+  request, not in the bank/account/key values.
+- **`percentage_charge` is a JSON number, not a string.** Paystack
+  `/subaccount` validates the type strictly. Sending `"1"`
+  (stringified, as `(bps / 100).toString()` produces) yields the
+  misleading 400 above. Send a `Number` — drop any `.toString()`
+  on this field. Same likely applies to other numeric Paystack
+  fields (`amount`, `transaction_charge` etc.) — favour numbers
+  over strings unless the docs explicitly say string.
+
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
 [ ] Open storefront — AI chat responds
