@@ -536,6 +536,15 @@ function Step2({
   strings: any;
   backLabel: string;
 }) {
+  const [query, setQuery] = useState(value?.name ?? '');
+
+  // Keep query in sync if parent clears the bank (e.g. user navigates
+  // back from Step 3 and onChange(null) fires elsewhere).
+  useEffect(() => {
+    if (value === null && query !== '') return; // user is mid-type
+    if (value && value.name !== query) setQuery(value.name);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
       <BackLink label={backLabel} onClick={onBack} />
@@ -543,9 +552,10 @@ function Step2({
       <input
         type="text"
         list="nigerian-banks"
-        value={value?.name || ''}
+        value={query}
         onChange={(e) => {
           const typed = e.target.value;
+          setQuery(typed);
           const match = NIGERIAN_BANKS_WITH_CODES.find(
             (b) => b.name.toLowerCase() === typed.toLowerCase()
           );
