@@ -30,7 +30,7 @@ function isValidAccountNumber(s) {
 }
 
 function isValidBankCode(s) {
-  return typeof s === 'string' && /^\d{3}$/.test(s);
+  return typeof s === 'string' && /^\d{3,6}$/.test(s);
 }
 
 serve(async (req) => {
@@ -82,7 +82,7 @@ serve(async (req) => {
     return jsonResponse({ error: 'invalid_account_number', detail: 'Must be exactly 10 digits' }, 400);
   }
   if (!isValidBankCode(bank_code)) {
-    return jsonResponse({ error: 'invalid_bank_code', detail: 'Must be exactly 3 digits' }, 400);
+    return jsonResponse({ error: 'invalid_bank_code', detail: 'Must be 3-6 digits' }, 400);
   }
 
   // 3. Ownership check. RLS does not apply to service-role queries, so we

@@ -540,21 +540,26 @@ function Step2({
     <>
       <BackLink label={backLabel} onClick={onBack} />
       <Heading>{s.heading}</Heading>
-      <select
-        value={value?.code || ''}
+      <input
+        type="text"
+        list="nigerian-banks"
+        value={value?.name || ''}
         onChange={(e) => {
-          const found = NIGERIAN_BANKS_WITH_CODES.find((b) => b.code === e.target.value);
-          onChange(found || null);
+          const typed = e.target.value;
+          const match = NIGERIAN_BANKS_WITH_CODES.find(
+            (b) => b.name.toLowerCase() === typed.toLowerCase()
+          );
+          onChange(match || null);
         }}
+        placeholder={s.placeholder}
+        autoComplete="off"
         style={inputStyle}
-      >
-        <option value="">{s.placeholder}</option>
+      />
+      <datalist id="nigerian-banks">
         {NIGERIAN_BANKS_WITH_CODES.map((b) => (
-          <option key={b.code} value={b.code}>
-            {b.name}
-          </option>
+          <option key={b.code} value={b.name} />
         ))}
-      </select>
+      </datalist>
       <PrimaryButton onClick={onContinue} disabled={!value}>
         {s.cta}
       </PrimaryButton>

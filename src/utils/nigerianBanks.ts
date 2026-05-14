@@ -3,19 +3,9 @@
  * For use in payment details dropdowns
  */
 
-// NOTE: Nigerian fintechs (Opay, Kuda, Moniepoint, PalmPay, etc.)
-// are intentionally omitted from this list.
-// Their Paystack bank codes are 5-6 digits (e.g. Opay=999992,
-// Kuda=50211) but the resolve-bank-account edge function
-// currently validates bank_code with regex /^\d{3}$/ which only
-// accepts 3-digit codes.
-//
-// To add fintechs: first relax the regex in
-// supabase/functions/resolve-bank-account/index.ts:33 and the
-// corresponding check in create-paystack-subaccount, then add
-// entries below.
-//
-// Pending fix in Session 3 proper.
+// Nigerian fintechs (Opay, Kuda, Moniepoint, PalmPay) are included
+// alongside traditional banks. Their Paystack codes are 5-6 digits;
+// resolve-bank-account validates bank_code with /^\d{3,6}$/.
 
 export interface BankWithCode {
   name: string;
@@ -39,6 +29,10 @@ export const NIGERIAN_BANKS_WITH_CODES: BankWithCode[] = [
   { name: 'Heritage Bank', code: '030' },
   { name: 'Jaiz Bank', code: '301' },
   { name: 'Keystone Bank', code: '082' },
+  { name: 'Kuda Microfinance Bank', code: '50211' },
+  { name: 'Moniepoint MFB', code: '50515' },
+  { name: 'Opay', code: '999992' },
+  { name: 'PalmPay', code: '999991' },
   { name: 'Polaris Bank', code: '076' },
   { name: 'Providus Bank', code: '101' },
   { name: 'Stanbic IBTC Bank', code: '221' },
