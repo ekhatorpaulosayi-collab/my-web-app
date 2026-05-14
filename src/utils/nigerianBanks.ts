@@ -17,7 +17,7 @@ export interface BankWithCode {
  * Used by the Paystack subaccount wizard.
  * Codes verified against Paystack's /bank registry.
  */
-export const NIGERIAN_BANKS_WITH_CODES: BankWithCode[] = [
+const REAL_NIGERIAN_BANKS: BankWithCode[] = [
   { name: 'Access Bank', code: '044' },
   { name: 'Citibank Nigeria', code: '023' },
   { name: 'Ecobank Nigeria', code: '050' },
@@ -46,6 +46,20 @@ export const NIGERIAN_BANKS_WITH_CODES: BankWithCode[] = [
   { name: 'Wema Bank', code: '035' },
   { name: 'Zenith Bank', code: '057' },
 ].sort((a, b) => a.name.localeCompare(b.name));
+
+// Dev-only synthetic bank entry. Paystack accepts code=001 +
+// account_number=0000000000 as a test combo that bypasses the
+// 3-resolves-per-day quota on real banks. Tree-shaken out of
+// production builds by Vite (import.meta.env.DEV is a static
+// boolean replaced at build time).
+const testBanks: BankWithCode[] = import.meta.env.DEV
+  ? [{ name: 'Paystack Test Bank (dev only)', code: '001' }]
+  : [];
+
+export const NIGERIAN_BANKS_WITH_CODES: BankWithCode[] = [
+  ...testBanks,
+  ...REAL_NIGERIAN_BANKS,
+];
 
 /**
  * Legacy name-only bank list. Retained for back-compat with
