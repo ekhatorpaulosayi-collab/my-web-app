@@ -231,6 +231,16 @@ serve(async (req) => {
   // paths log full diagnostics server-side but return only generic
   // messages to the client.
   //
+  // TODO(prevent-orphan-subaccount): Before calling Paystack POST
+  // /subaccount, check if paystack_subaccounts row already exists for
+  // this store_id. If yes, return existing subaccount_code without
+  // hitting Paystack. Current behaviour: every duplicate call creates
+  // a real dangling Paystack subaccount that our RPC ignores via
+  // ON CONFLICT, accumulating orphans. Discovered in logger-wiring
+  // smoke (F2 created ACCT_sl91daalsq2uah6 while RPC returned
+  // pre-existing ACCT_0gm1gv2bb6ue9z3). Fix before merchant #2
+  // onboards.
+  //
   // TODO(payload-extras): `description` and `primary_contact_email`
   // are intentionally NOT forwarded to Paystack until we verify
   // they don't trigger the 400 "Account details are invalid" error.
