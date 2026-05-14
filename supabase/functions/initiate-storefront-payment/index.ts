@@ -18,6 +18,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logPaystackInteraction } from '../_shared/paystack-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,6 +63,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  // Universal join key for outbound+response rows in paystack_logs.
+  const correlation_id = crypto.randomUUID();
 
   const ENABLE = Deno.env.get('ENABLE_PAYSTACK_SUBACCOUNTS') === 'true';
   if (!ENABLE) {
@@ -353,8 +357,23 @@ serve(async (req) => {
     },
   };
 
+  await logPaystackInteraction(admin, {
+    correlation_id,
+    function_name: 'initiate-storefront-payment',
+    direction: 'outbound',
+    paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+    http_method: 'POST',
+    paystack_reference: reference,
+    store_id,
+    user_id: store.user_id,
+    order_id: order.id,
+    request_body: paystackPayload,
+  });
+
+  const startedAt = Date.now();
   let paystackStatus = 0;
   let paystackBody: any = null;
+  let rawText: string | null = null;
   try {
     const res = await fetch(PAYSTACK_INITIALIZE_URL, {
       method: 'POST',
@@ -370,6 +389,11 @@ serve(async (req) => {
       paystackBody = await res.json();
     } catch {
       paystackBody = null;
+      try {
+        rawText = await res.text();
+      } catch {
+        rawText = null;
+      }
     }
   } catch (e) {
     clearTimeout(timeoutId);
@@ -381,9 +405,31 @@ serve(async (req) => {
       timeout: isTimeout,
       error: (e as any)?.message,
     });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'initiate-storefront-payment',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+      http_method: 'POST',
+      paystack_reference: reference,
+      store_id,
+      user_id: store.user_id,
+      order_id: order.id,
+      error_tag: isTimeout ? 'fetch_timeout' : 'fetch_failed',
+      error_message: (e as any)?.message ?? null,
+      duration_ms: Date.now() - startedAt,
+    });
     return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
   }
   clearTimeout(timeoutId);
+
+  const responseBodyForLog =
+    paystackBody !== null
+      ? paystackBody
+      : rawText !== null
+        ? { raw_text: rawText, parse_failed: true }
+        : null;
+  const responseDurationMs = Date.now() - startedAt;
 
   if (paystackStatus === 422) {
     console.log('paystack_initialize_invalid', {
@@ -391,6 +437,21 @@ serve(async (req) => {
       store_id,
       reference,
       paystack_message: paystackBody?.message,
+    });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'initiate-storefront-payment',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+      http_method: 'POST',
+      http_status: paystackStatus,
+      paystack_reference: reference,
+      store_id,
+      user_id: store.user_id,
+      order_id: order.id,
+      error_tag: 'paystack_initialize_validation_failed',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
     });
     return jsonResponse({
       error: 'checkout_rejected',
@@ -400,6 +461,21 @@ serve(async (req) => {
 
   if (paystackStatus === 429) {
     console.warn('paystack_initialize_rate_limited', { order_id: order.id, store_id, reference });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'initiate-storefront-payment',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+      http_method: 'POST',
+      http_status: paystackStatus,
+      paystack_reference: reference,
+      store_id,
+      user_id: store.user_id,
+      order_id: order.id,
+      error_tag: 'paystack_initialize_rate_limited',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
+    });
     return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
   }
 
@@ -410,6 +486,21 @@ serve(async (req) => {
       reference,
       paystack_status: paystackStatus,
       paystack_body: paystackBody,
+    });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'initiate-storefront-payment',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+      http_method: 'POST',
+      http_status: paystackStatus,
+      paystack_reference: reference,
+      store_id,
+      user_id: store.user_id,
+      order_id: order.id,
+      error_tag: 'paystack_initialize_unexpected',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
     });
     return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
   }
@@ -423,6 +514,21 @@ serve(async (req) => {
       reference,
       paystack_body: paystackBody,
     });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'initiate-storefront-payment',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+      http_method: 'POST',
+      http_status: paystackStatus,
+      paystack_reference: reference,
+      store_id,
+      user_id: store.user_id,
+      order_id: order.id,
+      error_tag: 'paystack_initialize_no_url',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
+    });
     return jsonResponse({ error: 'busy', message: 'Checkout is busy. Please try again in a moment.' }, 503);
   }
 
@@ -433,6 +539,21 @@ serve(async (req) => {
     paystack_reference: paystackRef,
     transaction_charge_kobo: transactionChargeKobo,
     tier,
+  });
+
+  await logPaystackInteraction(admin, {
+    correlation_id,
+    function_name: 'initiate-storefront-payment',
+    direction: 'response',
+    paystack_endpoint: PAYSTACK_INITIALIZE_URL,
+    http_method: 'POST',
+    http_status: paystackStatus,
+    paystack_reference: reference,
+    store_id,
+    user_id: store.user_id,
+    order_id: order.id,
+    response_body: responseBodyForLog,
+    duration_ms: responseDurationMs,
   });
 
   return jsonResponse({
