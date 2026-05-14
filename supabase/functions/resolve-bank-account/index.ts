@@ -15,6 +15,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logPaystackInteraction } from '../_shared/paystack-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,6 +71,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  // Universal join key for outbound+response rows in paystack_logs.
+  const correlation_id = crypto.randomUUID();
 
   const ENABLE = Deno.env.get('ENABLE_PAYSTACK_SUBACCOUNTS') === 'true';
   if (!ENABLE) {
@@ -145,14 +149,28 @@ serve(async (req) => {
 
   // 4. Call Paystack /bank/resolve with a 5s timeout. All error paths
   // log full diagnostics server-side but return only generic messages
-  // to the client.
+  // to the client. Outbound + response are also persisted to
+  // paystack_logs for SQL-queryable observability.
   const last4 = account_number.slice(-4);
   const url = `${PAYSTACK_RESOLVE_URL}?account_number=${encodeURIComponent(account_number)}&bank_code=${encodeURIComponent(bank_code)}`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PAYSTACK_TIMEOUT_MS);
 
+  await logPaystackInteraction(admin, {
+    correlation_id,
+    function_name: 'resolve-bank-account',
+    direction: 'outbound',
+    paystack_endpoint: PAYSTACK_RESOLVE_URL,
+    http_method: 'GET',
+    store_id,
+    user_id: user.id,
+    request_body: { account_number, bank_code },
+  });
+
+  const startedAt = Date.now();
   let paystackStatus = 0;
   let paystackBody: any = null;
+  let rawText: string | null = null;
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -163,7 +181,13 @@ serve(async (req) => {
     try {
       paystackBody = await res.json();
     } catch {
+      // Body wasn't valid JSON — capture raw text for log debugging.
       paystackBody = null;
+      try {
+        rawText = await res.text();
+      } catch {
+        rawText = null;
+      }
     }
   } catch (e) {
     clearTimeout(timeoutId);
@@ -176,9 +200,29 @@ serve(async (req) => {
       timeout: isTimeout,
       error: (e as any)?.message,
     });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'resolve-bank-account',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_RESOLVE_URL,
+      http_method: 'GET',
+      store_id,
+      user_id: user.id,
+      error_tag: isTimeout ? 'fetch_timeout' : 'fetch_failed',
+      error_message: (e as any)?.message ?? null,
+      duration_ms: Date.now() - startedAt,
+    });
     return jsonResponse({ error: 'busy', message: 'Bank lookup is busy. Please try again in a moment.' }, 503);
   }
   clearTimeout(timeoutId);
+
+  const responseBodyForLog =
+    paystackBody !== null
+      ? paystackBody
+      : rawText !== null
+        ? { raw_text: rawText, parse_failed: true }
+        : null;
+  const responseDurationMs = Date.now() - startedAt;
 
   if (paystackStatus === 422) {
     console.log('paystack_resolve_invalid', {
@@ -187,6 +231,19 @@ serve(async (req) => {
       bank_code,
       account_number_last4: last4,
       paystack_message: paystackBody?.message,
+    });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'resolve-bank-account',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_RESOLVE_URL,
+      http_method: 'GET',
+      http_status: paystackStatus,
+      store_id,
+      user_id: user.id,
+      error_tag: 'paystack_422_invalid',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
     });
     return jsonResponse({
       error: 'account_not_verifiable',
@@ -203,6 +260,19 @@ serve(async (req) => {
       bank_code,
       account_number_last4: last4,
     });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'resolve-bank-account',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_RESOLVE_URL,
+      http_method: 'GET',
+      http_status: paystackStatus,
+      store_id,
+      user_id: user.id,
+      error_tag: 'paystack_429_rate_limited',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
+    });
     return jsonResponse({ error: 'busy', message: 'Bank lookup is busy. Please try again in a moment.' }, 503);
   }
 
@@ -215,10 +285,36 @@ serve(async (req) => {
       paystack_status: paystackStatus,
       paystack_body: paystackBody,
     });
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'resolve-bank-account',
+      direction: 'response',
+      paystack_endpoint: PAYSTACK_RESOLVE_URL,
+      http_method: 'GET',
+      http_status: paystackStatus,
+      store_id,
+      user_id: user.id,
+      error_tag: 'paystack_unexpected',
+      response_body: responseBodyForLog,
+      duration_ms: responseDurationMs,
+    });
     return jsonResponse({ error: 'busy', message: 'Bank lookup is busy. Please try again in a moment.' }, 503);
   }
 
   const accountName: string = paystackBody.data.account_name;
+
+  await logPaystackInteraction(admin, {
+    correlation_id,
+    function_name: 'resolve-bank-account',
+    direction: 'response',
+    paystack_endpoint: PAYSTACK_RESOLVE_URL,
+    http_method: 'GET',
+    http_status: paystackStatus,
+    store_id,
+    user_id: user.id,
+    response_body: responseBodyForLog,
+    duration_ms: responseDurationMs,
+  });
 
   // 5. Upsert into bank_accounts. UNIQUE (store_id, bank_code,
   // account_number) means re-resolving the same triple refreshes
