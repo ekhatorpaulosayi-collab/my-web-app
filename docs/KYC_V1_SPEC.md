@@ -213,8 +213,13 @@ CREATE TABLE vendor_velocity_overrides (
 );
 
 CREATE INDEX idx_velocity_overrides_store ON vendor_velocity_overrides (store_id, expires_at);
-CREATE INDEX idx_velocity_overrides_active ON vendor_velocity_overrides (store_id) 
-  WHERE expires_at IS NULL OR expires_at > now();
+
+-- Note: We considered a partial index on active overrides
+-- (WHERE expires_at IS NULL OR expires_at > now()) but Postgres
+-- rejects this — partial index predicates must be IMMUTABLE
+-- and now() is STABLE. Realistic query patterns are handled
+-- adequately by the composite (store_id, expires_at) index.
+-- Revisit if profiling shows hotspots.
 
 ALTER TABLE vendor_velocity_overrides ENABLE ROW LEVEL SECURITY;
 -- Service-role only for v1. Phase 2 adds reviewer-role read access.
