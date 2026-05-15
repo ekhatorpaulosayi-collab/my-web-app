@@ -241,15 +241,21 @@ The path is stored in `vendor_kyc.selfie_url` (existing column, used for the com
 ### 3.7 Paul super-admin subscription
 
 ```sql
+-- user_subscriptions is append-history: multiple rows per user over
+-- time (paystack-webhook + verify-subscription both insert new rows
+-- on subscription events). There is no UNIQUE(user_id), so a normal
+-- ON CONFLICT (user_id) DO UPDATE is rejected. DELETE + INSERT
+-- achieves the same idempotent intent without a schema change.
+DELETE FROM user_subscriptions
+WHERE user_id = 'dffba89b-869d-422a-a542-2e2494850b44';
+
 INSERT INTO user_subscriptions (user_id, tier_id, status, current_period_end)
 VALUES (
   'dffba89b-869d-422a-a542-2e2494850b44',
   'pro',
   'active',
   '2099-01-01'
-)
-ON CONFLICT (user_id) DO UPDATE
-SET tier_id = 'pro', status = 'active', current_period_end = '2099-01-01';
+);
 ```
 
 ---
