@@ -90,3 +90,26 @@ export function validateAccountNumber(accountNumber: string): boolean {
 export function formatAccountNumber(accountNumber: string): string {
   return accountNumber.replace(/\D/g, '').slice(0, 10);
 }
+
+/**
+ * Mask an account number for display. Keep the last 4 digits visible,
+ * replace the rest with asterisks. Defensive against short or non-
+ * digit inputs.
+ * Example: "4602064438" → "******4438"
+ */
+export function maskAccountNumber(accountNumber: string): string {
+  const cleaned = (accountNumber ?? '').replace(/\D/g, '');
+  if (cleaned.length <= 4) return cleaned;
+  return '*'.repeat(cleaned.length - 4) + cleaned.slice(-4);
+}
+
+/**
+ * Resolve a Paystack bank code to a human-readable bank name using
+ * the NIGERIAN_BANKS_WITH_CODES list. Returns "Unknown bank" if the
+ * code isn't in our list (defensive — we don't want to render a
+ * blank name on the status card).
+ */
+export function getBankNameByCode(code: string): string {
+  const match = NIGERIAN_BANKS_WITH_CODES.find((b) => b.code === code);
+  return match?.name ?? 'Unknown bank';
+}
