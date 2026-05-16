@@ -220,16 +220,63 @@ serve(async (req) => {
   if (!velocity) {
     return jsonResponse({ error: 'velocity_row_missing' }, 500);
   }
-  if (Number(velocity.current_day_volume_kobo) + customerTotalKobo > Number(velocity.daily_cap_kobo)) {
+
+  // 6.5 Velocity override lookup (KYC v1 step 5). Reviewer-granted
+  // overrides supersede tier defaults for both daily and monthly
+  // dimensions. Override bites whenever the dimension's column is
+  // non-NULL — including the case where the tier default is NULL
+  // (override can introduce a cap where none existed before, per
+  // the v1.5 spec decision to honour grants regardless of direction).
+  //
+  // Most-recent active override wins (order by created_at DESC,
+  // limit 1). Active = expires_at NULL OR > now().
+  //
+  // TODO(single-txn-cap-enforcement, KYC v1.5): The override table's
+  // single_txn_cap_kobo column exists for Phase 2 reviewer UI forward
+  // compatibility, but F3 does not currently enforce single-transaction
+  // caps. Enforcement requires either (a) adding single_txn_cap_kobo to
+  // platform_fee_config tier defaults (product decision), or (b)
+  // accepting override-only semantics (a single-txn cap is only enforced
+  // when an override sets it). Either path is a v1.5 task.
+  const { data: override } = await admin
+    .from('vendor_velocity_overrides')
+    .select('id, daily_cap_kobo, monthly_cap_kobo, single_txn_cap_kobo, expires_at, reason')
+    .eq('store_id', store_id)
+    .or('expires_at.is.null,expires_at.gt.now()')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const effectiveDailyCap = override?.daily_cap_kobo ?? velocity.daily_cap_kobo;
+  const effectiveMonthlyCap = override?.monthly_cap_kobo ?? feeConfig.monthly_volume_cap_kobo;
+
+  if (override) {
+    console.log('velocity_override_applied', {
+      store_id,
+      override_id: override.id,
+      override_daily_cap_kobo: override.daily_cap_kobo,
+      override_monthly_cap_kobo: override.monthly_cap_kobo,
+      override_single_txn_cap_kobo: override.single_txn_cap_kobo,
+      override_expires_at: override.expires_at,
+      override_reason: override.reason,
+      effective_daily_cap_kobo: effectiveDailyCap,
+      effective_monthly_cap_kobo: effectiveMonthlyCap,
+    });
+  }
+
+  if (Number(velocity.current_day_volume_kobo) + customerTotalKobo > Number(effectiveDailyCap)) {
     return jsonResponse({
       error: 'daily_cap_exceeded',
       message: "You've reached today's transaction limit. New orders can be accepted tomorrow.",
     }, 429);
   }
 
-  // 7. Free-tier monthly cap.
-  if (feeConfig.monthly_volume_cap_kobo !== null) {
-    if (Number(velocity.current_month_volume_kobo) + customerTotalKobo > Number(feeConfig.monthly_volume_cap_kobo)) {
+  // 7. Monthly cap. Bites whenever effectiveMonthlyCap is non-NULL —
+  // either the tier sets one (free tier), or an override introduces
+  // one (any tier). Pro/Starter default = NULL (no monthly limit)
+  // unless overridden.
+  if (effectiveMonthlyCap !== null) {
+    if (Number(velocity.current_month_volume_kobo) + customerTotalKobo > Number(effectiveMonthlyCap)) {
       return jsonResponse({
         error: 'monthly_cap_exceeded',
         message: "You've reached this month's transaction limit. New orders can be accepted next month.",

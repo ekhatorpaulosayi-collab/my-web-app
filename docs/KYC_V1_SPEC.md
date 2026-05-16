@@ -653,20 +653,38 @@ if (resolvedTier.tier_id === 'free') {
   }, 403);
 }
 
-// Velocity override lookup
-const { data: override } = await supabase
+// Velocity override lookup. Most-recent active override wins; active
+// = expires_at NULL OR > now(). Daily default comes from the
+// per-store vendor_velocity_limits row; monthly default comes from
+// the tier-level feeConfig (NULL for Pro/Starter, set for free).
+const { data: override } = await admin
   .from('vendor_velocity_overrides')
-  .select('*')
-  .eq('store_id', storeId)
+  .select('id, daily_cap_kobo, monthly_cap_kobo, single_txn_cap_kobo, expires_at, reason')
+  .eq('store_id', store_id)
   .or('expires_at.is.null,expires_at.gt.now()')
   .order('created_at', { ascending: false })
   .limit(1)
   .maybeSingle();
 
-const effectiveDailyCap = override?.daily_cap_kobo ?? tierDefaults.daily_cap_kobo;
-const effectiveMonthlyCap = override?.monthly_cap_kobo ?? tierDefaults.monthly_cap_kobo;
-const effectiveSingleTxnCap = override?.single_txn_cap_kobo ?? tierDefaults.single_txn_cap_kobo;
+const effectiveDailyCap = override?.daily_cap_kobo ?? velocity.daily_cap_kobo;
+const effectiveMonthlyCap = override?.monthly_cap_kobo ?? feeConfig.monthly_volume_cap_kobo;
 ```
+
+**Monthly semantics:** the override bites whenever its `monthly_cap_kobo`
+column is non-NULL — including the case where the tier default is NULL.
+This means an override can *introduce* a monthly cap on a tier that
+otherwise has none (Pro/Starter). Mental model: the override table is
+"set different limits than the tier default" (higher or lower), not
+"only relax tier defaults." Reason field captures intent; cap value
+captures numeric effect.
+
+**Single-txn deferral:** `single_txn_cap_kobo` is present in the
+override table for forward compatibility (Phase 2 reviewer UI) but is
+not enforced by F3 in v1. See
+`TODO(single-txn-cap-enforcement, KYC v1.5)` in F3 — enforcement
+requires either adding the dimension to `platform_fee_config` tier
+defaults (product decision) or accepting override-only semantics (a
+single-txn cap is only enforced when an override sets it).
 
 ### 5.3 `notify-reviewer-new-kyc` edge function
 
