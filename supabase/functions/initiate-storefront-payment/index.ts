@@ -145,6 +145,26 @@ serve(async (req) => {
   const tier = resolvedTier.tier_id;
   const feeConfig = resolvedTier.fee_config;
 
+  // 2.5 Tier guard (KYC v1 step 4). Paid plans only. If the store
+  // owner has downgraded, no Paystack initialization happens —
+  // the merchant sees a clear "re-upgrade to receive payments"
+  // message rather than an opaque Paystack error.
+  if (tier === 'free') {
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'initiate-storefront-payment',
+      direction: 'outbound',
+      paystack_endpoint: 'N/A',
+      error_tag: 'tier_not_paid',
+      store_id,
+      user_id: store.user_id,
+    });
+    return jsonResponse({
+      error: 'subscription_required',
+      message: 'Your subaccount is paused. Please re-upgrade to receive payments.',
+    }, 403);
+  }
+
   // 4. Look up subaccount — must be active=TRUE (Storehouse reviewer
   // approval, separate from Paystack-side verification).
   const { data: subaccount, error: subError } = await admin

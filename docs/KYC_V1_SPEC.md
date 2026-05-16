@@ -597,36 +597,60 @@ $$;
 
 ### 5.1 F2 (`create-paystack-subaccount`) — tier guard
 
-Add tier check at the top of the function logic, before idempotency check:
+Add tier check before the idempotency pre-check (entitlement
+supersedes cache — a downgraded merchant with an existing
+paystack_subaccounts row should not get a stale success). This
+means moving the existing `resolveActiveTier` call up above the
+idempotency pre-check too, so the guard has access to `tier.tier_id`.
+Caller-side bindings: `user.id` in F2's existing code (from the
+auth lookup), not the generic `user_id`. Response helper: this
+codebase uses `jsonResponse({...}, status)` — there is no
+`responses.error()` helper.
 
 ```typescript
-const resolvedTier = await resolveActiveTier(supabase, user_id);
+const tier = await resolveActiveTier(admin, user.id);
 
-if (resolvedTier.tier_id === 'free') {
-  await logPaystackInteraction(supabase, {
+if (tier.tier_id === 'free') {
+  await logPaystackInteraction(admin, {
     correlation_id,
     function_name: 'create-paystack-subaccount',
     direction: 'outbound',
     paystack_endpoint: 'N/A',
     error_tag: 'tier_not_paid',
     store_id,
-    user_id,
+    user_id: user.id,
   });
-  return responses.error(403, 'subscription_required', 
-    'Setting up online payments requires a paid plan.');
+  return jsonResponse({
+    error: 'subscription_required',
+    message: 'Setting up online payments requires a paid plan.',
+  }, 403);
 }
 ```
 
 ### 5.2 F3 (`initiate-storefront-payment`) — tier guard + velocity override lookup
 
-Same tier guard pattern as F2. Plus velocity override lookup:
+Same pattern as F2. F3 has no idempotency check, so the existing
+`resolveActiveTier` call placement is fine — the guard goes right
+after it. Caller-side bindings: `store.user_id` (F3 is anonymous-OK,
+so user_id comes from the store row, not an auth lookup).
 
 ```typescript
 // Tier guard first
-const resolvedTier = await resolveActiveTier(supabase, user_id);
+const resolvedTier = await resolveActiveTier(admin, store.user_id);
 if (resolvedTier.tier_id === 'free') {
-  return responses.error(403, 'subscription_required',
-    'Your subaccount is paused. Please re-upgrade to receive payments.');
+  await logPaystackInteraction(admin, {
+    correlation_id,
+    function_name: 'initiate-storefront-payment',
+    direction: 'outbound',
+    paystack_endpoint: 'N/A',
+    error_tag: 'tier_not_paid',
+    store_id,
+    user_id: store.user_id,
+  });
+  return jsonResponse({
+    error: 'subscription_required',
+    message: 'Your subaccount is paused. Please re-upgrade to receive payments.',
+  }, 403);
 }
 
 // Velocity override lookup

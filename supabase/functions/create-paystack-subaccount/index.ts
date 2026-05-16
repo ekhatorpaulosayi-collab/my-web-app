@@ -187,6 +187,44 @@ serve(async (req) => {
     console.warn('kyc_bypass_active', { store_id, user_id: user.id });
   }
 
+  // 6.4 Resolve caller's effective subscription tier + platform fee
+  // config via the shared helper. Moved above the idempotency
+  // pre-check (step 6.5) so the tier guard below fires even for
+  // merchants who downgraded after having a subaccount row created.
+  let tier;
+  try {
+    tier = await resolveActiveTier(admin, user.id);
+  } catch (e) {
+    if (e instanceof TierResolverError) {
+      console.error('platform_fee_config_lookup_failed', {
+        store_id, user_id: user.id, tier: e.tier, error: e.message,
+      });
+      return jsonResponse({ error: 'busy', message: 'Onboarding is busy. Please try again in a moment.' }, 503);
+    }
+    throw e;
+  }
+  const effectiveTier = tier.tier_id;
+
+  // 6.45 Tier guard (KYC v1 step 4). Paid plans only. Entitlement
+  // gate — supersedes the idempotency pre-check below so a
+  // downgraded merchant with an existing paystack_subaccounts row
+  // doesn't get a stale success.
+  if (tier.tier_id === 'free') {
+    await logPaystackInteraction(admin, {
+      correlation_id,
+      function_name: 'create-paystack-subaccount',
+      direction: 'outbound',
+      paystack_endpoint: 'N/A',
+      error_tag: 'tier_not_paid',
+      store_id,
+      user_id: user.id,
+    });
+    return jsonResponse({
+      error: 'subscription_required',
+      message: 'Setting up online payments requires a paid plan.',
+    }, 403);
+  }
+
   // 6.5 Idempotency pre-check. If a paystack_subaccounts row already
   // exists for this store with a non-null subaccount_code, return it
   // without calling Paystack. Without this gate, every retry of this
@@ -220,22 +258,6 @@ serve(async (req) => {
       mock: false,
     });
   }
-
-  // 7. Resolve caller's effective subscription tier + platform fee
-  // config via the shared helper.
-  let tier;
-  try {
-    tier = await resolveActiveTier(admin, user.id);
-  } catch (e) {
-    if (e instanceof TierResolverError) {
-      console.error('platform_fee_config_lookup_failed', {
-        store_id, user_id: user.id, tier: e.tier, error: e.message,
-      });
-      return jsonResponse({ error: 'busy', message: 'Onboarding is busy. Please try again in a moment.' }, 503);
-    }
-    throw e;
-  }
-  const effectiveTier = tier.tier_id;
 
   // §13.1 fee-base verification is unresolved (see docs/PAYSTACK-DEBUG.md §11).
   // basis_points is Storehouse's take. Paystack's `percentage_charge`
