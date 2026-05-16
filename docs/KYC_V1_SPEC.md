@@ -986,8 +986,16 @@ Phase 1: service-role only. Phase 2: merchant-readable scope for visibility card
 - list-pending.sh, review.sh, approve.sh, reject.sh, freeze.sh
 - Test each against the existing test data
 
-**Step 7** — Email notification edge function
+**Step 7** — Email notification edge function — **DEFERRED to Phase 1.5**
 - `notify-reviewer-new-kyc` deploys with DB trigger
+- Reason: Phase 1 reviewer (Paul) checks `list-pending.sh` manually.
+  Email automation becomes critical at Phase 2 (employee reviewer)
+  and isn't load-bearing for v1 launch. Re-prioritize when (a) Paul
+  is no longer the only reviewer, or (b) merchant onboarding volume
+  makes manual queue checks burdensome.
+- Prerequisites for the future implementation: Resend account set up,
+  domain verification for `storehouse.ng`, `reviewer@storehouse.ng`
+  inbox provisioned via Cloudflare Email Routing or equivalent.
 
 **Session 5:**
 - Card 1 tier_locked state

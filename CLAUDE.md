@@ -692,6 +692,46 @@ curl -sS -X POST "https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/<name>" 
   can override this per-transaction value. Verify the live behaviour
   against Paystack's verify response, not just the request body.
 
+## KYC v1 Work — Session 4 ended at step 6 (2026-05-16)
+
+### State
+- Branch: `feat/kyc-wizard-v1` (merge-ready for the backend slice; UI work still to come)
+- Steps 1-6 of `docs/KYC_V1_SPEC.md` §12 shipped and pushed:
+  1a vendor_kyc extensions, 1b encrypt+decrypt helpers (incl. fix
+  for pre-existing search_path bug on decrypt), 1c
+  vendor_velocity_overrides table, 1d Paul super-admin pro
+  subscription, 2 kyc-photos storage bucket + RLS, 3a-d the four
+  RPCs (submit_kyc_v1, approve_kyc_review, reject_kyc_review,
+  grant_velocity_override), 4 F2/F3 tier guards, 5 F3 velocity
+  override lookup, 6 reviewer bash scripts.
+- See `docs/SESSION_4_LESSONS_CAPTURED.md` for the spec-vs-reality
+  pattern that forced multiple in-flight spec amendments. The same
+  schema-reconciliation discipline is what made Session 4 finishable
+  in one sitting; recommend keeping it for Sessions 5+.
+
+### Step 7 deferred to Phase 1.5
+- `notify-reviewer-new-kyc` edge function (email Paul on submission)
+  is NOT shipping in v1. Reason: Paul checks
+  `./scripts/kyc/list-pending.sh` manually. Email automation
+  becomes critical at Phase 2 (employee reviewer) and isn't
+  load-bearing for v1 launch. Re-prioritize when (a) Paul is no
+  longer the only reviewer, or (b) merchant onboarding volume
+  makes manual queue checks burdensome.
+- Prerequisites for future work: Resend account, domain
+  verification for `storehouse.ng`, `reviewer@storehouse.ng`
+  inbox via Cloudflare Email Routing or equivalent.
+
+### Next session (Session 5)
+- Card 1 tier_locked state on `/settings/payments`
+- Card 2 status states (tier_locked, rejected_can_resubmit,
+  rejected_hard, in_review, approved)
+- 5-step wizard frontend (matches existing bank-setup wizard
+  styling per spec §6.3)
+- Velocity visibility card below Card 2
+- Edit-after-approval limited form (per spec §6.4)
+- All per `docs/KYC_V1_SPEC.md` §6 + the focus rules in
+  `docs/KYC_V1_FOCUS_RULES.md`
+
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
 [ ] Open storefront — AI chat responds
