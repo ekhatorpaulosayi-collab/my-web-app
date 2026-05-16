@@ -57,7 +57,7 @@ export default function KycWizard() {
   const [step, setStep] = useState<WizardStep>('intro');
 
   // Form data lives at wizard level so values survive step transitions.
-  // 5.3: initialized to empty; 5.4-5.6 will read/write.
+  // 5.4 fills step 1 + step 2; 5.5 + 5.6 fill the rest.
   const [formData, setFormData] = useState<KycFormData>({
     bvn: '',
     nin: '',
@@ -68,10 +68,10 @@ export default function KycWizard() {
     selfie_url: '',
     confirmation_accepted: false,
   });
-  // formData/setFormData wired up for 5.4-5.6 — referenced here so the
-  // unused-var lint doesn't flag them before the steps consume them.
-  void formData;
-  void setFormData;
+
+  const handleFormChange = (patch: Partial<KycFormData>) => {
+    setFormData((prev) => ({ ...prev, ...patch }));
+  };
 
   // Store lookup — fetch stores.id by user_id (same pattern as
   // SubaccountWizard so callers don't have to assume
@@ -144,8 +144,20 @@ export default function KycWizard() {
       )}
 
       {step === 'intro' && <IntroScreen onContinue={() => setStep(1)} />}
-      {step === 1 && <Step1PersonalIdentity onContinue={() => setStep(2)} />}
-      {step === 2 && <Step2BusinessDetails onContinue={() => setStep(3)} />}
+      {step === 1 && (
+        <Step1PersonalIdentity
+          formData={formData}
+          onChange={handleFormChange}
+          onContinue={() => setStep(2)}
+        />
+      )}
+      {step === 2 && (
+        <Step2BusinessDetails
+          formData={formData}
+          onChange={handleFormChange}
+          onContinue={() => setStep(3)}
+        />
+      )}
       {step === 3 && <Step3IdPhoto onContinue={() => setStep(4)} />}
       {step === 4 && <Step4Review onSubmit={() => setStep('success')} />}
       {step === 'success' && <SuccessScreen onDone={() => navigate('/settings/payments')} />}
@@ -169,30 +181,242 @@ function IntroScreen({ onContinue }: { onContinue: () => void }) {
   );
 }
 
-function Step1PersonalIdentity({ onContinue }: { onContinue: () => void }) {
+function Step1PersonalIdentity({
+  formData,
+  onChange,
+  onContinue,
+}: {
+  formData: KycFormData;
+  onChange: (patch: Partial<KycFormData>) => void;
+  onContinue: () => void;
+}) {
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step1;
+
+  // Errors only surface AFTER a field is blurred (industry-standard
+  // pattern: don't shout at the user mid-type).
+  const [touched, setTouched] = useState<{
+    bvn?: boolean;
+    nin?: boolean;
+    phone?: boolean;
+  }>({});
+
+  const validateBvn = (v: string): string | null => {
+    if (!v) return s.errors.bvnRequired;
+    if (!/^\d+$/.test(v)) return s.errors.bvnDigitsOnly;
+    if (v.length !== 11) return s.errors.bvnLength;
+    if (!v.startsWith('2')) return s.errors.bvnStartsWithTwo;
+    return null;
+  };
+
+  const validateNin = (v: string): string | null => {
+    if (!v) return s.errors.ninRequired;
+    if (!/^\d+$/.test(v)) return s.errors.ninDigitsOnly;
+    if (v.length !== 11) return s.errors.ninLength;
+    return null;
+  };
+
+  // Input collects 10 trailing digits; formData.phone stores the full
+  // +234XXXXXXXXXX string that the RPC expects.
+  const phoneTrailing = formData.phone.startsWith('+234')
+    ? formData.phone.slice(4)
+    : '';
+
+  const validatePhone = (trailing: string): string | null => {
+    if (!trailing) return s.errors.phoneRequired;
+    if (!/^\d+$/.test(trailing)) return s.errors.phoneDigitsOnly;
+    if (trailing.length !== 10) return s.errors.phoneLength;
+    if (!/^[789]/.test(trailing)) return s.errors.phoneStartsWith789;
+    return null;
+  };
+
+  const bvnError = validateBvn(formData.bvn);
+  const ninError = validateNin(formData.nin);
+  const phoneError = validatePhone(phoneTrailing);
+
+  const canContinue = !bvnError && !ninError && !phoneError;
+
+  const handleNumericInput = (raw: string, max: number): string =>
+    raw.replace(/\D/g, '').slice(0, max);
+
   return (
     <>
       <Heading>{s.heading}</Heading>
       <HelpText>{s.help}</HelpText>
-      {/* TODO(5.4): BVN input + NIN input + phone input + validation */}
-      <StubBlock>Form fields will be added in step 5.4.</StubBlock>
-      <PrimaryButton onClick={onContinue}>{s.cta}</PrimaryButton>
+
+      {/* BVN */}
+      <div style={{ marginTop: 24 }}>
+        <label style={labelStyle}>{s.bvn.label}</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={formData.bvn}
+          placeholder={s.bvn.placeholder}
+          onChange={(e) => onChange({ bvn: handleNumericInput(e.target.value, 11) })}
+          onBlur={() => setTouched((prev) => ({ ...prev, bvn: true }))}
+          style={{
+            ...inputStyle,
+            borderColor: touched.bvn && bvnError ? '#DC2626' : '#D1D5DB',
+          }}
+        />
+        {touched.bvn && bvnError && <div style={errorTextStyle}>{bvnError}</div>}
+      </div>
+
+      {/* NIN */}
+      <div style={{ marginTop: 20 }}>
+        <label style={labelStyle}>{s.nin.label}</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={formData.nin}
+          placeholder={s.nin.placeholder}
+          onChange={(e) => onChange({ nin: handleNumericInput(e.target.value, 11) })}
+          onBlur={() => setTouched((prev) => ({ ...prev, nin: true }))}
+          style={{
+            ...inputStyle,
+            borderColor: touched.nin && ninError ? '#DC2626' : '#D1D5DB',
+          }}
+        />
+        {touched.nin && ninError && <div style={errorTextStyle}>{ninError}</div>}
+      </div>
+
+      {/* Phone — locked +234 prefix span + 10-digit input */}
+      <div style={{ marginTop: 20 }}>
+        <label style={labelStyle}>{s.phone.label}</label>
+        <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 8 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '14px 12px',
+              fontSize: 16,
+              lineHeight: 1.5,
+              border: '1px solid #D1D5DB',
+              borderRight: 'none',
+              borderRadius: '10px 0 0 10px',
+              background: '#F3F4F6',
+              color: '#374151',
+              userSelect: 'none',
+            }}
+          >
+            +234
+          </span>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            value={phoneTrailing}
+            placeholder={s.phone.placeholder}
+            onChange={(e) => {
+              const trailing = handleNumericInput(e.target.value, 10);
+              onChange({ phone: '+234' + trailing });
+            }}
+            onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
+            style={{
+              ...inputStyle,
+              marginTop: 0,
+              borderRadius: '0 10px 10px 0',
+              flex: 1,
+              borderColor: touched.phone && phoneError ? '#DC2626' : '#D1D5DB',
+            }}
+          />
+        </div>
+        {touched.phone && phoneError && <div style={errorTextStyle}>{phoneError}</div>}
+      </div>
+
+      <PrimaryButton onClick={onContinue} disabled={!canContinue}>
+        {s.cta}
+      </PrimaryButton>
     </>
   );
 }
 
-function Step2BusinessDetails({ onContinue }: { onContinue: () => void }) {
+function Step2BusinessDetails({
+  formData,
+  onChange,
+  onContinue,
+}: {
+  formData: KycFormData;
+  onChange: (patch: Partial<KycFormData>) => void;
+  onContinue: () => void;
+}) {
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step2;
+
+  const [touched, setTouched] = useState<{ category?: boolean }>({});
+
+  const categoryError = !formData.business_category ? s.errors.categoryRequired : null;
+  const canContinue = !categoryError;
+
   return (
     <>
       <Heading>{s.heading}</Heading>
       <HelpText>{s.help}</HelpText>
-      {/* TODO(5.4): business_category <select> + CAC + business_address inputs */}
-      <StubBlock>Form fields will be added in step 5.4.</StubBlock>
-      <PrimaryButton onClick={onContinue}>{s.cta}</PrimaryButton>
+
+      {/* Business category — native <select> with custom chevron */}
+      <div style={{ marginTop: 24 }}>
+        <label style={labelStyle}>{s.category.label}</label>
+        <select
+          value={formData.business_category}
+          onChange={(e) => onChange({ business_category: e.target.value })}
+          onBlur={() => setTouched((prev) => ({ ...prev, category: true }))}
+          style={{
+            ...inputStyle,
+            appearance: 'none',
+            backgroundImage:
+              'url("data:image/svg+xml;charset=US-ASCII,%3Csvg width=\'12\' height=\'7\' viewBox=\'0 0 12 7\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236B7280\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 16px center',
+            paddingRight: 40,
+            borderColor: touched.category && categoryError ? '#DC2626' : '#D1D5DB',
+          }}
+        >
+          <option value="" disabled>
+            {s.category.placeholder}
+          </option>
+          <option value="retail">{s.category.options.retail}</option>
+          <option value="food">{s.category.options.food}</option>
+          <option value="provision">{s.category.options.provision}</option>
+          <option value="services">{s.category.options.services}</option>
+          <option value="online">{s.category.options.online}</option>
+          <option value="other">{s.category.options.other}</option>
+        </select>
+        {touched.category && categoryError && (
+          <div style={errorTextStyle}>{categoryError}</div>
+        )}
+      </div>
+
+      {/* CAC RC Number (optional) */}
+      <div style={{ marginTop: 20 }}>
+        <label style={labelStyle}>{s.cac.label}</label>
+        <input
+          type="text"
+          autoComplete="off"
+          value={formData.cac_rc_number}
+          placeholder={s.cac.placeholder}
+          onChange={(e) => onChange({ cac_rc_number: e.target.value })}
+          style={inputStyle}
+        />
+      </div>
+
+      {/* Business address (optional) */}
+      <div style={{ marginTop: 20 }}>
+        <label style={labelStyle}>{s.address.label}</label>
+        <input
+          type="text"
+          autoComplete="street-address"
+          value={formData.business_address}
+          placeholder={s.address.placeholder}
+          onChange={(e) => onChange({ business_address: e.target.value })}
+          style={inputStyle}
+        />
+      </div>
+
+      <PrimaryButton onClick={onContinue} disabled={!canContinue}>
+        {s.cta}
+      </PrimaryButton>
     </>
   );
 }
@@ -514,7 +738,20 @@ const inputStyle: CSSProperties = {
   color: '#111827',
   boxSizing: 'border-box',
   marginBottom: 4,
+  marginTop: 8,
 };
-// inputStyle referenced here so unused-var lint doesn't flag it before
-// step content (5.4) consumes it.
-void inputStyle;
+
+const labelStyle: CSSProperties = {
+  display: 'block',
+  fontSize: 14,
+  fontWeight: 600,
+  color: '#374151',
+  marginBottom: 0,
+};
+
+const errorTextStyle: CSSProperties = {
+  marginTop: 6,
+  fontSize: 13,
+  color: '#DC2626',
+  lineHeight: 1.4,
+};

@@ -127,12 +127,60 @@
         "step1": {
           "heading": "Your personal details",
           "help": "We'll verify these against the bank account you set up.",
-          "cta": "Continue"
+          "cta": "Continue",
+          "bvn": {
+            "label": "Bank Verification Number (BVN)",
+            "placeholder": "2xxxxxxxxxx"
+          },
+          "nin": {
+            "label": "National Identification Number (NIN)",
+            "placeholder": "11 digits"
+          },
+          "phone": {
+            "label": "Phone number",
+            "placeholder": "8012345678"
+          },
+          "errors": {
+            "bvnRequired": "BVN is required",
+            "bvnDigitsOnly": "BVN must be numbers only",
+            "bvnLength": "BVN must be 11 digits",
+            "bvnStartsWithTwo": "Your BVN should start with 2",
+            "ninRequired": "NIN is required",
+            "ninDigitsOnly": "NIN must be numbers only",
+            "ninLength": "NIN must be 11 digits",
+            "phoneRequired": "Phone number is required",
+            "phoneDigitsOnly": "Phone number must be digits only",
+            "phoneLength": "Phone number must be 10 digits after +234",
+            "phoneStartsWith789": "Nigerian numbers start with 7, 8, or 9"
+          }
         },
         "step2": {
           "heading": "About your business",
           "help": "Tell us a bit about what you sell.",
-          "cta": "Continue"
+          "cta": "Continue",
+          "category": {
+            "label": "What kind of business?",
+            "placeholder": "Choose one",
+            "options": {
+              "retail": "Retail",
+              "food": "Food",
+              "provision": "Provision store",
+              "services": "Services",
+              "online": "Online seller",
+              "other": "Other"
+            }
+          },
+          "cac": {
+            "label": "CAC RC Number (optional)",
+            "placeholder": "If your business is registered"
+          },
+          "address": {
+            "label": "Business address (optional)",
+            "placeholder": "Where do you sell from?"
+          },
+          "errors": {
+            "categoryRequired": "Please choose a business type"
+          }
         },
         "step3": {
           "heading": "Take a photo with your ID",
