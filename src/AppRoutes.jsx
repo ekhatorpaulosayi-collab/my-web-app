@@ -46,6 +46,7 @@ const ContributionPublicView = lazy(() => import('./components/contributions/Con
 const BusinessInsights = lazy(() => import('./pages/BusinessInsights.tsx'));
 const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
 const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
+const KycWizard = lazy(() => import('./components/payments/KycWizard.tsx'));
 
 /**
  * App Routes
@@ -180,6 +181,19 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <SubaccountWizard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Vendor KYC v1 identity verification wizard.
+            Same pattern as SubaccountWizard; flag-gating happens via
+            Card 2 on /settings/payments (which renders tier_locked /
+            not_started state appropriately). */}
+        <Route
+          path="/settings/payments/identity-verification"
+          element={
+            <ProtectedRoute>
+              <KycWizard />
             </ProtectedRoute>
           }
         />

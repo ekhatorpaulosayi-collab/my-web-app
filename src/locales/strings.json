@@ -114,6 +114,47 @@
         }
       }
     },
+    "kyc": {
+      "wizard": {
+        "back": "← Back",
+        "backToPayments": "← Back to Payments",
+        "stepLabel": "Step {n} of {total}",
+        "intro": {
+          "heading": "Verify your identity",
+          "help": "Nigerian banking rules require us to verify your identity before you can receive online payments. This takes about 5 minutes.",
+          "cta": "Start verification"
+        },
+        "step1": {
+          "heading": "Your personal details",
+          "help": "We'll verify these against the bank account you set up.",
+          "cta": "Continue"
+        },
+        "step2": {
+          "heading": "About your business",
+          "help": "Tell us a bit about what you sell.",
+          "cta": "Continue"
+        },
+        "step3": {
+          "heading": "Take a photo with your ID",
+          "help": "Hold your ID card next to your face so both are clearly visible.",
+          "cta": "Continue"
+        },
+        "step4": {
+          "heading": "Review and submit",
+          "help": "Check your details before we send them for review.",
+          "cta": "Send for review"
+        },
+        "success": {
+          "heading": "Submitted ✓",
+          "help": "We'll let you know within 24-48 hours.",
+          "cta": "Back to Payments"
+        },
+        "errors": {
+          "heading": "Something went wrong",
+          "storeLoadFailed": "We couldn't load your store details. Please try again."
+        }
+      }
+    },
     "wizard": {
       "stepLabel": "Step {n} of 5",
       "back": "Back",
