@@ -70,7 +70,12 @@
       "bank": {
         "title": "Set up your bank account",
         "subtitle": "Tell us where to send your earnings.",
-        "cta": "Set up"
+        "cta": "Set up",
+        "tierLocked": {
+          "title": "Online payments",
+          "subtitle": "Available on Starter and Pro plans. Upgrade to start receiving payments through Paystack.",
+          "cta": "Choose a plan"
+        }
       },
       "kyc": {
         "title": "Verify your identity",

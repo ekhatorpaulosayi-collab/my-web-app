@@ -18,11 +18,13 @@ import { useStrings } from '../hooks/useStrings';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { getBankNameByCode, maskAccountNumber } from '../utils/nigerianBanks';
+import { getUserTier } from '../services/subscriptionService';
 
 const FLAG_ON = import.meta.env.VITE_ENABLE_PAYSTACK_SUBACCOUNTS === 'true';
 
 type SubaccountStatus =
   | { kind: 'loading' }
+  | { kind: 'tier_locked' }
   | { kind: 'not_started' }
   | { kind: 'pending' }
   | { kind: 'verified'; settlement_bank: string; account_number: string }
@@ -46,6 +48,19 @@ export default function PaymentSetup() {
     async function loadStatus() {
       if (!currentUser?.uid) return;
       try {
+        // Tier gate first. KYC v1 step 5.1: free-tier merchants see
+        // a "Choose a plan" CTA instead of the bank-setup flow.
+        // Uses the get_user_tier RPC (which since hardening commit
+        // 90150f4 mirrors submit_kyc_v1's canonical paid-tier check
+        // — cancelled, expired, and business-tier users all resolve
+        // to 'free' here, matching what the edge functions see).
+        const tier = await getUserTier(currentUser.uid);
+        if (cancelled) return;
+        if (!tier || tier.tier_id === 'free') {
+          setStatus({ kind: 'tier_locked' });
+          return;
+        }
+
         // Look up the user's store, then the subaccount row.
         // RLS policy paystack_subaccounts_vendor_select guarantees
         // we only see rows for stores owned by auth.uid().
@@ -141,6 +156,15 @@ export default function PaymentSetup() {
             cta={t.page.comingSoon}
             disabled={true}
             onClick={() => {}}
+          />
+        ) : status.kind === 'tier_locked' ? (
+          <PaymentCard
+            icon="💳"
+            title={t.card.bank.tierLocked.title}
+            subtitle={t.card.bank.tierLocked.subtitle}
+            cta={t.card.bank.tierLocked.cta}
+            disabled={false}
+            onClick={() => navigate('/upgrade')}
           />
         ) : status.kind === 'loading' ? (
           <BankStatusSkeleton title={t.card.bank.title} />

@@ -248,7 +248,9 @@ Visual: PaymentCard pattern, disabled=false, onClick navigates to billing route
 
 Use the existing `PaymentCard` component. The disabled-grey palette doesn't fit here — this is an active CTA, not a coming-soon placeholder.
 
-**Implementation note for navigation:** The destination route is the existing billing/upgrade flow in the codebase. This needs verification in pre-flight before sub-step 5.1 (see §10 step 5.0). The route `/settings/billing` is referenced in backend spec §6.2 but its existence has not been confirmed in this audit. Verify and use the actual route present in the codebase.
+**Destination route:** `/upgrade` — the canonical, registered route that lazy-loads `SubscriptionUpgrade`. Backend spec §6.2 mentioned `/settings/billing`, but the Session 5.0 audit confirmed that route does not exist in the codebase; `/upgrade` is what `MoreMenu` and `BusinessInsights` already use. Use `navigate('/upgrade')`.
+
+**Tier detection:** Use `subscriptionService.getUserTier()`. The RPC it wraps was rewritten in the subscription hardening session (commit `90150f4`) to mirror `submit_kyc_v1`'s canonical paid-tier check — cancelled, expired, and business-tier users all correctly resolve to `'free'`. Option (a) is now the right call; the earlier "direct-query mirror" recommendation in the Session 5.0 audit was the fallback for when the RPC was broken and is no longer needed. The three-way sync contract (tier-resolver.ts ↔ submit_kyc_v1 ↔ get_user_tier) is documented in `docs/SESSION_4_LESSONS_CAPTURED.md` — any change to one of those gates must change all three.
 
 ### Card 2 — tier_locked
 
