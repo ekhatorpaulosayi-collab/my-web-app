@@ -147,7 +147,7 @@ Looking at existing copy samples, the voice is:
 | Submit your application | Send for review |
 | Pending review | We're checking your details |
 | Rejected | We need more information / We couldn't approve |
-| Frozen | We can't approve this account |
+| Frozen | Your account needs review |
 | Authentication / Authorize | Sign in / Allow |
 | Configure | Set up |
 | Endpoint, API, function, service | (don't mention — internal terms) |
@@ -234,6 +234,12 @@ Match Step5 of SubaccountWizard:
 
 These screens have their copy decided. Use exactly this text (subject to translation key extraction).
 
+**Three UX decisions applied to Card 2 (locked during Session 5.2):**
+
+1. **No "X attempts remaining" counter.** Paystack, Stripe, Flutterwave, Wise, and Kuda all omit attempt counters from their KYC flows. Surfacing a depleting count to merchants creates anxiety and signals adversarial framing ("you're running out") instead of partnership ("we'll get this sorted"). The backend block at `submission_count >= 5` still fires; the merchant simply never sees the math.
+2. **'frozen' status AND "out of attempts" share one screen.** Both end states ultimately resolve via support contact, so they get the same `needs_review` card with actionable next steps. The DB distinction (`status='frozen'` vs `status='rejected' AND submission_count>=5`) is preserved internally but invisible to the merchant.
+3. **Softer, more agentic copy throughout.** "We can't approve this account" → "Your account needs review." "Please contact support to find out why" → "Send these to support@storehouse.ng: [bulleted list]." The merchant gets a clear next step, not a dead end.
+
 ### Card 1 — tier_locked (new 5th state for PaymentSetup.tsx)
 
 Inside the existing 4-state conditional, add a fifth branch when the user is on free tier:
@@ -289,44 +295,49 @@ Tone: pending
 
 ### Card 2 — rejected (resubmittable)
 
+Shown when `vendor_kyc.status === 'rejected' AND submission_count < 5`.
+
 ```
 Icon: 🪪
 Title: We need more information
 PrimaryLine: Read directly from vendor_kyc.reviewer_notes_merchant
-SecondaryLine: {n} {attempts remaining|attempt remaining}
 CTA: Update details
 Destination: /settings/payments/identity-verification (resubmission reuses the same wizard route)
-Visual: BankStatusCard with warn tone palette (bg #FFFBEB, border #FDE68A, title #92400E)
+Visual: BankStatusCard with warn tone palette (bg #FFFBEB, border #FDE68A, title #92400E),
+        plus a full-width green "Update details →" button below the card.
 ```
 
 **Important — reading the merchant message:**
 The merchant-facing rejection message is already mapped by the `reject_kyc_review` RPC and stored in `vendor_kyc.reviewer_notes_merchant`. The frontend reads this column directly. Do NOT re-derive the message from `rejection_category` on the frontend — that would risk drift if the mapping changes in the RPC. The category-to-message mapping is the RPC's job, not the frontend's.
 
-**Important — attempts remaining math:**
-```
-attemptsRemaining = Math.max(0, 5 - submission_count)
-```
-Per backend spec §4.1, `submit_kyc_v1` blocks new submissions when `submission_count >= 5` AND status is 'rejected'. So:
-- After 1st rejection (`submission_count=1`) → 4 attempts remaining
-- After 2nd rejection (`submission_count=2`) → 3 attempts remaining
-- After 5th rejection (`submission_count=5`) → 0 attempts remaining, "Update details" button disabled, copy shifts to "No more attempts — contact support@storehouse.ng"
+**No attempts counter.** Per the three UX decisions at the top of this section, merchants do NOT see "X attempts remaining" or similar. The backend gate at `submission_count >= 5` still fires server-side; on the 5th rejected submission the card silently transitions to `needs_review` (below).
 
-When `attemptsRemaining === 1`, secondary line color shifts from `#6B7280` to `#92400E` (warn amber) as gentle escalation.
+### Card 2 — needs_review (frozen OR out of attempts)
 
-When `attemptsRemaining === 0`, the card visually becomes equivalent to the `frozen` state for the user — same "contact support" guidance, no CTA. The underlying database status is still `rejected`, not `frozen`, but the user experience is the same.
+Shown when EITHER:
+- `vendor_kyc.status === 'frozen'`, OR
+- `vendor_kyc.status === 'rejected' AND submission_count >= 5`
 
-### Card 2 — frozen (hard rejection)
+Same screen for both. The DB distinction is preserved internally; the merchant just sees one consolidated "let's get this sorted by hand" message.
 
 ```
 Icon: 🪪
-Title: We can't approve this account
-PrimaryLine: Please contact support to find out why.
-SecondaryLine: support@storehouse.ng
-Tone: error (use error InlineCard palette: bg #FEF2F2, border #FECACA, title #991B1B)
-No CTA.
+Title: Your account needs review
+PrimaryLine: We need to take another look at your business details.
+Body (bulleted list inside the card):
+  Lead: "Send these to support@storehouse.ng:"
+  Bullets:
+    • Photo of your CAC certificate (if registered)
+    • Recent bank statement
+    • Brief description of what your business does
+SecondaryLine: We'll get back to you within 2 business days.
+No CTA — the email IS the action.
+Visual: Custom card layout (grey background, same #F3F4F6 as the pending palette), 🪪 icon
+        on the left, bullets via a native <ul>. NOT a BankStatusCard — needs the bulleted
+        body structure.
 ```
 
-Direct. No euphemism. Gives her the email so she knows the next step.
+Softer than the original "We can't approve this account" framing. Gives the merchant concrete next steps instead of a dead end.
 
 ### Card 2 — approved
 
@@ -432,15 +443,6 @@ No existing screen does file uploads with preview + retake. The pattern to inven
 - Upload to Supabase Storage `kyc-photos/{user_id}/{vendor_kyc_id}/selfie.jpg` happens on Continue, not on capture (so retakes don't litter storage)
 - Loading state during upload: PrimaryButton disabled with `⏳ Uploading...`
 - Upload error: Toast with "Couldn't upload photo. Tap to try again."
-
-### "{n} attempts remaining" badge
-
-No existing card surfaces a counter. Pattern to invent:
-- Small text below PrimaryLine, color `#6B7280`, size 14
-- "X attempts remaining" (not "X / 5 attempts" — too math-y)
-- When 1 attempt remains: color shifts to `#92400E` (warn amber) as gentle escalation
-- When 0 attempts remaining: card shifts to error tone, no CTA, points to support email (matches frozen state visually even though DB status is still 'rejected')
-- Formula: `attemptsRemaining = Math.max(0, 5 - submission_count)` per backend spec §4.1
 
 ### Confirmation checkbox before submit
 

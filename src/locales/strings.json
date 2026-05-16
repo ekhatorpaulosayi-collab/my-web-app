@@ -79,7 +79,39 @@
       },
       "kyc": {
         "title": "Verify your identity",
-        "subtitle": "We'll need a few details to comply with regulations."
+        "subtitle": "We'll need a few details to comply with regulations.",
+        "tierLocked": {
+          "title": "Verify your identity",
+          "subtitle": "Required before receiving online payments. Available on Starter and Pro plans.",
+          "cta": "Choose a plan"
+        },
+        "notStarted": {
+          "title": "Verify your identity",
+          "subtitle": "Required by Nigerian banking rules before receiving online payments. Takes about 5 minutes.",
+          "cta": "Start verification"
+        },
+        "pending": {
+          "title": "We're checking your details",
+          "primaryLine": "We'll let you know within 24-48 hours. You don't need to wait on this screen."
+        },
+        "rejected": {
+          "title": "We need more information",
+          "cta": "Update details"
+        },
+        "needsReview": {
+          "title": "Your account needs review",
+          "primaryLine": "We need to take another look at your business details.",
+          "bodyLead": "Send these to support@storehouse.ng:",
+          "bullet1": "Photo of your CAC certificate (if registered)",
+          "bullet2": "Recent bank statement",
+          "bullet3": "Brief description of what your business does",
+          "secondaryLine": "We'll get back to you within 2 business days."
+        },
+        "approved": {
+          "title": "Identity verified ✓",
+          "primaryLine": "You can receive online payments through your Storehouse.",
+          "editLink": "Edit details"
+        }
       }
     },
     "wizard": {
