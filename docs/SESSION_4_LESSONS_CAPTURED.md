@@ -125,7 +125,38 @@ The contract, written once:
 Any future change to one of these MUST be applied in parallel to:
 - `supabase/functions/_shared/tier-resolver.ts` (the `.in('status', [...])` array and the `periodOk`/`GRACE_MS` constants)
 - `submit_kyc_v1` RPC body (the inline `tier_id IN` / `status IN` / 7-day grace clauses)
+- `get_user_tier` RPC body (the inline `WHERE` clause in the v_effective_tier SELECT — added in item 3)
 
-If you find them out of sync in a future audit, the canonical source is `submit_kyc_v1` (it's the SQL the spec was authored against; the TypeScript was a re-implementation to make F2/F3 self-contained).
+The contract now lives in THREE places. If you find them out of sync in a future audit, the canonical source is `submit_kyc_v1` (it's the SQL the spec was authored against; the other two are re-implementations to expose the same contract to F2/F3 edge functions and to frontend code respectively).
 
-Saved 16 May 2026 alongside resolveActiveTier past_due fix.
+Saved 16 May 2026 alongside resolveActiveTier past_due fix. Updated 16 May 2026 with get_user_tier addition.
+
+## Subscription hardening — item 2 (DEFERRED — beta-tester promise discovered)
+
+**Original plan:** migrate the 10 `tier_id='business'` rows in `user_subscriptions` down to `'free'` on the assumption they were dead seed data left over from a December bulk insert.
+
+**What pre-flight surfaced:** all 10 rows have `grandfathered=true`, `grandfathered_at='2025-12-30 13:08:33'`, and `grandfathered_reason='Beta tester - unlimited AI chats forever as thank you for early support'`. They are NOT dead seeds — they are intentional beta-tester comps with a written promise of perpetual unlimited AI chats. Additional context:
+- 9 of the 10 user_ids don't have a corresponding row in the `users` table — likely ghost accounts (orphan auth.users with no profile).
+- The 1 user that DOES have a `users` row already has `users.subscription_tier='free'` — existing silent drift between the two columns.
+- F2 / F3 / submit_kyc_v1 already treat 'business' as 'free' (it's not in their allow-list). After item 3, `get_user_tier` does too. So the user-facing system already silently treats these 10 users as Free — only the `user_subscriptions.tier_id` column says otherwise.
+
+**Resolution deferred — this is a business decision, not engineering.** The product call to make:
+- Do we honour the perpetual-unlimited-AI-chats promise? If yes: how — keep them on `'business'` with a permanent flag, migrate them to `'pro'` (closest active tier), or build a comp mechanism that's independent of tier_id?
+- For the 9 ghost accounts: drop the rows, or leave as-is?
+
+Until that's decided, the 10 rows stay as-is. Effect today: they silently behave as Free everywhere (item 3 closed the last leak).
+
+## Subscription hardening — item 3 (get_user_tier RPC fix)
+
+**Lesson:** `get_user_tier` was previously a trivial INNER JOIN with no status filter, no period check, and no fallback when no subscription row existed. Cancelled, lapsed, and business-tier users all kept their stored `tier_id` indefinitely. Fix: rewrite the RPC to mirror `submit_kyc_v1`'s canonical paid-tier check verbatim. Fall through to the `'free'` row in `subscription_tiers` for any row that fails the gate, or for users with no subscription row at all.
+
+**Caller audit before the fix** (Step 3a of the hardening session):
+- 6 call sites: `BusinessInsights.tsx`, `MoreMenu.tsx`, `aiUsageService.ts` (fallback path), and 3 internal callers in `subscriptionService.ts` (`canAddUser`, `canUseAIChat`, `hasFeature`).
+- No caller had "ever subscribed" detection logic. No reactivation/win-back/upgrade-history flow. The codebase doesn't distinguish "lapsed Pro" from "never paid" — both lead to the same upgrade UX.
+- Net effect of the fix: cancelled-Pro users correctly lose paid features at the UI layer (closing a leak), and `canAddUser`/`canUseAIChat`/`aiUsageService` stop returning spurious "Unable to check limit" errors for users with no subscription row.
+
+Signature unchanged (`get_user_tier(p_user_id uuid) → TABLE(...)`). Callers required no updates.
+
+Three-way sync contract now established (see item 1). All three functions must change together.
+
+Saved 16 May 2026 alongside the get_user_tier rewrite.
