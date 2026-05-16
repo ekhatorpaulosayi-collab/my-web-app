@@ -288,10 +288,12 @@ DECLARE
 BEGIN
   v_user_id := auth.uid();
   
-  -- Ownership check
+  -- Ownership check.
+  -- stores.user_id is text (legacy schema). Cast auth.uid() (uuid)
+  -- to text for the comparison to match existing codebase patterns.
   IF NOT EXISTS (
     SELECT 1 FROM stores 
-    WHERE id = p_store_id AND user_id = v_user_id
+    WHERE id = p_store_id AND user_id = v_user_id::text
   ) THEN
     RAISE EXCEPTION 'unauthorized: store not owned by user';
   END IF;
