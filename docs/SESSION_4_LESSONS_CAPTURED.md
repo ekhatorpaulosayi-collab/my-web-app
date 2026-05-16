@@ -113,4 +113,19 @@ The focus rules document earned its place tonight in a different way: it gave Cl
 
 ---
 
-**End of notes. Saved 16 May 2026, after step 3a (commit 485e3cc).**
+## Subscription hardening — item 1 (resolveActiveTier ↔ submit_kyc_v1 alignment)
+
+**Lesson:** Edge-function `resolveActiveTier` (TypeScript in `supabase/functions/_shared/tier-resolver.ts`) and the SQL `submit_kyc_v1` RPC both gate on subscription tier + status + grace period. Today they implement the same contract in two languages. **They MUST stay in sync** — a divergence means a user passes one gate but fails the other, producing the worst kind of UX failure (the system contradicts itself).
+
+The contract, written once:
+- `tier_id IN ('starter', 'pro')`
+- `status IN ('active', 'non_renewing', 'trialing', 'past_due')`
+- `current_period_end IS NULL OR current_period_end > now() - INTERVAL '7 days'`
+
+Any future change to one of these MUST be applied in parallel to:
+- `supabase/functions/_shared/tier-resolver.ts` (the `.in('status', [...])` array and the `periodOk`/`GRACE_MS` constants)
+- `submit_kyc_v1` RPC body (the inline `tier_id IN` / `status IN` / 7-day grace clauses)
+
+If you find them out of sync in a future audit, the canonical source is `submit_kyc_v1` (it's the SQL the spec was authored against; the TypeScript was a re-implementation to make F2/F3 self-contained).
+
+Saved 16 May 2026 alongside resolveActiveTier past_due fix.
