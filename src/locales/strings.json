@@ -185,7 +185,18 @@
         "step3": {
           "heading": "Take a photo with your ID",
           "help": "Hold your ID card next to your face so both are clearly visible.",
-          "cta": "Continue"
+          "cta": "Continue",
+          "uploading": "⏳ Uploading...",
+          "takeCta": "Take photo",
+          "takeHelp": "Tap to open your camera. Hold your ID next to your face.",
+          "retake": "Retake",
+          "previewAlt": "Your selfie with ID",
+          "errors": {
+            "heicNotSupported": "We need a JPEG or PNG. Please retake with your camera (not gallery).",
+            "invalidFormat": "Photo must be a JPEG or PNG.",
+            "notSignedIn": "Please sign in again and try.",
+            "uploadFailed": "Couldn't upload photo. Tap Continue to try again."
+          }
         },
         "step4": {
           "heading": "Review and submit",

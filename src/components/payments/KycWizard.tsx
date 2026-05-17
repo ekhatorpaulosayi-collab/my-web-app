@@ -25,7 +25,7 @@
  *   success  — Submitted (no progress bar)
  */
 
-import { CSSProperties, useEffect, useState } from 'react';
+import { CSSProperties, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStrings } from '../../hooks/useStrings';
@@ -40,7 +40,8 @@ type KycFormData = {
   business_category: string;
   cac_rc_number: string;
   business_address: string;
-  selfie_url: string;
+  selfie_url: string; // Storage path stored on success: {user_id}/{kyc_client_id}/selfie.{ext}
+  kyc_client_id: string; // Pre-generated UUID used as the storage folder name (NOT the vendor_kyc row id)
   confirmation_accepted: boolean;
 };
 
@@ -66,6 +67,10 @@ export default function KycWizard() {
     cac_rc_number: '',
     business_address: '',
     selfie_url: '',
+    // Pre-generated UUID used as the storage folder name. NOT the
+    // vendor_kyc.id (which the RPC generates separately). Reviewer
+    // reads selfie_url directly so this mismatch is invisible.
+    kyc_client_id: crypto.randomUUID(),
     confirmation_accepted: false,
   });
 
@@ -78,7 +83,6 @@ export default function KycWizard() {
   // currentUser.uid === stores.id).
   const [storeId, setStoreId] = useState<string | null>(null);
   const [storeLoadError, setStoreLoadError] = useState<string | null>(null);
-  void storeId;
 
   useEffect(() => {
     if (!currentUser?.uid) return;
@@ -158,7 +162,15 @@ export default function KycWizard() {
           onContinue={() => setStep(3)}
         />
       )}
-      {step === 3 && <Step3IdPhoto onContinue={() => setStep(4)} />}
+      {step === 3 && (
+        <Step3IdPhoto
+          formData={formData}
+          onChange={handleFormChange}
+          onContinue={() => setStep(4)}
+          storeId={storeId}
+          userId={currentUser?.uid}
+        />
+      )}
       {step === 4 && <Step4Review onSubmit={() => setStep('success')} />}
       {step === 'success' && <SuccessScreen onDone={() => navigate('/settings/payments')} />}
     </Shell>
@@ -421,16 +433,295 @@ function Step2BusinessDetails({
   );
 }
 
-function Step3IdPhoto({ onContinue }: { onContinue: () => void }) {
+type PhotoState =
+  | { kind: 'empty' }
+  | { kind: 'preview'; file: File; previewUrl: string }
+  | { kind: 'uploading'; file: File; previewUrl: string }
+  | { kind: 'error'; file: File; previewUrl: string; message: string };
+
+/**
+ * Resize an image client-side only if needed. Returns the original
+ * file when within size + dimension thresholds; otherwise returns a
+ * Blob of the resized image preserving the original mime type.
+ *
+ * Thresholds: only resizes if file > 4MB OR longest edge > 2000px.
+ * Target: 2000px long edge, quality 0.85, mime type preserved.
+ */
+async function resizeImageIfNeeded(file: File): Promise<Blob> {
+  const MAX_BYTES = 4 * 1024 * 1024; // 4 MB
+  const MAX_DIMENSION = 2000; // longest edge
+  const QUALITY = 0.85;
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Could not read image'));
+    i.src = URL.createObjectURL(file);
+  });
+
+  const longest = Math.max(img.width, img.height);
+  if (file.size <= MAX_BYTES && longest <= MAX_DIMENSION) {
+    URL.revokeObjectURL(img.src);
+    return file;
+  }
+
+  const scale = longest > MAX_DIMENSION ? MAX_DIMENSION / longest : 1;
+  const newW = Math.round(img.width * scale);
+  const newH = Math.round(img.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = newW;
+  canvas.height = newH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    URL.revokeObjectURL(img.src);
+    throw new Error('Canvas context unavailable');
+  }
+  ctx.drawImage(img, 0, 0, newW, newH);
+  URL.revokeObjectURL(img.src);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, file.type, QUALITY);
+  });
+  if (!blob) throw new Error('Resize failed');
+  return blob;
+}
+
+function Step3IdPhoto({
+  formData,
+  onChange,
+  onContinue,
+  userId,
+}: {
+  formData: KycFormData;
+  onChange: (patch: Partial<KycFormData>) => void;
+  onContinue: () => void;
+  storeId: string | null;
+  userId: string | undefined;
+}) {
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step3;
+  const [photoState, setPhotoState] = useState<PhotoState>({ kind: 'empty' });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Revoke any preview URL on unmount to release the blob memory.
+  useEffect(() => {
+    return () => {
+      if (photoState.kind !== 'empty') {
+        URL.revokeObjectURL(photoState.previewUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleFileChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // HEIC pre-flight rejection — iPhone gallery picks may produce
+    // HEIC even though `capture="user"` defaults to JPEG. Bucket only
+    // accepts image/jpeg + image/png.
+    if (file.type === 'image/heic' || file.type === 'image/heif') {
+      setToastMessage(s.errors.heicNotSupported);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+      setToastMessage(s.errors.invalidFormat);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (photoState.kind !== 'empty') {
+      URL.revokeObjectURL(photoState.previewUrl);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPhotoState({ kind: 'preview', file, previewUrl });
+  };
+
+  const handleRetake = () => {
+    if (photoState.kind !== 'empty') {
+      URL.revokeObjectURL(photoState.previewUrl);
+    }
+    setPhotoState({ kind: 'empty' });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleContinue = async () => {
+    if (photoState.kind !== 'preview' && photoState.kind !== 'error') return;
+    if (!userId) {
+      setToastMessage(s.errors.notSignedIn);
+      return;
+    }
+
+    const file = photoState.file;
+    const previewUrl = photoState.previewUrl;
+    setPhotoState({ kind: 'uploading', file, previewUrl });
+
+    try {
+      const blob = await resizeImageIfNeeded(file);
+      const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+
+      // Path: {user_id}/{kyc_client_id}/selfie.{ext}
+      // RLS policy on storage.objects requires (storage.foldername(name))[1]
+      // = auth.uid()::text. The kyc_client_id second segment is a
+      // pre-generated UUID, NOT the vendor_kyc.id row UUID (which the
+      // RPC generates separately). Reviewer reads selfie_url directly
+      // so this mismatch is invisible.
+      //
+      // TODO(Phase 1.5): cleanup cron for orphaned
+      //   kyc-photos/{user_id}/*/ folders left behind by abandoned
+      //   wizards or multi-tab races.
+      const path = `${userId}/${formData.kyc_client_id}/selfie.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('kyc-photos')
+        .upload(path, blob, {
+          contentType: blob.type,
+          upsert: true, // Allow retry after a failure with the same path
+        });
+
+      if (uploadError) {
+        console.warn('[KycWizard] upload failed', uploadError);
+        setPhotoState({
+          kind: 'error',
+          file,
+          previewUrl,
+          message: s.errors.uploadFailed,
+        });
+        setToastMessage(s.errors.uploadFailed);
+        return;
+      }
+
+      onChange({ selfie_url: path });
+      onContinue();
+    } catch (err) {
+      console.warn('[KycWizard] resize or upload error', err);
+      setPhotoState({
+        kind: 'error',
+        file,
+        previewUrl,
+        message: s.errors.uploadFailed,
+      });
+      setToastMessage(s.errors.uploadFailed);
+    }
+  };
+
+  const isUploading = photoState.kind === 'uploading';
+  const canContinue =
+    (photoState.kind === 'preview' || photoState.kind === 'error') && !isUploading;
+
   return (
     <>
       <Heading>{s.heading}</Heading>
       <HelpText>{s.help}</HelpText>
-      {/* TODO(5.5): camera capture input + preview + retake + upload to kyc-photos bucket */}
-      <StubBlock>Photo capture will be added in step 5.5.</StubBlock>
-      <PrimaryButton onClick={onContinue}>{s.cta}</PrimaryButton>
+
+      {/* Hidden file input — opened via the styled tap target below */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png"
+        capture="user"
+        onChange={handleFileChosen}
+        style={{ display: 'none' }}
+      />
+
+      {photoState.kind === 'empty' && (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            marginTop: 24,
+            padding: '40px 20px',
+            border: '2px dashed #D1D5DB',
+            borderRadius: 12,
+            background: '#F9FAFB',
+            cursor: 'pointer',
+            minHeight: 240,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 12 }} aria-hidden>
+            📷
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 8 }}>
+            {s.takeCta}
+          </div>
+          <div style={{ fontSize: 14, color: '#6B7280', maxWidth: 280 }}>{s.takeHelp}</div>
+        </button>
+      )}
+
+      {photoState.kind !== 'empty' && (
+        <div style={{ marginTop: 24, position: 'relative' }}>
+          <img
+            src={photoState.previewUrl}
+            alt={s.previewAlt}
+            style={{
+              display: 'block',
+              width: '100%',
+              maxHeight: 320,
+              objectFit: 'contain',
+              borderRadius: 12,
+              background: '#000000',
+            }}
+          />
+          {!isUploading && (
+            <button
+              type="button"
+              onClick={handleRetake}
+              style={{
+                position: 'absolute',
+                bottom: 12,
+                right: 12,
+                padding: '10px 16px',
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#374151',
+                background: '#FFFFFF',
+                border: '1.5px solid #D1D5DB',
+                borderRadius: 10,
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+              }}
+            >
+              {s.retake}
+            </button>
+          )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleContinue}
+        disabled={!canContinue}
+        style={{
+          width: '100%',
+          minHeight: 48,
+          padding: '12px 20px',
+          marginTop: 24,
+          fontSize: 16,
+          fontWeight: 600,
+          color: canContinue ? '#FFFFFF' : '#6B7280',
+          background: canContinue ? '#00894F' : '#E5E7EB',
+          border: 'none',
+          borderRadius: 10,
+          cursor: canContinue ? 'pointer' : 'not-allowed',
+        }}
+      >
+        {isUploading ? s.uploading : s.cta}
+      </button>
+
+      {toastMessage && (
+        <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
+      )}
     </>
   );
 }
@@ -704,9 +995,6 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
     </div>
   );
 }
-// Toast referenced here so unused-export lint doesn't flag it before
-// step content (5.5/5.6) consumes it for upload + submit errors.
-void Toast;
 
 // Scaffold-only placeholder block; removed when 5.4/5.5/5.6 fill in
 // the real form/photo/review content.
