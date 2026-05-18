@@ -5,11 +5,9 @@ import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import '../styles/BusinessSettings.css';
-import PaymentSettings from './PaymentSettings';
 import PaymentMethodsManager from './PaymentMethodsManager';
 import { hasPinSet, setPin, clearPin } from '../lib/pinService';
 import { generateStoreSlug, saveStoreSlug, checkSlugChange } from '../utils/storeSlug';
-import PaymentsSection from './settings/sections/PaymentsSection';
 import { StatusPill } from './common/StatusPill';
 import { useDirty } from '../hooks/useDirty';
 // MIGRATION: Using Supabase auth
@@ -117,7 +115,6 @@ export default function BusinessSettings({
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   // Modals
-  const [showPaystackSetup, setShowPaystackSetup] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   // Phase 2B: Loading and error states
@@ -929,25 +926,23 @@ export default function BusinessSettings({
               )}
             </div>
 
-            {/* Section 3: Paystack (Card Payments) */}
+            {/* Section 3: Online Payments — navigates to /settings/payments
+                where Card 1 (bank setup) + Card 2 (KYC) handle the full flow.
+                Tier gating happens inside PaymentSetup.tsx via tier_locked
+                states (see KYC v1 5.1 + 5.2). */}
             <div className="bs-section" id="section-payments">
               <button
                 type="button"
                 className="bs-section-header"
-                onClick={() => handleToggleSection('payments')}
+                onClick={() => navigate('/settings/payments')}
               >
                 <div className="bs-section-title-row">
-                  <h3 className="bs-section-title">💳 Paystack (Card Payments)</h3>
+                  <h3 className="bs-section-title">💳 Online Payments</h3>
+                  <span style={{ fontSize: '14px', color: '#667eea', fontWeight: '500' }}>
+                    Setup →
+                  </span>
                 </div>
-                <span className={`bs-chevron ${isSectionExpanded('payments') ? 'open' : ''}`}>›</span>
               </button>
-
-              {isSectionExpanded('payments') && (
-                <PaymentsSection
-                  onToast={onToast}
-                  onOpenPaystackSetup={() => setShowPaystackSetup(true)}
-                />
-              )}
             </div>
 
             {/* Section 4: Online Store */}
@@ -1410,30 +1405,6 @@ export default function BusinessSettings({
           </div>
         </div>
       </div>
-
-      {/* Paystack Setup Modal */}
-      {showPaystackSetup && (
-        <div className="bs-overlay" onClick={() => setShowPaystackSetup(false)}>
-          <div className="bs-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-            <div className="bs-header">
-              <h2 className="bs-title">Paystack Setup</h2>
-              <button
-                type="button"
-                className="bs-close"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowPaystackSetup(false);
-                }}
-                aria-label="Close Paystack setup"
-              >×</button>
-            </div>
-            <div className="bs-body">
-              <PaymentSettings onToast={onToast} />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Discard Changes Dialog */}
       {showDiscardDialog && (
