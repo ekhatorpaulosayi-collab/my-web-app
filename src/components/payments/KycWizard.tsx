@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStrings } from '../../hooks/useStrings';
 import { supabase } from '../../lib/supabase';
+import { getUserTier } from '../../services/subscriptionService';
 
 type WizardStep = 'intro' | 1 | 2 | 3 | 4 | 'success';
 
@@ -89,27 +90,62 @@ export default function KycWizard() {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase
+        // 1. Tier check. Free users → /upgrade with replace so Back
+        //    doesn't loop them back into the wizard. Fail-open on null
+        //    (transient network blip): let submit_kyc_v1 enforce
+        //    server-side — cost of brief entry is zero since no data
+        //    persists until submit. Three-way contract per
+        //    docs/SESSION_4_LESSONS_CAPTURED.md item 1.
+        const tier = await getUserTier(currentUser.uid);
+        if (cancelled) return;
+        if (tier !== null && !['starter', 'pro', 'business'].includes(tier.tier_id)) {
+          navigate('/upgrade', { replace: true });
+          return;
+        }
+
+        // 2. Store lookup.
+        const { data: store, error: storeError } = await supabase
           .from('stores')
           .select('id')
           .eq('user_id', currentUser.uid)
           .single();
         if (cancelled) return;
-        if (error || !data) {
+        if (storeError || !store) {
           setStoreLoadError(t.errors.storeLoadFailed);
           return;
         }
-        setStoreId(data.id);
+        setStoreId(store.id);
+
+        // 3. Resubmission pre-fill — only when prior submission was
+        //    rejected (resubmittable). BVN/NIN intentionally NOT
+        //    pre-filled (encrypted at rest, no decrypt-for-merchant
+        //    flow). Selfie URL also not pre-filled — reviewer rejected
+        //    the photo, so re-take is the correct UX.
+        const { data: priorKyc } = await supabase
+          .from('vendor_kyc')
+          .select('status, phone, business_category, cac_rc_number, business_address')
+          .eq('store_id', store.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (priorKyc?.status === 'rejected') {
+          setFormData((prev) => ({
+            ...prev,
+            phone: priorKyc.phone || prev.phone,
+            business_category: priorKyc.business_category || prev.business_category,
+            cac_rc_number: priorKyc.cac_rc_number || prev.cac_rc_number,
+            business_address: priorKyc.business_address || prev.business_address,
+          }));
+        }
       } catch (err) {
         if (cancelled) return;
-        console.warn('[KycWizard] store lookup failed', err);
+        console.warn('[KycWizard] mount error', err);
         setStoreLoadError(t.errors.storeLoadFailed);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.uid, t.errors.storeLoadFailed]);
+  }, [currentUser?.uid, t.errors.storeLoadFailed, navigate]);
 
   // Top-level error fallback.
   if (storeLoadError) {
@@ -171,7 +207,14 @@ export default function KycWizard() {
           userId={currentUser?.uid}
         />
       )}
-      {step === 4 && <Step4Review onSubmit={() => setStep('success')} />}
+      {step === 4 && (
+        <Step4Review
+          formData={formData}
+          storeId={storeId}
+          onEdit={(targetStep) => setStep(targetStep)}
+          onSuccess={() => setStep('success')}
+        />
+      )}
       {step === 'success' && <SuccessScreen onDone={() => navigate('/settings/payments')} />}
     </Shell>
   );
@@ -305,7 +348,7 @@ function Step1PersonalIdentity({
               padding: '14px 12px',
               fontSize: 16,
               lineHeight: 1.5,
-              border: '1px solid #D1D5DB',
+              border: '1.5px solid #D1D5DB',
               borderRight: 'none',
               borderRadius: '10px 0 0 10px',
               background: '#F3F4F6',
@@ -726,16 +769,371 @@ function Step3IdPhoto({
   );
 }
 
-function Step4Review({ onSubmit }: { onSubmit: () => void }) {
+function ReviewRow({
+  label,
+  value,
+  onEdit,
+  editLabel = 'Edit',
+}: {
+  label: string;
+  value: string;
+  onEdit?: () => void;
+  editLabel?: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 0',
+        borderBottom: '1px solid #F3F4F6',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 2 }}>{label}</div>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 600,
+            color: '#111827',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {value || '—'}
+        </div>
+      </div>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#00894F',
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: 'pointer',
+            padding: '8px 12px',
+            minHeight: 48,
+            marginLeft: 8,
+          }}
+        >
+          {editLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+type SubmitState =
+  | { kind: 'idle' }
+  | { kind: 'submitting' }
+  | { kind: 'error'; message: string };
+
+function Step4Review({
+  formData,
+  storeId,
+  onEdit,
+  onSuccess,
+}: {
+  formData: KycFormData;
+  storeId: string | null;
+  onEdit: (step: 1 | 2 | 3) => void;
+  onSuccess: () => void;
+}) {
+  const navigate = useNavigate();
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step4;
+  const tCategory = strings.paystackSetup.kyc.wizard.step2.category.options;
+
+  const [confirmed, setConfirmed] = useState(false);
+  const [submitState, setSubmitState] = useState<SubmitState>({ kind: 'idle' });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(null);
+
+  // Photo thumbnail: signed URL fetched on mount. Decision 3 (5.6
+  // pre-audit Task J.1) — works for both fresh-submit and resubmission
+  // cases. The Step 3 previewUrl is revoked on Step 3 unmount, so we
+  // can't reuse it.
+  useEffect(() => {
+    if (!formData.selfie_url) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.storage
+          .from('kyc-photos')
+          .createSignedUrl(formData.selfie_url, 3600);
+        if (cancelled) return;
+        if (error) {
+          console.warn('[Step4Review] photo signed URL error', error);
+          setToastMessage(s.errors.photoLoadFailed);
+          return;
+        }
+        setPhotoSignedUrl(data.signedUrl);
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('[Step4Review] photo fetch error', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.selfie_url, s.errors.photoLoadFailed]);
+
+  // RPC error tag → user-facing message. subscription_required and
+  // already_pending have special paths in handleSubmit and never reach
+  // this mapper.
+  const mapErrorToMessage = (rpcMessage: string): string => {
+    if (rpcMessage.includes('confirmation_required')) return s.errors.confirmationRequired;
+    if (rpcMessage.includes('invalid_bvn_format')) return s.errors.invalidBvnFormat;
+    if (rpcMessage.includes('invalid_nin_format')) return s.errors.invalidNinFormat;
+    if (rpcMessage.includes('bvn_nin_identical')) return s.errors.bvnNinIdentical;
+    if (rpcMessage.includes('invalid_phone_format')) return s.errors.invalidPhoneFormat;
+    if (rpcMessage.includes('invalid_business_category')) return s.errors.invalidBusinessCategory;
+    if (rpcMessage.includes('account_frozen_contact_support')) return s.errors.accountFrozen;
+    if (rpcMessage.includes('max_resubmissions_exceeded')) return s.errors.maxResubmissionsExceeded;
+    if (rpcMessage.includes('unauthorized')) return s.errors.unauthorized;
+    return s.errors.generic;
+  };
+
+  const handleSubmit = async () => {
+    if (!storeId) {
+      setToastMessage(s.errors.generic);
+      return;
+    }
+
+    setSubmitState({ kind: 'submitting' });
+
+    try {
+      const { data, error } = await supabase.rpc('submit_kyc_v1', {
+        p_store_id: storeId,
+        p_bvn: formData.bvn,
+        p_nin: formData.nin,
+        p_phone: formData.phone,
+        p_business_category: formData.business_category,
+        p_selfie_url: formData.selfie_url,
+        p_cac_rc_number: formData.cac_rc_number || null,
+        p_business_address: formData.business_address || null,
+        p_confirmation_accepted: confirmed,
+      });
+
+      if (error) {
+        const msg = error.message || '';
+
+        // Decision 2: subscription_required → /upgrade. User downgraded
+        // mid-wizard or grace period expired — direct them to billing.
+        if (msg.includes('subscription_required')) {
+          navigate('/upgrade', { replace: true });
+          return;
+        }
+
+        // Decision 4: already_pending → silent success. Most likely a
+        // double-tap; the user's intent was fulfilled on the first
+        // click. Surfacing "we already received this" would confuse
+        // them. Log for defensive diagnostics.
+        if (msg.includes('already_pending')) {
+          console.info('[Step4Review] already_pending → silent success');
+          onSuccess();
+          return;
+        }
+
+        console.warn('[Step4Review] submit_kyc_v1 error', error);
+        const userMessage = mapErrorToMessage(msg);
+        setSubmitState({ kind: 'error', message: userMessage });
+        setToastMessage(userMessage);
+        return;
+      }
+
+      console.info('[Step4Review] submitted', data);
+      onSuccess();
+    } catch (err) {
+      console.warn('[Step4Review] submit exception', err);
+      setSubmitState({ kind: 'error', message: s.errors.generic });
+      setToastMessage(s.errors.generic);
+    }
+  };
+
+  const isSubmitting = submitState.kind === 'submitting';
+  const canSubmit = confirmed && !isSubmitting && Boolean(storeId);
+
+  // Mask middle digits for display (e.g. "2********21").
+  const maskMiddle = (str: string): string => {
+    if (!str || str.length < 4) return str;
+    return str.slice(0, 1) + '*'.repeat(str.length - 3) + str.slice(-2);
+  };
+
+  // Resolve business category label from step2 strings (decision 7 —
+  // single source of truth, no duplication in step4 keys).
+  const categoryLabel = formData.business_category
+    ? tCategory[formData.business_category as keyof typeof tCategory] ||
+      formData.business_category
+    : '';
+
   return (
     <>
       <Heading>{s.heading}</Heading>
       <HelpText>{s.help}</HelpText>
-      {/* TODO(5.6): ReviewRow per field + photo thumbnail + confirmation checkbox + submit_kyc_v1 RPC */}
-      <StubBlock>Review rows, confirmation checkbox, and submit RPC will be added in step 5.6.</StubBlock>
-      <PrimaryButton onClick={onSubmit}>{s.cta}</PrimaryButton>
+
+      <div style={{ marginTop: 24 }}>
+        <ReviewRow
+          label={s.labels.bvn}
+          value={maskMiddle(formData.bvn)}
+          onEdit={() => onEdit(1)}
+          editLabel={s.editLabel}
+        />
+        <ReviewRow
+          label={s.labels.nin}
+          value={maskMiddle(formData.nin)}
+          onEdit={() => onEdit(1)}
+          editLabel={s.editLabel}
+        />
+        <ReviewRow
+          label={s.labels.phone}
+          value={formData.phone}
+          onEdit={() => onEdit(1)}
+          editLabel={s.editLabel}
+        />
+        <ReviewRow
+          label={s.labels.category}
+          value={categoryLabel}
+          onEdit={() => onEdit(2)}
+          editLabel={s.editLabel}
+        />
+        <ReviewRow
+          label={s.labels.cac}
+          value={formData.cac_rc_number || s.values.optionalNotProvided}
+          onEdit={() => onEdit(2)}
+          editLabel={s.editLabel}
+        />
+        <ReviewRow
+          label={s.labels.address}
+          value={formData.business_address || s.values.optionalNotProvided}
+          onEdit={() => onEdit(2)}
+          editLabel={s.editLabel}
+        />
+      </div>
+
+      {/* Photo thumbnail */}
+      <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #F3F4F6' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ fontSize: 13, color: '#6B7280' }}>{s.labels.photo}</div>
+          <button
+            type="button"
+            onClick={() => onEdit(3)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#00894F',
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '8px 12px',
+              minHeight: 48,
+            }}
+          >
+            {s.editLabel}
+          </button>
+        </div>
+        {photoSignedUrl ? (
+          <img
+            src={photoSignedUrl}
+            alt={s.values.photoCapturedAlt}
+            style={{
+              display: 'block',
+              width: '100%',
+              maxHeight: 240,
+              objectFit: 'contain',
+              borderRadius: 12,
+              background: '#000000',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: 120,
+              background: '#F3F4F6',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#6B7280',
+              fontSize: 14,
+            }}
+          >
+            {s.values.photoLoading}
+          </div>
+        )}
+      </div>
+
+      {/* Confirmation checkbox */}
+      <div
+        style={{
+          marginTop: 28,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        <input
+          type="checkbox"
+          id="kyc-confirmation"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+          style={{
+            transform: 'scale(1.25)',
+            accentColor: '#00894F',
+            cursor: 'pointer',
+            marginTop: 2,
+          }}
+        />
+        <label
+          htmlFor="kyc-confirmation"
+          style={{
+            fontSize: 15,
+            color: '#374151',
+            lineHeight: 1.5,
+            cursor: 'pointer',
+            flex: 1,
+          }}
+        >
+          {s.confirmation}
+        </label>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={!canSubmit}
+        style={{
+          width: '100%',
+          minHeight: 48,
+          padding: '12px 20px',
+          marginTop: 24,
+          fontSize: 16,
+          fontWeight: 600,
+          color: canSubmit ? '#FFFFFF' : '#6B7280',
+          background: canSubmit ? '#00894F' : '#E5E7EB',
+          border: 'none',
+          borderRadius: 10,
+          cursor: canSubmit ? 'pointer' : 'not-allowed',
+        }}
+      >
+        {isSubmitting ? s.submitting : s.cta}
+      </button>
+
+      {toastMessage && (
+        <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
+      )}
     </>
   );
 }
@@ -992,25 +1390,6 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
       >
         ×
       </button>
-    </div>
-  );
-}
-
-// Scaffold-only placeholder block; removed when 5.4/5.5/5.6 fill in
-// the real form/photo/review content.
-function StubBlock({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        padding: 20,
-        background: '#F3F4F6',
-        borderRadius: 10,
-        color: '#6B7280',
-        fontSize: 15,
-        marginTop: 16,
-      }}
-    >
-      {children}
     </div>
   );
 }

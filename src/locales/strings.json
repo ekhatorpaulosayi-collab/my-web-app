@@ -201,7 +201,37 @@
         "step4": {
           "heading": "Review and submit",
           "help": "Check your details before we send them for review.",
-          "cta": "Send for review"
+          "cta": "Send for review",
+          "submitting": "⏳ Sending for review...",
+          "editLabel": "Edit",
+          "labels": {
+            "bvn": "Bank Verification Number (BVN)",
+            "nin": "National Identification Number (NIN)",
+            "phone": "Phone number",
+            "category": "Business type",
+            "cac": "CAC RC Number",
+            "address": "Business address",
+            "photo": "Photo with ID"
+          },
+          "values": {
+            "optionalNotProvided": "—",
+            "photoCapturedAlt": "Your selfie with ID",
+            "photoLoading": "Loading photo..."
+          },
+          "confirmation": "I confirm I am the legal owner/operator of this business and the information provided is accurate.",
+          "errors": {
+            "confirmationRequired": "Please tick the confirmation box to submit.",
+            "invalidBvnFormat": "Your BVN format isn't right. Go back and check it.",
+            "invalidNinFormat": "Your NIN format isn't right. Go back and check it.",
+            "bvnNinIdentical": "Your BVN and NIN can't be the same.",
+            "invalidPhoneFormat": "Your phone number format isn't right.",
+            "invalidBusinessCategory": "Please choose a business type.",
+            "accountFrozen": "Your account needs review. Please email support@storehouse.ng.",
+            "maxResubmissionsExceeded": "You've reached the maximum number of submissions. Please email support@storehouse.ng.",
+            "unauthorized": "Your session has expired. Please sign in again.",
+            "generic": "Couldn't submit. Please check your connection and try again.",
+            "photoLoadFailed": "Couldn't load photo preview."
+          }
         },
         "success": {
           "heading": "Submitted ✓",
