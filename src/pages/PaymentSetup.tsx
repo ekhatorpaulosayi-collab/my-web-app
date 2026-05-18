@@ -539,6 +539,7 @@ function NeedsReviewCard() {
 }
 
 function ApprovedKycCard() {
+  const navigate = useNavigate();
   const strings = useStrings() as any;
   const t = strings.paystackSetup;
   return (
@@ -549,18 +550,14 @@ function ApprovedKycCard() {
         primaryLine={t.card.kyc.approved.primaryLine}
         tone="success"
       />
-      {/* TODO(5.8): wire this link to /settings/payments/identity-verification/edit
-          (the limited edit-after-approval form). Visible but inactive for v1. */}
       <button
-        onClick={() => {
-          /* 5.8 will wire this */
-        }}
+        onClick={() => navigate('/settings/payments/identity-verification/edit')}
         style={{
           background: 'transparent',
           border: 'none',
-          color: '#9CA3AF',
+          color: '#00894F',
           fontSize: 13,
-          cursor: 'default',
+          cursor: 'pointer',
           padding: '12px 4px 0',
           textDecoration: 'underline',
         }}

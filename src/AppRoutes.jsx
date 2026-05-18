@@ -47,6 +47,7 @@ const BusinessInsights = lazy(() => import('./pages/BusinessInsights.tsx'));
 const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
 const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
 const KycWizard = lazy(() => import('./components/payments/KycWizard.tsx'));
+const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
 
 /**
  * App Routes
@@ -194,6 +195,18 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <KycWizard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Vendor KYC edit-after-approval form (5.8).
+            Limited form for 4 free-edit fields (phone/category/CAC/address).
+            BVN/NIN/photo changes route back to the wizard via in-form link. */}
+        <Route
+          path="/settings/payments/identity-verification/edit"
+          element={
+            <ProtectedRoute>
+              <KycEditForm />
             </ProtectedRoute>
           }
         />

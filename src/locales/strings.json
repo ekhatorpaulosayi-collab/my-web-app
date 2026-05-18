@@ -242,6 +242,59 @@
           "heading": "Something went wrong",
           "storeLoadFailed": "We couldn't load your store details. Please try again."
         }
+      },
+      "edit": {
+        "loading": "Loading your details...",
+        "backToPayments": "← Back to Payments",
+        "heading": "Edit your details",
+        "help": "Update your contact information or business details. Changes take effect immediately.",
+        "reReviewWarning": "Note: To change your BVN, NIN, or photo, use the Re-do verification link below — those changes need a new review.",
+        "saveCta": "Save changes",
+        "noChangesCta": "No changes",
+        "saving": "⏳ Saving...",
+        "redoVerification": {
+          "help": "Need to update your BVN, NIN, or photo?",
+          "cta": "Re-do verification →"
+        },
+        "forbidden": {
+          "heading": "Can't edit right now",
+          "no_kyc": "You haven't submitted KYC yet. Go to Payments setup to start.",
+          "not_approved": "Your KYC is being reviewed or wasn't approved. Check Card 2 for your current status.",
+          "unauthorized": "Please sign in again."
+        },
+        "fields": {
+          "phone": {
+            "label": "Phone number",
+            "placeholder": "8012345678"
+          },
+          "category": {
+            "label": "Business type",
+            "placeholder": "Choose one"
+          },
+          "cac": {
+            "label": "CAC RC Number (optional)",
+            "placeholder": "If your business is registered"
+          },
+          "address": {
+            "label": "Business address (optional)",
+            "placeholder": "Where do you sell from?"
+          }
+        },
+        "errors": {
+          "heading": "Something went wrong",
+          "loadFailed": "Couldn't load your details. Please try again.",
+          "notApproved": "Your KYC status has changed. Please go back and check.",
+          "invalidPhoneFormat": "Your phone number format isn't right.",
+          "invalidBusinessCategory": "Please choose a business type.",
+          "phoneRequired": "Phone number is required",
+          "phoneDigitsOnly": "Phone number must be digits only",
+          "phoneLength": "Phone number must be 10 digits after +234",
+          "phoneStartsWith789": "Nigerian numbers start with 7, 8, or 9",
+          "categoryRequired": "Please choose a business type",
+          "unauthorized": "Your session has expired. Please sign in again.",
+          "noKycRecord": "No KYC record found for your store.",
+          "generic": "Couldn't save. Please check your connection and try again."
+        }
       }
     },
     "wizard": {
