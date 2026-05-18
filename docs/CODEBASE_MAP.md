@@ -6,7 +6,11 @@
 > **Why it exists:** Tonight's KYC v1 build had 5+ instances of
 > "spec assumed X, reality is Y" cycles. This audit produces a
 > single source of truth so future prompts reference the map
-> instead of re-discovering it. The codebase map should be
+> instead of re-discovering it. **§20 catalogs marketplace
+> infrastructure that is being built in parallel with KYC v1 —
+> currently hidden from public, soft target reveal 3-6 months out.
+> Read §20 before deleting anything that looks orphaned in the
+> payments / split / review domain.** The codebase map should be
 > regenerated periodically (suggest: once per major feature
 > shipped) so it stays accurate.
 > **How to refresh:** Re-run the structural audit prompt from
@@ -853,3 +857,81 @@ cd6dff1 Session 3 F1: wire resolve-bank-account with real Paystack API
   9. **No tailwind. Inline styles only.** New KYC UI must follow the inline-style pattern of PaymentSetup.tsx/SubaccountWizard.tsx, not introduce className-driven CSS.
   10. **There's a `feat/paystack-subaccounts` branch** that current KYC branch is built on top of — diff with `feat/paystack-subaccounts` (not `main`) when reviewing KYC-only changes.
   11. **`paystack_subaccounts` table has 1 row, `vendor_kyc` has 0 rows.** No real users have done KYC yet — all flows are pre-launch.
+  12. **Marketplace artifacts are intentional WIP, not orphans.** See §20 for the full inventory. Marketplace is being built in parallel with KYC v1, currently hidden from the public, soft target for reveal 3-6 months out (gated on readiness, not deadline). Do NOT delete `marketplace.ts`, `MarketplaceSettings.tsx`, `initiate-marketplace-payment`, `paystack_split_transactions`, or the review RPCs without explicit discussion.
+
+---
+
+## 20. Marketplace infrastructure (intentional WIP — NOT dead code)
+
+**Status:** Active parallel build. Infrastructure is being developed NOW alongside KYC v1. Currently HIDDEN from the public. Soft target for public reveal: 3-6 months out (Aug-Nov 2026). Reveal date is gated on readiness, NOT a fixed deadline. The aim is to have the infrastructure complete BEFORE public reveal, so launch is a marketing decision, not a build-from-scratch decision.
+
+**DO NOT delete or refactor marketplace artifacts without explicit discussion.**
+
+### Why this section exists
+
+The original audit (sections 4, 8, 9, 10, 16) cataloged marketplace artifacts scattered across the report. A future reader might mistakenly treat them as orphan stubs and remove them. They are not orphans — they are foundation for the next major product surface, currently being built in parallel.
+
+### What Storehouse Marketplace IS
+
+A public-facing discovery surface where Nigerian buyers will browse products across many merchants on Storehouse. Unlike a merchant's private storefront (`/store/:slug` — direct WhatsApp link), the marketplace lets strangers find merchants they didn't already know about. Paystack handles checkout; splits route payment to the correct merchant via subaccounts.
+
+### Why marketplace requires KYC v1
+
+A merchant selling to their own existing customers via a WhatsApp link is one trust model — buyer already chose to engage. A merchant listed on a marketplace and sold to strangers is a different trust model — Storehouse is implicitly vouching for everyone listed. Without KYC, marketplace fraud becomes a Storehouse reputation problem.
+
+KYC v1 is the upstream gate. Marketplace launches only after KYC v1 has been battle-tested with real merchants. The sequence:
+
+1. **Now → ~3 weeks:** Finish KYC v1 frontend, ship merchant #1
+2. **~3 weeks → ~3 months:** Real merchant pilot (3-10 merchants), surface edge cases, harden reviewer ops, fix bugs from real usage
+3. **In parallel:** Marketplace frontend built behind a feature flag, internal testing only
+4. **~3-6 months out:** Marketplace pre-reveal readiness — buyer-side TOS, dispute/refund policy, content moderation, Smile Identity at scale, marketing alignment
+5. **Public reveal:** When infrastructure is ready, not on a fixed date
+
+### Marketplace artifacts currently in the tree
+
+| Artifact | Type | Status |
+|---|---|---|
+| `src/services/marketplace.ts` | Service module | Feature flags + helpers (`isMarketplaceEnabled`, `arePublicStoresEnabled`, `arePremiumTiersEnabled`, etc.) |
+| `src/components/MarketplaceSettings.tsx` | Component | Per-merchant marketplace opt-in settings UI |
+| `supabase/functions/initiate-marketplace-payment/` | Edge function | Stub. ACTIVE v53, deployed 2026-05-13. Multi-vendor cart entry point. No frontend caller yet |
+| `paystack_split_transactions` | Table | 8 historical rows (test data proving split routing works) |
+| `marketplace_analytics` | Table | 0 rows. Reserved for launch metrics |
+| `search_marketplace_products` RPC | DB function | Discovery / search |
+| `approve_review` RPC | DB function | Marketplace transaction-level review |
+| `reject_review_and_freeze` RPC | DB function | Marketplace transaction rejection + vendor freeze |
+| `record_successful_payment` RPC | DB function | Webhook handler — used by both storefront AND marketplace flows |
+| `docs/MARKETPLACE-INVENTORY-2026-05-08.md` | Doc | Pre-build artifact inventory (2026-05-08, before Paystack subaccount work) |
+
+### Marketplace-specific pre-reveal gates (NOT required for merchant #1)
+
+These are gates for public marketplace reveal, NOT for KYC v1 / merchant #1. File these for "later" planning:
+
+- Buyer-side TOS (different from merchant TOS)
+- Dispute / refund policy (buyer protection, since they don't know the merchant directly)
+- Content moderation policy (what merchants can/can't list publicly)
+- Smile Identity at scale (per spec, replaces manual KYC after first 50 merchants)
+- Marketplace-specific webhook robustness (volume + dispute trail)
+- Marketing alignment (landing page, FAQ updates, launch comms)
+- Reviewer web UI (bash scripts won't scale to marketplace transaction volume)
+
+### Rules of engagement
+
+1. **DO NOT delete any of the listed marketplace artifacts** without explicit discussion. They look like dead code; they are not.
+2. **DO NOT rebuild or duplicate.** When adding marketplace features, build on what's already there.
+3. **DO check this section before adding new payment-flow code.** Many infrastructure pieces (subaccounts, splits, review RPCs) are already shared between storefront and marketplace flows.
+4. **DO update this section when marketplace progresses.** As marketplace approaches reveal, artifacts move from "intentional WIP" to "active production." Update status column accordingly.
+5. **DO NOT add a fixed launch date here.** The reveal is gated on readiness, not calendar. Range is 3-6 months from this audit; adjust if KYC v1 or merchant pilot takes longer.
+
+### Relationship to current KYC v1 work
+
+KYC v1 (feat/kyc-wizard-v1) is foundational to both:
+- Individual storefront merchants accepting payment via Paystack subaccounts (immediate use, ~3 weeks from this audit)
+- Marketplace public reveal on top of the KYC'd merchant base (later, 3-6 months out)
+
+Every wizard step, every reviewer flow, every velocity limit set in KYC v1 carries forward to marketplace. The work is NOT vertical-specific — it's foundation infrastructure.
+
+When writing prompts about KYC v1 work, consider both surfaces:
+- Will this work for an individual merchant on their private storefront? (immediate need)
+- Will this work for a merchant being discovered by a stranger on the marketplace? (3-6 month need)
+
+If a decision is right for one but wrong for the other, flag it.
