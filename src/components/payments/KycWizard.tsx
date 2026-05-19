@@ -58,6 +58,16 @@ export default function KycWizard() {
 
   const [step, setStep] = useState<WizardStep>('intro');
 
+  // Edit-return: when user clicks Edit on Step 4 review, set this to
+  // true so subsequent Continue jumps back to Step 4 instead of stepping
+  // forward sequentially. Reset to false when returning to Step 4
+  // (whether via "Save and review" or "Back to review").
+  //
+  // IMPORTANT: This is for the WIZARD flow only (pre-submission). The
+  // edit-after-approval form lives in KycEditForm.tsx and follows the
+  // different §6.4 rules — do not conflate the two surfaces.
+  const [returnToReview, setReturnToReview] = useState(false);
+
   // Form data lives at wizard level so values survive step transitions.
   // 5.4 fills step 1 + step 2; 5.5 + 5.6 fill the rest.
   const [formData, setFormData] = useState<KycFormData>({
@@ -165,12 +175,24 @@ export default function KycWizard() {
       {step === 'intro' && (
         <BackLink label={t.backToPayments} onClick={() => navigate('/settings/payments')} />
       )}
-      {step !== 'intro' && step !== 'success' && (
+      {step !== 'intro' && step !== 'success' && !returnToReview && (
         <BackLink
           label={t.back}
           onClick={() => {
             if (step === 1) setStep('intro');
             else if (typeof step === 'number') setStep((step - 1) as WizardStep);
+          }}
+        />
+      )}
+      {returnToReview && typeof step === 'number' && step >= 1 && step <= 3 && (
+        <BackLink
+          label={t.backToReview}
+          onClick={() => {
+            // Discard-style return: in-flight formData stays (onChange
+            // writes immediately, same as forward walk); only the
+            // edit-return flag resets and we jump back to Step 4.
+            setReturnToReview(false);
+            setStep(4);
           }}
         />
       )}
@@ -188,30 +210,57 @@ export default function KycWizard() {
         <Step1PersonalIdentity
           formData={formData}
           onChange={handleFormChange}
-          onContinue={() => setStep(2)}
+          onContinue={() => {
+            if (returnToReview) {
+              setReturnToReview(false);
+              setStep(4);
+            } else {
+              setStep(2);
+            }
+          }}
+          returnToReview={returnToReview}
         />
       )}
       {step === 2 && (
         <Step2BusinessDetails
           formData={formData}
           onChange={handleFormChange}
-          onContinue={() => setStep(3)}
+          onContinue={() => {
+            if (returnToReview) {
+              setReturnToReview(false);
+              setStep(4);
+            } else {
+              setStep(3);
+            }
+          }}
+          returnToReview={returnToReview}
         />
       )}
       {step === 3 && (
         <Step3IdPhoto
           formData={formData}
           onChange={handleFormChange}
-          onContinue={() => setStep(4)}
+          onContinue={() => {
+            if (returnToReview) {
+              setReturnToReview(false);
+              setStep(4);
+            } else {
+              setStep(4);
+            }
+          }}
           storeId={storeId}
           userId={currentUser?.uid}
+          returnToReview={returnToReview}
         />
       )}
       {step === 4 && (
         <Step4Review
           formData={formData}
           storeId={storeId}
-          onEdit={(targetStep) => setStep(targetStep)}
+          onEdit={(targetStep) => {
+            setReturnToReview(true);
+            setStep(targetStep);
+          }}
           onSuccess={() => setStep('success')}
         />
       )}
@@ -240,13 +289,16 @@ function Step1PersonalIdentity({
   formData,
   onChange,
   onContinue,
+  returnToReview,
 }: {
   formData: KycFormData;
   onChange: (patch: Partial<KycFormData>) => void;
   onContinue: () => void;
+  returnToReview: boolean;
 }) {
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step1;
+  const tWizard = strings.paystackSetup.kyc.wizard;
 
   // Errors only surface AFTER a field is blurred (industry-standard
   // pattern: don't shout at the user mid-type).
@@ -382,7 +434,7 @@ function Step1PersonalIdentity({
       </div>
 
       <PrimaryButton onClick={onContinue} disabled={!canContinue}>
-        {s.cta}
+        {returnToReview ? tWizard.saveAndReview : s.cta}
       </PrimaryButton>
     </>
   );
@@ -392,13 +444,16 @@ function Step2BusinessDetails({
   formData,
   onChange,
   onContinue,
+  returnToReview,
 }: {
   formData: KycFormData;
   onChange: (patch: Partial<KycFormData>) => void;
   onContinue: () => void;
+  returnToReview: boolean;
 }) {
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step2;
+  const tWizard = strings.paystackSetup.kyc.wizard;
 
   const [touched, setTouched] = useState<{ category?: boolean }>({});
 
@@ -470,7 +525,7 @@ function Step2BusinessDetails({
       </div>
 
       <PrimaryButton onClick={onContinue} disabled={!canContinue}>
-        {s.cta}
+        {returnToReview ? tWizard.saveAndReview : s.cta}
       </PrimaryButton>
     </>
   );
@@ -535,15 +590,18 @@ function Step3IdPhoto({
   onChange,
   onContinue,
   userId,
+  returnToReview,
 }: {
   formData: KycFormData;
   onChange: (patch: Partial<KycFormData>) => void;
   onContinue: () => void;
+  returnToReview: boolean;
   storeId: string | null;
   userId: string | undefined;
 }) {
   const strings = useStrings() as any;
   const s = strings.paystackSetup.kyc.wizard.step3;
+  const tWizard = strings.paystackSetup.kyc.wizard;
   const [photoState, setPhotoState] = useState<PhotoState>({ kind: 'empty' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -759,7 +817,7 @@ function Step3IdPhoto({
           cursor: canContinue ? 'pointer' : 'not-allowed',
         }}
       >
-        {isUploading ? s.uploading : s.cta}
+        {isUploading ? s.uploading : returnToReview ? tWizard.saveAndReview : s.cta}
       </button>
 
       {toastMessage && (

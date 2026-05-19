@@ -118,6 +118,8 @@
       "wizard": {
         "back": "← Back",
         "backToPayments": "← Back to Payments",
+        "backToReview": "← Back to review",
+        "saveAndReview": "Save and review",
         "stepLabel": "Step {n} of {total}",
         "intro": {
           "heading": "Verify your identity",
