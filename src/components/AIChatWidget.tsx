@@ -277,6 +277,7 @@ export default function AIChatWidget({
       const hasSheetModal = document.querySelector('.sheet-overlay') !== null;
       const hasBottomSheet = document.querySelector('.bottom-sheet') !== null;
       const hasActionSheet = document.querySelector('.action-sheet') !== null;
+      const hasCartSidebar = document.querySelector('.cart-sidebar') !== null;
 
       // Check if any element has "Send EOD Report" or "Send via WhatsApp" text
       const hasEODReportText = Array.from(document.querySelectorAll('h2, button')).some(el =>
@@ -285,11 +286,11 @@ export default function AIChatWidget({
       );
 
       const hasAnyModal = hasEODModal || hasModalOverlay || hasSheetModal ||
-                         hasBottomSheet || hasActionSheet || hasEODReportText;
+                         hasBottomSheet || hasActionSheet || hasCartSidebar || hasEODReportText;
 
       if (hasAnyModal !== hasModalOpen) {
         console.log('[AIChatWidget] Modal state changed:', hasAnyModal, {
-          hasEODModal, hasModalOverlay, hasSheetModal, hasEODReportText
+          hasEODModal, hasModalOverlay, hasSheetModal, hasCartSidebar, hasEODReportText
         });
         setHasModalOpen(hasAnyModal);
       }

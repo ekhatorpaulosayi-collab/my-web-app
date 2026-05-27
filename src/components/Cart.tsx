@@ -13,7 +13,6 @@ import { supabase } from '../lib/supabase';
 import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
-import { PaystackHelp } from './PaystackHelp';
 import { formatWhatsAppNumber } from '../utils/phone';
 import '../styles/cart.css';
 
@@ -35,6 +34,7 @@ export function Cart({ store }: CartProps) {
   const { items, itemCount, totalPrice, updateQuantity, removeItem, clearCart, isCartOpen, closeCart } = useCart();
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'whatsapp' | string>('whatsapp');
@@ -180,6 +180,11 @@ export function Cart({ store }: CartProps) {
       return;
     }
 
+    if (!customerEmail || !customerEmail.includes('@')) {
+      alert('Please enter a valid email for your receipt');
+      return;
+    }
+
     if (!paystackEnabled || !store.paystackPublicKey) {
       alert('Payment system not configured');
       return;
@@ -191,7 +196,7 @@ export function Cart({ store }: CartProps) {
       // @ts-ignore - Paystack script loaded dynamically
       const handler = window.PaystackPop.setup({
         key: store.paystackPublicKey,
-        email: customerPhone + '@customer.store', // Use phone as email fallback
+        email: customerEmail,
         amount: finalTotal, // Amount in kobo (Paystack uses smallest currency unit) - includes discount
         currency: 'NGN',
         ref: 'STORE_' + Date.now() + '_' + Math.random().toString(36).substring(7),
@@ -254,7 +259,7 @@ export function Cart({ store }: CartProps) {
                 customer: {
                   name: customerName,
                   phone: customerPhone,
-                  email: undefined,
+                  email: customerEmail || undefined,
                   address: customerAddress || undefined,
                 },
                 subtotal: totalPrice,
@@ -327,6 +332,7 @@ export function Cart({ store }: CartProps) {
           clearCart();
           setCustomerName('');
           setCustomerPhone('');
+          setCustomerEmail('');
           setCustomerAddress('');
           setAppliedPromo(null);
           setPromoCode('');
@@ -425,6 +431,7 @@ export function Cart({ store }: CartProps) {
     clearCart();
     setCustomerName('');
     setCustomerPhone('');
+    setCustomerEmail('');
     setCustomerAddress('');
     setAppliedPromo(null);
     setPromoCode('');
@@ -987,9 +994,19 @@ export function Cart({ store }: CartProps) {
                     )}
                   </div>
 
-                  {/* Contextual Paystack Help for Checkout */}
+                  {/* Inline reassurance for card payment */}
                   {paymentMethod === 'paystack' && (
-                    <PaystackHelp context="checkout" isVisible={true} />
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#6B7280',
+                      marginTop: '8px',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}>
+                      📬 Receipt sent to your email
+                    </div>
                   )}
 
                   <input
@@ -1008,6 +1025,16 @@ export function Cart({ store }: CartProps) {
                     className="cart-input"
                     required
                   />
+                  {paymentMethod === 'paystack' && (
+                    <input
+                      type="email"
+                      placeholder="Email for receipt *"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      className="cart-input"
+                      required
+                    />
+                  )}
                   <textarea
                     placeholder="Delivery address (optional)"
                     value={customerAddress}
