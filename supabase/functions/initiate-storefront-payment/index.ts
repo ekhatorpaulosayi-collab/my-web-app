@@ -30,6 +30,14 @@ const corsHeaders = {
 const PAYSTACK_INITIALIZE_URL = 'https://api.paystack.co/transaction/initialize';
 const PAYSTACK_TIMEOUT_MS = 5000;
 
+// Paystack pricing knobs. Customer absorbs Paystack's fee on top of
+// subtotal; closed-form solves the self-reference between
+// paystack_take (% of customer_total) and customer_total (subtotal +
+// paystack_take + flat). See worked examples in PAYSTACK-DEBUG.md §11.
+const FLAT_FEE_KOBO = 10000;             // ₦100 in kobo
+const FLAT_FEE_THRESHOLD_KOBO = 250000;  // Paystack waives the flat fee below ₦2,500
+const PAYSTACK_RATE = 0.015;             // 1.5% wholesale
+
 // In-memory IP rate limiter: 20 requests per 60s window per IP.
 // Higher than F1/F2 because customers hit this endpoint multiple
 // times in a normal checkout flow (back/forward, retry on slow
@@ -198,14 +206,27 @@ serve(async (req) => {
     return jsonResponse({ error: 'zero_subtotal' }, 400);
   }
 
-  const paystackTakeKobo = Math.floor(subtotalKobo * feeConfig.paystack_wholesale_bps / 10000);
+  // Customer absorbs Paystack's percentage + (above ₦2,500) flat ₦100.
+  // Closed-form: customer_total × (1 − rate) = subtotal + flat
+  //              ⇒ customer_total = (subtotal + flat) / (1 − rate)
+  // Storehouse take comes from vendor's share, capped per fee config.
+  // feeConfig.paystack_wholesale_bps is intentionally NOT read here —
+  // the closed-form embeds the 1.5% rate directly because the algebraic
+  // identity below ties the formula to that specific constant.
+  const flatKobo = subtotalKobo >= FLAT_FEE_THRESHOLD_KOBO ? FLAT_FEE_KOBO : 0;
+  const customerTotalKobo = Math.round((subtotalKobo + flatKobo) / (1 - PAYSTACK_RATE));
+  const paystackTakeKobo = customerTotalKobo - subtotalKobo;
+
   const storehouseTakeUncapped = Math.floor(subtotalKobo * feeConfig.basis_points / 10000);
   const storehouseTakeKobo = Math.min(storehouseTakeUncapped, Number(feeConfig.cap_kobo));
-  const customerTotalKobo = subtotalKobo + storehouseTakeKobo + paystackTakeKobo;
-  const vendorNetKobo = subtotalKobo;
+  const vendorNetKobo = subtotalKobo - storehouseTakeKobo;
 
-  // Sanity invariant per §4.2 step 5.
-  if (customerTotalKobo !== vendorNetKobo + storehouseTakeKobo + paystackTakeKobo) {
+  // Sanity invariant: the closed-form must have actually solved.
+  // paystack_take should equal customer_total × rate + flat (within 1
+  // kobo for Math.round error). If this fails, the algebra above is
+  // wrong — fail closed rather than over/undercharge the customer.
+  const expectedPaystackTakeKobo = Math.round(customerTotalKobo * PAYSTACK_RATE + flatKobo);
+  if (Math.abs(paystackTakeKobo - expectedPaystackTakeKobo) > 1) {
     return jsonResponse({ error: 'fee_math_drift' }, 500);
   }
 
@@ -363,20 +384,15 @@ serve(async (req) => {
   }
 
   // 12. Call Paystack POST /transaction/initialize with bearer=account
-  // (Storehouse main account absorbs Paystack's processing fee).
-  // transaction_charge is Storehouse's take only, computed on the
-  // SUBTOTAL (merchant price), capped at feeConfig.cap_kobo. The
-  // subaccount receives gross - transaction_charge - Paystack_fees.
+  // so that Paystack deducts its processing fee from the slice routed
+  // to Storehouse's main account, NOT the subaccount slice — the
+  // customer-absorbs math above already pads customer_total to cover
+  // it. transaction_charge is Storehouse's take, which Paystack
+  // diverts to the main account; the vendor subaccount receives
+  // subtotal − storehouseTakeKobo.
   //
-  // §13.1 fee-base verification still unresolved (see
-  // docs/PAYSTACK-DEBUG.md §11). If Paystack's wholesale fee is
-  // computed on customer_total rather than subtotal, the split row
-  // we inserted at step 11 will be off by ~paystackTakeKobo. We'll
-  // reconcile from the webhook event later.
-  const transactionChargeKobo = Math.min(
-    Math.floor(subtotalKobo * feeConfig.basis_points / 10000),
-    Number(feeConfig.cap_kobo),
-  );
+  // §13.1 live-test verification still pending (see PAYSTACK-DEBUG.md §11).
+  const transactionChargeKobo = storehouseTakeKobo;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PAYSTACK_TIMEOUT_MS);
@@ -617,6 +633,7 @@ serve(async (req) => {
       subtotal_kobo: subtotalKobo,
       storehouse_take_kobo: storehouseTakeKobo,
       paystack_take_kobo: paystackTakeKobo,
+      paystack_flat_kobo: flatKobo,
       customer_total_kobo: customerTotalKobo,
       vendor_net_kobo: vendorNetKobo,
       transaction_charge_kobo: transactionChargeKobo,

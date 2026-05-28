@@ -588,6 +588,96 @@ SELECT id FROM stores
 
 **Verification status:** ⏳ Not yet performed. Test mode access required.
 
+### 11.1 Fee math rewrite (2026-05-28) — customer-absorbs + ₦100 flat
+
+**What changed:**
+
+F3 (`initiate-storefront-payment`) used to compute `paystack_take = subtotal × 1.5%` and **omitted Paystack's ₦100 flat fee entirely**. Real-world Paystack debits the customer's card for `amount × 1.5% + ₦100` (with the flat fee waived below ₦2,500). The old formula therefore undercharged whenever the customer total > subtotal, and missed the flat fee always above the threshold.
+
+**New formula (locked decisions D1–D5 from Session 6 audit):**
+
+- Customer absorbs Paystack fee (1.5% + ₦100 above ₦2,500). D1.
+- Vendor absorbs Storehouse subscription fee — comes out of vendor's share. D2.
+- Listed product price stays clean. D3.
+- Cart.tsx displays `Subtotal / Card processing / Total`. D4.
+- Same structure for all tiers; Storehouse rate varies (Starter 0.5%, Pro 0%). D5.
+
+The customer total is derived via a closed-form algebraic identity that resolves the self-reference between paystack_take (percentage of customer_total) and customer_total (subtotal + paystack_take + flat):
+
+```
+customer_total × (1 − 0.015) = subtotal + flat
+⇒ customer_total = (subtotal + flat) / 0.985
+⇒ paystack_take = customer_total − subtotal
+flat = (subtotal >= ₦2,500) ? ₦100 : 0
+```
+
+Storehouse take is independent: `min(subtotal × basis_points / 10000, cap_kobo)`, deducted from vendor's gross. Vendor net = `subtotal − storehouse_take`. `transaction_charge` sent to Paystack = `storehouse_take` (Paystack diverts this slice to Storehouse's main account; the rest goes to the subaccount minus Paystack's actual fee).
+
+**Worked examples (tier-independent customer/paystack portions verified live 2026-05-28):**
+
+| subtotal_kobo | flat_kobo | customer_total_kobo | paystack_take_kobo |
+|---:|---:|---:|---:|
+| 50,000 (₦500)         | 0      | 50,761 (₦507.61)         | 761    |
+| 249,900 (₦2,499)      | 0      | 253,706 (₦2,537.06)      | 3,806  |
+| 250,000 (₦2,500)      | 10,000 | 263,959 (₦2,639.59)      | 13,959 |
+| 300,000 (₦3,000)      | 10,000 | 314,721 (₦3,147.21)      | 14,721 |
+| 2,500,000 (₦25,000)   | 10,000 | 2,548,731 (₦25,487.31)   | 48,731 |
+
+Note the threshold jump: a ₦1 increase in subtotal at ₦2,500 causes a ~₦100 jump in customer_total. Expected — that's Paystack's flat fee structure.
+
+**Smoke test result (2026-05-28, Paul's store ACCT_0gm1gv2bb6ue9z3 = Pro tier):**
+
+```
+POST /functions/v1/initiate-storefront-payment  subtotal_kobo=300000
+→ subtotal_kobo: 300000
+  customer_total_kobo: 314721
+  paystack_take_kobo: 14721
+  paystack_flat_kobo: 10000
+  storehouse_take_kobo: 0          (Pro = 0bp)
+  vendor_net_kobo: 300000          (Pro absorbs nothing)
+  transaction_charge_kobo: 0
+  requires_review: false
+```
+
+Matches the formula. `paystack_flat_kobo` is a new field in the breakdown response — frontend can display it separately if useful, but it's already included in `paystack_take_kobo`.
+
+**Sanity invariant in F3:** `|paystack_take − round(customer_total × 0.015 + flat)| ≤ 1 kobo`. Tolerates `Math.round` error of up to 1 kobo. If it fails, F3 returns 500 `fee_math_drift` — fail closed rather than over/undercharge.
+
+**Why we did NOT make FLAT_FEE_KOBO configurable** (despite `platform_fee_config.fixed_fee_kobo` existing in schema): Paystack's flat fee is a known constant. The schema column is dead. Adding config plumbing is overengineering for Phase 1. Schema cleanup deferred. See followup ticket.
+
+### 11.2 Bearer policy — Paystack dashboard action REQUIRED before §13.1 live test
+
+Smoke test on 2026-05-14 showed that F3's request body sent `bearer: "account"` (Storehouse main absorbs Paystack fee) but Paystack's response echoed `bearer: "subaccount"` — meaning Paul's subaccount has a server-side bearer override that overrides our per-transaction value.
+
+Under the new customer-absorbs math, this matters: we've already padded `customer_total` to cover Paystack's fee. If Paystack then ALSO deducts that fee from the subaccount slice (bearer=subaccount), the vendor ends up absorbing the Paystack fee twice — once via the customer-side markup (which goes to the vendor as `subtotal`), and once via the Paystack-side deduction. The vendor's actual settlement would be `subtotal − paystack_take` instead of `subtotal`.
+
+**Action required before §13.1 live test closes:**
+
+1. Open https://dashboard.paystack.com → Settings → Subaccounts
+2. Locate Paul's subaccount `ACCT_0gm1gv2bb6ue9z3` ("Storehouse F2 Smoke Test")
+3. Find "Bearer of transaction charge" setting
+4. Set to `account` (Storehouse main bears Paystack fee in the split routing)
+5. Save
+6. Apply the same setting to ANY future merchant subaccount created via F2 (`create-paystack-subaccount` — also a TODO to set bearer=account at creation time, not patch after the fact)
+
+This is a Paystack dashboard action — NOT a code change. F3's request already specifies `bearer: "account"`. The subaccount-level override is what needs flipping.
+
+### 11.3 §13.1 hard gate — STATUS: still PENDING
+
+The §13.1 verification (whether Paystack's wholesale fee applies to `amount` or `subtotal`) is what the fee math rewrite above codifies as **assumption: applies to `amount`** (which is why the closed-form has `(1 − rate)` in the denominator and not just `× rate` on subtotal).
+
+That assumption is unverified against an actual Paystack transaction receipt. To close §13.1:
+
+1. Cart.tsx Pay-with-Card button must exist OR a manual curl that completes the auth_url redirect with a test card.
+2. Customer pays via Paystack test card `4084 0840 8408 4081`.
+3. Open Paystack dashboard → Transactions → find this transaction.
+4. Compare the dashboard's `Fee` field against F3's `paystack_take_kobo` from the breakdown response.
+5. Compare the dashboard's `Amount to subaccount` (after Paystack's fee) against F3's `vendor_net_kobo`.
+6. If both match (within ±1 kobo): §13.1 is CLOSED, fee math is verified end-to-end.
+7. If either diverges: STOP. Do not flip the global flag for any non-Paul merchant. Reopen the formula with the actual numbers as ground truth.
+
+**Status:** Pending. Cart.tsx Pay-with-Card button NOT yet built as of 2026-05-28. Live test deferred until that lands.
+
 ---
 
 ## 12. Cross-references

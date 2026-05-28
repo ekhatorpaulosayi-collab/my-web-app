@@ -732,6 +732,70 @@ curl -sS -X POST "https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/<name>" 
 - All per `docs/KYC_V1_SPEC.md` §6 + the focus rules in
   `docs/KYC_V1_FOCUS_RULES.md`
 
+## Session 7 — F3 fee math rewrite (2026-05-28)
+
+### What shipped
+- `supabase/functions/initiate-storefront-payment/index.ts` rewritten:
+  customer absorbs Paystack fee (1.5% + ₦100 above ₦2,500) via
+  closed-form `customer_total = (subtotal + flat) / 0.985`; vendor
+  absorbs Storehouse fee from their share. New constants
+  `FLAT_FEE_KOBO`, `FLAT_FEE_THRESHOLD_KOBO`, `PAYSTACK_RATE`. New
+  response field `paystack_flat_kobo`. Sanity invariant now checks
+  `|paystack_take − round(customer_total × rate + flat)| ≤ 1 kobo`
+  (the previous check became a tautology under D1/D2).
+- Deployed to production via
+  `supabase functions deploy initiate-storefront-payment --project-ref yzlniqwzqlsftxrtapdl`.
+- `docs/PAYSTACK-DEBUG.md` §11.1, §11.2, §11.3 added with formula,
+  worked examples, bearer-policy reminder, §13.1 status.
+
+### Locked decisions (DO NOT re-litigate)
+- D1: Customer absorbs Paystack fee.
+- D2: Vendor absorbs Storehouse subscription fee.
+- D3: Listed product price is clean (subtotal in Cart).
+- D4: Cart.tsx displays Subtotal / Card processing / Total.
+- D5: No Free tier; only Starter (50 bp Storehouse) and Pro (0 bp).
+
+### Smoke test (Paul's store, Pro tier, ₦3,000 subtotal)
+Live curl returned:
+```
+subtotal_kobo: 300000
+customer_total_kobo: 314721
+paystack_take_kobo: 14721
+paystack_flat_kobo: 10000
+storehouse_take_kobo: 0
+vendor_net_kobo: 300000
+transaction_charge_kobo: 0
+```
+Matches the formula. F3 deploy verified.
+
+### NOT yet done — carry forward
+1. **App.jsx units inconsistency (HIGH PRIORITY separate ticket).**
+   `sales.unit_price` has mixed units: manual cash sales (App.jsx:3095,
+   3161) write naira; card dual-write (migration 4f7489b) writes kobo.
+   Readers (App.jsx:1051, 1090 use *100; supabase-hooks.js:607 uses
+   /100) assume different units. Needs: audit row units by
+   payment_method, design safe backfill, fix writers + readers
+   atomically in one deploy. BLOCKS Cart Pay-with-Card button —
+   first real card payment will display 100× too high on Dashboard
+   until this lands. Acceptable today because zero card payments exist.
+2. **Bearer policy flip — Paystack dashboard action.** Paul's
+   subaccount `ACCT_0gm1gv2bb6ue9z3` has bearer overridden to
+   `subaccount` server-side. Must be flipped to `account` on the
+   Paystack dashboard before §13.1 live test, or vendor absorbs
+   Paystack fee twice. See PAYSTACK-DEBUG.md §11.2 for steps. Same
+   check needed for any future merchant subaccount.
+3. **§13.1 hard gate — still PENDING.** The customer-absorbs formula
+   assumes Paystack's 1.5% applies to `amount` (not `subtotal`). Live
+   test required: Paystack test card 4084 0840 8408 4081, compare
+   dashboard receipt's Fee + Amount-to-subaccount against F3
+   breakdown. Requires Cart.tsx Pay-with-Card button to exist OR
+   manual auth_url redirect. See PAYSTACK-DEBUG.md §11.3.
+4. **Cart.tsx Pay-with-Card button.** Not built yet. Needed before
+   either the units fix can be tested end-to-end or §13.1 can close.
+5. **Pre-existing pending paystack_split_transactions (8 rows from
+   May 14-16).** Smoke-test artifacts. Leave or delete pre-launch;
+   their webhook deliveries already 503'd and won't retry.
+
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
 [ ] Open storefront — AI chat responds
