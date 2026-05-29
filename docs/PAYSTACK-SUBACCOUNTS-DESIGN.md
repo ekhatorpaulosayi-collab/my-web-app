@@ -94,10 +94,43 @@ If we had used the uncapped percentage in the customer-total formula instead —
 **Implementation in Paystack call:**
 - `subaccount` = vendor's `paystack_subaccount_code`
 - `amount` = `customer_total_kobo`
-- `transaction_charge` = `storehouse_take_kobo + paystack_take_kobo` (the slice Paystack keeps from the split before sending the rest to the subaccount)
+- `transaction_charge` = `storehouse_take_kobo + paystack_take_kobo` (Storehouse take + Paystack fee — see PAYSTACK-DEBUG.md §11.2)
 - Net to subaccount after Paystack's wholesale fee = `vendor_net_kobo`
 
-For Pro tier (no Storehouse take), `storehouse_take_kobo = 0`, so `transaction_charge = paystack_take_kobo` only and `customer_total_kobo = subtotal + paystack_take_kobo`.
+The `+ paystack_take_kobo` term is essential. Paystack's main-slice-zero fallback (support article 2132802) deducts its fee from the subaccount if the main slice is less than the actual fee. Without it, on Pro tier (`storehouse_take = 0`) the main slice would be 0 and the merchant would silently absorb the Paystack fee.
+
+**Note (Session 7+8 update).** Examples A and B above predate the customer-absorbs fee math (Session 7) and the corrected `transaction_charge` formula (Session 8). The current production formula is `customer_total = (subtotal + flat) / 0.985`, with `flat = ₦100` when `subtotal ≥ ₦2,500` else 0. Free tier is no longer offered (locked decision D5 — Starter and Pro only). The Pro/Starter examples below use the current formula and the current `transaction_charge`.
+
+**Example C — Pro tier, ₦3,000 sale (current formula + transaction_charge fix)**
+
+```
+subtotal_kobo            = 300,000  (₦3,000)
+flat_kobo                = 10,000   (₦100 — subtotal ≥ ₦2,500)
+customer_total_kobo      = round((300,000 + 10,000) / 0.985)  = 314,721  (₦3,147.21)
+paystack_take_kobo       = customer_total − subtotal           =  14,721
+storehouse_take_kobo     = floor(300,000 × 0 / 10,000)         =       0  (Pro = 0bp)
+vendor_net_kobo          = 300,000 − 0                         = 300,000
+
+transaction_charge_kobo  = 0 + 14,721                          =  14,721  (SH take + Paystack fee)
+```
+
+Customer pays ₦3,147.21. Paystack deducts its ₦147.21 fee from the main slice of 14,721; Storehouse main account nets 0 (the slice exactly covers the fee — Pro's published 0% Storehouse take is honoured). Vendor subaccount receives `314,721 − 14,721 = 300,000` kobo (clean ₦3,000 — merchant whole). Verified live: see PAYSTACK-DEBUG.md §11.3.
+
+**Example D — Starter tier, ₦3,000 sale**
+
+```
+subtotal_kobo            = 300,000  (₦3,000)
+flat_kobo                = 10,000
+customer_total_kobo      = 314,721
+paystack_take_kobo       = 14,721
+storehouse_take_uncapped = floor(300,000 × 50 / 10,000)        =   1,500  (₦15)
+storehouse_take_kobo     = min(1,500, cap_kobo=1,000,000)      =   1,500
+vendor_net_kobo          = 300,000 − 1,500                     = 298,500
+
+transaction_charge_kobo  = 1,500 + 14,721                      =  16,221
+```
+
+Customer pays ₦3,147.21. Paystack deducts its ₦147.21 from the main slice of 16,221; Storehouse main nets `16,221 − 14,721 = 1,500` kobo (₦15.00 — exactly the published Storehouse take). Vendor subaccount receives `314,721 − 16,221 = 298,500` kobo (clean — merchant whole). Verified live: Phase 2C charge ref `8t3nqini3w07al7`. ✅
 
 ---
 

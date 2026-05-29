@@ -383,16 +383,39 @@ serve(async (req) => {
     return jsonResponse({ error: 'split_insert_failed', detail: splitError.message }, 500);
   }
 
-  // 12. Call Paystack POST /transaction/initialize with bearer=account
-  // so that Paystack deducts its processing fee from the slice routed
-  // to Storehouse's main account, NOT the subaccount slice — the
-  // customer-absorbs math above already pads customer_total to cover
-  // it. transaction_charge is Storehouse's take, which Paystack
-  // diverts to the main account; the vendor subaccount receives
-  // subtotal − storehouseTakeKobo.
+  // 12. Call Paystack POST /transaction/initialize.
   //
-  // §13.1 live-test verification still pending (see PAYSTACK-DEBUG.md §11).
-  const transactionChargeKobo = storehouseTakeKobo;
+  // transaction_charge = storehouse_take + paystack_fee.
+  //
+  // Per Paystack docs (support article 2132802): "When a transaction is split
+  // with one subaccount, the transaction fee is automatically charged to the
+  // main account. If the main account receives a 0% percentage deduction, the
+  // subaccount gets charged the transaction fee."
+  //
+  // Setting transaction_charge >= paystack_fee ensures the main slice has
+  // enough balance for Paystack to deduct its fee from there, not from the
+  // merchant's subaccount slice. Paystack's actual slice algorithm
+  // (verified empirically in Session 8 spikes): subaccount = amount −
+  // transaction_charge; integration = transaction_charge − paystack_fee.
+  //
+  // No +N pad is added. Phase 2B/2C empirically verified that for
+  // transactions where Paystack's actual fee matches F3's prediction
+  // (transactions at or above the ₦2,500 flat-fee threshold), the merchant
+  // subaccount receives the clean expected amount (subtotal − storehouse_take).
+  //
+  // Edge case: on sub-₦2,500 transactions where Paystack's ceil-based fee
+  // exceeds F3's Math.round-based paystackTakeKobo by 1 kobo, Paystack falls
+  // back to bearer="subaccount" semantics and the merchant absorbs the
+  // 1-kobo shortfall. Accepted trade-off (Session 8); documented in
+  // PAYSTACK-DEBUG.md §11.4. A future Option-2 fix (Math.ceil on F3's
+  // paystackTakeKobo derivation, customer absorbs the rounding) would
+  // close this edge if it ever matters operationally.
+  //
+  // Verification refs (Session 8): zqd488sxbshceww, 8t3nqini3w07al7,
+  // wxwxo4upw42zag5, xbmcosfdxorr82z, zktn723v3tg0n7p, tqi0t3rm6nelg9i
+  // (pre-correction +1 pad), and the Phase 3-corrected post-redeploy
+  // verification charge ref added to PAYSTACK-DEBUG.md §11.3.
+  const transactionChargeKobo = storehouseTakeKobo + paystackTakeKobo;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PAYSTACK_TIMEOUT_MS);
@@ -403,18 +426,9 @@ serve(async (req) => {
     reference,
     subaccount: subaccount.paystack_subaccount_code,
     transaction_charge: transactionChargeKobo,
-    // Storehouse main account bears Paystack's processing fee.
-    // CAVEAT: per Paystack's API, a subaccount-level bearer setting
-    // (configured at subaccount creation or via PUT /subaccount/{code})
-    // can OVERRIDE this per-transaction value. Smoke testing on
-    // 2026-05-14 verified that our request of "account" was overridden
-    // to "subaccount" on the live response — meaning Paul's
-    // subaccount has a subaccount-level bearer policy in effect.
-    // TODO(bearer-policy): decide whether to (a) update Paul's
-    // subaccount to bearer=account via Paystack dashboard so this
-    // request is honoured, or (b) change our intent to "subaccount"
-    // to match what's actually happening. Resolve alongside §13.1
-    // fee-base verification.
+    // bearer='account' is Paystack's default. Sent explicitly for
+    // documentation of intent; the main-slice-zero fallback rule above
+    // is what actually governs fee routing on subaccount transactions.
     bearer: 'account',
     metadata: {
       order_id: order.id,

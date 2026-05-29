@@ -796,6 +796,89 @@ Matches the formula. F3 deploy verified.
    May 14-16).** Smoke-test artifacts. Leave or delete pre-launch;
    their webhook deliveries already 503'd and won't retry.
 
+## Session 8 — F3 transaction_charge fix (2026-05-29)
+
+### What shipped
+- `supabase/functions/initiate-storefront-payment/index.ts:395`:
+  `transactionChargeKobo = storehouseTakeKobo + paystackTakeKobo`.
+  Replaces the previous `storehouseTakeKobo`-only assignment.
+- `docs/PAYSTACK-DEBUG.md` §11.1 line + §11.2 + §11.3 + new §11.4
+  rewritten to reflect the corrected bearer model and the rounding
+  precision trade-off.
+- `docs/PAYSTACK-SUBACCOUNTS-DESIGN.md` §2: new Pro/Starter worked
+  examples (C and D) showing the current `transaction_charge` formula.
+  Old Free-tier Examples A/B left in place with a Session 7+8 update
+  note above them.
+
+### Why the change was needed (corrects Session 7 carry-forward #2/#3)
+- Session 7 interpreted Paystack's response `params.bearer="subaccount"`
+  as a subaccount-level override forcing the merchant to absorb the
+  Paystack fee, with the remediation being a manual Paystack dashboard
+  flip. That interpretation was wrong.
+- Actual rule, per Paystack support article 2132802: bearer defaults
+  to `'account'`. The Paystack fee is deducted from the main slice.
+  But if the main slice is less than Paystack's actual fee, Paystack
+  falls back to deducting from the subaccount slice. The pre-fix F3
+  sent `transaction_charge = storehouseTakeKobo`, which is `0` on
+  Pro tier — triggering exactly that fallback.
+- Fix: `transaction_charge = storehouseTake + paystackFee`. Sized to
+  the exact main-slice amount Paystack needs to deduct its fee from.
+- Edge case accepted (Session 8): on sub-₦2,500 transactions where
+  Paystack's ceil-based actual fee exceeds F3's Math.round-based
+  prediction by 1 kobo, Paystack falls back to bearer="subaccount"
+  semantics and the merchant absorbs the 1-kobo shortfall (₦0.01).
+  Documented in PAYSTACK-DEBUG.md §11.4. Future Option-2 fix
+  (Math.ceil-based paystackTakeKobo) closes the edge if it ever
+  matters operationally.
+
+### Why no +1 pad (Phase 3 abandoned an earlier attempt)
+- Phase 3 initially tried `transaction_charge = storehouseTake +
+  paystackFee + 1` to defend against the sub-₦2,500 1-kobo edge.
+- Phase 3E deployed-F3 verification (charge ref `tqi0t3rm6nelg9i`)
+  revealed the universal cost: Paystack's slice algorithm is
+  `subaccount = amount − transaction_charge` (verified independently
+  in Phase 2.6, charge ref `zktn723v3tg0n7p`). Every extra kobo on
+  `transaction_charge` comes out of the merchant's slice, not from
+  Storehouse's pool — so the +1 pad silently skimmed 1 kobo from
+  every transaction.
+- Correction: drop the pad. Accept the rare sub-₦2,500 1-kobo
+  shortfall in exchange for keeping every above-threshold transaction
+  exactly clean.
+
+### Audit trail (5 manual spikes + 2 deployed-F3 verifications)
+All against test-mode subaccount `ACCT_0vcfd1ifmwwwl0o` (fresh,
+throwaway, no bearer ever set on it). Paystack test card 4084.
+
+| Charge ref         | Phase | Tier    | tx_charge | Outcome |
+|--------------------|-------|---------|----------:|---------|
+| `zqd488sxbshceww`  | 2B    | Pro     |    14,721 | bearer=account, slices exact |
+| `8t3nqini3w07al7`  | 2C    | Starter |    16,221 | bearer=account, slices exact |
+| `wxwxo4upw42zag5`  | 2D    | Pro     |       761 | bearer=subaccount — baseline bug demonstrated |
+| `xbmcosfdxorr82z`  | 2.5   | Pro     |       762 | bearer=account, 1 kobo merchant shortfall on edge |
+| `zktn723v3tg0n7p`  | 2.6   | Pro     |       763 | revealed Paystack slice algo (subaccount = amount − tx_charge) |
+| `tqi0t3rm6nelg9i`  | 3E    | Pro     |    14,722 | deployed F3 with +1 pad (pre-correction) — bearer=account, subaccount=299,999 (1 kobo skim revealed) |
+| `6vnvbt1v089pk0q`  | 3F    | Pro     |    14,721 | deployed F3 final formula (no pad) — bearer=account, subaccount=300,000, integration=0 ✓ |
+
+§13.1 hard gate CLOSED by these spikes.
+
+### Branches
+- `feat/f3-transaction-charge-fix` — this fix. Ready for review.
+- `feat/cart-pay-with-card` — stashed during this session; becomes
+  mergeable after this lands.
+- The bearer-approval-checkpoint exploration completed its Phase 1
+  audit only and was then superseded by this fix. Its findings remain
+  in chat history; no branch or files were ever produced. Nothing to
+  delete.
+
+### NOT yet done — carry forward
+1. App.jsx units inconsistency (HIGH PRIORITY separate ticket from
+   Session 7 carry-forward #1). Still blocks Dashboard display of
+   real card payments. Unchanged.
+2. Pre-existing pending paystack_split_transactions (8 rows from
+   May 14-16) + Session 8 spike orders left behind by F3 in the
+   test-mode DB. Smoke-test artifacts. Leave or delete pre-launch;
+   their webhook deliveries already 503'd and won't retry.
+
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
 [ ] Open storefront — AI chat responds

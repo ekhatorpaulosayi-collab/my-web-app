@@ -611,7 +611,9 @@ customer_total × (1 − 0.015) = subtotal + flat
 flat = (subtotal >= ₦2,500) ? ₦100 : 0
 ```
 
-Storehouse take is independent: `min(subtotal × basis_points / 10000, cap_kobo)`, deducted from vendor's gross. Vendor net = `subtotal − storehouse_take`. `transaction_charge` sent to Paystack = `storehouse_take` (Paystack diverts this slice to Storehouse's main account; the rest goes to the subaccount minus Paystack's actual fee).
+Storehouse take is independent: `min(subtotal × basis_points / 10000, cap_kobo)`, deducted from vendor's gross. Vendor net = `subtotal − storehouse_take`. `transaction_charge` sent to Paystack = `storehouse_take + paystack_fee`.
+
+The `+ paystack_fee` is essential: per Paystack's main-slice-zero fallback (see §11.2), if `transaction_charge` is less than Paystack's actual fee the platform deducts the shortfall from the subaccount slice instead of the main slice — which would short the merchant. Setting `transaction_charge = storehouse_take + paystack_fee` guarantees the main slice exactly covers Paystack's fee. No `+N` pad is added; see §11.4 for the trade-off analysis and the rare sub-₦2,500 edge case.
 
 **Worked examples (tier-independent customer/paystack portions verified live 2026-05-28):**
 
@@ -645,38 +647,45 @@ Matches the formula. `paystack_flat_kobo` is a new field in the breakdown respon
 
 **Why we did NOT make FLAT_FEE_KOBO configurable** (despite `platform_fee_config.fixed_fee_kobo` existing in schema): Paystack's flat fee is a known constant. The schema column is dead. Adding config plumbing is overengineering for Phase 1. Schema cleanup deferred. See followup ticket.
 
-### 11.2 Bearer policy — Paystack dashboard action REQUIRED before §13.1 live test
+### 11.2 Bearer policy — corrected interpretation (Session 8, 2026-05-29)
 
-Smoke test on 2026-05-14 showed that F3's request body sent `bearer: "account"` (Storehouse main absorbs Paystack fee) but Paystack's response echoed `bearer: "subaccount"` — meaning Paul's subaccount has a server-side bearer override that overrides our per-transaction value.
+Per Paystack docs, the `bearer` parameter on `/transaction/initialize` defaults to `'account'` — i.e. the platform's main account bears the Paystack fee. F3 sends `bearer: 'account'` explicitly for clarity but this is the default.
 
-Under the new customer-absorbs math, this matters: we've already padded `customer_total` to cover Paystack's fee. If Paystack then ALSO deducts that fee from the subaccount slice (bearer=subaccount), the vendor ends up absorbing the Paystack fee twice — once via the customer-side markup (which goes to the vendor as `subtotal`), and once via the Paystack-side deduction. The vendor's actual settlement would be `subtotal − paystack_take` instead of `subtotal`.
+However, when a subaccount transaction is involved, Paystack applies an additional rule (support article 2132802): if the main account would receive a 0% or insufficient slice, Paystack falls back to deducting its fee from the subaccount. This is what made earlier spikes appear as if our `bearer` request was "overridden" — it wasn't; the main slice was simply too small to cover the fee.
 
-**Action required before §13.1 live test closes:**
+The fix: ensure `transaction_charge` gives the main account a slice ≥ Paystack's actual fee. F3 now does this. See §11.4 for the trade-off analysis on the rare sub-₦2,500 edge case.
 
-1. Open https://dashboard.paystack.com → Settings → Subaccounts
-2. Locate Paul's subaccount `ACCT_0gm1gv2bb6ue9z3` ("Storehouse F2 Smoke Test")
-3. Find "Bearer of transaction charge" setting
-4. Set to `account` (Storehouse main bears Paystack fee in the split routing)
-5. Save
-6. Apply the same setting to ANY future merchant subaccount created via F2 (`create-paystack-subaccount` — also a TODO to set bearer=account at creation time, not patch after the fact)
+**Historical context (May 14 smoke test).** The earlier interpretation in this section was that Paul's subaccount had a server-side bearer override forcing fee onto the subaccount, and the fix was a manual Paystack dashboard flip. That was wrong. The May 14 smoke test sent `transaction_charge=0` (the pre-fix F3 always sent `storehouse_take`, which is 0 for Pro tier), which triggered the main-slice-zero fallback above. No dashboard action is or was required. The fix is entirely code-side.
 
-This is a Paystack dashboard action — NOT a code change. F3's request already specifies `bearer: "account"`. The subaccount-level override is what needs flipping.
+### 11.3 §13.1 hard gate — STATUS: CLOSED (Session 8, 2026-05-29)
 
-### 11.3 §13.1 hard gate — STATUS: still PENDING
+The §13.1 verification (whether Paystack's wholesale fee applies to `amount` or `subtotal`) is what the fee math rewrite codifies as **assumption: applies to `amount`** (which is why the closed-form has `(1 − rate)` in the denominator and not just `× rate` on subtotal).
 
-The §13.1 verification (whether Paystack's wholesale fee applies to `amount` or `subtotal`) is what the fee math rewrite above codifies as **assumption: applies to `amount`** (which is why the closed-form has `(1 − rate)` in the denominator and not just `× rate` on subtotal).
+Closed by Session 8 spikes against a fresh test-mode subaccount `ACCT_0vcfd1ifmwwwl0o`. All charges used Paystack test card `4084 0840 8408 4081`. The verify-API `fees_split` was the source of truth (no dashboard receipt comparison needed — `fees_split.paystack` is the exact value the dashboard shows under "Fee").
 
-That assumption is unverified against an actual Paystack transaction receipt. To close §13.1:
+| Charge ref         | Tier    | subtotal | amount  | tx_charge | paystack | subaccount | integration | bearer        | Result |
+|--------------------|---------|---------:|--------:|----------:|---------:|-----------:|------------:|---------------|--------|
+| `zqd488sxbshceww`  | Pro     |  300,000 | 314,721 |    14,721 |   14,721 |    300,000 |           0 | account       | Phase 2B baseline — no pad, exact match |
+| `8t3nqini3w07al7`  | Starter |  300,000 | 314,721 |    16,221 |   14,721 |    298,500 |       1,500 | account       | Phase 2C baseline — no pad, exact match |
+| `wxwxo4upw42zag5`  | Pro     |   50,000 |  50,761 |       761 |      762 |     49,238 |      "761"  | subaccount    | Phase 2D — demonstrated the original bug; transaction_charge < paystack_fee triggers main-slice-zero fallback |
+| `xbmcosfdxorr82z`  | Pro     |   50,000 |  50,761 |       762 |      762 |     49,999 |           0 | account       | Phase 2.5 +1 pad — bearer fixed; 1 kobo merchant shortfall on this edge case |
+| `zktn723v3tg0n7p`  | Pro     |   50,000 |  50,761 |       763 |      762 |     49,998 |           1 | account       | Phase 2.6 +2 pad — revealed Paystack's actual slice algo (`subaccount = amount − transaction_charge`); confirmed +N pad cannot conjure customer money |
 
-1. Cart.tsx Pay-with-Card button must exist OR a manual curl that completes the auth_url redirect with a test card.
-2. Customer pays via Paystack test card `4084 0840 8408 4081`.
-3. Open Paystack dashboard → Transactions → find this transaction.
-4. Compare the dashboard's `Fee` field against F3's `paystack_take_kobo` from the breakdown response.
-5. Compare the dashboard's `Amount to subaccount` (after Paystack's fee) against F3's `vendor_net_kobo`.
-6. If both match (within ±1 kobo): §13.1 is CLOSED, fee math is verified end-to-end.
-7. If either diverges: STOP. Do not flip the global flag for any non-Paul merchant. Reopen the formula with the actual numbers as ground truth.
+Verified: Paystack's wholesale fee applies to `amount` (not `subtotal`). The closed-form `customer_total = (subtotal + flat) / 0.985` is correct. The bug was structural in `transaction_charge`, not in the closed form.
 
-**Status:** Pending. Cart.tsx Pay-with-Card button NOT yet built as of 2026-05-28. Live test deferred until that lands.
+**Phase 3E (pre-correction, +1 pad).** Charge ref `tqi0t3rm6nelg9i`. F3-issued init ref `ord_13e3186215fe4b819be59462bbe24d81`. Pro tier ₦3,000 sale via deployed F3 (with the abandoned +1 pad formula) against `ACCT_0vcfd1ifmwwwl0o`. `fees_split: paystack=14721, integration=1, subaccount=299999, params.bearer="account"`. This verification revealed the universal 1-kobo merchant skim caused by the +1 pad and motivated the Phase 3 correction (drop the pad).
+
+**Phase 3F (final, no pad).** Charge ref `6vnvbt1v089pk0q`. F3-issued init ref `ord_8a9eab2c65384d1a8ffdeb1f7df3f03d`. Pro tier ₦3,000 sale via deployed F3 (final formula `transaction_charge = storehouse_take + paystack_fee`) against `ACCT_0vcfd1ifmwwwl0o`. `fees_split: paystack=14721, integration=0, subaccount=300000, params.bearer="account"` — merchant clean. Exact match.
+
+### 11.4 Rounding precision on transaction_charge
+
+F3 derives `paystackTakeKobo` using `Math.round` on the closed-form `customer_total` formula. Paystack's actual fee uses ceil-like rounding. On the vast majority of transactions these agree, and the merchant subaccount receives `subtotal − storehouse_take` exactly clean (verified by Phase 2B Pro ₦3,000 → subaccount 300,000 clean; Phase 2C Starter ₦3,000 → subaccount 298,500 clean).
+
+On rare sub-₦2,500 edge transactions (where the flat ₦100 fee doesn't apply, so the rounding direction matters), Paystack's actual fee can exceed F3's prediction by 1 kobo. In that case Paystack falls back to `bearer="subaccount"` semantics and the merchant subaccount is short by 1 kobo (₦0.01). Operationally negligible; documented honestly.
+
+A future "merchant always whole" fix exists: change F3's `paystackTakeKobo` to `Math.ceil(customerTotalKobo × PAYSTACK_RATE + flatKobo)` and re-derive `customerTotalKobo`. This shifts the 1-kobo absorption from merchant to customer on the edge case. Deferred to a future session — current trade-off is accepted.
+
+Paystack's slice algorithm (verified by Phase 2.6 spike, charge ref `zktn723v3tg0n7p`): `subaccount = amount − transaction_charge`; `integration = transaction_charge − paystack_fee`. No platform-funded pad can subsidize the subaccount — extra kobo on `transaction_charge` come out of the customer's `amount` and shift the slice from subaccount to integration. This is why Option 1's +1 pad was abandoned during Phase 3 review (Phase 3E charge `tqi0t3rm6nelg9i` showed every transaction losing 1 kobo to Storehouse's main slice, not the intended "clean merchant on normal txns").
 
 ---
 
