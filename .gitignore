@@ -44,3 +44,5 @@ supabase/.temp/
 
 # Rollback backups (kept on disk for emergency playbook, not version controlled)
 *.v*-stable
+
+.claude/settings.local.json
