@@ -598,9 +598,16 @@ export function Cart({ store }: CartProps) {
     // the authorization_url full-page redirect.
     const PP = (window as any).PaystackPop;
     if (PP && f3Data.access_code) {
+      if (!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY) {
+        console.error('[Cart] VITE_PAYSTACK_PUBLIC_KEY missing from build');
+        setFriendlyError("Card payments are not configured. Please use WhatsApp or contact the store.");
+        setShowWhatsAppFallback(!!store.whatsappNumber);
+        setProcessingPayment(false);
+        return;
+      }
       try {
         const handler = PP.setup({
-          key: 'pk_dummy', // ignored when access_code is provided; required by the constructor signature
+          key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY, // Storehouse integration key; access_code carries per-subaccount routing
           accessCode: f3Data.access_code,
           onClose: () => {
             // Customer cancelled in the Paystack iframe. Order is not
