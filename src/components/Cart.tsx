@@ -16,6 +16,14 @@ import { OrderConfirmation } from './OrderConfirmation';
 import { formatWhatsAppNumber } from '../utils/phone';
 import '../styles/cart.css';
 
+// Build-time gate for the platform-split (subaccount) card flow. When
+// off, only legacy own-key Paystack + WhatsApp/manual paths render —
+// no regression. When on, the new path becomes available for any store
+// that also passes the per-store gate (subaccount enabled, kyc approved,
+// not frozen) — mirroring F3's server-side gate exactly.
+const SUBACCOUNT_FLAG_ON =
+  import.meta.env.VITE_ENABLE_PAYSTACK_SUBACCOUNTS === 'true';
+
 // Payment method provider configurations
 const PAYMENT_PROVIDERS: Record<string, { name: string; icon: string; color: string }> = {
   opay: { name: 'OPay', icon: '🟢', color: '#00C087' },
@@ -42,6 +50,21 @@ export function Cart({ store }: CartProps) {
   const [copiedAccountId, setCopiedAccountId] = useState<string | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
+  // Subaccount (platform-split) card flow state.
+  // breakdown holds F3's returned fee breakdown so the customer can see
+  // "Subtotal / Card processing / Total" before Paystack handoff.
+  // friendlyError is shown when F3 returns a 412/403/etc. gate failure
+  // or when network/Paystack init goes wrong; some errors offer a
+  // "continue via WhatsApp" affordance via showWhatsAppFallback.
+  const [subaccountBreakdown, setSubaccountBreakdown] = useState<null | {
+    subtotal_kobo: number;
+    paystack_take_kobo: number;
+    paystack_flat_kobo: number;
+    customer_total_kobo: number;
+  }>(null);
+  const [friendlyError, setFriendlyError] = useState<string | null>(null);
+  const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false);
+
   // Promo code state
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
@@ -54,6 +77,22 @@ export function Cart({ store }: CartProps) {
 
   // Check if Paystack is enabled
   const paystackEnabled = store.paystackEnabled && store.paystackPublicKey;
+
+  // Platform-split (subaccount) card gate. Mirrors F3 lines 121-129
+  // exactly. When this gate passes we show the new "Pay with Card"
+  // button that routes through F3; the legacy own-key Paystack button
+  // is hidden in that case so onboarded merchants always settle via
+  // the platform split, not their own key.
+  const subaccountCardEnabled =
+    SUBACCOUNT_FLAG_ON &&
+    store.paystack_subaccounts_enabled === true &&
+    store.kyc_status === 'approved' &&
+    store.frozen !== true;
+
+  // When the subaccount flow is active for this store, suppress the
+  // legacy own-key path entirely. Customers must not see two card
+  // buttons for the same store.
+  const showLegacyPaystack = paystackEnabled && !subaccountCardEnabled;
 
   // Get available payment methods (multi-payment + legacy bank details)
   const availablePaymentMethods = store.payment_methods?.filter(m => m.enabled) || [];
@@ -85,9 +124,15 @@ export function Cart({ store }: CartProps) {
     : 0;
   const finalTotal = Math.max(0, totalPrice - discount);
 
-  // Load Paystack script when checkout opens with Paystack option
+  // Load Paystack script when checkout opens with a card option (either
+  // legacy own-key or the new subaccount/platform-split flow). Both
+  // initialise via the same window.PaystackPop global from v1/inline.js.
   useEffect(() => {
-    if (isCheckingOut && paystackEnabled && paymentMethod === 'paystack') {
+    const needsPaystackScript =
+      isCheckingOut &&
+      ((paystackEnabled && paymentMethod === 'paystack') ||
+        (subaccountCardEnabled && paymentMethod === 'paystack_subaccount'));
+    if (needsPaystackScript) {
       const script = document.createElement('script');
       script.src = 'https://js.paystack.co/v1/inline.js';
       script.async = true;
@@ -101,7 +146,7 @@ export function Cart({ store }: CartProps) {
         }
       };
     }
-  }, [isCheckingOut, paystackEnabled, paymentMethod]);
+  }, [isCheckingOut, paystackEnabled, subaccountCardEnabled, paymentMethod]);
 
   // Allow Cart to render if either cart is open OR receipt modal is showing
   if (!isCartOpen && !showOrderConfirmation) return null;
@@ -350,6 +395,292 @@ export function Cart({ store }: CartProps) {
     }
   };
 
+  // Map an F3 error code to a customer-facing message. Codes 412/403 plus
+  // no_active_subaccount mean the merchant isn't currently eligible —
+  // offer WhatsApp as a graceful fallback. Other codes are transient or
+  // user-fixable; just show the message.
+  const messageForF3Error = (code: string, serverMessage?: string): {
+    text: string;
+    canFallbackToWhatsApp: boolean;
+  } => {
+    switch (code) {
+      case 'store_not_onboarded':
+      case 'no_active_subaccount':
+        return {
+          text: "This store isn't set up to take card payments yet. You can still order via WhatsApp.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+      case 'store_frozen':
+        return {
+          text: "Card payments are temporarily paused for this store. You can still order via WhatsApp.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+      case 'kyc_not_approved':
+        return {
+          text: "This store is still being verified. You can still order via WhatsApp.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+      case 'subscription_required':
+        return {
+          text: serverMessage || "This store's plan can't accept card payments right now. You can still order via WhatsApp.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+      case 'daily_cap_exceeded':
+      case 'monthly_cap_exceeded':
+        return {
+          text: serverMessage || "This store has reached its transaction limit. Please try again later or order via WhatsApp.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+      case 'rate_limited':
+        return {
+          text: serverMessage || "Too many checkout attempts. Please wait a minute and try again.",
+          canFallbackToWhatsApp: false,
+        };
+      case 'busy':
+      case 'checkout_rejected':
+        return {
+          text: serverMessage || "Checkout is busy. Please try again in a moment.",
+          canFallbackToWhatsApp: false,
+        };
+      case 'zero_subtotal':
+        return { text: "Your cart appears to be empty.", canFallbackToWhatsApp: false };
+      case 'invalid_item':
+        return { text: "One of your items has invalid data. Please refresh and try again.", canFallbackToWhatsApp: false };
+      case 'missing_fields':
+        return { text: "Please fill in all required fields.", canFallbackToWhatsApp: false };
+      case 'feature_disabled':
+      case 'server_misconfigured':
+      case 'no_fee_config_for_tier':
+      case 'velocity_row_missing':
+      case 'fee_math_drift':
+      case 'order_insert_failed':
+      case 'items_insert_failed':
+      case 'split_insert_failed':
+        return {
+          text: "Couldn't start the payment right now. You can still order via WhatsApp.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+      case 'store_not_found':
+        return { text: "Store not found.", canFallbackToWhatsApp: false };
+      default:
+        return {
+          text: "Couldn't start the payment. Please try again.",
+          canFallbackToWhatsApp: !!store.whatsappNumber,
+        };
+    }
+  };
+
+  // Platform-split card payment via F3 (initiate-storefront-payment).
+  // Differs from handlePaystackPayment in three ways:
+  //   1. Routes through the merchant's Paystack subaccount, not their
+  //      own publishable key.
+  //   2. The fee breakdown comes from F3 (server-computed) — we render
+  //      it pre-handoff but do NOT recompute on the client.
+  //   3. Does NOT call saveOnlineStoreOrder on success. F3 inserts
+  //      orders+order_items+split_tx and the webhook dual-writes sales
+  //      via record_successful_payment — the webhook is authoritative.
+  const handleSubaccountPayment = async () => {
+    setFriendlyError(null);
+    setShowWhatsAppFallback(false);
+
+    if (!customerName || !customerPhone) {
+      setFriendlyError('Please enter your name and phone number.');
+      return;
+    }
+    if (!customerEmail || !customerEmail.includes('@')) {
+      setFriendlyError('Please enter a valid email for your receipt.');
+      return;
+    }
+    if (!store.id) {
+      setFriendlyError("Store information is missing. Please refresh the page.");
+      return;
+    }
+    if (items.length === 0) {
+      setFriendlyError('Your cart is empty.');
+      return;
+    }
+
+    setProcessingPayment(true);
+
+    // Build F3 payload. Cart items already carry kobo prices and the
+    // product UUID is the cart item id (see StorefrontPage addItem).
+    const f3Items = items.map((it) => ({
+      product_id: it.id,
+      product_name: it.variantName ? `${it.name} (${it.variantName})` : it.name,
+      quantity: it.quantity,
+      unit_price_kobo: it.price,
+    }));
+
+    let initResult;
+    try {
+      initResult = await supabase.functions.invoke('initiate-storefront-payment', {
+        body: {
+          store_id: store.id,
+          items: f3Items,
+          customer_email: customerEmail,
+          customer_phone: customerPhone,
+          customer_name: customerName || undefined,
+        },
+      });
+    } catch (networkErr) {
+      console.error('[Cart] F3 network error', networkErr);
+      setProcessingPayment(false);
+      setFriendlyError("Couldn't reach the payment server. Please check your connection and try again.");
+      setShowWhatsAppFallback(!!store.whatsappNumber);
+      return;
+    }
+
+    // supabase.functions.invoke returns { data, error }. On non-2xx F3
+    // responses, `error` is a FunctionsHttpError whose context contains
+    // the JSON body. Try to surface the structured error code.
+    if (initResult.error) {
+      let code = 'unknown';
+      let serverMessage: string | undefined;
+      const ctx: any = (initResult.error as any).context;
+      try {
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.json();
+          code = body?.error || code;
+          serverMessage = body?.message;
+        } else if (ctx && ctx.body) {
+          const body = typeof ctx.body === 'string' ? JSON.parse(ctx.body) : ctx.body;
+          code = body?.error || code;
+          serverMessage = body?.message;
+        }
+      } catch {
+        // fall through with code='unknown'
+      }
+      console.error('[Cart] F3 returned error', { code, serverMessage, ctx });
+      const { text, canFallbackToWhatsApp } = messageForF3Error(code, serverMessage);
+      setProcessingPayment(false);
+      setFriendlyError(text);
+      setShowWhatsAppFallback(canFallbackToWhatsApp);
+      return;
+    }
+
+    const f3Data = initResult.data as {
+      authorization_url?: string;
+      access_code?: string;
+      reference?: string;
+      breakdown?: {
+        subtotal_kobo: number;
+        storehouse_take_kobo: number;
+        paystack_take_kobo: number;
+        paystack_flat_kobo: number;
+        customer_total_kobo: number;
+        vendor_net_kobo: number;
+        transaction_charge_kobo: number;
+        requires_review: boolean;
+      };
+    } | null;
+
+    if (!f3Data || !f3Data.reference || !f3Data.breakdown) {
+      console.error('[Cart] F3 returned malformed payload', f3Data);
+      setProcessingPayment(false);
+      setFriendlyError("Couldn't start the payment. Please try again.");
+      setShowWhatsAppFallback(!!store.whatsappNumber);
+      return;
+    }
+
+    // Surface the breakdown to the customer for transparency. F3
+    // returns the authoritative numbers; do not recompute.
+    setSubaccountBreakdown({
+      subtotal_kobo: f3Data.breakdown.subtotal_kobo,
+      paystack_take_kobo: f3Data.breakdown.paystack_take_kobo,
+      paystack_flat_kobo: f3Data.breakdown.paystack_flat_kobo,
+      customer_total_kobo: f3Data.breakdown.customer_total_kobo,
+    });
+
+    // Preferred path: PaystackPop inline with the access_code F3 gave
+    // us. window.PaystackPop is loaded by the useEffect above when
+    // paymentMethod==='paystack_subaccount' && isCheckingOut. If the
+    // global isn't there (script blocked, slow network), fall back to
+    // the authorization_url full-page redirect.
+    const PP = (window as any).PaystackPop;
+    if (PP && f3Data.access_code) {
+      try {
+        const handler = PP.setup({
+          key: 'pk_dummy', // ignored when access_code is provided; required by the constructor signature
+          accessCode: f3Data.access_code,
+          onClose: () => {
+            // Customer cancelled in the Paystack iframe. Order is not
+            // placed; webhook will never see charge.success. Return
+            // them to the checkout form with a clear message.
+            setProcessingPayment(false);
+            setFriendlyError('Payment cancelled. Your cart is still here when you’re ready.');
+          },
+          callback: (response: any) => {
+            // Paystack inline returns a synchronous callback after the
+            // iframe reports success. The webhook is authoritative for
+            // flipping the order to paid; we just show confirmation.
+            setProcessingPayment(false);
+
+            const breakdownNaira = f3Data.breakdown!;
+            const orderData = {
+              reference: response?.reference || f3Data.reference!,
+              items: items.map((it) => ({
+                name: it.variantName ? `${it.name} (${it.variantName})` : it.name,
+                quantity: it.quantity,
+                price: it.price,
+                variant: it.variantName,
+              })),
+              customerName,
+              customerPhone,
+              customerAddress: customerAddress || undefined,
+              subtotal: breakdownNaira.subtotal_kobo,
+              discount: 0,
+              finalTotal: breakdownNaira.customer_total_kobo,
+              paymentMethod: 'paystack_subaccount',
+              promoCode: undefined,
+              timestamp: new Date(),
+            };
+
+            setOrderConfirmationData(orderData);
+            setShowOrderConfirmation(true);
+
+            // Reset cart + checkout state. Order is owned by F3/webhook
+            // server-side; intentionally NOT calling saveOnlineStoreOrder.
+            clearCart();
+            setCustomerName('');
+            setCustomerPhone('');
+            setCustomerEmail('');
+            setCustomerAddress('');
+            setAppliedPromo(null);
+            setPromoCode('');
+            setPromoError('');
+            setSubaccountBreakdown(null);
+            setIsCheckingOut(false);
+            closeCart();
+          },
+        });
+        handler.openIframe();
+      } catch (popErr) {
+        // PaystackPop blew up — fall back to the authorization_url
+        // redirect rather than dropping the customer.
+        console.error('[Cart] PaystackPop init failed, falling back to redirect', popErr);
+        if (f3Data.authorization_url) {
+          window.location.href = f3Data.authorization_url;
+          return;
+        }
+        setProcessingPayment(false);
+        setFriendlyError("Couldn't open the payment window. Please try again.");
+        setShowWhatsAppFallback(!!store.whatsappNumber);
+      }
+    } else if (f3Data.authorization_url) {
+      // PaystackPop not available — full-page redirect. Paystack will
+      // bounce the customer back to the return route configured at
+      // their dashboard / via the request (default: callback URL set
+      // at subaccount creation). The redirect-return page shows a
+      // generic "Payment received — confirming" screen; the webhook
+      // does the actual order completion.
+      window.location.href = f3Data.authorization_url;
+    } else {
+      setProcessingPayment(false);
+      setFriendlyError("Couldn't open the payment window. Please try again.");
+      setShowWhatsAppFallback(!!store.whatsappNumber);
+    }
+  };
+
   const handleWhatsAppCheckout = async () => {
     if (!store.whatsappNumber) {
       alert('WhatsApp number not available');
@@ -444,7 +775,9 @@ export function Cart({ store }: CartProps) {
   };
 
   const handleCheckout = () => {
-    if (paymentMethod === 'paystack') {
+    if (paymentMethod === 'paystack_subaccount') {
+      handleSubaccountPayment();
+    } else if (paymentMethod === 'paystack') {
       handlePaystackPayment();
     } else {
       handleWhatsAppCheckout();
@@ -775,8 +1108,54 @@ export function Cart({ store }: CartProps) {
                       Select Payment Method
                     </label>
                     <div style={{ display: 'grid', gap: '8px' }}>
-                      {/* Paystack Option */}
-                      {paystackEnabled && (
+                      {/* Subaccount (platform-split) Pay with Card.
+                          Renders only when the per-store gate passes;
+                          hides the legacy own-key button via
+                          showLegacyPaystack to avoid two card buttons. */}
+                      {subaccountCardEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentMethod('paystack_subaccount');
+                            setSelectedPaymentDetails(null);
+                            setFriendlyError(null);
+                            setShowWhatsAppFallback(false);
+                          }}
+                          style={{
+                            padding: '14px 16px',
+                            background: paymentMethod === 'paystack_subaccount' ? '#3b82f6' : 'white',
+                            color: paymentMethod === 'paystack_subaccount' ? 'white' : '#1e293b',
+                            border: `2px solid ${paymentMethod === 'paystack_subaccount' ? '#3b82f6' : '#e5e7eb'}`,
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            transition: 'all 0.2s',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <CreditCard size={20} />
+                          <div style={{ flex: 1 }}>
+                            <div>Pay with Card</div>
+                            <div style={{
+                              fontSize: '11px',
+                              opacity: 0.8,
+                              marginTop: '2px',
+                              fontWeight: 400
+                            }}>
+                              Secured by Paystack
+                            </div>
+                          </div>
+                        </button>
+                      )}
+
+                      {/* Legacy own-key Paystack Option.
+                          Hidden when the subaccount flow is active for
+                          this store; behaves exactly as today otherwise. */}
+                      {showLegacyPaystack && (
                         <button
                           type="button"
                           onClick={() => {
@@ -994,8 +1373,8 @@ export function Cart({ store }: CartProps) {
                     )}
                   </div>
 
-                  {/* Inline reassurance for card payment */}
-                  {paymentMethod === 'paystack' && (
+                  {/* Inline reassurance for card payment (either flow) */}
+                  {(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') && (
                     <div style={{
                       fontSize: '13px',
                       color: '#6B7280',
@@ -1025,7 +1404,7 @@ export function Cart({ store }: CartProps) {
                     className="cart-input"
                     required
                   />
-                  {paymentMethod === 'paystack' && (
+                  {(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') && (
                     <input
                       type="email"
                       placeholder="Email for receipt *"
@@ -1043,6 +1422,85 @@ export function Cart({ store }: CartProps) {
                     rows={3}
                   />
 
+                  {/* F3 fee breakdown (subaccount card flow only).
+                      Rendered when F3 has returned numbers — e.g. after
+                      a 412 error we cleared, this stays null. F3's
+                      numbers are authoritative; do not recompute. */}
+                  {paymentMethod === 'paystack_subaccount' && subaccountBreakdown && (
+                    <div style={{
+                      marginTop: '8px',
+                      marginBottom: '8px',
+                      padding: '12px 14px',
+                      background: '#F3F4F6',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#374151' }}>
+                        <span>Subtotal</span>
+                        <span>{currencyNGN(subaccountBreakdown.subtotal_kobo)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: '#374151' }}>
+                        <span>Card processing</span>
+                        <span>{currencyNGN(subaccountBreakdown.paystack_take_kobo)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #E5E7EB', fontWeight: 700, color: '#111827' }}>
+                        <span>Total</span>
+                        <span>{currencyNGN(subaccountBreakdown.customer_total_kobo)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Friendly error surface (subaccount card flow).
+                      For 412/403/no_active_subaccount-class errors, also
+                      offer a "Continue via WhatsApp" affordance — the
+                      manual flow is the documented fallback when card
+                      isn't available. */}
+                  {paymentMethod === 'paystack_subaccount' && friendlyError && (
+                    <div style={{
+                      marginTop: '8px',
+                      marginBottom: '8px',
+                      padding: '12px 14px',
+                      background: '#FEF2F2',
+                      border: '1px solid #FECACA',
+                      borderRadius: '8px',
+                      color: '#991B1B',
+                      fontSize: '13px',
+                      lineHeight: 1.5,
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: showWhatsAppFallback ? '8px' : 0 }}>
+                        {friendlyError}
+                      </div>
+                      {showWhatsAppFallback && store.whatsappNumber && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFriendlyError(null);
+                            setShowWhatsAppFallback(false);
+                            setPaymentMethod('whatsapp');
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            background: '#25D366',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            minHeight: '36px',
+                          }}
+                        >
+                          <Phone size={16} />
+                          Continue via WhatsApp
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div className="cart-checkout-actions">
                     <button
                       onClick={() => setIsCheckingOut(false)}
@@ -1058,6 +1516,11 @@ export function Cart({ store }: CartProps) {
                     >
                       {processingPayment ? (
                         <>Processing...</>
+                      ) : paymentMethod === 'paystack_subaccount' ? (
+                        <>
+                          <CreditCard size={18} />
+                          Pay {currencyNGN(subaccountBreakdown ? subaccountBreakdown.customer_total_kobo : finalTotal)}
+                        </>
                       ) : paymentMethod === 'paystack' ? (
                         <>
                           <CreditCard size={18} />
@@ -1102,7 +1565,7 @@ export function Cart({ store }: CartProps) {
                     borderTop: '1px solid #e5e7eb',
                     textAlign: 'center'
                   }}>
-                    {paymentMethod === 'paystack' && (
+                    {(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') && (
                       <div style={{
                         fontSize: '12px',
                         color: '#6b7280',

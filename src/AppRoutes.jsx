@@ -20,6 +20,7 @@ const InvoiceDetail = lazy(() => import('./pages/InvoiceDetail.tsx'));
 const PublicInvoiceView = lazy(() => import('./pages/PublicInvoiceView.tsx'));
 const ReviewManagement = lazy(() => import('./pages/ReviewManagement.tsx'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage.tsx'));
+const OrderReturn = lazy(() => import('./pages/OrderReturn.tsx'));
 const ImageTest = lazy(() => import('./pages/ImageTest.tsx'));
 const DirectImageTest = lazy(() => import('./pages/DirectImageTest.tsx'));
 const AllVariantsTest = lazy(() => import('./pages/AllVariantsTest.tsx'));
@@ -497,6 +498,11 @@ export default function AppRoutes() {
 
         {/* Public storefront - accessible without login */}
         <Route path="/store/:slug" element={<StorefrontPage />} />
+
+        {/* Paystack redirect-return landing — generic catch for hosted-page
+            checkout fallback. Anonymous; performs no DB lookup. Webhook is
+            authoritative for actual order completion. */}
+        <Route path="/store/:slug/order/return" element={<OrderReturn />} />
 
         {/* Public invoice view - accessible without login */}
         <Route path="/invoice/:id" element={<PublicInvoiceView />} />

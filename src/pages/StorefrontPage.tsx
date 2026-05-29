@@ -188,10 +188,14 @@ function StorefrontContent() {
           accountName: storeData.account_name,
           // Payment methods for checkout
           payment_methods: storeData.payment_methods,
-          // Paystack
+          // Paystack (legacy own-key flow)
           paystackEnabled: storeData.paystack_enabled,
           paystackPublicKey: storeData.paystack_public_key,
           paystackTestMode: storeData.paystack_test_mode,
+          // Paystack subaccount flow — gate signals for platform-split card payment
+          paystack_subaccounts_enabled: storeData.paystack_subaccounts_enabled,
+          kyc_status: storeData.kyc_status,
+          frozen: storeData.frozen,
         } as StoreProfile;
 
         setStore(store);

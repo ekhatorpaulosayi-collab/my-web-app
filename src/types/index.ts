@@ -55,10 +55,17 @@ export interface StoreProfile {
   paymentInstructions?: string;
   // Multi-Payment Methods (OPay, Moniepoint, PalmPay, etc.)
   payment_methods?: PaymentMethod[];
-  // Paystack Integration
+  // Paystack Integration (legacy own-key flow)
   paystackEnabled?: boolean;
   paystackPublicKey?: string;
   paystackTestMode?: boolean;
+  // Paystack Subaccounts (platform-split flow). Gating signals read at
+  // checkout: customer sees the platform-split "Pay with Card" button
+  // only when paystack_subaccounts_enabled, kyc_status='approved', and
+  // frozen !== true. Mirrors F3's server-side 412 gate.
+  paystack_subaccounts_enabled?: boolean;
+  kyc_status?: 'not_started' | 'submitted' | 'approved' | 'rejected' | 'frozen';
+  frozen?: boolean;
   // Delivery Information
   deliveryAreas?: string[];
   deliveryFee?: string;
