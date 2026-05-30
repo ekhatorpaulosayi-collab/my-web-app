@@ -1041,6 +1041,7 @@ function App() {
             unitPrice: sale.unit_price,
             amount: sale.final_amount,
             payment: sale.payment_method,
+            paymentMethod: sale.payment_method, // alias for readers that expect this key (chip filter, badges, CSV)
             customerName: sale.customer_name,
             phone: sale.customer_phone,
             note: sale.notes,
@@ -1080,6 +1081,7 @@ function App() {
                 unitPrice: sale.unit_price,
                 amount: sale.final_amount,
                 payment: sale.payment_method,
+                paymentMethod: sale.payment_method,
                 customerName: sale.customer_name,
                 phone: sale.customer_phone,
                 note: sale.notes,
