@@ -609,6 +609,7 @@ export function Cart({ store }: CartProps) {
         const handler = PP.setup({
           key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY, // Storehouse integration key; access_code carries per-subaccount routing
           email: customerEmail, // PaystackPop validates email even when accessCode is provided
+          amount: f3Data.breakdown.customer_total_kobo, // PaystackPop requires amount; access_code does not replace it (Paystack docs v1)
           accessCode: f3Data.access_code,
           onClose: () => {
             // Customer cancelled in the Paystack iframe. Order is not
