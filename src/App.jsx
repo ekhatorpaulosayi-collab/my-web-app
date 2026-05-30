@@ -3938,7 +3938,8 @@ Low Stock: ${lowStockItems.length}
 
     // Payment filter
     if (salesPaymentFilter !== 'all') {
-      result = result.filter(s => s.paymentMethod === salesPaymentFilter);
+      // Case-insensitive compare — writer is inconsistent (capital 'Cash' vs lowercase 'cash'). Approach B patch; full normalization in TODO.
+      result = result.filter(s => (s.paymentMethod || '').toLowerCase() === salesPaymentFilter.toLowerCase());
     }
 
     return result;

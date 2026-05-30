@@ -226,13 +226,14 @@ async function generateDailyMetrics(
   const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0
 
   // Payment breakdown (convert from kobo to naira)
-  const cashSales = (sales?.filter(s => s.payment_method === 'cash')
+  // Case-insensitive compare — writer is inconsistent (capital 'Cash' from RecordSaleModal vs lowercase from syncOfflineSales). Approach B patch.
+  const cashSales = (sales?.filter(s => (s.payment_method || '').toLowerCase() === 'cash')
     .reduce((sum, sale) => sum + sale.final_amount, 0) || 0) / 100
-  const creditSales = (sales?.filter(s => s.payment_method === 'credit')
+  const creditSales = (sales?.filter(s => (s.payment_method || '').toLowerCase() === 'credit')
     .reduce((sum, sale) => sum + sale.final_amount, 0) || 0) / 100
-  const transferSales = (sales?.filter(s => s.payment_method === 'transfer')
+  const transferSales = (sales?.filter(s => (s.payment_method || '').toLowerCase() === 'transfer')
     .reduce((sum, sale) => sum + sale.final_amount, 0) || 0) / 100
-  const posSales = (sales?.filter(s => s.payment_method === 'card')
+  const posSales = (sales?.filter(s => (s.payment_method || '').toLowerCase() === 'card')
     .reduce((sum, sale) => sum + sale.final_amount, 0) || 0) / 100
 
   // Top products
