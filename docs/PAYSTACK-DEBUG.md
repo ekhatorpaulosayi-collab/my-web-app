@@ -689,6 +689,56 @@ Paystack's slice algorithm (verified by Phase 2.6 spike, charge ref `zktn723v3tg
 
 ---
 
+## Session 9 — Sales units fix (2026-05-30)
+
+**Bug class.** Mixed-unit storage in the `sales` table money columns (`unit_price`, `total_amount`, `final_amount`, `amount_paid`, `discount_amount`, `amount_due`). Same product, same table, different units per row depending on which writer inserted it.
+
+**Cause.** `App.jsx:3091` (`handleSaveSale` online manual-sale path) wrote `sellKobo / 100` → naira. Other writers wrote kobo directly:
+- `syncOfflineSales` at `supabaseSales.ts:475` (offline-replay path; reads IndexedDB `sellKobo` → passes through unchanged) — wrote KOBO.
+- `Cart.tsx → saveOnlineStoreOrder` at `onlineStoreSales.ts:80` (online-store legacy Paystack + WhatsApp paths) — wrote KOBO. Has not produced rows in production yet (zero `payment_method='card'` or `sale_channel='online-store'` rows).
+- `record_successful_payment` RPC (F3 webhook dual-write) — would write KOBO. Has not fired in production yet (zero `success`-status `paystack_split_transactions`).
+
+Result on the production `sales` table at audit time (2026-05-30): 21 rows in naira, 34 rows in kobo, 0 ambiguous, 0 null-join, 55 total. All 34 kobo rows carried `sync_status='synced'` — fingerprint of the offline-replay path.
+
+**Fix.** Atomic single migration + single commit:
+- Backfill 21 naira rows × 100 on the 4 non-zero money columns (`unit_price`, `total_amount`, `final_amount`, `amount_paid`). `discount_amount` and `amount_due` left untouched (both 0 in current data; 0×100=0 is a no-op).
+- Update writer at `App.jsx:3091` to drop the `/100` so future online sales write kobo from day one.
+- Update readers at `App.jsx:1051` and `App.jsx:1090` to drop the `× 100` (Dashboard `sellKobo` now reads `unit_price` directly).
+- Update `generate-business-summary/index.ts` to divide `total_amount` by 100 at read time for AI prompt readability.
+- Refresh matview `public.daily_sales_summary` after the backfill UPDATE.
+
+**Migration file:** `supabase/migrations/20260530_sales_units_to_kobo.sql`.
+
+**Safety net.** Migration creates `public.sales_units_backup_20260530` (persistent table, 21 rows) with the full pre-UPDATE row image of the affected rows before the UPDATE runs. Rollback path:
+```sql
+UPDATE sales s
+SET unit_price = b.unit_price,
+    total_amount = b.total_amount,
+    final_amount = b.final_amount,
+    amount_paid = b.amount_paid
+FROM sales_units_backup_20260530 b
+WHERE s.id = b.id;
+REFRESH MATERIALIZED VIEW public.daily_sales_summary;
+```
+
+**Migration fail-loud guards.**
+- Aborts if any sales row has no matching `products` row via `p.id::text = s.product_id` (current expected: 0 orphan rows).
+- Aborts if classified-naira-count drifts from 21 (re-investigate before forcing).
+- Aborts if any naira-classified rows remain after the UPDATE.
+
+**What this fixes.**
+- Future card sales (when the F3 webhook starts firing) display correctly on the Dashboard instead of 100× inflated.
+- Future online cash sales via `App.jsx` writer store as kobo from day one.
+- AI business summaries get correct naira-scale numbers in the prompt.
+
+**What this does NOT fix (out of scope by design).**
+- Capital-C `'Cash'` vs lowercase `'cash'` payment_method case mismatch (separate ticket).
+- `useSales().createSale` dead-ish hook at `supabase-hooks.js:649` that multiplies by 100 — no UI caller today, so no rows produced, but it remains a future footgun if anyone wires it up.
+- `salesWithStaffService.ts:91` `sellKobo` column selection bug (separate ticket).
+- `sales.product_id` text vs `products.id` uuid soft-typed FK (latent shape issue; not blocking).
+
+---
+
 ## 12. Cross-references
 
 | Doc | Purpose |

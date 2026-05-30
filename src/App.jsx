@@ -1048,7 +1048,7 @@ function App() {
             dayKey: sale.sale_date, // Use sale_date directly as dayKey (already in YYYY-MM-DD format)
             cogsKobo: sale.cogsKobo,
             // Add sellKobo for Dashboard calculations
-            sellKobo: sale.unit_price * 100 // Convert to kobo for Dashboard
+            sellKobo: sale.unit_price // Already kobo per migration 20260530
           };
         });
 
@@ -1087,7 +1087,7 @@ function App() {
                 dayKey: sale.day_key || sale.sale_date,
                 cogsKobo: sale.cogsKobo,
                 // Add sellKobo for Dashboard calculations
-                sellKobo: sale.unit_price * 100 // Convert to kobo for Dashboard
+                sellKobo: sale.unit_price // Already kobo per migration 20260530
               };
             });
             setSales(mappedSales);
@@ -3087,21 +3087,22 @@ Thank you for your business! 🙏
       try {
         console.log('[handleSaveSale] 🔄 Saving to Supabase cloud...');
 
-        // Convert IndexedDB format to Supabase format
+        // Convert IndexedDB format to Supabase format.
+        // All sales money columns stored as kobo (migration 20260530).
         const supabaseSaleData = {
           product_id: selectedItem.id,
           product_name: selectedItem.name,
           quantity: qty,
-          unit_price: sellKobo / 100,  // Convert kobo to naira
-          total_amount: (qty * sellKobo) / 100,
-          final_amount: (qty * sellKobo) / 100,
+          unit_price: sellKobo,
+          total_amount: qty * sellKobo,
+          final_amount: qty * sellKobo,
           discount_amount: 0,
           customer_name: formData.customerName || null,
           customer_phone: formData.phone || null,
           payment_method: formData.isCreditSale ? 'credit' : (formData.paymentMethod || 'cash'),
           payment_status: formData.isCreditSale ? 'pending' : 'paid',
-          amount_paid: formData.isCreditSale ? 0 : (qty * sellKobo) / 100,
-          amount_due: formData.isCreditSale ? (qty * sellKobo) / 100 : 0,
+          amount_paid: formData.isCreditSale ? 0 : (qty * sellKobo),
+          amount_due: formData.isCreditSale ? (qty * sellKobo) : 0,
           sale_date: new Date().toISOString().split('T')[0],
           sale_time: new Date().toTimeString().split(' ')[0],
           notes: formData.note || null

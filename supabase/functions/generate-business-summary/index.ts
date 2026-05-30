@@ -188,10 +188,9 @@ serve(async (req) => {
       return jsonResponse({ error: rangeErr.message }, 400);
     }
 
-    // 6) Query sales for the period (sales.user_id is TEXT, money in naira —
-    // the actual production writer (RecordSaleModal) stores naira values in
-    // total_amount, despite the legacy interface comment in supabaseSales.ts
-    // claiming kobo. Confirmed via direct SQL inspection on 2026-05-03.)
+    // 6) Query sales for the period (sales.user_id is TEXT, money in kobo
+    // per migration 20260530_sales_units_to_kobo; divided to naira for AI
+    // prompt readability so the model sees ₦-scale numbers).
     const { data: salesRows, error: salesError } = await supabase
       .from('sales')
       .select('total_amount, created_at, payment_method, product_name, quantity')
@@ -205,11 +204,12 @@ serve(async (req) => {
     }
     const sales = salesRows || [];
 
-    // 7) Totals (values already in naira from DB — no conversion).
+    // 7) Totals — convert kobo → naira at read time so downstream display
+    // values stay in naira (matches the old shape).
     let total = 0;
     const byMethod = { cash: 0, card: 0, transfer: 0, credit: 0, other: 0 };
     for (const s of sales) {
-      const amt = s.total_amount || 0;
+      const amt = (s.total_amount || 0) / 100;
       total += amt;
       const m = (s.payment_method || 'other').toLowerCase();
       if (byMethod[m] !== undefined) {
@@ -234,7 +234,7 @@ serve(async (req) => {
       if (!name) continue;
       const prev = productMap.get(name) || { name, quantity: 0, revenue: 0 };
       prev.quantity += s.quantity || 0;
-      prev.revenue += s.total_amount || 0;
+      prev.revenue += (s.total_amount || 0) / 100;
       productMap.set(name, prev);
     }
     const topProducts = Array.from(productMap.values())
@@ -251,7 +251,7 @@ serve(async (req) => {
 
     let prevTotal = 0;
     for (const s of prevSalesRows || []) {
-      prevTotal += s.total_amount || 0;
+      prevTotal += (s.total_amount || 0) / 100;
     }
     const previousTotalSales = prevTotal;
     // change is a string (matches old shape: renderer parses with parseFloat).
@@ -333,7 +333,8 @@ serve(async (req) => {
       topTopics,
     };
 
-    // 10) Build snapshot. All amounts in naira (matches DB).
+    // 10) Build snapshot. All amounts in naira (DB is kobo per migration
+    // 20260530; converted at read time in step 7 + step 8b).
     const dataSnapshot = {
       period: {
         type: period,
