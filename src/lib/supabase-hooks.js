@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
+import { provisionSubdomain } from '../utils/provisionSubdomain';
 
 // =====================================================
 // CACHING LAYER
@@ -261,6 +262,11 @@ export function useStoreActions(userId) {
         is_public: data.is_public,
         subdomain: data.subdomain
       });
+
+      // Auto-register the subdomain with Vercel (fire-and-forget).
+      if (data?.subdomain && data?.id) {
+        provisionSubdomain({ subdomain: data.subdomain, storeId: data.id });
+      }
 
       // Invalidate cache
       cache.invalidate(`store:${userId}`);

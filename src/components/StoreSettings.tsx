@@ -11,6 +11,7 @@ import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { useAutoSave, getSaveStatusMessage, getSaveStatusColor } from '../hooks/useAutoSave';
 import { showFriendlyError } from '../utils/friendlyErrors';
 import { validateTikTokUrl, normalizeTikTokUrl } from '../utils/socialShare';
+import { provisionSubdomain } from '../utils/provisionSubdomain';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -302,6 +303,10 @@ export const StoreSettings: React.FC = () => {
       return;
     }
 
+    // Snapshot the previous subdomain so we can fire the Vercel
+    // provision call only when the subdomain actually changed.
+    const previousSubdomain = (store?.subdomain ?? null) as string | null;
+
     setLoading(true);
 
     try {
@@ -422,6 +427,14 @@ export const StoreSettings: React.FC = () => {
       // Refresh local state from the freshly-written row so the form reflects
       // the canonical server value (and so any subsequent save sees store.id).
       setStore(updatedStore);
+
+      // If the subdomain actually changed on this save, register the
+      // new value with Vercel. The previous Vercel domain is left in
+      // place (no charge, harmless stale cert).
+      const newSubdomain = (updatedStore?.subdomain ?? null) as string | null;
+      if (newSubdomain && newSubdomain !== previousSubdomain && updatedStore?.id) {
+        provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
+      }
 
       alert('Store settings saved successfully!');
 

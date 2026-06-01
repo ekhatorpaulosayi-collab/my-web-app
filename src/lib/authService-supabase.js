@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase';
 import { logError } from '../utils/errorMonitoring';
+import { provisionSubdomain } from '../utils/provisionSubdomain';
 
 /**
  * Sign up a new user with email and password
@@ -114,6 +115,14 @@ export async function signUp(email, password, storeName = null, storeType = null
         } else {
           console.debug('[Auth] Store profile created');
           storeData = data;
+
+          // Auto-register the subdomain with Vercel (fire-and-forget).
+          // Skipped silently if the session isn't ready yet (email-
+          // confirmation flow) — Path D (settings save) will fire it
+          // on the merchant's first save.
+          if (storeData?.subdomain && storeData?.id) {
+            provisionSubdomain({ subdomain: storeData.subdomain, storeId: storeData.id });
+          }
         }
 
         // Step 3: Create default free subscription for new user
