@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './utils/reservedSubdomains';
 import App from './App.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
@@ -49,6 +50,40 @@ const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
 const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
 const KycWizard = lazy(() => import('./components/payments/KycWizard.tsx'));
 const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
+
+/**
+ * Host-aware element for the root path "/".
+ *
+ * Decision tree (mirrors StorefrontPage Strategy 1/2 guards so the two stay in sync):
+ *   - *.storehouse.ng (non-reserved, non-numeric, 3+ labels)  → StorefrontPage (Strategy 2)
+ *   - custom domain (not storehouse.ng, not vercel preview,
+ *     not localhost)                                          → StorefrontPage (Strategy 1)
+ *   - storehouse.ng, www.storehouse.ng, localhost,
+ *     *.vercel.app, reserved/numeric subdomains              → LandingPage
+ */
+function RootRoute() {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isVercelPreview = hostname.endsWith('.vercel.app');
+  const isStorehouseNg = hostname.endsWith('.storehouse.ng') || hostname === 'storehouse.ng';
+  const labels = hostname.split('.');
+  const subdomainLabel = labels[0];
+
+  const isStorefrontSubdomain =
+    isStorehouseNg &&
+    hostname !== 'storehouse.ng' &&
+    labels.length >= 3 &&
+    !RESERVED_SUBDOMAINS.has(subdomainLabel) &&
+    !NUMERIC_ONLY_LABEL.test(subdomainLabel);
+
+  const isCustomDomain =
+    !isLocalhost &&
+    !isVercelPreview &&
+    !isStorehouseNg &&
+    hostname !== '';
+
+  return (isStorefrontSubdomain || isCustomDomain) ? <StorefrontPage /> : <LandingPage />;
+}
 
 /**
  * App Routes
@@ -477,8 +512,14 @@ export default function AppRoutes() {
         <Route path="/account" element={<Navigate to="/settings" replace />} />
         <Route path="/profile" element={<Navigate to="/settings" replace />} />
 
-        {/* Landing Page - Public marketing page (ROOT DOMAIN) */}
-        <Route path="/" element={<LandingPage />} />
+        {/*
+          Root route is host-aware (see RootRoute above):
+          - paulo.storehouse.ng/     → StorefrontPage (Strategy 2: subdomain)
+          - mybusiness.com/          → StorefrontPage (Strategy 1: custom_domain)
+          - storehouse.ng/, www., localhost/, *.vercel.app/, reserved/numeric subdomains
+                                     → LandingPage
+        */}
+        <Route path="/" element={<RootRoute />} />
 
         {/* Testimonial Submission - Public form for customers */}
         <Route path="/submit-testimonial" element={<SubmitTestimonial />} />
