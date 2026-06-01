@@ -86,10 +86,15 @@ export async function signUp(email, password, storeName = null, storeType = null
         }
 
         // Step 2: Create store profile in stores table
+        const generatedSlug = generateSlug(defaultStoreName, user.id);
         const storeProfile = {
           user_id: user.id,
           business_name: defaultStoreName,
-          store_slug: generateSlug(defaultStoreName, user.id),
+          store_slug: generatedSlug,
+          // Mirror store_slug onto subdomain so *.storehouse.ng resolves
+          // for new signups. Numeric-only slugs stay NULL — they cannot
+          // safely act as a subdomain label.
+          subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
           whatsapp_number: user.phone || user.email || 'pending', // Required field
           is_public: false, // Default to private
           created_at: new Date().toISOString(),

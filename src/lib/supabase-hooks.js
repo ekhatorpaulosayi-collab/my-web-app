@@ -235,8 +235,12 @@ export function useStoreActions(userId) {
       setSaving(true);
       setError(null);
 
-      // Auto-generate subdomain from store_slug
-      const subdomain = storeData.store_slug;
+      // Auto-generate subdomain from store_slug. Numeric-only slugs
+      // are never written as subdomain — they cannot safely resolve on
+      // *.storehouse.ng (see src/utils/reservedSubdomains.ts).
+      const subdomain = /^\d+$/.test(storeData.store_slug || '')
+        ? null
+        : storeData.store_slug;
 
       const { data, error: createError } = await supabase
         .from('stores')

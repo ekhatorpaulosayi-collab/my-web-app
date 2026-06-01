@@ -316,7 +316,10 @@ export const StoreSettings: React.FC = () => {
       const profileData = {
         business_name: businessName.trim(),
         store_slug: normalizedSlug,
-        subdomain: normalizedSlug, // Auto-sync subdomain with slug
+        // Auto-sync subdomain with slug. Numeric-only slugs (the
+        // grandfathered "234" case) stay NULL so 234.storehouse.ng
+        // never resolves as a storefront.
+        subdomain: /^\d+$/.test(normalizedSlug) ? null : normalizedSlug,
         custom_domain: customDomain.trim() || null,
         logo_url: logoUrl || '',
         whatsapp_number: whatsappNumber.trim(),
