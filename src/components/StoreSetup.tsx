@@ -281,7 +281,7 @@ export default function StoreSetup({ onComplete }: StoreSetupProps) {
           <div className="form-group">
             <label htmlFor="storeSlug" className="form-label">Choose your store link</label>
             <div className="slug-input-wrapper">
-              <span className="slug-prefix">storehouse.app/</span>
+              <span className="slug-prefix">storehouse.ng/</span>
               <input
                 id="storeSlug"
                 type="text"

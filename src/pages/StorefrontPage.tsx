@@ -28,6 +28,7 @@ import WhatsAppQuickReplies from '../components/WhatsAppQuickReplies';
 import { ImagePresets } from '../lib/imagekit';
 import { DebugConsole } from '../components/DebugConsole';
 import WhatsAppSupportButton from '../components/WhatsAppSupportButton';
+import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from '../utils/reservedSubdomains';
 import '../styles/storefront.css';
 import '../styles/whatsapp-support.css';
 
@@ -108,13 +109,13 @@ function StorefrontContent() {
         // Determine how to lookup the store based on URL
         const hostname = window.location.hostname;
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        const isStorehouseApp = hostname.endsWith('.storehouse.app') || hostname === 'storehouse.app';
+        const isStorehouseNg = hostname.endsWith('.storehouse.ng') || hostname === 'storehouse.ng';
 
         let storeData = null;
         let storeError = null;
 
         // Strategy 1: Custom domain (e.g., mybusiness.com)
-        if (!isLocalhost && !isStorehouseApp) {
+        if (!isLocalhost && !isStorehouseNg) {
           console.log('[Storefront] Trying custom domain lookup:', hostname);
           const result = await supabase
             .from('stores')
@@ -128,14 +129,20 @@ function StorefrontContent() {
           storeError = result.error;
         }
 
-        // Strategy 2: Subdomain (e.g., myshop.storehouse.app)
-        if (!storeData && isStorehouseApp && hostname !== 'storehouse.app') {
-          const subdomain = hostname.split('.')[0];
-          console.log('[Storefront] Trying subdomain lookup:', subdomain);
+        // Strategy 2: Subdomain (e.g., myshop.storehouse.ng)
+        const labels = hostname.split('.');
+        const subdomainLabel = labels[0];
+        if (!storeData
+            && isStorehouseNg
+            && hostname !== 'storehouse.ng'
+            && labels.length >= 3
+            && !RESERVED_SUBDOMAINS.has(subdomainLabel)
+            && !NUMERIC_ONLY_LABEL.test(subdomainLabel)) {
+          console.log('[Storefront] Trying subdomain lookup:', subdomainLabel);
           const result = await supabase
             .from('stores')
             .select('*')
-            .eq('subdomain', subdomain)
+            .eq('subdomain', subdomainLabel)
             .eq('is_public', true)
             .single();
 

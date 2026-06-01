@@ -161,7 +161,7 @@ export default function LandingPage() {
       "creator": {
         "@type": "Organization",
         "name": "Storehouse",
-        "url": "https://storehouse.app"
+        "url": "https://storehouse.ng"
       },
       "description": "Manage inventory, track sales, and record credits from your phone. Built for Nigerian retailers. Works offline with WhatsApp integration.",
       "featureList": [
@@ -173,7 +173,7 @@ export default function LandingPage() {
         "Multi-device sync",
         "Online store creation"
       ],
-      "screenshot": "https://storehouse.app/landing-young-professional.png",
+      "screenshot": "https://storehouse.ng/landing-young-professional.png",
       "softwareVersion": "2.0",
       "inLanguage": "en-NG",
       "releaseNotes": "Complete inventory management solution for Nigerian businesses"

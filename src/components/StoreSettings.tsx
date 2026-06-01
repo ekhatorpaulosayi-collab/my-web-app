@@ -116,11 +116,17 @@ export const StoreSettings: React.FC = () => {
   };
 
   // Slug validation
-  const validateSlug = (slug: string): string | null => {
+  const validateSlug = (slug: string, existingSlug?: string): string | null => {
     if (!slug || slug.length < 3) return 'Store URL must be at least 3 characters';
     if (slug.length > 30) return 'Store URL must be less than 30 characters';
     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug)) {
       return 'Store URL must start and end with letter or number';
+    }
+    // Numeric-only labels collide with future subdomain routing.
+    // Grandfather an unchanged existing all-numeric slug so the lone
+    // pre-existing merchant (slug "234") isn't locked out on save.
+    if (/^\d+$/.test(slug) && slug !== existingSlug) {
+      return 'Store URL cannot be all numbers — please include at least one letter';
     }
     return null;
   };
@@ -209,7 +215,7 @@ export const StoreSettings: React.FC = () => {
   // Check slug availability (Supabase)
   const checkSlugAvailability = async (slug: string) => {
     const normalized = normalizeSlug(slug);
-    const error = validateSlug(normalized);
+    const error = validateSlug(normalized, storeProfile?.storeSlug);
 
     if (error) {
       setSlugError(error);
@@ -289,7 +295,7 @@ export const StoreSettings: React.FC = () => {
     }
 
     const normalizedSlug = normalizeSlug(storeSlug);
-    const validationError = validateSlug(normalizedSlug);
+    const validationError = validateSlug(normalizedSlug, storeProfile?.storeSlug);
 
     if (validationError) {
       alert(`❌ Store URL Error:\n\n${validationError}`);
@@ -511,7 +517,7 @@ export const StoreSettings: React.FC = () => {
           This is the link customers will use to visit your online store (required)
         </p>
         <div className="url-input-container">
-          <span className="url-prefix">storehouse.app/store/</span>
+          <span className="url-prefix">storehouse.ng/store/</span>
           <input
             type="text"
             value={storeSlug}
@@ -694,7 +700,7 @@ export const StoreSettings: React.FC = () => {
                 display: 'inline-block',
                 marginTop: '4px'
               }}>
-                {subdomain || storeSlug}.storehouse.app
+                {subdomain || storeSlug}.storehouse.ng
               </code>
               <div style={{ fontSize: '12px', color: '#16803D', marginTop: '8px' }}>
                 This works immediately - no setup required!
@@ -764,7 +770,7 @@ export const StoreSettings: React.FC = () => {
               }}>
                 <div><strong>Type:</strong> CNAME</div>
                 <div><strong>Name:</strong> www (or @)</div>
-                <div><strong>Value:</strong> {subdomain || storeSlug}.storehouse.app</div>
+                <div><strong>Value:</strong> {subdomain || storeSlug}.storehouse.ng</div>
               </div>
               <div style={{ fontSize: '12px', color: '#78350F' }}>
                 After adding the DNS record, save your settings. Verification can take up to 24 hours.

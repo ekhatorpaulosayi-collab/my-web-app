@@ -66,7 +66,7 @@ export function generateDNSInstructions(customDomain: string, targetSubdomain: s
   return {
     recordType: 'CNAME',
     name: isApexDomain ? '@' : isWwwDomain ? 'www' : customDomain.split('.')[0],
-    value: `${targetSubdomain}.storehouse.app`,
+    value: `${targetSubdomain}.storehouse.ng`,
     ttl: '3600',
     note: isApexDomain
       ? 'Some DNS providers do not support CNAME for apex domains (@). You may need to use an ALIAS or ANAME record instead, or add "www" to your domain.'

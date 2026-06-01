@@ -311,7 +311,7 @@ export default function StoreQuickSetup() {
                 color: '#6B7280',
                 whiteSpace: 'nowrap',
               }}>
-                storehouse.app/
+                storehouse.ng/
               </span>
               <input
                 type="text"
