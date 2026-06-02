@@ -514,6 +514,12 @@ export const StoreSettings: React.FC = () => {
   const previewSubdomain = isNumeric ? null : previewSlug;
   const storeUrl = buildStorefrontUrl({ subdomain: previewSubdomain, storeSlug: previewSlug });
 
+  // Saved slug from the loaded store row. While the merchant is mid-edit,
+  // share actions emit a URL that doesn't yet exist (subdomain not
+  // provisioned, DB not updated) — disable them until Save.
+  const savedSlug = storeProfile?.storeSlug || '';
+  const isEditingSlug = normalizeSlug(storeSlug) !== savedSlug;
+
   // Clean card style matching Screenshot 015
   const cleanCardStyle = {
     margin: '2rem 0',
@@ -571,14 +577,21 @@ export const StoreSettings: React.FC = () => {
                 alert('Failed to copy URL');
               });
             }}
+            disabled={isEditingSlug}
+            title={isEditingSlug ? 'Save changes to enable' : undefined}
             className="btn btn-sm"
           >
             Copy Link
           </button>
         </div>
+        {isEditingSlug && (
+          <p style={{ marginTop: '8px', fontSize: '13px', color: '#6B7280' }}>
+            💡 Save changes to update your share links
+          </p>
+        )}
 
         {/* QR Code Section */}
-        {storeSlug && slugAvailable && (
+        {storeSlug && slugAvailable && !isEditingSlug && (
           <div style={{ marginTop: '16px' }}>
             <button
               type="button"

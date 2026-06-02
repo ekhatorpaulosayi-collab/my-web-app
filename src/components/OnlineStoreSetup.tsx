@@ -417,6 +417,12 @@ export default function OnlineStoreSetup() {
     !userLoading &&
     !!supabaseUser;
 
+  // Share/QR actions emit a URL derived from saved store row. When the
+  // merchant has typed a different slug, the buttons would emit a URL
+  // that doesn't match the prefix label above — disable them until Save.
+  const savedSlug = store?.store_slug || '';
+  const isEditingSlug = storeSlug !== savedSlug;
+
   const toggleSection = (sectionId: string) => {
     setOpenSection(openSection === sectionId ? null : sectionId);
   };
@@ -810,6 +816,7 @@ export default function OnlineStoreSetup() {
         ) : (
           <>
             {!isEditingMain ? (
+              <>
               <div style={{
                 display: 'flex',
                 gap: '12px',
@@ -822,6 +829,7 @@ export default function OnlineStoreSetup() {
                     navigator.clipboard.writeText(storeUrl);
                     alert('✅ Store link copied to clipboard!');
                   }}
+                  disabled={isEditingSlug}
                   style={{
                     flex: '1 1 auto',
                     minWidth: '140px',
@@ -832,21 +840,23 @@ export default function OnlineStoreSetup() {
                     background: 'white',
                     border: '2px solid #667eea',
                     borderRadius: '8px',
-                    cursor: 'pointer',
+                    cursor: isEditingSlug ? 'not-allowed' : 'pointer',
+                    opacity: isEditingSlug ? 0.5 : 1,
                     transition: 'all 0.2s',
                     whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#F3F4F6';
+                    if (!isEditingSlug) e.currentTarget.style.background = '#F3F4F6';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'white';
+                    if (!isEditingSlug) e.currentTarget.style.background = 'white';
                   }}
                 >
                   📋 Copy Link
                 </button>
                 <button
                   onClick={() => window.open(buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug }), '_blank')}
+                  disabled={isEditingSlug}
                   style={{
                     flex: '1 1 auto',
                     minWidth: '140px',
@@ -857,7 +867,8 @@ export default function OnlineStoreSetup() {
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     border: 'none',
                     borderRadius: '8px',
-                    cursor: 'pointer',
+                    cursor: isEditingSlug ? 'not-allowed' : 'pointer',
+                    opacity: isEditingSlug ? 0.5 : 1,
                     transition: 'all 0.2s',
                     whiteSpace: 'nowrap',
                   }}
@@ -876,6 +887,7 @@ export default function OnlineStoreSetup() {
                     const storeUrl = buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug });
                     shareStoreToWhatsApp(businessName, storeUrl, count || 0);
                   }}
+                  disabled={isEditingSlug}
                   style={{
                     flex: '1 1 auto',
                     minWidth: '140px',
@@ -886,15 +898,18 @@ export default function OnlineStoreSetup() {
                     background: '#25D366',
                     border: '2px solid #25D366',
                     borderRadius: '8px',
-                    cursor: 'pointer',
+                    cursor: isEditingSlug ? 'not-allowed' : 'pointer',
+                    opacity: isEditingSlug ? 0.5 : 1,
                     transition: 'all 0.2s',
                     whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={(e) => {
+                    if (isEditingSlug) return;
                     e.currentTarget.style.background = '#20BA5A';
                     e.currentTarget.style.borderColor = '#20BA5A';
                   }}
                   onMouseLeave={(e) => {
+                    if (isEditingSlug) return;
                     e.currentTarget.style.background = '#25D366';
                     e.currentTarget.style.borderColor = '#25D366';
                   }}
@@ -929,6 +944,12 @@ export default function OnlineStoreSetup() {
                   ✏️ Edit
                 </button>
               </div>
+              {isEditingSlug && (
+                <p style={{ marginTop: '8px', fontSize: '13px', color: '#6B7280', textAlign: 'center' }}>
+                  💡 Save changes to update your share links
+                </p>
+              )}
+              </>
             ) : (
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                 <button
@@ -1895,8 +1916,9 @@ export default function OnlineStoreSetup() {
             </>
           )}
 
-          {/* QR Code Section */}
-          {storeSlug && (
+          {/* QR Code Section — hidden while merchant is mid-edit so we
+              don't generate a QR for an unsaved/unprovisioned URL. */}
+          {storeSlug && !isEditingSlug && (
             <div style={{
               marginTop: '24px',
               padding: '20px',
@@ -1937,6 +1959,16 @@ export default function OnlineStoreSetup() {
                 Customers can scan this QR code to visit your store
               </p>
             </div>
+          )}
+          {storeSlug && isEditingSlug && (
+            <p style={{
+              marginTop: '24px',
+              fontSize: '13px',
+              color: '#6B7280',
+              textAlign: 'center',
+            }}>
+              💡 Save changes to generate a QR code for your new link
+            </p>
           )}
         </div>
       )}
