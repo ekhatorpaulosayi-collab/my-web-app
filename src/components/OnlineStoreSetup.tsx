@@ -8,6 +8,7 @@ import { NIGERIAN_BANKS, validateAccountNumber } from '../utils/nigerianBanks';
 import { ABOUT_TEMPLATES, isTemplateText, isMostlyTemplate } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
+import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
 import { PromoCodesManager } from './PromoCodesManager';
 import { TabNav, STORE_TABS, type TabId } from './OnlineStore/TabNav';
@@ -245,6 +246,12 @@ export default function OnlineStoreSetup() {
 
     setSaveStatus('saving');
 
+    // Capture pre-save subdomain so we only fire Vercel provisioning
+    // when the value actually changed. Numeric-only slugs save NULL
+    // (Phase 4 invariant — see src/utils/reservedSubdomains.ts).
+    const previousSubdomain = store?.subdomain ?? null;
+    const nextSubdomain = /^\d+$/.test(storeSlug) ? null : storeSlug;
+
     try {
       console.log('[OnlineStoreSetup] Saving store to Supabase...');
 
@@ -252,12 +259,19 @@ export default function OnlineStoreSetup() {
         business_name: businessName,
         whatsapp_number: whatsappNumber,
         store_slug: storeSlug,
+        subdomain: nextSubdomain,
         is_public: true,
       };
 
       // Create or update store
       if (store?.id) {
         await updateStore(store.id, storeData);
+        // createStore already fires provisionSubdomain inside the hook;
+        // updateStore is a generic passthrough, so do it here when the
+        // subdomain actually changed.
+        if (nextSubdomain && nextSubdomain !== previousSubdomain) {
+          provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+        }
       } else {
         await createStore(storeData);
       }
@@ -957,12 +971,19 @@ export default function OnlineStoreSetup() {
                     // Save updated main fields (Supabase)
                     if (!store?.id) return;
                     setSaveStatus('saving');
+                    const previousSubdomain = store?.subdomain ?? null;
+                    const nextSubdomain = /^\d+$/.test(storeSlug) ? null : storeSlug;
                     try {
                       await updateStore(store.id, {
                         business_name: businessName,
                         whatsapp_number: whatsappNumber,
                         store_slug: storeSlug,
+                        subdomain: nextSubdomain,
                       });
+
+                      if (nextSubdomain && nextSubdomain !== previousSubdomain) {
+                        provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+                      }
 
                       // Mirror business_name to users table
                       if (currentUser?.uid) {
