@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, ShoppingCart, Plus, Minus, Trash2, Phone, CreditCard, Tag, Copy, Check } from 'lucide-react';
+import PaystackPop from '@paystack/inline-js';
 import { useCart } from '../contexts/CartContext';
 import { currencyNGN } from '../utils/format';
 import type { StoreProfile, PaymentMethod } from '../types';
@@ -124,14 +125,13 @@ export function Cart({ store }: CartProps) {
     : 0;
   const finalTotal = Math.max(0, totalPrice - discount);
 
-  // Load Paystack script when checkout opens with a card option (either
-  // legacy own-key or the new subaccount/platform-split flow). Both
-  // initialise via the same window.PaystackPop global from v1/inline.js.
+  // Legacy paystackEnabled (own-key) path still uses v1 inline.js loaded
+  // dynamically via this script tag — see handlePaystackPayment.
+  // Subaccount path uses v2 SDK imported via npm (@paystack/inline-js),
+  // so no script load is needed for paymentMethod === 'paystack_subaccount'.
   useEffect(() => {
     const needsPaystackScript =
-      isCheckingOut &&
-      ((paystackEnabled && paymentMethod === 'paystack') ||
-        (subaccountCardEnabled && paymentMethod === 'paystack_subaccount'));
+      isCheckingOut && paystackEnabled && paymentMethod === 'paystack';
     if (needsPaystackScript) {
       const script = document.createElement('script');
       script.src = 'https://js.paystack.co/v1/inline.js';
@@ -146,7 +146,7 @@ export function Cart({ store }: CartProps) {
         }
       };
     }
-  }, [isCheckingOut, paystackEnabled, subaccountCardEnabled, paymentMethod]);
+  }, [isCheckingOut, paystackEnabled, paymentMethod]);
 
   // Allow Cart to render if either cart is open OR receipt modal is showing
   if (!isCartOpen && !showOrderConfirmation) return null;
@@ -591,42 +591,27 @@ export function Cart({ store }: CartProps) {
       customer_total_kobo: f3Data.breakdown.customer_total_kobo,
     });
 
-    // Preferred path: PaystackPop inline with the access_code F3 gave
-    // us. window.PaystackPop is loaded by the useEffect above when
-    // paymentMethod==='paystack_subaccount' && isCheckingOut. If the
-    // global isn't there (script blocked, slow network), fall back to
-    // the authorization_url full-page redirect.
-    const PP = (window as any).PaystackPop;
-    if (PP && f3Data.access_code) {
-      if (!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY) {
-        console.error('[Cart] VITE_PAYSTACK_PUBLIC_KEY missing from build');
-        setFriendlyError("Card payments are not configured. Please use WhatsApp or contact the store.");
-        setShowWhatsAppFallback(!!store.whatsappNumber);
-        setProcessingPayment(false);
-        return;
-      }
+    // Preferred path: PaystackPop v2 inline popup bound to F3's
+    // pre-initialized transaction via accessCode. v2 SDK is imported
+    // statically (@paystack/inline-js) so the popup is always available
+    // — no script-load race. Spike f51e91a verified that v2 honors the
+    // accessCode binding (single transaction, ord_* reference, subaccount
+    // split applied), unlike v1 inline.js which silently re-initialized
+    // a fresh transaction when given access_code.
+    if (f3Data.access_code) {
       try {
-        const handler = PP.setup({
-          key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY, // Storehouse integration key; access_code carries per-subaccount routing
-          email: customerEmail, // PaystackPop validates email even when accessCode is provided
-          amount: f3Data.breakdown.customer_total_kobo, // PaystackPop requires amount; access_code does not replace it (Paystack docs v1)
-          access_code: f3Data.access_code,
-          onClose: () => {
-            // Customer cancelled in the Paystack iframe. Order is not
-            // placed; webhook will never see charge.success. Return
-            // them to the checkout form with a clear message.
-            setProcessingPayment(false);
-            setFriendlyError('Payment cancelled. Your cart is still here when you’re ready.');
-          },
-          callback: (response: any) => {
-            // Paystack inline returns a synchronous callback after the
-            // iframe reports success. The webhook is authoritative for
-            // flipping the order to paid; we just show confirmation.
+        const popup = new PaystackPop();
+        popup.newTransaction({
+          accessCode: f3Data.access_code,
+          onSuccess: (transaction: { reference: string }) => {
+            // v2 fires onSuccess after the iframe reports success. The
+            // webhook is authoritative for flipping the order to paid;
+            // we just show confirmation.
             setProcessingPayment(false);
 
             const breakdownNaira = f3Data.breakdown!;
             const orderData = {
-              reference: response?.reference || f3Data.reference!,
+              reference: transaction.reference || f3Data.reference!,
               items: items.map((it) => ({
                 name: it.variantName ? `${it.name} (${it.variantName})` : it.name,
                 quantity: it.quantity,
@@ -661,12 +646,30 @@ export function Cart({ store }: CartProps) {
             setIsCheckingOut(false);
             closeCart();
           },
+          onCancel: () => {
+            // Customer closed the popup. Order is not placed; webhook
+            // will never see charge.success. Return them to the
+            // checkout form with a clear message.
+            setProcessingPayment(false);
+            setFriendlyError('Payment cancelled. Your cart is still here when you’re ready.');
+          },
+          onError: (error: unknown) => {
+            // v2-specific: surfaces SDK-level errors that v1's callback
+            // model never reported. Fall back to a friendly message.
+            const message = (error as { message?: string })?.message || 'Payment failed to load';
+            console.error('[Cart] PaystackPop v2 error:', message, error);
+            setProcessingPayment(false);
+            setFriendlyError("Couldn't open the payment window. Please try again.");
+          },
+          onLoad: () => {
+            console.log('[Cart] PaystackPop v2 popup loaded with accessCode');
+          },
         });
-        handler.openIframe();
       } catch (popErr) {
-        // PaystackPop blew up — fall back to the authorization_url
-        // redirect rather than dropping the customer.
-        console.error('[Cart] PaystackPop init failed, falling back to redirect', popErr);
+        // v2 SDK instantiation/newTransaction threw synchronously —
+        // fall back to the authorization_url full-page redirect rather
+        // than dropping the customer.
+        console.error('[Cart] PaystackPop v2 instantiation failed, falling back to redirect', popErr);
         if (f3Data.authorization_url) {
           window.location.href = f3Data.authorization_url;
           return;
@@ -676,12 +679,11 @@ export function Cart({ store }: CartProps) {
         setShowWhatsAppFallback(!!store.whatsappNumber);
       }
     } else if (f3Data.authorization_url) {
-      // PaystackPop not available — full-page redirect. Paystack will
-      // bounce the customer back to the return route configured at
-      // their dashboard / via the request (default: callback URL set
-      // at subaccount creation). The redirect-return page shows a
-      // generic "Payment received — confirming" screen; the webhook
-      // does the actual order completion.
+      // No access_code but we have an authorization_url — full-page
+      // redirect. Paystack bounces the customer back to the return
+      // route configured at their dashboard / via the request. The
+      // redirect-return page shows a generic "Payment received —
+      // confirming" screen; the webhook does the actual order completion.
       window.location.href = f3Data.authorization_url;
     } else {
       setProcessingPayment(false);
