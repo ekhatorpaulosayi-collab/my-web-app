@@ -18,6 +18,7 @@ import { StaffPerformanceWidget } from './StaffPerformanceWidget';
 import { ReferralRewardsWidget } from './ReferralRewardsWidget';
 import { useStaff } from '../contexts/StaffContext';
 import { currencyNGN } from '../utils/format';
+import { buildStorefrontUrl } from '../utils/storefrontUrl';
 import { useStore, useUser } from '../lib/supabase-hooks';
 import { SalesChart } from './SalesChart';
 import { useNavigate } from 'react-router-dom';
@@ -491,9 +492,10 @@ export function Dashboard({
     }
   };
 
-  // Construct full store URL
+  // Construct full store URL — subdomain form when available, path-style
+  // fallback for the grandfathered numeric slug, dev origin for localhost.
   const storeUrl = storeSlug
-    ? `${window.location.origin}/store/${storeSlug}`
+    ? buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug })
     : window.location.origin;
 
   // Get today's date

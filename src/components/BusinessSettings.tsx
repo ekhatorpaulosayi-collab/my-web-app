@@ -354,8 +354,8 @@ export default function BusinessSettings({
     if (slugChange.willChange) {
       const confirmed = window.confirm(
         `⚠️ Your store link will change!\n\n` +
-        `Old: /store/${slugChange.oldSlug}\n` +
-        `New: /store/${slugChange.newSlug}\n\n` +
+        `Old: ${slugChange.oldSlug}.storehouse.ng\n` +
+        `New: ${slugChange.newSlug}.storehouse.ng\n\n` +
         `Continue?`
       );
       if (!confirmed) return;

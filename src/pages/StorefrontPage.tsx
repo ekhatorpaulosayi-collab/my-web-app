@@ -29,6 +29,7 @@ import { ImagePresets } from '../lib/imagekit';
 import { DebugConsole } from '../components/DebugConsole';
 import WhatsAppSupportButton from '../components/WhatsAppSupportButton';
 import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from '../utils/reservedSubdomains';
+import { buildStorefrontUrl } from '../utils/storefrontUrl';
 import '../styles/storefront.css';
 import '../styles/whatsapp-support.css';
 
@@ -184,6 +185,8 @@ function StorefrontContent() {
           logoUrl: storeData.logo_url,
           primaryColor: storeData.primary_color,
           isPublic: storeData.is_public,
+          storeSlug: storeData.store_slug,
+          subdomain: storeData.subdomain,
           aboutUs: storeData.about_us,
           returnPolicy: storeData.return_policy,
           deliveryAreas: storeData.delivery_areas,
@@ -437,7 +440,7 @@ function StorefrontContent() {
     if (!store) return;
 
     const currentUrl = window.location.href;
-    const storeUrl = `${window.location.origin}/store/${slug}`;
+    const storeUrl = buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug });
 
     // Meta tag values with fallbacks
     const metaTitle = selectedProduct
@@ -1074,7 +1077,7 @@ function StorefrontContent() {
                         }}
                         variant="full"
                         className="storefront-share-button"
-                        storeUrl={`https://www.storehouse.ng/store/${slug}?product=${product.id}`}
+                        storeUrl={`${buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}?product=${product.id}`}
                         storeName={store?.businessName}
                         whatsappNumber={store?.whatsappNumber}
                       />
@@ -2484,7 +2487,7 @@ function StorefrontContent() {
                   }}
                   variant="full"
                   className="storefront-share-button-modal"
-                  storeUrl={`https://www.storehouse.ng/store/${slug}?product=${selectedProduct.id}`}
+                  storeUrl={`${buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}?product=${selectedProduct.id}`}
                   storeName={store?.businessName}
                   whatsappNumber={store?.whatsappNumber}
                 />

@@ -12,6 +12,7 @@ import { useAutoSave, getSaveStatusMessage, getSaveStatusColor } from '../hooks/
 import { showFriendlyError } from '../utils/friendlyErrors';
 import { validateTikTokUrl, normalizeTikTokUrl } from '../utils/socialShare';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -504,8 +505,14 @@ export const StoreSettings: React.FC = () => {
     );
   };
 
-  // Use current domain (localhost in dev, production domain when deployed)
-  const storeUrl = `${window.location.origin}/store/${normalizeSlug(storeSlug) || 'your-store'}`;
+  // Live preview of the storefront URL based on the merchant's
+  // currently-edited slug. Mirror the Phase 4 guard in handleSave —
+  // numeric-only slugs save NULL into stores.subdomain and resolve
+  // path-style, so the preview must reflect that.
+  const previewSlug = normalizeSlug(storeSlug) || 'your-store';
+  const isNumeric = /^\d+$/.test(previewSlug);
+  const previewSubdomain = isNumeric ? null : previewSlug;
+  const storeUrl = buildStorefrontUrl({ subdomain: previewSubdomain, storeSlug: previewSlug });
 
   // Clean card style matching Screenshot 015
   const cleanCardStyle = {
@@ -533,7 +540,7 @@ export const StoreSettings: React.FC = () => {
           This is the link customers will use to visit your online store (required)
         </p>
         <div className="url-input-container">
-          <span className="url-prefix">storehouse.ng/store/</span>
+          <span className="url-prefix">{storefrontUrlPrefix({ subdomain: previewSubdomain, storeSlug: previewSlug })}</span>
           <input
             type="text"
             value={storeSlug}
@@ -619,7 +626,7 @@ export const StoreSettings: React.FC = () => {
                   Customers can scan this QR code to visit your store
                 </p>
                 <img
-                  src={generateStoreQRCode(normalizeSlug(storeSlug), 300)}
+                  src={generateStoreQRCode({ subdomain: previewSubdomain, storeSlug: previewSlug }, 300)}
                   alt="Store QR Code"
                   style={{
                     width: '200px',

@@ -4,6 +4,8 @@
  * Generate QR codes for store URLs to make sharing easier
  */
 
+import { buildStorefrontUrl } from './storefrontUrl';
+
 /**
  * Generate QR code image URL using a public API
  *
@@ -47,14 +49,17 @@ export async function downloadQRCode(data: string, filename: string = 'qr-code.p
 }
 
 /**
- * Generate store QR code URL
+ * Generate store QR code URL.
  *
- * @param storeSlug - The store's URL slug
- * @param size - Size in pixels
- * @returns QR code image URL
+ * Builds the storefront URL via buildStorefrontUrl so the QR points at
+ * the subdomain form when one exists (and falls back to path-style for
+ * the grandfathered numeric slug or for local/preview hosts).
  */
-export function generateStoreQRCode(storeSlug: string, size: number = 300): string {
-  const storeUrl = `${window.location.origin}/store/${storeSlug}`;
+export function generateStoreQRCode(
+  args: { subdomain?: string | null; storeSlug?: string | null },
+  size: number = 300
+): string {
+  const storeUrl = buildStorefrontUrl(args);
   return generateQRCodeUrl(storeUrl, size);
 }
 

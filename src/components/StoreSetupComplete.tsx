@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUser, useStore } from '../lib/supabase-hooks';
 import type { StoreProfile } from '../types';
+import { buildStorefrontUrl } from '../utils/storefrontUrl';
 
 interface OptionalSection {
   id: string;
@@ -29,6 +30,7 @@ export default function StoreSetupComplete() {
   const storeProfile: StoreProfile | null = store ? {
     id: store.id,
     storeSlug: store.store_slug,
+    subdomain: store.subdomain,
     logoUrl: store.logo_url,
     bankName: store.bank_name,
     accountNumber: store.account_number,
@@ -41,7 +43,7 @@ export default function StoreSetupComplete() {
   } as StoreProfile : null;
 
   const storeUrl = storeProfile
-    ? `${window.location.origin}/store/${storeProfile.storeSlug}`
+    ? buildStorefrontUrl({ subdomain: storeProfile.subdomain, storeSlug: storeProfile.storeSlug })
     : '';
 
   // Calculate completion percentage

@@ -7,6 +7,7 @@ import { formatWhatsAppNumber, formatPhoneDisplay } from '../utils/whatsapp';
 import { NIGERIAN_BANKS, validateAccountNumber } from '../utils/nigerianBanks';
 import { ABOUT_TEMPLATES, isTemplateText, isMostlyTemplate } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
+import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
 import { PromoCodesManager } from './PromoCodesManager';
 import { TabNav, STORE_TABS, type TabId } from './OnlineStore/TabNav';
@@ -433,7 +434,8 @@ export default function OnlineStoreSetup() {
   const handleDownloadQR = async () => {
     if (!storeSlug) return;
     try {
-      await downloadQRCode(`${window.location.origin}/store/${storeSlug}`, `${storeSlug}-qr.png`);
+      const target = buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug });
+      await downloadQRCode(target, `${storeSlug}-qr.png`);
     } catch (error) {
       console.error('Error downloading QR:', error);
     }
@@ -483,7 +485,7 @@ export default function OnlineStoreSetup() {
             Store Created Successfully!
           </div>
           <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            Your store is live at: {window.location.origin}/store/{storeSlug}
+            Your store is live at: {buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug })}
           </div>
         </div>
       )}
@@ -634,7 +636,7 @@ export default function OnlineStoreSetup() {
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ color: '#6B7280', fontSize: '14px' }}>
-              {window.location.origin}/store/
+              {storefrontUrlPrefix({ subdomain: storeSlug, storeSlug })}
             </span>
             <input
               type="text"
@@ -816,7 +818,7 @@ export default function OnlineStoreSetup() {
               }}>
                 <button
                   onClick={() => {
-                    const storeUrl = `${window.location.origin}/store/${storeSlug}`;
+                    const storeUrl = buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug });
                     navigator.clipboard.writeText(storeUrl);
                     alert('✅ Store link copied to clipboard!');
                   }}
@@ -844,7 +846,7 @@ export default function OnlineStoreSetup() {
                   📋 Copy Link
                 </button>
                 <button
-                  onClick={() => window.open(`/store/${storeSlug}`, '_blank')}
+                  onClick={() => window.open(buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug }), '_blank')}
                   style={{
                     flex: '1 1 auto',
                     minWidth: '140px',
@@ -871,7 +873,7 @@ export default function OnlineStoreSetup() {
                       .eq('user_id', currentUser?.uid)
                       .eq('is_public', true);
 
-                    const storeUrl = `${window.location.origin}/store/${storeSlug}`;
+                    const storeUrl = buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug });
                     shareStoreToWhatsApp(businessName, storeUrl, count || 0);
                   }}
                   style={{
@@ -1906,7 +1908,7 @@ export default function OnlineStoreSetup() {
                 📱 Share Your Store
               </h3>
               <img
-                src={generateStoreQRCode(storeSlug, 200)}
+                src={generateStoreQRCode({ subdomain: store?.subdomain, storeSlug }, 200)}
                 alt="Store QR Code"
                 style={{
                   width: '200px',
