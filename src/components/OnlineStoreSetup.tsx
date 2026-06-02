@@ -45,7 +45,7 @@ export default function OnlineStoreSetup() {
   const { user: supabaseUser, loading: userLoading, error: userError } = useUser(currentUser);
 
   // Load store from Supabase using the REAL Supabase auth UID (not users table ID)
-  const { store, loading: storeLoading } = useStore(currentUser?.uid);
+  const { store, loading: storeLoading, refetch: refetchStore } = useStore(currentUser?.uid);
   const { createStore, updateStore, saving } = useStoreActions(currentUser?.uid);
 
   // Main setup fields - MUST declare ALL hooks before any conditional returns
@@ -275,6 +275,11 @@ export default function OnlineStoreSetup() {
       } else {
         await createStore(storeData);
       }
+
+      // Pull the freshly-written row back so derived UI state
+      // (isEditingSlug, savedSlug, share-URL fallback) reflects the new
+      // save immediately instead of waiting for a page refresh.
+      await refetchStore();
 
       // Mirror business_name to users table so dashboard header survives logout/login
       const { error: userSyncError } = await supabase
@@ -984,6 +989,10 @@ export default function OnlineStoreSetup() {
                       if (nextSubdomain && nextSubdomain !== previousSubdomain) {
                         provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
                       }
+
+                      // Refresh the local store reference so isEditingSlug
+                      // flips back to false now that the new slug is saved.
+                      await refetchStore();
 
                       // Mirror business_name to users table
                       if (currentUser?.uid) {

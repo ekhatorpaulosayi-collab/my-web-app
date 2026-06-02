@@ -169,50 +169,57 @@ export function useStore(userId) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const fetchStore = useCallback(async ({ force = false } = {}) => {
     if (!userId) {
       setStore(null);
       setLoading(false);
       return;
     }
 
-    async function fetchStore() {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
 
-        const cacheKey = `store:${userId}`;
+      const cacheKey = `store:${userId}`;
+      if (!force) {
         const cached = cache.get(cacheKey);
         if (cached) {
           setStore(cached);
           setLoading(false);
           return;
         }
-
-        const { data, error: fetchError } = await supabase
-          .from('stores')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
-
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          throw fetchError;
-        }
-
-        cache.set(cacheKey, data);
-        setStore(data);
-        setError(null);
-      } catch (err) {
-        console.error('[Supabase] Store fetch error:', err);
-        setError(err);
-      } finally {
-        setLoading(false);
       }
-    }
 
-    fetchStore();
+      const { data, error: fetchError } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      cache.set(cacheKey, data);
+      setStore(data);
+      setError(null);
+    } catch (err) {
+      console.error('[Supabase] Store fetch error:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }, [userId]);
 
-  return { store, loading, error };
+  useEffect(() => {
+    fetchStore();
+  }, [fetchStore]);
+
+  // Force a network re-read, bypassing the in-memory cache. Use after a
+  // write to refresh consumers whose derived state (e.g. isEditingSlug)
+  // depends on freshly-persisted columns.
+  const refetch = useCallback(() => fetchStore({ force: true }), [fetchStore]);
+
+  return { store, loading, error, refetch };
 }
 
 /**
