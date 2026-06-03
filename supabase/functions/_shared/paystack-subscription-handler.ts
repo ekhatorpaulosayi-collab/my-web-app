@@ -143,7 +143,7 @@ async function handleChargeSuccess(supabase: any, data: any) {
 
   const { data: subData } = await supabase
     .from('user_subscriptions')
-    .select('id, tier_id, billing_cycle')
+    .select('id, tier_id, billing_cycle, current_period_end')
     .eq('user_id', userId)
     .single();
 
@@ -172,11 +172,42 @@ async function handleChargeSuccess(supabase: any, data: any) {
   }
 
   if (subData) {
+    // Renewal period computation — three-tier preference:
+    //   1. data.next_payment_date (Paystack authoritative, calendar-correct)
+    //   2. Existing current_period_end + billing interval (defensive: anchors
+    //      to the subscription's clock, not the webhook's arrival clock, so
+    //      late-arriving webhooks don't drift the renewal date)
+    //   3. Date.now() + billing interval (last-ditch fallback)
+    // setMonth(+1) / setFullYear(+1) handle month boundaries and leap years
+    // correctly via JavaScript Date semantics.
+    let newPeriodEnd: Date;
+    let newPeriodStart: Date;
+    if (data.next_payment_date) {
+      newPeriodEnd = new Date(data.next_payment_date);
+      newPeriodStart = new Date();
+    } else if (subData.current_period_end) {
+      newPeriodStart = new Date(subData.current_period_end);
+      newPeriodEnd = new Date(subData.current_period_end);
+      if (subData.billing_cycle === 'annual') {
+        newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1);
+      } else {
+        newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+      }
+    } else {
+      newPeriodStart = new Date();
+      newPeriodEnd = new Date();
+      if (subData.billing_cycle === 'annual') {
+        newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1);
+      } else {
+        newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+      }
+    }
+
     const { error: renewError } = await supabase
       .from('user_subscriptions')
       .update({
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + (subData.billing_cycle === 'annual' ? 365 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000)).toISOString(),
+        current_period_start: newPeriodStart.toISOString(),
+        current_period_end: newPeriodEnd.toISOString(),
         status: 'active',
         updated_at: new Date().toISOString(),
       })
