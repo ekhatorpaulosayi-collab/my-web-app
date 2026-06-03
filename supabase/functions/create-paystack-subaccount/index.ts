@@ -205,26 +205,6 @@ serve(async (req) => {
   }
   const effectiveTier = tier.tier_id;
 
-  // 6.45 Tier guard (KYC v1 step 4). Paid plans only. Entitlement
-  // gate — supersedes the idempotency pre-check below so a
-  // downgraded merchant with an existing paystack_subaccounts row
-  // doesn't get a stale success.
-  if (tier.tier_id === 'free') {
-    await logPaystackInteraction(admin, {
-      correlation_id,
-      function_name: 'create-paystack-subaccount',
-      direction: 'outbound',
-      paystack_endpoint: 'N/A',
-      error_tag: 'tier_not_paid',
-      store_id,
-      user_id: user.id,
-    });
-    return jsonResponse({
-      error: 'subscription_required',
-      message: 'Setting up online payments requires a paid plan.',
-    }, 403);
-  }
-
   // 6.5 Idempotency pre-check. If a paystack_subaccounts row already
   // exists for this store with a non-null subaccount_code, return it
   // without calling Paystack. Without this gate, every retry of this

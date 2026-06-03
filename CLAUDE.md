@@ -754,6 +754,8 @@ curl -sS -X POST "https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/<name>" 
 - D3: Listed product price is clean (subtotal in Cart).
 - D4: Cart.tsx displays Subtotal / Card processing / Total.
 - D5: No Free tier; only Starter (50 bp Storehouse) and Pro (0 bp).
+  **REVERSED Session 11: Free tier card payments now allowed.** See
+  "Session 11 — Free tier card payments enabled" below for rationale.
 
 ### Smoke test (Paul's store, Pro tier, ₦3,000 subtotal)
 Live curl returned:
@@ -878,6 +880,59 @@ throwaway, no bearer ever set on it). Paystack test card 4084.
    May 14-16) + Session 8 spike orders left behind by F3 in the
    test-mode DB. Smoke-test artifacts. Leave or delete pre-launch;
    their webhook deliveries already 503'd and won't retry.
+
+## Session 11 — Free tier card payments enabled (reversing Session 7 D5)
+
+Free tier card payments enabled (reversing Session 7 D5). Rationale:
+Free tier serves as the "try Storehouse" option for curious users.
+Existing 2.5% customer fee + ₦500K monthly volume cap provide natural
+anti-abuse. Removes confusion of subscription_required error for new
+merchants. Paid tiers (Starter, Pro) remain the upgrade path for lower
+customer fees.
+
+### What shipped
+- F3 `supabase/functions/initiate-storefront-payment/index.ts`: removed
+  the `if (tier === 'free')` entitlement gate at the former lines
+  156–174 (the "2.5 Tier guard" block).
+- F2 `supabase/functions/create-paystack-subaccount/index.ts`: removed
+  the matching `if (tier.tier_id === 'free')` gate at the former lines
+  208–226 (the "6.45 Tier guard" block).
+- No infrastructure changes: `platform_fee_config` Free row
+  (100 bp / ₦10K cap / ₦500K monthly cap) already in place;
+  `tier-resolver` unchanged; `vendor_velocity_limits` enforcement
+  unchanged; `Cart.tsx` subaccount fee breakdown unchanged.
+
+### What did NOT change (intentional)
+- `business` tier still resolves to `free` via tier-resolver fallback —
+  out of scope, separate concern.
+- No new `platform_fee_config` rows. No migrations.
+- No RPC changes. `complete_subaccount_onboarding` already inserts the
+  velocity row tier-agnostically.
+- Other gates remain: KYC approval, cooling period,
+  `paystack_subaccounts_enabled` per-store flag, `frozen=false`,
+  global `ENABLE_PAYSTACK_SUBACCOUNTS` env flag.
+
+### Expected behaviour on Free tier
+- F2 (`create-paystack-subaccount`): a Free merchant who has completed
+  KYC v1 and passed the cooling period can now create a Paystack
+  subaccount. `percentage_charge` sent to Paystack = `100/100 = 1.00`
+  (JSON number) — Storehouse's 1% take.
+- F3 (`initiate-storefront-payment`): customer-absorb formula unchanged
+  (`customer_total = (subtotal + flat) / 0.985`). Storehouse take =
+  `floor(subtotal × 100 / 10000)` capped at ₦10,000. Vendor net =
+  `subtotal − storehouse_take`. Monthly cap (₦500K from
+  `feeConfig.monthly_volume_cap_kobo`) actively enforced via
+  `vendor_velocity_limits.current_month_volume_kobo`.
+
+### Population impact at ship time
+- 11 Free-tier stores in production. All `kyc_status='not_started'`,
+  no subaccount, per-store flag off. ZERO merchants gain card access
+  the instant the gate is removed — they must still complete the
+  KYC → reviewer-approval → cooling-period → per-store-flag path.
+- Plus 10 `business`-tier stores that resolve to Free via the
+  tier-resolver fallback. Same gating chain applies. The
+  `business` → `free` resolution is a separate inconsistency tracked
+  elsewhere; not addressed in this change.
 
 ## PRE-DEPLOY CHECKLIST
 [ ] Record a sale — correct price, no duplicate
