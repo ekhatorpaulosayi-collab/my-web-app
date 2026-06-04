@@ -92,3 +92,16 @@ REMAINING AFTER THE 3 ABOVE:
 NEXT ACTION: set up staging (short-lived Supabase branch ~$0.30, or Docker local) → verify the 3
 high-stakes table policies there (esp. staff PIN login, users marketplace read, stores storefront read)
 → then apply to prod with rollback ready. Full verified plan: docs/C1-PLAN.md.
+
+## C1 UPDATE 2 — 2026-06-04 (session continued)
+- [x] users — RLS ON + 2 policies (users_self_all: id=auth.uid()::text; users_public_marketplace_read:
+      store_visible=true, dormant—marketplace is future-launch). VERIFIED: anon 24->0 (leak sealed);
+      authenticated self-read returns own row (business_name osayi1) — not locked out. DONE.
+  Note: store_visible=0 for all 24 users is correct (marketplace not launched yet).
+
+SEPARATE BUG (pre-existing, NOT C1, frontend): Settings profile page shows EMPTY business_name field,
+though data exists (query returns osayi1) and dashboard displays it. ~weeks old. Settings form not
+populating saved value into input on mount. Fix later via localhost->Vercel (code, not DB).
+
+C1 PROGRESS: 4 of 6 tenant tables done (product_variants, sales, staff_activity_logs, users).
+REMAINING: stores (high-harm, dual-purpose, next), staff_members (paused-needs PIN test).
