@@ -51,7 +51,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const navigate = useNavigate();
-  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, currentRole } = useStaff();
+  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, canViewReports, currentRole } = useStaff();
   const { currentUser } = useAuth();
   const [userTier, setUserTier] = useState<string>('Free');
   const [isOwner, setIsOwner] = useState(false);
@@ -101,12 +101,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       title: 'SELL',
       theme: 'teal',
       items: [
-        {
+        ...(canViewReports() ? [{
           icon: BarChart2,
           label: 'Sales History',
           description: 'View and search all your sales',
           action: onViewHistory
-        },
+        }] : []),
         {
           icon: Share2,
           label: 'Online Store',

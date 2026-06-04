@@ -148,7 +148,7 @@ function App() {
   const { isFirstTimeSetup, completeSetup, businessType } = usePreferences();
 
   // Staff context - track who records sales
-  const { currentStaff } = useStaff();
+  const { currentStaff, canViewReports } = useStaff();
 
   // DISABLED: Contextual prompts - were annoying users with popups
   // const { prompt, dismissPrompt: dismissContextualPrompt } = useContextualPrompts();
@@ -6503,8 +6503,8 @@ Low Stock: ${lowStockItems.length}
 
       {/* Chat History Page - Removed due to incompatible imports */}
 
-      {/* Sales History Page */}
-      {showSalesHistory && (
+      {/* Sales History Page — reports are owner/manager only (cashiers blocked, defensive default) */}
+      {showSalesHistory && canViewReports() && (
         <div className="sales-history-page">
           <div className="sales-history-container">
             {/* Header */}

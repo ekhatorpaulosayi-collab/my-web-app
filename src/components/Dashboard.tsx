@@ -97,7 +97,7 @@ export function Dashboard({
   }, [sortConfig]);
 
   // Staff permissions
-  const { canEditProducts, canDeleteProducts, canAddProducts, isStaffMode, exitStaffMode, currentRole } = useStaff();
+  const { canEditProducts, canDeleteProducts, canAddProducts, canViewReports, isStaffMode, exitStaffMode, currentRole } = useStaff();
 
   // Load store from Supabase
   const { store, loading: storeLoading } = useStore(userId);
