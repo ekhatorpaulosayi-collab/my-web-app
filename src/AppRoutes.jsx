@@ -50,7 +50,6 @@ const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
 const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
 const KycWizard = lazy(() => import('./components/payments/KycWizard.tsx'));
 const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
-const V2SpikeTest = lazy(() => import('./pages/V2SpikeTest.tsx'));
 
 /**
  * Host-aware element for the root path "/".
@@ -551,9 +550,6 @@ export default function AppRoutes() {
 
         {/* Public contribution group view - accessible without login */}
         <Route path="/a/:shareCode" element={<ContributionPublicView />} />
-
-        {/* Paystack v2 SDK spike test - isolated, hidden */}
-        <Route path="/spike/paystack-v2" element={<V2SpikeTest />} />
 
         {/* Catch-all - redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
