@@ -121,3 +121,21 @@ SEPARATE BUG (pre-existing, NOT C1, frontend RBAC): Logging in as staff CASHIER 
 In the deployed bundle = shipped code bug, not an RLS symptom (RLS returns empty rows, never undefined vars).
 Matches audit L4 (staff RBAC cosmetic/half-wired). Staff AUTH itself works (log: "Staff authenticated: Paul").
 Fix: declare/wire canViewReports permission. Code fix via localhost->Vercel. Owner mode unaffected.
+
+## C1 CORE COMPLETE — 2026-06-04
+- [x] staff_members — RLS ON + policy (store_owner_uid = auth.uid()::text). VERIFIED: anon 3->0
+      (leak sealed); owner-sim returns 2 (own staff readable; PIN flow runs as owner = not locked out).
+      Verified via SET ROLE simulation (staff UI has separate canViewReports crash, unrelated).
+
+*** ALL 6 TENANT TABLES NOW RLS-PROTECTED ***
+product_variants, sales, staff_activity_logs, users, stores, staff_members — cross-tenant breach SEALED.
+This morning anon could read all 16 tenants' data; now each table enforces isolation at the DB.
+
+C1 REMAINING (cleanup, not breach-blockers):
+- [ ] Stage 7 grants: REVOKE anon DML on the 6 tables (defense-in-depth) after confirming nothing breaks.
+- [ ] Stage 8 column-safe views: close stores/users select('*') column leak (kyc_*, frozen_*, is_admin
+      still reach anon for public stores). Frontend repoint — localhost->Vercel.
+- [ ] 4 non-tenant RLS-off tables (ai_chat_rate_limits, green_api_pool, whatsapp_debug_log,
+      sales_units_backup_20260530) — out of original C1 scope; backup table likely just drop.
+
+NEXT: canViewReports cashier crash (frontend RBAC bug, code fix), then C2 apply, C3, etc.
