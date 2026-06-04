@@ -115,3 +115,9 @@ REMAINING: stores (high-harm, dual-purpose, next), staff_members (paused-needs P
 
 C1 PROGRESS: 5 of 6 tenant tables done. ALL HIGH-HARM TABLES CLOSED.
 Remaining: staff_members (needs PIN-login test); then grants (Stage 7); then column-safe views (Stage 8).
+
+SEPARATE BUG (pre-existing, NOT C1, frontend RBAC): Logging in as staff CASHIER role crashes with
+"ReferenceError: canViewReports is not defined" (error boundary catches it) when the reports view renders.
+In the deployed bundle = shipped code bug, not an RLS symptom (RLS returns empty rows, never undefined vars).
+Matches audit L4 (staff RBAC cosmetic/half-wired). Staff AUTH itself works (log: "Staff authenticated: Paul").
+Fix: declare/wire canViewReports permission. Code fix via localhost->Vercel. Owner mode unaffected.
