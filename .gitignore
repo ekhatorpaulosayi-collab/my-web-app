@@ -46,3 +46,4 @@ supabase/.temp/
 *.v*-stable
 
 .claude/settings.local.json
+.claude/
