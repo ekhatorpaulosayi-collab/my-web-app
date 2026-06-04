@@ -105,3 +105,13 @@ populating saved value into input on mount. Fix later via localhost->Vercel (cod
 
 C1 PROGRESS: 4 of 6 tenant tables done (product_variants, sales, staff_activity_logs, users).
 REMAINING: stores (high-harm, dual-purpose, next), staff_members (paused-needs PIN test).
+
+## C1 UPDATE 3 — 2026-06-04
+- [x] stores — RLS ON + 2 policies (stores_owner_all: user_id=auth.uid()::text; stores_public_read:
+      is_public=true for anon). VERIFIED: anon 16->15 (private store hidden, 15 public storefronts
+      reachable); live storefront renders; dashboard loads. DONE.
+  KNOWN FOLLOW-UP: storefront select('*') still sends full row (kyc_status, frozen_*, is_admin,
+  domain_verification_token) to anon for public stores. Closed by column-safe view (Stage 8), not this enable.
+
+C1 PROGRESS: 5 of 6 tenant tables done. ALL HIGH-HARM TABLES CLOSED.
+Remaining: staff_members (needs PIN-login test); then grants (Stage 7); then column-safe views (Stage 8).
