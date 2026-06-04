@@ -60,3 +60,35 @@ not 48h (C1 needs staged testing). Release valve if time-tight: defer Free tier 
 ## NOT YET EXAMINED (known gap)
 - [ ] Broad correctness sweep: Ajo/Contributions payout math, Money Book debt/credit balances, invoice
       arithmetic, inventory decrement. Scoped but never run. Do after authorization workstream.
+
+## C1 ROLLOUT PROGRESS — 2026-06-04 (paused mid-rollout)
+Approach note: direct-on-prod table-by-table was used for the simple owner-scoped tables.
+DECISION CHANGED: the high-stakes tables (auth path + dual-purpose policies) must have their
+policies PROVEN CORRECT on a staging clone before prod — not flip-and-glance — because the app
+is being built for scale (millions of users), so policy correctness matters more than current
+(disposable) data volume.
+
+DONE — RLS enabled on prod, verified (anon leak sealed + owner access intact):
+- [x] product_variants — RLS on (policies pre-existed). Verified: app intact.
+- [x] sales — RLS on (policies pre-existed). Verified: dashboard sales intact.
+- [x] staff_activity_logs — RLS on + new owner policy (store_owner_uid = auth.uid()::text).
+      Verified: anon count 14 -> 0 (leak sealed). Owner UI check: [confirm].
+
+PAUSED — NOT enabled, need staging verification first (build-for-scale standard):
+- [ ] staff_members — RLS OFF. Leak proven (anon reads 2 rows). RISK: read by staff PIN-login flow;
+      wrong policy = staff cannot log in (auth break, not just hidden screen). Proposed policy:
+      store_owner_uid = auth.uid()::text. MUST test PIN login end-to-end on staging before prod.
+- [ ] users — RLS OFF. DUAL-PURPOSE: self-access (id = auth.uid()::text) AND public marketplace
+      (anon reads store_visible=true). Needs TWO policies. Wrong = marketplace breaks or self-access locks out.
+- [ ] stores — RLS OFF. DUAL-PURPOSE: owner (user_id = auth.uid()::text) + storefront (anon is_public=true).
+      Highest traffic; the bank-details table. Plus column-leak: select('*') exposes private cols to anon.
+
+REMAINING AFTER THE 3 ABOVE:
+- [ ] grants — REVOKE anon DML (+ scoped anon SELECT) AFTER all RLS verified.
+- [ ] stores/users column-safe views (Option A) — close the private-column leak (kyc_*, frozen_*, is_admin, etc.)
+- [ ] 4 non-tenant RLS-off tables noted but out of C1 scope: ai_chat_rate_limits, green_api_pool,
+      whatsapp_debug_log, sales_units_backup_20260530 (backup table: probably just drop).
+
+NEXT ACTION: set up staging (short-lived Supabase branch ~$0.30, or Docker local) → verify the 3
+high-stakes table policies there (esp. staff PIN login, users marketplace read, stores storefront read)
+→ then apply to prod with rollback ready. Full verified plan: docs/C1-PLAN.md.
