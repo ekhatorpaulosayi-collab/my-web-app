@@ -67,6 +67,23 @@ serve(async (req) => {
     console.log('[VerifyTransaction] Transaction amount:', transaction.amount);
     console.log('[VerifyTransaction] Transaction email:', transaction.customer.email);
 
+    // SECURITY (M6): bind the grant to the JWT-verified identity. The transaction's
+    // payer email must match the authenticated user; otherwise an attacker could
+    // verify someone else's payment and grant themselves the tier.
+    const verifiedEmail = user.email;
+    if (!verifiedEmail) {
+      throw new Error('Authenticated user has no email');
+    }
+    if (
+      !transaction.customer?.email ||
+      transaction.customer.email.toLowerCase() !== verifiedEmail.toLowerCase()
+    ) {
+      console.error(
+        '[VerifyTransaction] Email mismatch — transaction payer is not the authenticated user'
+      );
+      throw new Error('Transaction does not belong to the authenticated user');
+    }
+
     // Check if transaction is successful
     if (transaction.status !== 'success') {
       console.log('[VerifyTransaction] Transaction not successful, status:', transaction.status);
@@ -178,7 +195,7 @@ serve(async (req) => {
     // Get tier by plan code
     const { data: tierData, error: tierError } = await supabase
       .from('subscription_tiers')
-      .select('id, name')
+      .select('id, name, price_monthly, price_annual')
       .or(`paystack_plan_code_monthly.eq.${planCodeToUse},paystack_plan_code_annual.eq.${planCodeToUse}`)
       .single();
 
@@ -191,6 +208,33 @@ serve(async (req) => {
     const billingCycle = subscription
       ? (subscription.plan.interval === 'annually' ? 'annual' : 'monthly')
       : 'monthly';
+
+    // SECURITY (M6): the paid amount must cover the claimed tier's price. Without this,
+    // a user could pay the cheapest plan and pass an expensive `planCode` to claim a
+    // higher tier. `subscription_tiers.price_*` are stored in NAIRA; Paystack's
+    // `transaction.amount` is in KOBO — convert with ×100. Use the tier price that
+    // matches the resolved billing cycle.
+    const expectedPriceNaira =
+      billingCycle === 'annual' ? tierData.price_annual : tierData.price_monthly;
+    const expectedAmountKobo = Number(expectedPriceNaira) * 100;
+    if (!Number.isFinite(expectedAmountKobo)) {
+      console.error('[VerifyTransaction] Tier price missing/invalid for tier:', tierData.id);
+      throw new Error('Subscription tier price not configured');
+    }
+    if (Number(transaction.amount) < expectedAmountKobo) {
+      console.error(
+        '[VerifyTransaction] Underpayment — paid',
+        transaction.amount,
+        'kobo, tier',
+        tierData.name,
+        '(',
+        billingCycle,
+        ') requires',
+        expectedAmountKobo,
+        'kobo'
+      );
+      throw new Error('Payment amount does not cover the requested subscription tier');
+    }
 
     // Calculate period end (30 days for monthly, 365 for annual)
     const periodStart = new Date();

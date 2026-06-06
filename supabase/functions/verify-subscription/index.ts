@@ -13,7 +13,9 @@ serve(async (req) => {
   }
 
   try {
-    const { customerEmail, planCode, subscriptionCode } = await req.json();
+    // SECURITY (C3): `customerEmail` is intentionally NOT read from the body — the
+    // email used for authorization is derived from the verified JWT below.
+    const { planCode, subscriptionCode } = await req.json();
 
     // Get Paystack secret key from environment
     const paystackSecretKey = Deno.env.get('PAYSTACK_SECRET_KEY');
@@ -40,35 +42,29 @@ serve(async (req) => {
       throw new Error('Invalid authorization token');
     }
 
-    console.log('[VerifySubscription] Checking for user:', user.id, 'email:', customerEmail);
+    // SECURITY (C3): the tier grant must be bound to the JWT-verified identity, not
+    // any client-supplied value. Derive the email from the authenticated user and
+    // use ONLY that to match the Paystack subscription below. The client-supplied
+    // `customerEmail` is ignored for authorization.
+    const verifiedEmail = user.email;
+    if (!verifiedEmail) {
+      throw new Error('Authenticated user has no email');
+    }
+
+    // SECURITY (C3): reject the subscriptionCode fast-path entirely. It bypassed both
+    // the email filter and the recency window, letting a caller grant themselves any
+    // subscription's tier by code. No legitimate caller sends subscriptionCode.
+    if (subscriptionCode) {
+      throw new Error('subscriptionCode path not supported');
+    }
+
+    console.log('[VerifySubscription] Checking for user:', user.id, 'email:', verifiedEmail);
 
     let subscription;
 
-    // If subscription code is provided, fetch that specific subscription
-    if (subscriptionCode) {
-      console.log('[VerifySubscription] Fetching specific subscription:', subscriptionCode);
-
-      const response = await fetch(`https://api.paystack.co/subscription/${subscriptionCode}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${paystackSecretKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.status) {
-        console.error('[VerifySubscription] Failed to fetch subscription:', data);
-        throw new Error(data.message || `Subscription ${subscriptionCode} not found`);
-      }
-
-      subscription = data.data;
-      console.log('[VerifySubscription] Found subscription:', subscription.subscription_code, 'Status:', subscription.status);
-
-    } else {
-      // Fallback: Search for subscription by email and plan code (with pagination)
-      console.log('[VerifySubscription] No subscription code provided, searching by email and plan...');
+    {
+      // Search for the subscription by the JWT-verified email and plan code (paginated).
+      console.log('[VerifySubscription] Searching by verified email and plan...');
 
       const response = await fetch(`https://api.paystack.co/subscription?perPage=100`, {
         method: 'GET',
@@ -87,9 +83,10 @@ serve(async (req) => {
 
       console.log('[VerifySubscription] Found', data.data.length, 'total subscriptions in Paystack');
 
-      // Find ALL subscriptions for this customer and plan (including all statuses)
+      // Find ALL subscriptions for this customer and plan (including all statuses).
+      // SECURITY (C3): match on the JWT-verified email, NOT the client-supplied one.
       const allCustomerSubs = data.data.filter((sub: any) =>
-        sub.customer.email.toLowerCase() === customerEmail.toLowerCase() &&
+        sub.customer.email.toLowerCase() === verifiedEmail.toLowerCase() &&
         sub.plan.plan_code === planCode
       );
 
@@ -150,14 +147,14 @@ serve(async (req) => {
       if (customerSubs.length === 0) {
         // No subscriptions found at all
         console.log('[VerifySubscription] No matching subscriptions found at all');
-        console.log('[VerifySubscription] Looking for email:', customerEmail);
+        console.log('[VerifySubscription] Looking for email:', verifiedEmail);
         console.log('[VerifySubscription] Looking for plan code:', planCode);
         console.log('[VerifySubscription] Total subscriptions checked:', data.data.length);
 
         return new Response(
           JSON.stringify({
             success: false,
-            error: `No subscription found in Paystack for ${customerEmail} with plan ${planCode}. The payment may still be processing. Please wait a moment and try again.`
+            error: `No subscription found in Paystack for ${verifiedEmail} with plan ${planCode}. The payment may still be processing. Please wait a moment and try again.`
           }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
