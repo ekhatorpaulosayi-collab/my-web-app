@@ -148,3 +148,14 @@ VERIFIED via pg_proc:
 - All 6: proconfig {search_path=public}. postgres retains EXECUTE on approve_kyc_review (reviewer path intact).
 RESIDUAL (on record): increment_affiliate_conversion self-conversion fraud open until recordAffiliateSale
 increment moves server-side (separate follow-up). C2: WRITTEN-NOT-APPLIED -> DONE.
+
+## C3 + M6 DEPLOYED (test pending) — 2026-06-06
+verify-subscription + verify-transaction deployed to prod (yzlniqwzqlsftxrtapdl), committed 2ac7e28.
+- C3: sub-matching email now from JWT (verifiedEmail); client customerEmail ignored; subscriptionCode path REJECTED.
+- M6: verify-transaction binds transaction email to JWT user.email; asserts amount(kobo) >= tier price_*(naira x100).
+- Diff reviewed line-by-line before deploy.
+- ⚠️ NOT YET TESTED LIVE. Two tests owed BEFORE a real merchant pays:
+  1. C3: curl verify-subscription with subscriptionCode -> expect "subscriptionCode path not supported".
+  2. Legitimate upgrade still grants (real Paystack flow) — ALSO confirms Paystack plan amounts match DB price_*.
+     If a real correct payment is rejected with "amount does not cover" = Paystack-vs-DB price MISMATCH (data fix, not code).
+C3 + M6: UNTOUCHED -> DEPLOYED-PENDING-TEST.
