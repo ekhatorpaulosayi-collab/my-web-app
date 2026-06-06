@@ -469,10 +469,53 @@ function mapPaymentMethod(method: string): 'cash' | 'card' | 'transfer' | 'credi
 }
 
 /**
- * Sync offline sales to Supabase
- * This handles sales made while offline
+ * Result of an offline-sales sync run.
+ * - synced:  rows successfully inserted into Supabase this run
+ * - failed:  rows that errored (network / RLS / server) — left unsynced, will retry
+ * - skipped: rows that cannot be synced as-is (e.g. legacy non-UUID product id) —
+ *            flagged with syncError, left unsynced, NOT retried blindly each time
  */
-export async function syncOfflineSales(userId: string): Promise<number> {
+export interface SyncResult {
+  synced: number;
+  failed: number;
+  skipped: number;
+}
+
+// A Supabase products.id is a UUID. Legacy pre-Supabase offline sales may carry a
+// numeric/local itemId that has no cloud product — those cannot satisfy the sales
+// FK and must be skipped-and-flagged, never thrown or silently dropped.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Build a productId(UUID) -> productName map from the products cache that
+ * supabaseProducts.getProducts() maintains in localStorage. Works offline.
+ */
+function loadProductNameMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  try {
+    const cached = localStorage.getItem('storehouse:products:cache');
+    if (cached) {
+      const products = JSON.parse(cached);
+      if (Array.isArray(products)) {
+        for (const p of products) {
+          if (p && p.id != null) map.set(String(p.id), p.name);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[supabaseSales] Could not read products cache for name lookup:', e);
+  }
+  return map;
+}
+
+/**
+ * Sync offline sales to Supabase.
+ * Handles sales recorded while offline (or whose live cloud write failed).
+ * Idempotent: only rows with syncedToCloud falsy are considered, and each
+ * successful insert flips syncedToCloud=true so it never re-inserts.
+ */
+export async function syncOfflineSales(userId: string): Promise<SyncResult> {
+  const result: SyncResult = { synced: 0, failed: 0, skipped: 0 };
   try {
     // Get pending offline sales from IndexedDB
     await initDB();
@@ -484,54 +527,88 @@ export async function syncOfflineSales(userId: string): Promise<number> {
 
     const offlineSales = await new Promise<any[]>((resolve, reject) => {
       getAllRequest.onsuccess = () => {
-        const sales = getAllRequest.result.filter(s => !s.syncedToCloud);
+        // Idempotency: never reconsider already-synced sales, and skip rows we
+        // already flagged as unsyncable so they don't churn on every run.
+        const sales = getAllRequest.result.filter(s => !s.syncedToCloud && !s.syncError);
         resolve(sales);
       };
       getAllRequest.onerror = () => reject(new Error('Failed to fetch offline sales'));
     });
 
     if (offlineSales.length === 0) {
-      return 0;
+      return result;
     }
 
     console.log(`[supabaseSales] Syncing ${offlineSales.length} offline sales...`);
 
-    let syncedCount = 0;
+    // Resolve product names from the cloud-UUID products cache (offline-safe).
+    const productNames = loadProductNameMap();
+
     for (const sale of offlineSales) {
+      // The offline record stores the cloud product UUID as `itemId`
+      // (items come from supabaseProducts.getProducts → Supabase products.id).
+      const productId = sale.itemId != null ? String(sale.itemId) : '';
+
+      // Guard: legacy non-UUID itemId cannot reference a cloud product → skip & flag.
+      if (!UUID_RE.test(productId)) {
+        console.warn('[supabaseSales] Skipping sale with non-UUID product id (legacy):', sale.id, sale.itemId);
+        try {
+          sale.syncError = 'legacy_non_uuid_product_id';
+          const flagTx = db.transaction(['sales'], 'readwrite');
+          flagTx.objectStore('sales').put(sale);
+        } catch (flagErr) {
+          console.warn('[supabaseSales] Could not flag skipped sale:', flagErr);
+        }
+        result.skipped++;
+        continue;
+      }
+
+      // Canonical units are KOBO (migration 20260530; createSale expects kobo).
+      const unitKobo = Number(sale.sellKobo ?? sale.unitPrice ?? 0);
+      const qty = Number(sale.qty ?? sale.quantity ?? 1);
+      const totalKobo = unitKobo * qty;
+      const productName = productNames.get(productId) || sale.itemName || 'Unknown Product';
+
       try {
-        // Create sale in Supabase
         const cloudSale = await createSale({
-          product_name: sale.itemName || 'Unknown Product',
-          quantity: sale.qty || 1,
-          unit_price: sale.sellKobo || sale.unitPrice || 0,
-          total_amount: sale.amount || 0,
-          final_amount: sale.amount || 0,
+          product_id: productId,
+          product_name: productName,
+          quantity: qty,
+          unit_price: unitKobo,
+          total_amount: totalKobo,
+          final_amount: totalKobo,
           customer_name: sale.customerName,
           customer_phone: sale.phone,
-          payment_method: mapPaymentMethod(sale.payment),
+          payment_method: mapPaymentMethod(sale.paymentMethod || sale.payment),
           notes: sale.note
         }, userId);
 
         if (cloudSale) {
-          // Mark as synced in IndexedDB
+          // Mark as synced in IndexedDB so it never re-inserts (idempotency).
           sale.syncedToCloud = true;
           sale.cloudId = cloudSale.id;
 
           const updateTx = db.transaction(['sales'], 'readwrite');
-          const updateStore = updateTx.objectStore('sales');
-          updateStore.put(sale);
+          updateTx.objectStore('sales').put(sale);
 
-          syncedCount++;
+          result.synced++;
+        } else {
+          // createSale returned null (auth missing / insert rejected) — leave
+          // unsynced for retry; do NOT flag (transient).
+          result.failed++;
         }
       } catch (error) {
         console.error('[supabaseSales] Error syncing sale:', error, sale);
+        result.failed++;
       }
     }
 
-    console.log(`[supabaseSales] Synced ${syncedCount} sales to cloud`);
-    return syncedCount;
+    console.log(
+      `[supabaseSales] Sync run: ${result.synced} synced, ${result.failed} failed, ${result.skipped} skipped`
+    );
+    return result;
   } catch (error) {
     console.error('[supabaseSales] Sync failed:', error);
-    return 0;
+    return result;
   }
 }

@@ -1062,11 +1062,15 @@ function App() {
         setSales(allSales);
         console.log('[App] ✅ Sales state updated successfully');
 
-        // Sync any offline sales created while offline
+        // Sync any offline sales created while offline (login-path drain;
+        // the reconnect-path drain is runOfflineSalesSync via the online event).
         try {
-          const syncedCount = await syncOfflineSales(currentUser.uid);
-          if (syncedCount > 0) {
-            console.log(`[App] Synced ${syncedCount} offline sales to cloud`);
+          const { synced, failed, skipped } = await syncOfflineSales(currentUser.uid);
+          if (failed > 0 || skipped > 0) {
+            console.warn(`[App] Offline sync: ${synced} synced, ${failed} failed, ${skipped} skipped`);
+          }
+          if (synced > 0) {
+            console.log(`[App] Synced ${synced} offline sales to cloud`);
             // Reload sales to include newly synced ones
             const refreshedSales = await getSupabaseSales(currentUser.uid);
             const mappedSales = refreshedSales.map(sale => {
@@ -1501,8 +1505,10 @@ function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      // Sync pending sales when coming online
-      syncPendingSales();
+      // Drain offline-recorded sales to Supabase on reconnect. Use the REAL
+      // drain (syncOfflineSales), not the dead localStorage stub. Same drain
+      // also runs on login (initializeData).
+      runOfflineSalesSync();
     };
 
     const handleOffline = () => {
@@ -1512,14 +1518,14 @@ function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Check pending sales on mount
+    // Check pending (unsynced) sales on mount
     checkPendingSales();
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [currentUser]);
 
   // Service Worker update notification
   useEffect(() => {
@@ -3681,7 +3687,10 @@ Low Stock: ${lowStockItems.length}
         const req = store.getAll();
         req.onsuccess = () => {
           const all = req.result || [];
-          resolve(all.filter((s) => !s.syncedToCloud).length);
+          // Count sales genuinely awaiting sync. Exclude rows flagged with a
+          // syncError (legacy non-UUID product id) — those won't auto-sync and
+          // are a separate manual-attention class, not "pending sync".
+          resolve(all.filter((s) => !s.syncedToCloud && !s.syncError).length);
         };
         req.onerror = () => reject(req.error);
       });
@@ -3692,28 +3701,41 @@ Low Stock: ${lowStockItems.length}
     }
   };
 
-  const syncPendingSales = async () => {
+  // Drain offline-recorded sales to Supabase via the REAL drain (syncOfflineSales).
+  // Replaces the old dead syncPendingSales stub (which read a localStorage outbox
+  // nothing wrote and toasted a FALSE "Synced" without ever inserting to Supabase).
+  // Reports the honest result and refreshes the unsynced badge. Idempotent: the
+  // drain only pushes sales with syncedToCloud falsy and flips the flag on success.
+  const runOfflineSalesSync = async () => {
+    if (!currentUser?.uid) return;
     try {
-      const outbox = JSON.parse(localStorage.getItem('sales-outbox') || '[]');
-      if (outbox.length === 0) return;
+      const { synced, failed, skipped } = await syncOfflineSales(currentUser.uid);
 
-      // Process each pending sale
-      outbox.forEach(sale => {
-        // Check if sale already exists (UUID de-duplication)
-        const exists = sales.some(s => s.id === sale.id);
-        if (!exists) {
-          const updatedSales = [...sales, sale];
-          setSales(updatedSales);
-          // REMOVED: localStorage.setItem - sales are now stored in Supabase only
+      if (synced > 0) {
+        // Pull the newly-synced rows into the dashboard.
+        try {
+          const refreshed = await getSupabaseSales(currentUser.uid);
+          setSales(refreshed);
+        } catch (reloadErr) {
+          console.warn('[App] Synced sales but failed to reload list:', reloadErr);
         }
-      });
+      }
 
-      // Clear outbox after sync
-      localStorage.setItem('sales-outbox', '[]');
-      setPendingSales(0);
-      displayToast(`✓ Synced ${outbox.length} pending sale(s)`);
+      // Honest surfacing — never claim success we didn't achieve.
+      if (synced > 0 && failed === 0 && skipped === 0) {
+        displayToast(`✓ Synced ${synced} offline sale${synced > 1 ? 's' : ''}`);
+      } else if (synced > 0 && (failed > 0 || skipped > 0)) {
+        displayToast(`✓ Synced ${synced}; ${failed + skipped} need${failed + skipped > 1 ? '' : 's'} attention`);
+      } else if (synced === 0 && (failed > 0 || skipped > 0)) {
+        displayToast(`⚠️ ${failed + skipped} sale${failed + skipped > 1 ? 's' : ''} could not sync — will retry`);
+      }
+      // synced===0 && failed===0 && skipped===0 → nothing pending, stay silent.
     } catch (error) {
-      console.error('Error syncing pending sales:', error);
+      console.error('[App] Offline sales sync failed:', error);
+      displayToast('⚠️ Could not sync offline sales — will retry');
+    } finally {
+      // Reflect the true unsynced count regardless of outcome.
+      checkPendingSales();
     }
   };
 
