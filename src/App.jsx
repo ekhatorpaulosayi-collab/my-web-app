@@ -19,6 +19,7 @@ import {
   getItems,
   addItem,
   updateItem,
+  updateSale,
   checkItemExists,
   getCredits,
   getCreditsByStatus,
@@ -3085,7 +3086,12 @@ Thank you for your business! 🙏
         outboxStore.put(outboxData);
       });
 
-      // CRITICAL FIX: Also save to Supabase cloud for persistence
+      // CRITICAL FIX: Also save to Supabase cloud for persistence.
+      // Phase 1 (offline honesty): this is the ONE path that actually writes to
+      // Supabase (the second block below is dead — it only logs). So this try/catch
+      // owns the truthful syncedToCloud flag on the local IndexedDB sale record,
+      // which syncOfflineSales (supabaseSales.ts) reads to decide what to re-push.
+      let cloudSynced = false;
       try {
         console.log('[handleSaveSale] 🔄 Saving to Supabase cloud...');
 
@@ -3113,10 +3119,25 @@ Thank you for your business! 🙏
         // Save to Supabase - pass the current user's ID
         await createSupabaseSale(supabaseSaleData, currentUser.uid);
         console.log('[handleSaveSale] ✅ Sale saved to Supabase cloud!');
+        cloudSynced = true;
+
+        // Mark the local IndexedDB sale as synced so syncOfflineSales does not
+        // re-insert it on next login (its filter is `!s.syncedToCloud`).
+        try {
+          await updateSale(saleId, { syncedToCloud: true });
+        } catch (flagErr) {
+          console.warn('[handleSaveSale] Could not set syncedToCloud=true on local sale:', flagErr);
+        }
       } catch (cloudError) {
         console.error('[handleSaveSale] ⚠️ Failed to save to cloud (will remain in local storage):', cloudError);
-        // Don't fail the sale - it's saved locally at least
-        // The syncOfflineSales function will retry later
+        // Don't fail the sale - it's saved locally at least.
+        // Mark it explicitly unsynced so the badge counts it and syncOfflineSales
+        // picks it up on the next online login.
+        try {
+          await updateSale(saleId, { syncedToCloud: false });
+        } catch (flagErr) {
+          console.warn('[handleSaveSale] Could not set syncedToCloud=false on local sale:', flagErr);
+        }
       }
 
       // Success! Close modal and show toast
@@ -3310,6 +3331,10 @@ Thank you for your business! 🙏
 
       setSales(updatedSales);
 
+      // Refresh the unsynced-sales badge count (a just-recorded sale may be
+      // unsynced if the cloud write above failed).
+      checkPendingSales();
+
       // Refresh credits if it was a credit sale
       if (formData.isCreditSale) {
         const updatedCredits = await getCredits();
@@ -3319,8 +3344,14 @@ Thank you for your business! 🙏
       // Close the Record Sale modal
       setShowRecordSale(false);
 
-      // Show success message
-      displayToast('✅ Sale recorded successfully!');
+      // Show success message. Be honest about cloud-sync state: a sale always
+      // commits locally (IndexedDB), but the Supabase write may have failed
+      // (offline / network / server). syncOfflineSales will push it on next login.
+      if (cloudSynced) {
+        displayToast('✅ Sale recorded successfully!');
+      } else {
+        displayToast('✅ Saved on this device — will sync when online.');
+      }
 
     } catch (error) {
       console.error('[Save Sale Error]', error);
@@ -3638,10 +3669,23 @@ Low Stock: ${lowStockItems.length}
   };
 
   // Offline Queue Management
-  const checkPendingSales = () => {
+  // Phase 1 (offline honesty): count REAL unsynced sales from IndexedDB
+  // (sales where syncedToCloud is not true) instead of the dead localStorage
+  // 'sales-outbox' queue, which nothing on the record-sale path ever writes.
+  const checkPendingSales = async () => {
     try {
-      const outbox = JSON.parse(localStorage.getItem('sales-outbox') || '[]');
-      setPendingSales(outbox.length);
+      const db = await getDB();
+      const unsyncedCount = await new Promise((resolve, reject) => {
+        const tx = db.transaction(['sales'], 'readonly');
+        const store = tx.objectStore('sales');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const all = req.result || [];
+          resolve(all.filter((s) => !s.syncedToCloud).length);
+        };
+        req.onerror = () => reject(req.error);
+      });
+      setPendingSales(unsyncedCount);
     } catch (error) {
       console.error('Error checking pending sales:', error);
       setPendingSales(0);
@@ -4204,10 +4248,12 @@ Low Stock: ${lowStockItems.length}
 
       {/* Trial Banner Removed - Using Free/Paid plans only */}
 
-      {/* Pending Sales Badge (shown when offline with pending sales) */}
-      {!isOnline && pendingSales > 0 && (
+      {/* Unsynced Sales Badge: shows whenever there are sales not yet pushed to
+          the cloud, online OR offline (a sale can be unsynced while online if the
+          cloud write failed). Counts real IndexedDB sales where !syncedToCloud. */}
+      {pendingSales > 0 && (
         <div className="offline-badge">
-          📡 {pendingSales} sale{pendingSales > 1 ? 's' : ''} pending sync
+          📡 {pendingSales} sale{pendingSales > 1 ? 's' : ''} not synced
         </div>
       )}
 
