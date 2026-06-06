@@ -139,3 +139,12 @@ C1 REMAINING (cleanup, not breach-blockers):
       sales_units_backup_20260530) — out of original C1 scope; backup table likely just drop.
 
 NEXT: canViewReports cashier crash (frontend RBAC bug, code fix), then C2 apply, C3, etc.
+
+## C2 APPLIED + VERIFIED — 2026-06-04
+Migration 20260604_c2_harden_kyc_and_affiliate_rpcs.sql applied to PROD (psql -f, ON_ERROR_STOP, clean COMMIT).
+VERIFIED via pg_proc:
+- KYC fns (approve/reject/grant_velocity): proacl {postgres, service_role} ONLY — anon/authenticated/PUBLIC revoked.
+- Affiliate fns (increment_*): grants preserved — browser tracking intact, owner-check in-body. No damage.
+- All 6: proconfig {search_path=public}. postgres retains EXECUTE on approve_kyc_review (reviewer path intact).
+RESIDUAL (on record): increment_affiliate_conversion self-conversion fraud open until recordAffiliateSale
+increment moves server-side (separate follow-up). C2: WRITTEN-NOT-APPLIED -> DONE.
