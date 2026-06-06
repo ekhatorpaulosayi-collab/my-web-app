@@ -63,15 +63,16 @@ export default function PaymentSetup() {
     async function loadStatus() {
       if (!currentUser?.uid) return;
       try {
-        // Tier gate first. KYC v1 step 5.1: free-tier merchants see
-        // a "Choose a plan" CTA instead of the bank-setup flow.
-        // Uses the get_user_tier RPC (which since hardening commit
-        // 90150f4 mirrors submit_kyc_v1's canonical paid-tier check
-        // — cancelled, expired, and business-tier users all resolve
-        // to 'free' here, matching what the edge functions see).
+        // Tier gate. Free tier is now admitted to card-payment onboarding
+        // (punch-list #2, Option A — see CLAUDE.md "Session 11"): Free
+        // merchants render the normal Bank-setup + KYC cards, matching the
+        // F2/F3 edge guards and submit_kyc_v1, which no longer block Free.
+        // Only a truly tier-less user (RPC returned nothing) is locked out.
+        // Uses the get_user_tier RPC (business-tier still resolves to 'free'
+        // here, matching what the edge functions see).
         const tier = await getUserTier(currentUser.uid);
         if (cancelled) return;
-        if (!tier || tier.tier_id === 'free') {
+        if (!tier) {
           setStatus({ kind: 'tier_locked' });
           setKycStatus({ kind: 'tier_locked' });
           return;
