@@ -159,3 +159,14 @@ verify-subscription + verify-transaction deployed to prod (yzlniqwzqlsftxrtapdl)
   2. Legitimate upgrade still grants (real Paystack flow) — ALSO confirms Paystack plan amounts match DB price_*.
      If a real correct payment is rejected with "amount does not cover" = Paystack-vs-DB price MISMATCH (data fix, not code).
 C3 + M6: UNTOUCHED -> DEPLOYED-PENDING-TEST.
+
+## FREE UNGATE (#2) DEPLOYED — 2026-06-06
+Free reachability opened. Both live:
+- RPC: migration 20260606_submit_kyc_v1_ungate_free.sql applied (clean). Tier gate removed; body-diff
+  confirmed ONLY the gate gone, all other guards byte-identical. VERIFIED: pg_get_functiondef on LIVE
+  function has no subscription_required/v_has_paid_tier/tier_id IN (grep empty).
+- UI: PaymentSetup.tsx gate -> (!tier) only; Free renders cards. vite build exit 0. Verified by inspection.
+  Committed+deployed (1411a25).
+NOTE: KYC submission now open to ALL tiers (Option A) - fraud control = manual review + velocity caps.
+⚠️ OWED: real Free-account end-to-end walkthrough before actively promoting Free. No Free account to test today.
+#2: UNTOUCHED -> DEPLOYED (walkthrough owed).
