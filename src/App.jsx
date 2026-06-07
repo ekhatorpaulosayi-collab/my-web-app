@@ -1059,7 +1059,8 @@ function App() {
         // sales while offline — mirrors getProducts' localStorage-cache fallback pattern.
         // Online (allSales non-empty), Supabase stays source of truth — unchanged.
         // IDB records already store sellKobo (kobo) + qty, which the dashboard reads
-        // directly. itemName isn't on the IDB record, so look it up from products.
+        // directly. itemName isn't on the IDB record, so resolve it from the offline-safe
+        // products cache (same source the sync drain uses), falling back to `items` state.
         // NOTE: only swaps WHICH array is set — the rest of initializeData (drain,
         // credits load, etc.) continues normally below.
         let salesToShow = allSales;
@@ -1074,12 +1075,37 @@ function App() {
             });
 
             if (idbSales.length > 0) {
+              // Build an itemId -> name map for the name lookup. The `products` local
+              // from the products-load try block above is NOT in scope here; use the
+              // offline-safe products cache that getProducts maintains in localStorage,
+              // falling back to `items` state. Wrapped so a bad cache can't abort the map.
+              const productNameById = new Map();
+              try {
+                const cachedRaw = localStorage.getItem('storehouse:products:cache');
+                const cachedProducts = cachedRaw ? JSON.parse(cachedRaw) : [];
+                const sourceList = Array.isArray(cachedProducts) && cachedProducts.length > 0
+                  ? cachedProducts
+                  : (items || []);
+                for (const p of sourceList) {
+                  if (p && p.id != null) productNameById.set(String(p.id), p.name);
+                }
+              } catch (nameMapErr) {
+                console.warn('[App] Offline name-map build failed (non-fatal):', nameMapErr);
+              }
+
               salesToShow = idbSales.map(s => {
-                const matchedItem = products.find(p => String(p.id) === String(s.itemId));
+                // Per-sale name lookup must NEVER throw — a missing product still shows
+                // the sale with a fallback name.
+                let resolvedName = 'Item';
+                try {
+                  resolvedName = s.itemName || productNameById.get(String(s.itemId)) || 'Item';
+                } catch {
+                  resolvedName = s.itemName || 'Item';
+                }
                 return {
                   id: s.id,
                   itemId: s.itemId,
-                  itemName: s.itemName || matchedItem?.name || 'Unknown',
+                  itemName: resolvedName,
                   qty: s.qty,
                   sellKobo: s.sellKobo, // kobo — dashboard reads this directly
                   createdAt: s.createdAt,
