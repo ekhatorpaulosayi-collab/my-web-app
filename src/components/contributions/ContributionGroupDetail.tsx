@@ -185,12 +185,22 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     }
   }, [localMembers]);
 
-  // Calculate recipient using rotation logic
+  // Calculate recipient using rotation logic.
+  // CRITICAL: sort by payout_position — the canonical rotation order. (The old code
+  // sorted by `a.position`, which is undefined on these member objects → it silently
+  // fell through to created_at ordering, so the "lowest position uncollected" rule
+  // actually picked the earliest-CREATED uncollected member. With out-of-order
+  // collection that selects the wrong person and can leave the true last-by-position
+  // member unreachable. Sort by payout_position so uncollectedMembers[0] is genuinely
+  // the lowest payout_position not yet collected — order-independent for any N.)
+  const memberSortKey = (m: Member) =>
+    (typeof m.payout_position === 'number' ? m.payout_position
+      : (typeof m.position === 'number' ? m.position : Number.MAX_SAFE_INTEGER));
   const sortedMembers = [...localMembers].sort((a, b) => {
-    // Sort by position first, fallback to created_at if positions are equal
-    if (a.position !== undefined && b.position !== undefined) {
-      return a.position - b.position;
-    }
+    const ka = memberSortKey(a);
+    const kb = memberSortKey(b);
+    if (ka !== kb) return ka - kb;
+    // Stable tiebreak only when positions are equal/missing.
     const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
     const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
     return dateA - dateB;
@@ -1104,26 +1114,44 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             Remind all
           </button>
           <button
-            onClick={() => allPaid && setShowPayoutModal(true)} // Fix 4: Proper state check
-            disabled={!allPaid}
+            // Can only record a payout when all paid AND there is a current recipient
+            // (rotation not complete) — never open the modal with a blank recipient.
+            onClick={() => {
+              if (rotationComplete) { alert('Rotation complete — everyone has collected.'); return; }
+              if (!currentRecipient) { alert('No current recipient. Please reopen the group.'); return; }
+              if (!allPaid) { alert(`All members must pay in before payout. ${unpaidMembers.length} member(s) still owe.`); return; }
+              setShowPayoutModal(true);
+            }}
+            disabled={!allPaid || !currentRecipient || rotationComplete}
             style={{
               flex: 1,
               padding: '14px',
               borderRadius: '12px',
               border: 'none',
-              background: allPaid ? '#14b8a6' : '#e5e7eb', // Fix 4: Solid teal when all paid
-              color: allPaid ? 'white' : '#9ca3af',
+              background: (allPaid && currentRecipient && !rotationComplete) ? '#14b8a6' : '#e5e7eb',
+              color: (allPaid && currentRecipient && !rotationComplete) ? 'white' : '#9ca3af',
               fontSize: '14px',
               fontWeight: '500',
-              cursor: allPaid ? 'pointer' : 'not-allowed',
-              opacity: allPaid ? 1 : 0.4, // Fix 4: Full opacity when all paid
-              pointerEvents: allPaid ? 'auto' : 'none' // Fix 4: Enable clicks when all paid
+              cursor: (allPaid && currentRecipient && !rotationComplete) ? 'pointer' : 'not-allowed',
+              opacity: (allPaid && currentRecipient && !rotationComplete) ? 1 : 0.4,
+              pointerEvents: (allPaid && currentRecipient && !rotationComplete) ? 'auto' : 'none'
             }}
           >
-            Record payout
+            {rotationComplete ? 'Rotation complete' : 'Record payout'}
           </button>
         </div>
       </div>
+
+      {/* Rotation complete banner — clear end state when everyone has collected. */}
+      {rotationComplete && (
+        <div style={{
+          margin: '12px 16px', padding: '14px 16px', borderRadius: '12px',
+          background: '#d1fae5', border: '1px solid #86efac', color: '#065f46',
+          fontSize: '14px', fontWeight: 600, textAlign: 'center'
+        }}>
+          ✅ Rotation complete — everyone has collected.
+        </div>
+      )}
 
       {/* Remind Modal */}
       {showRemindModal && (
