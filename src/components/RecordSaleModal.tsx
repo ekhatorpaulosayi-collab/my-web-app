@@ -19,7 +19,7 @@ import {
 import { openWhatsApp, formatPhoneForWhatsApp } from '../utils/whatsapp';
 import { formatNGN, parseMoney, formatMoneyInput } from '../utils/currency';
 import { ensureQty, ensurePrice } from '../utils/validators';
-import { enqueueSale, getQueue, removeFromQueue } from '../utils/offlineQueue';
+// SINGLE-PATH (Option b): offlineQueue import removed — offline sales now go to IndexedDB.
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -148,21 +148,15 @@ export default function RecordSaleModal({
     }
   }, [paymentMethod]);
 
-  // ENHANCEMENT 6: Monitor online/offline status
+  // Monitor online/offline status (drives the "You're offline" banner only).
+  // SINGLE-PATH (Option b): no localStorage queue drain here — offline sales go to
+  // IndexedDB via onSaveSale and are synced by the app-level reconnect drain.
   useEffect(() => {
-    const handleOnline = () => {
-      setOffline(false);
-      processOfflineQueue();
-    };
+    const handleOnline = () => setOffline(false);
     const handleOffline = () => setOffline(true);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Process any pending queue on mount
-    if (navigator.onLine) {
-      processOfflineQueue();
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -170,33 +164,7 @@ export default function RecordSaleModal({
     };
   }, []);
 
-  // ENHANCEMENT 6: Process offline queue when back online
-  const processOfflineQueue = async () => {
-    const queue = getQueue();
-    if (queue.length === 0) return;
-
-    console.info('[OfflineQueue] Processing', queue.length, 'pending sales...');
-    onShowToast?.(`📡 Syncing ${queue.length} offline sale(s)...`);
-
-    for (const queuedSale of queue) {
-      try {
-        await onSaveSale(queuedSale.payload);
-        removeFromQueue(queuedSale.id);
-        console.info('[OfflineQueue] Synced:', queuedSale.id);
-      } catch (err) {
-        console.error('[OfflineQueue] Failed to sync:', queuedSale.id, err);
-        // Stop processing on first error to avoid cascading failures
-        break;
-      }
-    }
-
-    const remaining = getQueue().length;
-    if (remaining === 0) {
-      onShowToast?.('✅ All offline sales synced!');
-    } else {
-      onShowToast?.(`⚠️ ${remaining} sale(s) still pending`);
-    }
-  };
+  // (processOfflineQueue removed — SINGLE-PATH Option b.)
 
   // ENHANCEMENT 2: Validate quantity on change
   useEffect(() => {
@@ -653,47 +621,9 @@ export default function RecordSaleModal({
       console.log('[Cart Save] isCredit value:', isCredit);
       console.log('[Cart Save] Cart items:', cart.length);
 
-      // ENHANCEMENT 6: Check if offline and queue sale
-      if (offline || !navigator.onLine) {
-        console.info('[Cart Save] Offline detected - queuing sale');
-
-        for (const cartItem of cart) {
-          const saleData = {
-            itemId: cartItem.itemId,
-            quantity: cartItem.quantity.toString(),
-            sellPrice: cartItem.price.toString(),
-            isCreditSale: isCredit,
-            customerName: isCredit ? customerName : (customerEmail || ''),
-            phone: phone,
-            dueDate: isCredit ? new Date(dueDate).toISOString() : '',
-            note: isCredit ? message : '',
-            sendWhatsApp: false,
-            hasConsent: isCredit ? hasConsent : false,
-            paymentMethod: paymentMethod,
-            paymentReference: paymentData?.reference || undefined,
-            paymentEmail: paymentData?.email || undefined
-          };
-
-          enqueueSale(saleData);
-        }
-
-        // Log analytics
-        logSaleEvent('sale_completed', {
-          item_count: cart.length,
-          amount: cartTotals.totalAmount,
-          payment_method: paymentMethod,
-          is_credit: isCredit
-        });
-
-        onShowToast?.('📴 Offline - Sale queued. Will sync automatically.', 5000);
-
-        // Clear form and close
-        setCart([]);
-        setCartExpanded(false);
-        setIsProcessing(false);
-        onClose();
-        return;
-      }
+      // SINGLE-PATH (Option b): no separate offline branch. Both online and offline
+      // go through onSaveSale -> handleSaveSale (IndexedDB-first, best-effort cloud).
+      // The old enqueue->localStorage offline queue is removed.
 
       // ENHANCEMENT 5: Take stock snapshot for rollback
       const stockSnapshots = new Map<string, number>();
@@ -884,43 +814,15 @@ Powered by Storehouse
         error: String(error)
       });
 
-      // Check if network error - queue if offline
-      const isNetworkError = error instanceof Error &&
-        (error.message.includes('network') ||
-         error.message.includes('offline') ||
-         error.message.includes('fetch'));
+      // SINGLE-PATH (Option b): do NOT enqueue to localStorage. handleSaveSale is
+      // IDB-first and swallows cloud failures, so offline still resolves successfully.
+      // Reaching this catch means a genuine PRE-IDB failure (sale NOT saved) — show
+      // "try again". Enqueuing here would risk double-recording.
+      onShowToast?.('❌ Couldn\'t save. Please try again.', 4000);
+      setCartError('Failed to complete sale. Please try again.');
+      setIsProcessing(false);
 
-      if (isNetworkError) {
-        console.info('[Save Cart] Network error detected - queuing sale');
-        for (const cartItem of cart) {
-          const saleData = {
-            itemId: cartItem.itemId,
-            quantity: cartItem.quantity.toString(),
-            sellPrice: cartItem.price.toString(),
-            isCreditSale: isCredit,
-            customerName: isCredit ? customerName : (customerEmail || ''),
-            phone: phone,
-            dueDate: isCredit ? new Date(dueDate).toISOString() : '',
-            note: isCredit ? message : '',
-            sendWhatsApp: false,
-            hasConsent: isCredit ? hasConsent : false,
-            paymentMethod: paymentMethod
-          };
-          enqueueSale(saleData);
-        }
-
-        onShowToast?.('📴 Network error - Sale queued for sync.', 5000);
-        setCart([]);
-        setCartExpanded(false);
-        setIsProcessing(false);
-        onClose();
-      } else {
-        onShowToast?.('❌ Couldn\'t save. Please try again.', 4000);
-        setCartError('Failed to complete sale. Please try again.');
-        setIsProcessing(false);
-      }
-
-      // Modal stays open on non-network error
+      // Modal stays open on error
     }
   };
 

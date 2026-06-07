@@ -2937,36 +2937,11 @@ Thank you for your business! 🙏
         throw new Error(`Not enough stock. Only ${selectedItem.qty || 0} available.`);
       }
 
-      // Update product quantity in Supabase (non-blocking - don't fail sale if this fails)
-      try {
-        await updateProduct(currentUser.uid, selectedItem.id, {
-          quantity: selectedItem.qty - qty  // Use 'quantity' for Supabase
-        });
-        console.log('[handleSaveSale] ✅ Product quantity updated in Supabase');
-
-        // INSTANT UI UPDATE: Update local state immediately (optimistic update)
-        setItems(prevItems =>
-          prevItems.map(item =>
-            item.id === selectedItem.id
-              ? { ...item, qty: item.qty - qty, quantity: item.quantity - qty }
-              : item
-          )
-        );
-        console.log('[handleSaveSale] ✅ Local inventory updated instantly');
-
-        // Log stock movement
-        logStockMovement({
-          itemId: selectedItem.id,
-          type: 'out',
-          qty: -qty,
-          unitCost: selectedItem.purchaseKobo,
-          reason: 'sale',
-          at: new Date().toISOString()
-        });
-      } catch (supabaseError) {
-        console.warn('[handleSaveSale] ⚠️ Failed to update product in Supabase, but continuing with sale:', supabaseError);
-        // Continue with sale even if Supabase update fails
-      }
+      // OFFLINE-SAFE ORDERING: the local IndexedDB write happens FIRST, before any
+      // network call (updateProduct / createSupabaseSale below). This guarantees the
+      // sale is durably recorded regardless of connectivity; a network call that hangs
+      // or fails offline can never prevent the sale from being saved. The cloud writes
+      // run AFTER, best-effort, and set syncedToCloud so the reconnect drain catches up.
 
       // Wrap the sales/customer/credits transaction in a promise
       await new Promise((resolve, reject) => {
@@ -3092,6 +3067,42 @@ Thank you for your business! 🙏
         outboxStore.put(outboxData);
       });
 
+      // IDB write committed above. Everything below is best-effort cloud sync that
+      // must NEVER throw out of handleSaveSale — offline, these all fail/swallow and
+      // the sale stays safely in IndexedDB with syncedToCloud=false for the drain.
+
+      // Update product quantity in Supabase (non-blocking - don't fail sale if this fails).
+      // Moved to AFTER the IDB write so an offline/hanging network call can't block the sale.
+      try {
+        await updateProduct(currentUser.uid, selectedItem.id, {
+          quantity: selectedItem.qty - qty  // Use 'quantity' for Supabase
+        });
+        console.log('[handleSaveSale] ✅ Product quantity updated in Supabase');
+
+        // INSTANT UI UPDATE: Update local state immediately (optimistic update)
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === selectedItem.id
+              ? { ...item, qty: item.qty - qty, quantity: item.quantity - qty }
+              : item
+          )
+        );
+        console.log('[handleSaveSale] ✅ Local inventory updated instantly');
+
+        // Log stock movement
+        logStockMovement({
+          itemId: selectedItem.id,
+          type: 'out',
+          qty: -qty,
+          unitCost: selectedItem.purchaseKobo,
+          reason: 'sale',
+          at: new Date().toISOString()
+        });
+      } catch (supabaseError) {
+        console.warn('[handleSaveSale] ⚠️ Failed to update product in Supabase, but continuing with sale:', supabaseError);
+        // Continue with sale even if Supabase update fails (offline-safe).
+      }
+
       // CRITICAL FIX: Also save to Supabase cloud for persistence.
       // Phase 1 (offline honesty): this is the ONE path that actually writes to
       // Supabase (the second block below is dead — it only logs). So this try/catch
@@ -3122,15 +3133,22 @@ Thank you for your business! 🙏
           notes: formData.note || null
         };
 
-        // Save to Supabase - pass the current user's ID
-        await createSupabaseSale(supabaseSaleData, currentUser.uid);
-        console.log('[handleSaveSale] ✅ Sale saved to Supabase cloud!');
+        // Save to Supabase - pass the current user's ID.
+        // CRITICAL: createSupabaseSale returns the persisted row on success, or null
+        // on ANY failure (offline, network reject, RLS error, no-row). It does NOT
+        // throw on a network reject — so we MUST check the return value. Only a real
+        // confirmed row counts as success; null => not persisted => treat as failure.
+        const cloudRow = await createSupabaseSale(supabaseSaleData, currentUser.uid);
+        if (!cloudRow || !cloudRow.id) {
+          throw new Error('cloud write not confirmed (offline or insert returned no row)');
+        }
+        console.log('[handleSaveSale] ✅ Sale saved to Supabase cloud! id:', cloudRow.id);
         cloudSynced = true;
 
         // Mark the local IndexedDB sale as synced so syncOfflineSales does not
         // re-insert it on next login (its filter is `!s.syncedToCloud`).
         try {
-          await updateSale(saleId, { syncedToCloud: true });
+          await updateSale(saleId, { syncedToCloud: true, cloudId: cloudRow.id });
         } catch (flagErr) {
           console.warn('[handleSaveSale] Could not set syncedToCloud=true on local sale:', flagErr);
         }

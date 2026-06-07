@@ -8,7 +8,7 @@ import { useHotkeys } from '../hooks/useHotkeys';
 import { useBusinessProfile } from '../contexts/BusinessProfile';
 import { formatNGN, parseMoney } from '../utils/currency';
 import { ensureQty, ensurePrice } from '../utils/validators';
-import { enqueueSale, getQueue, removeFromQueue } from '../utils/offlineQueue';
+// SINGLE-PATH (Option b): offlineQueue import removed — offline sales now go to IndexedDB.
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { formatNGPhone, validateInternationalPhone } from '../utils/phone';
@@ -163,20 +163,16 @@ export default function RecordSaleModalV2({
     }
   }, [salesChannel]);
 
-  // Monitor online/offline
+  // Monitor online/offline (drives the "You're offline" banner only).
+  // SINGLE-PATH (Option b): the modal no longer drains a localStorage queue —
+  // offline sales go straight to IndexedDB via onSaveSale and are synced by the
+  // app-level reconnect drain (runOfflineSalesSync -> syncOfflineSales).
   useEffect(() => {
-    const handleOnline = () => {
-      setOffline(false);
-      processOfflineQueue();
-    };
+    const handleOnline = () => setOffline(false);
     const handleOffline = () => setOffline(true);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    if (navigator.onLine) {
-      processOfflineQueue();
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -208,32 +204,8 @@ export default function RecordSaleModalV2({
     }
   }, [isOpen, items]);
 
-  // Process offline queue
-  const processOfflineQueue = async () => {
-    const queue = getQueue();
-    if (queue.length === 0) return;
-
-    console.info('[OfflineQueue] Processing', queue.length, 'pending sales...');
-    onShowToast?.(`📡 Syncing ${queue.length} offline sale(s)...`);
-
-    for (const queuedSale of queue) {
-      try {
-        await onSaveSale(queuedSale.payload);
-        removeFromQueue(queuedSale.id);
-        console.info('[OfflineQueue] Synced:', queuedSale.id);
-      } catch (err) {
-        console.error('[OfflineQueue] Failed to sync:', queuedSale.id, err);
-        break;
-      }
-    }
-
-    const remaining = getQueue().length;
-    if (remaining === 0) {
-      onShowToast?.('✅ All offline sales synced!');
-    } else {
-      onShowToast?.(`⚠️ ${remaining} sale(s) still pending`);
-    }
-  };
+  // (processOfflineQueue removed — SINGLE-PATH Option b. The localStorage offline
+  // queue is gone; the app-level reconnect drain handles IndexedDB sync.)
 
   // Reset form on close
   // IMPORTANT: Don't reset if we just completed a sale and are showing receipt
@@ -667,44 +639,11 @@ export default function RecordSaleModalV2({
         }
       }
 
-      // Check if offline and queue sale
-      if (offline || !navigator.onLine) {
-        console.info('[V2] Offline detected - queuing sale');
-
-        for (const cartItem of cart) {
-          const saleData = {
-            itemId: cartItem.itemId,
-            quantity: cartItem.quantity.toString(),
-            sellPrice: cartItem.price.toString(),
-            isCreditSale: isCredit,
-            customerName: isCredit ? customerName : (customerEmail || ''),
-            phone: phone,
-            dueDate: isCredit ? new Date(dueDate).toISOString() : '',
-            note: isCredit ? message : '',
-            paymentMethod: paymentMethod,
-            paymentReference: paymentData?.reference || undefined,
-            paymentEmail: paymentData?.email || undefined,
-            salesChannel: salesChannel
-          };
-
-          enqueueSale(saleData);
-        }
-
-        logSaleEvent('sale_completed', {
-          item_count: cart.length,
-          amount: cartTotals.totalAmount,
-          payment_method: paymentMethod,
-          is_credit: isCredit
-        });
-
-        onShowToast?.('📴 Offline - Sale queued. Will sync automatically.', 5000);
-
-        setCart([]);
-        setCartDrawerOpen(false);
-        setIsProcessing(false);
-        onClose();
-        return;
-      }
+      // SINGLE-PATH (Option b): no separate offline branch. Both online and offline
+      // go through onSaveSale -> handleSaveSale, which writes IndexedDB FIRST and
+      // attempts the cloud best-effort. Offline, the sale is saved locally with
+      // syncedToCloud=false and the reconnect drain (syncOfflineSales) pushes it.
+      // The old enqueue->localStorage('storehouse:pending-sales:v1') path is removed.
 
       // Process all cart items
       for (const cartItem of cart) {
@@ -829,40 +768,15 @@ export default function RecordSaleModalV2({
         error: String(error)
       });
 
-      // Check if network error - queue if offline
-      const isNetworkError = error instanceof Error &&
-        (error.message.includes('network') ||
-         error.message.includes('offline') ||
-         error.message.includes('fetch'));
-
-      if (isNetworkError) {
-        console.info('[V2 Save] Network error detected - queuing sale');
-        for (const cartItem of cart) {
-          const saleData = {
-            itemId: cartItem.itemId,
-            quantity: cartItem.quantity.toString(),
-            sellPrice: cartItem.price.toString(),
-            isCreditSale: isCredit,
-            customerName: isCredit ? customerName : (customerEmail || ''),
-            phone: phone,
-            dueDate: isCredit ? new Date(dueDate).toISOString() : '',
-            note: isCredit ? message : '',
-            paymentMethod: paymentMethod,
-            salesChannel: salesChannel
-          };
-          enqueueSale(saleData);
-        }
-
-        onShowToast?.('📴 Network error - Sale queued for sync.', 5000);
-        setCart([]);
-        setCartDrawerOpen(false);
-        setIsProcessing(false);
-        onClose();
-      } else {
-        onShowToast?.('❌ Couldn\'t save. Please try again.', 4000);
-        setError('Failed to complete sale. Please try again.');
-        setIsProcessing(false);
-      }
+      // SINGLE-PATH (Option b): do NOT enqueue to localStorage here. handleSaveSale is
+      // now IDB-first and swallows cloud failures (offline => saved locally,
+      // syncedToCloud=false), so it resolves successfully when offline. Reaching this
+      // catch means a genuine PRE-IDB failure — the sale was NOT saved — so the honest
+      // response is "try again". Enqueuing here would double-record a sale that may
+      // already be in IndexedDB.
+      onShowToast?.('❌ Couldn\'t save. Please try again.', 4000);
+      setError('Failed to complete sale. Please try again.');
+      setIsProcessing(false);
     }
   };
 

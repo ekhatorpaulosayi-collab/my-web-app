@@ -121,6 +121,14 @@ export async function createSale(sale: Sale, userId?: string): Promise<Sale | nu
       throw error;
     }
 
+    // CONFIRMED-PERSISTED guard: success means the server returned the inserted row.
+    // .insert(...).select().single() returns the row on a real insert. If data is
+    // null/empty (e.g. a resolution that didn't actually persist), treat as failure
+    // so the caller does NOT mark the sale syncedToCloud=true.
+    if (!data || !data.id) {
+      throw new Error('Sale insert returned no row (not persisted)');
+    }
+
     console.log('[supabaseSales] ✅ Sale created successfully!');
     console.log('[supabaseSales] Created sale ID:', data?.id);
     console.log('[supabaseSales] Full response:', data);
