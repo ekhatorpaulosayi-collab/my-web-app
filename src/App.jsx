@@ -1054,12 +1054,58 @@ function App() {
           };
         });
 
+        // OFFLINE FALLBACK: if Supabase returned nothing (offline / failed), fall back
+        // to the local IndexedDB sales store so the dashboard still shows the merchant's
+        // sales while offline — mirrors getProducts' localStorage-cache fallback pattern.
+        // Online (allSales non-empty), Supabase stays source of truth — unchanged.
+        // IDB records already store sellKobo (kobo) + qty, which the dashboard reads
+        // directly. itemName isn't on the IDB record, so look it up from products.
+        // NOTE: only swaps WHICH array is set — the rest of initializeData (drain,
+        // credits load, etc.) continues normally below.
+        let salesToShow = allSales;
+        if (allSales.length === 0) {
+          try {
+            const idbDb = await getDB();
+            const idbSales = await new Promise((resolve, reject) => {
+              const tx = idbDb.transaction(['sales'], 'readonly');
+              const req = tx.objectStore('sales').getAll();
+              req.onsuccess = () => resolve(req.result || []);
+              req.onerror = () => reject(req.error);
+            });
+
+            if (idbSales.length > 0) {
+              salesToShow = idbSales.map(s => {
+                const matchedItem = products.find(p => String(p.id) === String(s.itemId));
+                return {
+                  id: s.id,
+                  itemId: s.itemId,
+                  itemName: s.itemName || matchedItem?.name || 'Unknown',
+                  qty: s.qty,
+                  sellKobo: s.sellKobo, // kobo — dashboard reads this directly
+                  createdAt: s.createdAt,
+                  dayKey: s.dayKey,
+                  payment: s.paymentMethod,
+                  paymentMethod: s.paymentMethod,
+                  customerName: s.customerName || undefined,
+                  // Keep sync flags on the record for the upcoming per-sale indicator.
+                  syncedToCloud: s.syncedToCloud,
+                  syncError: s.syncError,
+                };
+              });
+              console.log('[App] 📴 Offline/empty cloud — using', salesToShow.length, 'local IndexedDB sales');
+            }
+          } catch (idbErr) {
+            console.warn('[App] Offline sales fallback (IndexedDB) failed:', idbErr);
+            // fall through with allSales (empty) — same as before this change
+          }
+        }
+
         // Set the sales data
-        console.log('[App] 🎯 Setting sales state with', allSales.length, 'sales');
-        console.log('[App] 📊 Sales data preview:', allSales.slice(0, 3)); // Show first 3 sales
+        console.log('[App] 🎯 Setting sales state with', salesToShow.length, 'sales');
+        console.log('[App] 📊 Sales data preview:', salesToShow.slice(0, 3)); // Show first 3 sales
         console.log('[App] 📅 Today\'s date:', new Date().toISOString().split('T')[0]);
-        console.log('[App] 📅 Sales dates:', [...new Set(allSales.map(s => s.dayKey))].sort());
-        setSales(allSales);
+        console.log('[App] 📅 Sales dates:', [...new Set(salesToShow.map(s => s.dayKey))].sort());
+        setSales(salesToShow);
         console.log('[App] ✅ Sales state updated successfully');
 
         // Sync any offline sales created while offline (login-path drain;
