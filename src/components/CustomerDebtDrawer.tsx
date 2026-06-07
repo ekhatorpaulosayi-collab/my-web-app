@@ -1092,9 +1092,26 @@ Thank you for your payment! 🙏`;
                   // This would typically update the group's payment records
                   onToast?.('Payment recorded successfully');
                 }}
-                onRecordPayout={(recipientId, amount) => {
+                onRecordPayout={async (recipientId, amount) => {
                   console.log('Payout recorded:', recipientId, amount);
                   onToast?.('Payout recorded successfully');
+                  // Stage 2 fix: reload the group from the backend so the UI reflects
+                  // the new collected state and advances to the next recipient. The
+                  // previous handler did nothing, so the recipient never moved.
+                  try {
+                    const { data: freshMembers } = await supabase
+                      .from('contribution_members')
+                      .select('id, name, phone, payout_position, status')
+                      .eq('group_id', selectedGroup.id)
+                      .order('payout_position');
+                    setSelectedGroup({
+                      ...selectedGroup,
+                      members: freshMembers || selectedGroup.members || [],
+                      contribution_members: freshMembers || selectedGroup.members || []
+                    });
+                  } catch (reloadErr) {
+                    console.error('Failed to reload group after payout:', reloadErr);
+                  }
                 }}
                 onRemindUnpaid={(memberIds) => {
                   // Show modal with list of unpaid members

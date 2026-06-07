@@ -107,6 +107,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [paymentNote, setPaymentNote] = useState('');
   const [recipientOrder, setRecipientOrder] = useState<string[]>([]);
   const [cyclePayments, setCyclePayments] = useState<any[]>([]);
+  // Stage 2 fix: load this group's payouts so we can derive who has collected
+  // (the open-group path supplies members WITHOUT hasCollected). collectedMemberIds
+  // drives the current recipient and advances it after a payout.
+  const [groupPayouts, setGroupPayouts] = useState<any[]>([]);
   const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showPayoutSchedule, setShowPayoutSchedule] = useState(false);
@@ -121,10 +125,26 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     setLocalMembers(group.members || group.contribution_members || []);
   }, [group]);
 
-  // Load payments for current cycle on mount
+  // Load payments for current cycle + payouts (collected ledger) on mount
   React.useEffect(() => {
     loadCyclePayments();
+    loadGroupPayouts();
   }, [group.id, group.cycleNumber]);
+
+  // Stage 2 fix: payouts = the has-collected ledger for this group.
+  const loadGroupPayouts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contribution_payouts')
+        .select('member_id, cycle_number, amount, paid_at')
+        .eq('group_id', group.id);
+      if (!error && data) {
+        setGroupPayouts(data);
+      }
+    } catch (error) {
+      console.error('Failed to load group payouts:', error);
+    }
+  };
 
   const loadCyclePayments = async () => {
     try {
@@ -176,13 +196,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     return dateA - dateB;
   });
   // Stage 2 rotation: current recipient = lowest payout_position among members who have
-  // NOT collected yet (hasCollected is derived from contribution_payouts in getGroup).
+  // NOT collected yet. "Collected" is derived from this group's payout rows
+  // (groupPayouts), which works regardless of whether the caller supplied hasCollected.
   // No `payout_position === current_cycle`; no `|| sortedMembers[0]` fallback — if every
   // member has collected there is NO current recipient (rotation complete).
-  const uncollectedMembers = sortedMembers.filter(m => !m.hasCollected);
+  const collectedMemberIds = new Set(groupPayouts.map(p => p.member_id));
+  const hasMemberCollected = (m: Member) => m.hasCollected === true || collectedMemberIds.has(m.id);
+  const uncollectedMembers = sortedMembers.filter(m => !hasMemberCollected(m));
   const currentRecipient = uncollectedMembers.length > 0 ? uncollectedMembers[0] : null;
   const nextRecipient = uncollectedMembers.length > 1 ? uncollectedMembers[1] : null;
-  const rotationComplete = uncollectedMembers.length === 0;
+  const rotationComplete = sortedMembers.length > 0 && uncollectedMembers.length === 0;
   // Display counter: how many have collected so far (1-based turn of current recipient).
   const currentCycle = (sortedMembers.length - uncollectedMembers.length) + (currentRecipient ? 1 : 0);
 
@@ -351,30 +374,55 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     alert('Reminders sent!');
   };
 
-  // Fix 4: Record Payout functionality
+  // Fix 4: Record Payout functionality (Stage 2 execution fixes)
+  const [recordingPayout, setRecordingPayout] = useState(false);
   const handleRecordPayout = async () => {
-    if (!currentRecipient || !allPaid) return;
+    // FEEDBACK instead of silent return — tell the user WHY it's blocked.
+    if (rotationComplete) {
+      alert('Everyone in this group has already collected. The rotation is complete.');
+      return;
+    }
+    if (!currentRecipient) {
+      alert('No current recipient could be determined. Please reopen the group and try again.');
+      return;
+    }
+    if (!allPaid) {
+      alert(`All members must pay in before payout. ${unpaidMembers.length} member(s) still owe for this cycle.`);
+      return;
+    }
+    if (recordingPayout) return; // prevent double-submit
 
+    setRecordingPayout(true);
     try {
-      // Save payout record
-      await contributionService.recordPayout(
+      // Call the Stage 2 gated recordPayout with the CORRECT signature: the 4th arg
+      // is an object { amount, paymentMethod }, not a bare number. The gate rejects a
+      // second collect for the same member. cycle_number = the recipient's turn (their
+      // payout_position) so payouts are keyed stably to the rotation turn.
+      const { error } = await contributionService.recordPayout(
         group.id,
         currentRecipient.id,
-        group.cycleNumber,
-        totalCollected
+        currentRecipient.payout_position,
+        { amount: totalCollected, paymentMethod: 'cash' }
       );
 
-      // Call the parent handler which should:
-      // - Advance cycle number
-      // - Reset all members to unpaid
-      // - Refresh the view
+      if (error) {
+        // e.g. the gate: "This member has already collected in this group."
+        alert((error as any)?.message || 'Could not record payout. Please try again.');
+        return;
+      }
+
+      // Refresh local collected ledger so the recipient advances immediately, and ask
+      // the parent to reload the group from the backend (parent was a no-op before).
+      await loadGroupPayouts();
       onRecordPayout(currentRecipient.id, totalCollected);
 
       setShowPayoutModal(false);
-      alert(`₦${totalCollected.toLocaleString()} payout to ${currentRecipient.name} recorded. Cycle ${group.cycleNumber + 1} started!`);
+      alert(`₦${totalCollected.toLocaleString()} payout to ${currentRecipient.name} recorded.`);
     } catch (error) {
       console.error('Failed to record payout:', error);
       alert('Failed to record payout. Please try again.');
+    } finally {
+      setRecordingPayout(false);
     }
   };
 
@@ -415,9 +463,23 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   };
 
   const saveRecipientOrder = async () => {
+    // Guard against an empty recipientOrder (it's only seeded when length===0, so a
+    // race could leave it empty → zero updates + a misleading "Order saved!").
+    // Fall back to the current members' order so we never silently save nothing.
+    const orderToSave = recipientOrder.length > 0
+      ? recipientOrder
+      : sortedMembers.map(m => m.id);
+
+    if (orderToSave.length === 0) {
+      alert('No members to reorder yet.');
+      return;
+    }
+
     try {
-      // Update the payout_position field for each member
-      const updates = recipientOrder.map((memberId, index) =>
+      // NOTE: parallel position updates can transiently collide with the
+      // UNIQUE(group_id, payout_position) constraint — the transactional fix is Stage 3.
+      // Here we only ensure the save actually fires and reports real feedback.
+      const updates = orderToSave.map((memberId, index) =>
         supabase
           .from('contribution_members')
           .update({ payout_position: index + 1 })  // Use index + 1 to avoid position 0
@@ -433,7 +495,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         if (onBack) onBack();  // Return to group list for fresh data
       } else {
         console.error('Errors saving order:', errors);
-        alert('Error saving order');
+        alert(`Could not save the full order (${errors.length} update(s) failed). This can happen from a position conflict — please reopen and try again.`);
       }
     } catch (error) {
       console.error('Failed to save order:', error);
