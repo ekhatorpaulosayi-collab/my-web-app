@@ -3801,14 +3801,39 @@ Low Stock: ${lowStockItems.length}
     try {
       const { synced, failed, skipped } = await syncOfflineSales(currentUser.uid);
 
-      if (synced > 0) {
-        // Pull the newly-synced rows into the dashboard.
-        try {
-          const refreshed = await getSupabaseSales(currentUser.uid);
-          setSales(refreshed);
-        } catch (reloadErr) {
-          console.warn('[App] Synced sales but failed to reload list:', reloadErr);
-        }
+      // AUTO-REFRESH ON RECONNECT: after the drain settles, re-fetch sales from
+      // Supabase (now the source of truth again) and repopulate the dashboard, so it
+      // updates automatically without a manual refresh. Runs ALWAYS on reconnect — not
+      // just when synced>0 — because while offline the dashboard was showing the local
+      // IDB fallback and must be reconciled with the cloud (history + just-synced sales).
+      // Maps to the SAME app shape as the online initial load (sellKobo/qty/createdAt),
+      // so the dashboard's KPI math and today-filter work (raw Supabase rows lack these).
+      try {
+        const refreshed = await getSupabaseSales(currentUser.uid);
+        const mapped = refreshed.map(sale => {
+          const saleTimestamp = sale.sale_date ? new Date(sale.sale_date).getTime() : Date.now();
+          return {
+            id: sale.id,
+            date: sale.sale_date,
+            itemId: sale.product_id,
+            itemName: sale.product_name,
+            qty: sale.quantity,
+            unitPrice: sale.unit_price,
+            amount: sale.final_amount,
+            payment: sale.payment_method,
+            paymentMethod: sale.payment_method,
+            customerName: sale.customer_name,
+            phone: sale.customer_phone,
+            note: sale.notes,
+            createdAt: saleTimestamp,
+            dayKey: sale.sale_date,
+            cogsKobo: sale.cogsKobo,
+            sellKobo: sale.unit_price // Already kobo per migration 20260530
+          };
+        });
+        setSales(mapped);
+      } catch (reloadErr) {
+        console.warn('[App] Reconnect refresh failed (sales left as-is):', reloadErr);
       }
 
       // Honest surfacing — never claim success we didn't achieve.
