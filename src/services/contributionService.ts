@@ -48,6 +48,39 @@ interface ContributionPayout {
   paid_at: string;
 }
 
+// ROTATION (Stage 2) — has-collected ledger derived from contribution_payouts.
+// A member has "collected" IFF a payout row exists for them in this group. The
+// current recipient is the LOWEST payout_position among members with NO payout row.
+// This makes the recipient depend on collected-status, not on payout_position ===
+// current_cycle — so reordering can never double-collect or skip someone.
+
+// Returns the set of member_ids that already have a payout row in this group.
+export async function getCollectedMemberIds(groupId: string): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('contribution_payouts')
+    .select('member_id')
+    .eq('group_id', groupId);
+  if (error) {
+    console.error('[contributions] getCollectedMemberIds failed:', error);
+    // Fail safe: treat as "unknown" → empty set means everyone reads uncollected.
+    // Callers should still gate writes via recordPayout's own existence check.
+    return new Set<string>();
+  }
+  return new Set((data || []).map((r: { member_id: string }) => r.member_id));
+}
+
+// Pure selector: lowest payout_position among members WITHOUT a payout row.
+// Returns null when every member has collected (rotation complete → no current recipient).
+function pickCurrentRecipient<T extends { id: string; payout_position: number }>(
+  members: T[],
+  collectedIds: Set<string>
+): T | null {
+  const uncollected = (members || [])
+    .filter(m => !collectedIds.has(m.id))
+    .sort((a, b) => a.payout_position - b.payout_position);
+  return uncollected.length > 0 ? uncollected[0] : null;
+}
+
 // SHARE CODE GENERATOR - no ambiguous chars (0,o,1,l,i)
 function generateShareCode(): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -179,20 +212,12 @@ export async function getGroups(userId: string) {
         .eq('group_id', group.id)
         .eq('cycle_number', group.current_cycle);
 
-      // Get current recipient
-      console.log('RECIPIENT CALC:', {
-        current_cycle: group.current_cycle,
-        cycleType: typeof group.current_cycle,
-        members: group.contribution_members?.map(m => ({
-          name: m.name,
-          pos: m.payout_position,
-          posType: typeof m.payout_position,
-          match: m.payout_position === group.current_cycle,
-          looseMatch: m.payout_position == group.current_cycle
-        }))
-      });
-      const currentRecipient = group.contribution_members?.find(
-        (m: ContributionMember) => m.payout_position === group.current_cycle
+      // Current recipient = lowest payout_position among members with no payout row
+      // (Stage 2). null when everyone has collected (rotation complete).
+      const collectedIds = await getCollectedMemberIds(group.id);
+      const currentRecipient = pickCurrentRecipient(
+        group.contribution_members || [],
+        collectedIds
       );
 
       return {
@@ -238,19 +263,7 @@ export async function getGroup(groupId: string) {
 
     if (paymentsError) return { data: null, error: paymentsError };
 
-    // Annotate members with payment status
-    const paidMemberIds = new Set(payments?.map(p => p.member_id) || []);
-    const annotatedMembers = members?.map(member => ({
-      ...member,
-      hasPaid: paidMemberIds.has(member.id)
-    })) || [];
-
-    // Get current recipient
-    const currentRecipient = annotatedMembers.find(
-      m => m.payout_position === group.current_cycle
-    );
-
-    // Get payout history
+    // Get payout history (also the has-collected ledger for recipient selection)
     const { data: payouts, error: payoutsError } = await supabase
       .from('contribution_payouts')
       .select(`
@@ -261,6 +274,19 @@ export async function getGroup(groupId: string) {
       .order('cycle_number', { ascending: false });
 
     if (payoutsError) return { data: null, error: payoutsError };
+
+    // Annotate members with payment status (this cycle) and collected status (ever).
+    const paidMemberIds = new Set(payments?.map(p => p.member_id) || []);
+    const collectedMemberIds = new Set((payouts || []).map(p => p.member_id));
+    const annotatedMembers = members?.map(member => ({
+      ...member,
+      hasPaid: paidMemberIds.has(member.id),
+      hasCollected: collectedMemberIds.has(member.id)
+    })) || [];
+
+    // Current recipient = lowest payout_position among members with no payout row
+    // (Stage 2). null when everyone has collected (rotation complete).
+    const currentRecipient = pickCurrentRecipient(annotatedMembers, collectedMemberIds);
 
     return {
       data: {
@@ -559,6 +585,20 @@ export async function recordPayout(
   }
 ) {
   try {
+    // PAYOUT GATE (Stage 2): no double-collect. A member may have at most ONE payout
+    // row per group across the whole rotation — reject if one already exists.
+    const { data: existing, error: existErr } = await supabase
+      .from('contribution_payouts')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('member_id', memberId)
+      .limit(1);
+
+    if (existErr) return { data: null, error: existErr };
+    if (existing && existing.length > 0) {
+      return { data: null, error: { message: 'This member has already collected in this group.' } };
+    }
+
     const { data: payout, error } = await supabase
       .from('contribution_payouts')
       .insert({
@@ -571,7 +611,35 @@ export async function recordPayout(
       .select()
       .single();
 
-    return { data: payout, error };
+    if (error) return { data: payout, error };
+
+    // Recording a payout IS the advance (Stage 2): keep current_cycle consistent as a
+    // derived counter (= number of payouts made so far) and mark the group completed
+    // when everyone has collected. Recipient selection itself is derived from payout
+    // rows, so this is for display/status only — it never selects a member.
+    try {
+      const [{ count: payoutCount }, { count: memberCount }] = await Promise.all([
+        supabase.from('contribution_payouts')
+          .select('*', { count: 'exact', head: true }).eq('group_id', groupId),
+        supabase.from('contribution_members')
+          .select('*', { count: 'exact', head: true }).eq('group_id', groupId),
+      ]);
+      const collected = payoutCount || 0;
+      const total = memberCount || 0;
+      await supabase
+        .from('contribution_groups')
+        .update({
+          current_cycle: collected,
+          status: total > 0 && collected >= total ? 'completed' : 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', groupId);
+    } catch (syncErr) {
+      // Non-fatal: the payout is recorded; the derived counter can self-correct later.
+      console.warn('[contributions] recordPayout: current_cycle sync failed (non-fatal):', syncErr);
+    }
+
+    return { data: payout, error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -595,33 +663,46 @@ export async function getPayoutHistory(groupId: string) {
 }
 
 // CYCLE
-export async function advanceCycle(groupId: string) {
+// Stage 2: "advancing" the cycle = the CURRENT (derived) recipient collects. This
+// records a payout for the lowest-position uncollected member via recordPayout (which
+// gates double-collect and syncs current_cycle). It can NEVER select a collected member
+// or blindly increment a counter. amount defaults to total_members * group.amount.
+export async function advanceCycle(
+  groupId: string,
+  paymentMethod: string = 'cash'
+) {
   try {
-    // Get current group info
+    // Resolve group + members + collected ledger
     const { data: group, error: fetchError } = await supabase
       .from('contribution_groups')
-      .select('current_cycle, total_members')
+      .select('amount, total_members')
       .eq('id', groupId)
       .single();
-
     if (fetchError) return { data: null, error: fetchError };
 
-    const nextCycle = (group?.current_cycle || 1) + 1;
-    const isCompleted = nextCycle > (group?.total_members || 0);
+    const { data: members, error: membersError } = await supabase
+      .from('contribution_members')
+      .select('id, payout_position')
+      .eq('group_id', groupId)
+      .order('payout_position', { ascending: true });
+    if (membersError) return { data: null, error: membersError };
 
-    // Update group
-    const { data: updated, error: updateError } = await supabase
-      .from('contribution_groups')
-      .update({
-        current_cycle: nextCycle,
-        status: isCompleted ? 'completed' : 'active',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', groupId)
-      .select()
-      .single();
+    const collectedIds = await getCollectedMemberIds(groupId);
+    const recipient = pickCurrentRecipient(members || [], collectedIds);
 
-    return { data: updated, error: updateError };
+    if (!recipient) {
+      return { data: null, error: { message: 'Rotation complete — everyone has collected.' } };
+    }
+
+    // Pot = amount per member × member count (display/default; not re-derived here).
+    const memberCount = (members || []).length;
+    const payoutAmount = Number(group?.amount || 0) * memberCount;
+
+    // cycle_number recorded as the recipient's position (their turn number).
+    return await recordPayout(groupId, recipient.id, recipient.payout_position, {
+      amount: payoutAmount,
+      paymentMethod
+    });
   } catch (error) {
     return { data: null, error };
   }

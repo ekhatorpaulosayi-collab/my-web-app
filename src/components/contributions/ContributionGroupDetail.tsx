@@ -8,6 +8,8 @@ interface Member {
   phone?: string;
   isPaid?: boolean;
   hasPaid?: boolean;
+  hasCollected?: boolean; // Stage 2: derived from contribution_payouts (has a payout row)
+  payout_position: number;
   paymentAmount?: number;
   paymentDate?: string;
   status?: 'active' | 'late' | 'defaulted' | 'frozen';
@@ -173,11 +175,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
     return dateA - dateB;
   });
-  // Use current_cycle from DB or fall back to cycleNumber
-  const currentCycle = group.current_cycle || group.currentCycle || group.cycleNumber;
-  const currentRecipient = sortedMembers.find(m => m.payout_position == currentCycle) || sortedMembers[0];
-  const nextRecipientIndex = group.cycleNumber % sortedMembers.length;
-  const nextRecipient = sortedMembers[nextRecipientIndex];
+  // Stage 2 rotation: current recipient = lowest payout_position among members who have
+  // NOT collected yet (hasCollected is derived from contribution_payouts in getGroup).
+  // No `payout_position === current_cycle`; no `|| sortedMembers[0]` fallback — if every
+  // member has collected there is NO current recipient (rotation complete).
+  const uncollectedMembers = sortedMembers.filter(m => !m.hasCollected);
+  const currentRecipient = uncollectedMembers.length > 0 ? uncollectedMembers[0] : null;
+  const nextRecipient = uncollectedMembers.length > 1 ? uncollectedMembers[1] : null;
+  const rotationComplete = uncollectedMembers.length === 0;
+  // Display counter: how many have collected so far (1-based turn of current recipient).
+  const currentCycle = (sortedMembers.length - uncollectedMembers.length) + (currentRecipient ? 1 : 0);
 
   // Calculate paid/unpaid members based on database payments
   const getMemberPaidStatus = (memberId: string) => {
@@ -2537,29 +2544,28 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
                 <button
                   onClick={async () => {
-                    const { data: dbMember } = await supabase
-                      .from('contribution_members')
-                      .select('payout_position')
-                      .eq('id', selectedMember.id)
-                      .single();
-
-                    if (!dbMember) return;
-
-                    const { error } = await supabase
-                      .from('contribution_groups')
-                      .update({ current_cycle: dbMember.payout_position })
-                      .eq('id', group.id);
-
-                    if (!error) {
-                      const updatedGroup = {
-                        ...group,
-                        current_cycle: dbMember.payout_position,
-                        currentCycle: dbMember.payout_position
-                      };
-                      if (onUpdate) onUpdate(updatedGroup);
-                      setShowPayoutSchedule(false);
-                      setSelectedMember(null);
+                    // Stage 2: collecting must go through the gated payout path and only
+                    // for the CURRENT (derived) recipient — never by pointing current_cycle
+                    // at an arbitrary/past member. Reject if this isn't the current turn.
+                    if (!currentRecipient || selectedMember.id !== currentRecipient.id) {
+                      alert(`It is ${currentRecipient ? currentRecipient.name : 'no one'}'s turn to collect next, not ${selectedMember.name}. The rotation advances automatically in order.`);
+                      return;
                     }
+                    const totalCollected = totalMembers * group.amount;
+                    const { error } = await contributionService.recordPayout(
+                      group.id,
+                      currentRecipient.id,
+                      currentRecipient.payout_position,
+                      { amount: totalCollected, paymentMethod: 'cash' }
+                    );
+                    if (error) {
+                      alert(error.message || 'Could not record payout. Please try again.');
+                      return;
+                    }
+                    if (onRecordPayout) onRecordPayout(currentRecipient.id, totalCollected);
+                    setShowPayoutSchedule(false);
+                    setSelectedMember(null);
+                    if (onBack) onBack(); // reload for fresh derived state
                   }}
                   style={{
                     width: '100%',
@@ -2594,64 +2600,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               </div>
             )}
 
-            {/* Recipient Change Buttons - Moved to Popup */}
-            {currentRecipient && sortedMembers && (
+            {/* Stage 2: manual "Change Recipient" override REMOVED. The recipient is now
+                derived automatically (lowest payout_position not yet collected), so an
+                arbitrary cycle-pointer override could double-collect/skip. To change who
+                is next, reorder members (Settings → Recipient Order); to advance, the
+                current recipient collects via the gated payout flow. */}
+            {currentRecipient && (
               <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid #E5E7EB', paddingTop: '20px' }}>
-                <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px', fontWeight: '500' }}>Change Recipient:</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                  {sortedMembers.map((m, idx) => {
-                    const isCurrentRecipient = m.id === currentRecipient?.id;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={async () => {
-                          if (isCurrentRecipient) return;
-
-                          const { data: dbMember } = await supabase
-                            .from('contribution_members')
-                            .select('payout_position')
-                            .eq('id', m.id)
-                            .single();
-
-                          if (!dbMember) return;
-
-                          console.log('CHANGING CYCLE TO:', { member: m.name, newCycle: dbMember.payout_position });
-
-                          const { error } = await supabase
-                            .from('contribution_groups')
-                            .update({ current_cycle: dbMember.payout_position })
-                            .eq('id', group.id);
-
-                          console.log('CYCLE UPDATE RESULT:', { error });
-
-                          if (!error) {
-                            // Update local group with new cycle
-                            const updatedGroup = {
-                              ...group,
-                              current_cycle: dbMember.payout_position,
-                              currentCycle: dbMember.payout_position
-                            };
-                            if (onUpdate) onUpdate(updatedGroup);
-                            setShowPayoutSchedule(false);
-                          }
-                        }}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: '20px',
-                          border: isCurrentRecipient ? '2px solid #0F6E56' : '1px solid #ddd',
-                          background: isCurrentRecipient ? '#E1F5EE' : 'white',
-                          color: isCurrentRecipient ? '#0F6E56' : '#333',
-                          fontWeight: isCurrentRecipient ? '600' : '400',
-                          fontSize: '13px',
-                          cursor: isCurrentRecipient ? 'default' : 'pointer',
-                          opacity: isCurrentRecipient ? 1 : 0.8,
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        {m.name} {isCurrentRecipient ? '✓' : ''}
-                      </button>
-                    );
-                  })}
+                <div style={{ fontSize: '13px', color: '#666' }}>
+                  Next to collect: <strong>{currentRecipient.name}</strong> (position {currentRecipient.payout_position}).
+                  Rotation advances automatically in order.
                 </div>
               </div>
             )}
