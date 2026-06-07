@@ -250,25 +250,13 @@
         }, 100);
       });
 
-      // AGGRESSIVE: Force unregister all service workers and clear all caches
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(async (registrations) => {
-          for (const registration of registrations) {
-            await registration.unregister();
-            console.log('[CACHE CLEAR] Service worker unregistered');
-          }
-        });
-      }
-
-      // AGGRESSIVE: Clear all caches
-      if ('caches' in window) {
-        caches.keys().then(async (cacheNames) => {
-          for (const cacheName of cacheNames) {
-            await caches.delete(cacheName);
-            console.log('[CACHE CLEAR] Deleted cache:', cacheName);
-          }
-        });
-      }
+      // NOTE: The previous unconditional "AGGRESSIVE: unregister all SWs + delete all
+      // caches on every load" block was REMOVED (Phase 2 PWA re-enable). It was wiping
+      // the service worker's precached app shell on every load, so an offline reload had
+      // nothing to serve but offline.html. With it gone, the SW (registered in main.jsx)
+      // keeps its cache, and offline reload serves the real cached app. Stale bundles are
+      // already prevented by no-cache headers on index.html + hash+timestamped asset
+      // filenames; the one-shot EXIF self-heal below remains as a safety net.
 
       // Force reload if we're stuck on old bundle (check for EXIF error signature)
       window.addEventListener('error', (e) => {

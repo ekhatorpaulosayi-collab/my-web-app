@@ -10,9 +10,18 @@
  * - Background sync for offline operations
  */
 
-// Auto-incrementing version based on deployment timestamp
-const BUILD_TIMESTAMP = '2026-03-26-' + Date.now();
-const CACHE_VERSION = `storehouse-v6-${BUILD_TIMESTAMP}`;
+// BUILD-STABLE cache version. MUST be a fixed string (NOT Date.now() at runtime).
+// Why: the browser restarts the SW frequently (especially on mobile). If the version
+// were computed from Date.now() at execution time, every restart would produce a NEW
+// version, and the activate handler would delete the caches the previous run just
+// created — wiping the offline app shell. A fixed string is identical across every SW
+// restart within the same deployed version, so activate only cleans up on a genuine
+// new deploy.
+//
+// TO RELEASE A NEW VERSION: bump this string (e.g. 'storehouse-v7' -> 'storehouse-v8').
+// That changes the deployed /sw.js bytes, so the browser installs the new SW and the
+// activate handler then deletes the old version's caches exactly once.
+const CACHE_VERSION = 'storehouse-v7-2026-06-07';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
