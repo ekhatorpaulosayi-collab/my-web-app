@@ -230,3 +230,15 @@ on the offending table (NOT a Vercel rollback).
 
 _Read-only reconciliation. This file (and the session's diagnostic docs) are the only
 writes. Not committed._
+
+## OFFLINE SALE SYNC — FIXED & VERIFIED (2026-06-06/07, commit 35938c0)
+Offline sales were silently LOST (recorded offline, never reached Supabase). Four stacked root causes:
+1. Offline tap routed to modal enqueueSale->localStorage, NOT handleSaveSale (different store than drain read).
+2. handleSaveSale did network call BEFORE IDB write -> hung offline, sale never persisted.
+3. createSale returns null (not throw) on failure; handleSaveSale ignored return, set syncedToCloud=true unconditionally -> drain skipped it.
+4. navigator.onLine returns true in airplane mode (unreliable).
+FIX (single-path): IDB-first write; deleted offline enqueue branches in BOTH modals (V1+V2); createSale
+return checked (syncedToCloud=true only on server-confirmed row); neutralized localStorage offlineQueue. Net -152 lines.
+VERIFIED on clean debug-free build: two offline sales round-tripped to Supabase, exactly once, correct amounts (₦12,000 Greggs, ₦850 semovita).
+KNOWN FOLLOW-UPS (display polish, NOT data bugs): (a) dashboard "Today's Sales" reads cloud, shows blank offline (M effort);
+(b) no per-sale "pending sync" indicator (WhatsApp-tick UX) — sale is safe + syncs, just no visual pending state.
