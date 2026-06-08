@@ -6,6 +6,7 @@ interface CreateGroupFormProps {
     amount: number;
     frequency: 'weekly' | 'biweekly' | 'monthly';
     collectionDay: string;
+    cycleStartDate: string; // Stage 4: YYYY-MM-DD, first collection date
     members: { name: string; phone: string }[];
   }) => void;
   onCancel: () => void;
@@ -28,6 +29,8 @@ export const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ onSubmit, onCa
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly');
   const [collectionDay, setCollectionDay] = useState('Monday');
+  // Stage 4: capture the rotation start date (position 1 collects on this date). Default to today.
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [members, setMembers] = useState<{ name: string; phone: string }[]>([
     { name: '', phone: '' }
   ]);
@@ -105,6 +108,7 @@ export const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ onSubmit, onCa
       amount: parseFloat(amount),
       frequency,
       collectionDay,
+      cycleStartDate: startDate, // Stage 4: persisted as contribution_groups.cycle_start_date
       members: validMembers.map(m => ({
         name: m.name.trim(),
         phone: m.phone.trim()
@@ -627,6 +631,26 @@ export const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ onSubmit, onCa
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Stage 4: Start date — position 1 collects on this date; all other dates
+              derive from it + frequency + position. */}
+          <div style={{ marginTop: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>🗓️</span>
+              Start date (first collection)
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="premium-input"
+              style={{
+                width: '100%', padding: '14px 16px', border: '2px solid transparent',
+                borderRadius: '12px', fontSize: '15px', background: '#f9fafb', color: '#1f2937',
+                outline: 'none', fontWeight: 600, boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+              }}
+            />
           </div>
 
           {/* Members - Premium List */}

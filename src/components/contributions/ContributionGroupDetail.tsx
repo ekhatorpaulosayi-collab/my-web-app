@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as contributionService from '../../services/contributionService';
 import { supabase } from '../../lib/supabase';
+import { collectionDate, formatCollectionDate, formatCollectionDateShort, hasStartDate } from '../../utils/ajoDates';
 
 interface Member {
   id: string;
@@ -246,6 +247,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const rotationComplete = sortedMembers.length > 0 && uncollectedMembers.length === 0;
   // Display counter: how many have collected so far (1-based turn of current recipient).
   const currentCycle = (sortedMembers.length - uncollectedMembers.length) + (currentRecipient ? 1 : 0);
+
+  // Stage 4: derived collection dates. Pure function of cycle_start_date + frequency +
+  // payout_position — so reordering automatically reshuffles dates with people. We use
+  // the live group fields (frequency falls back to payment_frequency for legacy rows).
+  const dateGroup = {
+    cycle_start_date: group.cycle_start_date ?? null,
+    frequency: group.frequency || group.payment_frequency || 'monthly'
+  };
+  const groupHasStartDate = hasStartDate(dateGroup);
+  const memberCollectionDate = (m: Member) => collectionDate(m, dateGroup);
 
   // Calculate paid/unpaid members based on database payments
   const getMemberPaidStatus = (memberId: string) => {
@@ -835,6 +846,38 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
             </div>
           )}
 
+          {/* Stage 4: derived collection dates. If no start date is set, prompt the
+              owner — never show a wrong/guessed date. Otherwise show current + next. */}
+          {!rotationComplete && (
+            !groupHasStartDate ? (
+              <div
+                onClick={() => setShowSettings(true)}
+                style={{
+                  marginTop: '12px', padding: '10px 14px', borderRadius: '10px',
+                  background: '#FEF3C7', border: '1px solid #FCD34D', color: '#92400E',
+                  fontSize: '13px', cursor: 'pointer', fontWeight: 500
+                }}
+              >
+                📅 Set a start date to see collection dates → tap to open settings
+              </div>
+            ) : (
+              <div style={{ marginTop: '12px', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
+                {currentRecipient && (
+                  <div>
+                    <strong>Current:</strong> {currentRecipient.name} — collects{' '}
+                    <strong>{formatCollectionDate(memberCollectionDate(currentRecipient))}</strong>
+                  </div>
+                )}
+                {nextRecipient && (
+                  <div style={{ color: '#6b7280' }}>
+                    <strong>Next:</strong> {nextRecipient.name} — collects{' '}
+                    {formatCollectionDate(memberCollectionDate(nextRecipient))}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
         </div>
 
         {/* Collection Day Banner */}
@@ -1013,6 +1056,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         ? `Paid ${memberPayment?.created_at ? formatDate(memberPayment.created_at) : 'today'}`
                         : paymentStatus?.text || 'Pending payment'}
                     </div>
+                    {/* Stage 4: this member's derived collection date (when set). */}
+                    {groupHasStartDate && (
+                      <div style={{ fontSize: '12px', color: '#0F6E56', marginTop: '2px' }}>
+                        Collects {formatCollectionDateShort(memberCollectionDate(member))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1787,9 +1836,19 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontWeight: '500', color: collected ? '#6366f1' : undefined }}>{index + 1}.</span>
-                        <span style={{ color: collected ? '#4b5563' : undefined }}>{member.name}</span>
-                        {collected && <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 600 }}>✓ collected</span>}
-                        {!collected && isCurrent && <span style={{ fontSize: '12px', color: '#92400e' }}>(current)</span>}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: collected ? '#4b5563' : undefined }}>{member.name}</span>
+                            {collected && <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 600 }}>✓ collected</span>}
+                            {!collected && isCurrent && <span style={{ fontSize: '12px', color: '#92400e' }}>(current)</span>}
+                          </span>
+                          {/* Stage 4: derived date for this position — moves with the member on reorder. */}
+                          {groupHasStartDate && (
+                            <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                              {formatCollectionDateShort(memberCollectionDate(member))}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {/* Collected rows are locked — no arrows. */}
                       {collected ? (

@@ -947,6 +947,7 @@ Thank you for your payment! 🙏`;
                       amount: groupData.amount,
                       frequency: groupData.frequency,
                       collectionDay: groupData.collectionDay,
+                      cycleStartDate: groupData.cycleStartDate, // Stage 4
                       members: groupData.members
                     });
 

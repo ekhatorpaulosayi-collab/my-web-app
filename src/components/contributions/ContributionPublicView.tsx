@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getGroupByShareCode } from '../../services/contributionService';
+import { collectionDate } from '../../utils/ajoDates';
 
 interface PaymentRecord {
   id: string;
@@ -85,6 +86,19 @@ export const ContributionPublicView: React.FC = () => {
 
         // Transform the data to match the component's expected format
         const groupData = result.data;
+
+        // Stage 4: derive the REAL next collection date (was hardcoded to today).
+        // Current recipient = lowest payout_position not in the payouts (collected) set;
+        // their collection date = cycle_start_date + (position-1) periods of frequency.
+        const collectedIds = new Set((groupData.payouts || []).map((p: any) => p.member_id));
+        const uncollected = [...(groupData.members || [])]
+          .filter((m: any) => !collectedIds.has(m.id))
+          .sort((a: any, b: any) => (a.payout_position || 0) - (b.payout_position || 0));
+        const nextRecip = uncollected[0] || null;
+        const derivedNextDate = nextRecip
+          ? collectionDate(nextRecip, { cycle_start_date: groupData.cycle_start_date, frequency: groupData.frequency })
+          : null;
+
         const transformedGroup: ContributionGroup = {
           id: groupData.id,
           name: groupData.name,
@@ -92,10 +106,11 @@ export const ContributionPublicView: React.FC = () => {
           frequency: groupData.frequency,
           collectionDay: groupData.collection_day || '',
           members: groupData.members || [],
-          currentRecipientId: groupData.current_recipient || '',
+          currentRecipientId: nextRecip?.id || groupData.current_recipient || '',
           cycleNumber: groupData.current_cycle || 1,
           totalCycles: groupData.total_members || 0,
-          nextCollectionDate: groupData.next_collection_date || new Date().toISOString(),
+          // Real derived date; null/'' if no start date set (UI shows a fallback label).
+          nextCollectionDate: derivedNextDate ? derivedNextDate.toISOString() : '',
           isActive: groupData.status === 'active',
           paymentHistory: groupData.payments || [],
           storeName: groupData.store_name || 'Store',
@@ -391,7 +406,7 @@ export const ContributionPublicView: React.FC = () => {
                 Next Collection
               </p>
               <p style={{ fontSize: '16px', fontWeight: 500, color: '#1f2937' }}>
-                {formatDate(group.nextCollectionDate)}
+                {formatDate(group.nextCollectionDate) || 'Not scheduled yet'}
               </p>
             </div>
           </div>

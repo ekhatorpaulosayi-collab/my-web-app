@@ -99,6 +99,7 @@ export async function createGroup(
     amount: number;
     frequency: string;
     collectionDay?: string;
+    cycleStartDate?: string; // Stage 4: YYYY-MM-DD first collection date
     members?: { name: string; phone: string }[];
   }
 ) {
@@ -114,6 +115,7 @@ export async function createGroup(
       amount: data.amount,
       frequency: data.frequency,
       collection_day: data.collectionDay,
+      cycle_start_date: data.cycleStartDate || null, // Stage 4
       total_members: data.members?.length || 0,
       current_cycle: 1,
       share_enabled: true, // Enable sharing by default since UI shows share links
