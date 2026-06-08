@@ -194,12 +194,24 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Initialize recipient order from members
+  // Seed/refresh the recipient order in payout_position order (NOT arbitrary
+  // localMembers order — that caused the erratic arrows / snap-back). Re-seed whenever
+  // membership or positions change (member id set + position signature), so it never
+  // goes stale after add/remove/reorder.
   React.useEffect(() => {
-    if (localMembers && recipientOrder.length === 0) {
-      setRecipientOrder(localMembers.map(m => m.id));
-    }
-  }, [localMembers]);
+    const ordered = [...(localMembers || [])].sort((a, b) => {
+      const ka = typeof a.payout_position === 'number' ? a.payout_position
+        : (typeof a.position === 'number' ? a.position : Number.MAX_SAFE_INTEGER);
+      const kb = typeof b.payout_position === 'number' ? b.payout_position
+        : (typeof b.position === 'number' ? b.position : Number.MAX_SAFE_INTEGER);
+      if (ka !== kb) return ka - kb;
+      const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return da - db;
+    });
+    setRecipientOrder(ordered.map(m => m.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localMembers.map(m => `${m.id}:${m.payout_position}`).join(',')]);
 
   // Calculate recipient using rotation logic.
   // CRITICAL: sort by payout_position — the canonical rotation order. (The old code
@@ -497,43 +509,74 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   };
 
   const saveRecipientOrder = async () => {
-    // Guard against an empty recipientOrder (it's only seeded when length===0, so a
-    // race could leave it empty → zero updates + a misleading "Order saved!").
-    // Fall back to the current members' order so we never silently save nothing.
-    const orderToSave = recipientOrder.length > 0
-      ? recipientOrder
-      : sortedMembers.map(m => m.id);
+    // Stage 3: save via the transactional reorder RPC. Send ONLY the not-yet-collected
+    // members, in the displayed order; the RPC keeps collected members pinned at the
+    // front and rewrites positions atomically (no UNIQUE collision, no half-apply).
+    const baseOrder = recipientOrder.length > 0 ? recipientOrder : sortedMembers.map(m => m.id);
+    const uncollectedOrder = baseOrder.filter(id => {
+      const m = localMembers.find(mem => mem.id === id);
+      return m && !hasMemberCollected(m);
+    });
 
-    if (orderToSave.length === 0) {
-      alert('No members to reorder yet.');
+    if (uncollectedOrder.length === 0) {
+      alert('There are no movable (not-yet-collected) members to reorder.');
       return;
     }
 
     try {
-      // NOTE: parallel position updates can transiently collide with the
-      // UNIQUE(group_id, payout_position) constraint — the transactional fix is Stage 3.
-      // Here we only ensure the save actually fires and reports real feedback.
-      const updates = orderToSave.map((memberId, index) =>
-        supabase
-          .from('contribution_members')
-          .update({ payout_position: index + 1 })  // Use index + 1 to avoid position 0
-          .eq('id', memberId)
-          .eq('group_id', group.id)
-      );
-
-      const results = await Promise.all(updates);
-      const errors = results.filter(r => r.error);
-
-      if (errors.length === 0) {
-        alert('Order saved!');
-        if (onBack) onBack();  // Return to group list for fresh data
-      } else {
-        console.error('Errors saving order:', errors);
-        alert(`Could not save the full order (${errors.length} update(s) failed). This can happen from a position conflict — please reopen and try again.`);
+      const { error } = await contributionService.reorderMembers(group.id, uncollectedOrder);
+      if (error) {
+        console.error('Failed to save order:', error);
+        alert((error as any)?.message || 'Could not save the order. Please reopen and try again.');
+        return;
       }
+      alert('Order saved!');
+      if (onBack) onBack();  // Return to group list for fresh data
     } catch (error) {
       console.error('Failed to save order:', error);
       alert('Failed to save order. Please try again.');
+    }
+  };
+
+  // Stage 3: remove a member via the transactional RPC. Blocks collected members
+  // (they still owe contributions); on success the RPC re-packs positions 1..N and
+  // fixes total_members. We refresh the local list so positions/avatars update.
+  const handleRemoveMember = async (member: Member) => {
+    // Client-side guard for instant feedback (the RPC also enforces this server-side).
+    if (hasMemberCollected(member)) {
+      alert(`Can't remove ${member.name} — they've already collected and still owe contributions.`);
+      return;
+    }
+    if (!window.confirm(`Remove ${member.name} from this group? Remaining members will be re-numbered.`)) {
+      return;
+    }
+    try {
+      const { error } = await contributionService.removeMemberSafe(member.id);
+      if (error) {
+        const msg = (error as any)?.message || 'Could not remove member.';
+        alert(
+          msg.includes('already collected')
+            ? `Can't remove ${member.name} — they've already collected and still owe contributions.`
+            : `Could not remove member: ${msg}`
+        );
+        return;
+      }
+      // Refresh members (re-packed positions + new total) from the backend.
+      const { data: fresh } = await supabase
+        .from('contribution_members')
+        .select('id, name, phone, payout_position, status')
+        .eq('group_id', group.id)
+        .order('payout_position');
+      if (fresh) {
+        setLocalMembers(fresh as Member[]);
+        if (onUpdate) {
+          onUpdate({ ...group, members: fresh, contribution_members: fresh } as any);
+        }
+      }
+      alert(`${member.name} removed.`);
+    } catch (err) {
+      console.error('Failed to remove member:', err);
+      alert('Failed to remove member. Please try again.');
     }
   };
 
@@ -973,39 +1016,66 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   </div>
                 </div>
 
-                {/* Right side: Mark Paid button or checkmark */}
-                {!isPaid ? (
-                  <button
-                    onClick={() => handleMarkPaidClick(member.id)}
-                    style={{
-                      padding: '8px 16px',
-                      background: '#14b8a6',
+                {/* Right side: Mark Paid / checkmark + remove control */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {!isPaid ? (
+                    <button
+                      onClick={() => handleMarkPaidClick(member.id)}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#14b8a6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        minWidth: '90px'
+                      }}
+                    >
+                      Mark Paid
+                    </button>
+                  ) : (
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: '#10b981',
                       color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      minWidth: '90px'
-                    }}
-                  >
-                    Mark Paid
-                  </button>
-                ) : (
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    background: '#10b981',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '16px'
-                  }}>
-                    ✓
-                  </div>
-                )}
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '16px'
+                    }}>
+                      ✓
+                    </div>
+                  )}
+                  {/* Stage 3: remove member. Hidden for members who have collected (they
+                      can't be removed — they still owe contributions). */}
+                  {!hasMemberCollected(member) && (
+                    <button
+                      title={`Remove ${member.name}`}
+                      aria-label={`Remove ${member.name}`}
+                      onClick={(e) => { e.stopPropagation(); handleRemoveMember(member); }}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: 'white',
+                        border: '1px solid #fecaca',
+                        color: '#dc2626',
+                        fontSize: '16px',
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1693,13 +1763,21 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   const member = localMembers.find(m => m.id === memberId);
                   if (!member) return null;
                   const isCurrent = member.id === currentRecipient?.id;
+                  const collected = hasMemberCollected(member);
+                  // Arrows may only swap with an adjacent UNCOLLECTED member (collected
+                  // rows are locked and pinned at the front).
+                  const prevMember = index > 0 ? localMembers.find(m => m.id === recipientOrder[index - 1]) : null;
+                  const nextMember = index < recipientOrder.length - 1 ? localMembers.find(m => m.id === recipientOrder[index + 1]) : null;
+                  const canMoveUp = !collected && !!prevMember && !hasMemberCollected(prevMember);
+                  const canMoveDown = !collected && !!nextMember && !hasMemberCollected(nextMember);
 
                   return (
                     <div
                       key={member.id}
                       style={{
                         padding: '8px',
-                        background: isCurrent ? '#fef3c7' : '#f9fafb',
+                        background: collected ? '#eef2ff' : (isCurrent ? '#fef3c7' : '#f9fafb'),
+                        opacity: collected ? 0.85 : 1,
                         borderRadius: '4px',
                         marginBottom: '4px',
                         display: 'flex',
@@ -1708,50 +1786,42 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: '500' }}>{index + 1}.</span>
-                        <span>{member.name}</span>
-                        {isCurrent && <span style={{ fontSize: '12px', color: '#92400e' }}>(current)</span>}
+                        <span style={{ fontWeight: '500', color: collected ? '#6366f1' : undefined }}>{index + 1}.</span>
+                        <span style={{ color: collected ? '#4b5563' : undefined }}>{member.name}</span>
+                        {collected && <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 600 }}>✓ collected</span>}
+                        {!collected && isCurrent && <span style={{ fontSize: '12px', color: '#92400e' }}>(current)</span>}
                       </div>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        {index > 0 && (
-                          <button
-                            onClick={() => moveRecipientUp(index)}
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '4px',
-                              background: 'white',
-                              border: '1px solid #e5e7eb',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '16px'
-                            }}
-                          >
-                            ↑
-                          </button>
-                        )}
-                        {index < recipientOrder.length - 1 && (
-                          <button
-                            onClick={() => moveRecipientDown(index)}
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '4px',
-                              background: 'white',
-                              border: '1px solid #e5e7eb',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '16px'
-                            }}
-                          >
-                            ↓
-                          </button>
-                        )}
-                      </div>
+                      {/* Collected rows are locked — no arrows. */}
+                      {collected ? (
+                        <span style={{ fontSize: '12px', color: '#9ca3af' }}>🔒 locked</span>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {canMoveUp && (
+                            <button
+                              onClick={() => moveRecipientUp(index)}
+                              style={{
+                                width: '28px', height: '28px', borderRadius: '4px',
+                                background: 'white', border: '1px solid #e5e7eb', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+                              }}
+                            >
+                              ↑
+                            </button>
+                          )}
+                          {canMoveDown && (
+                            <button
+                              onClick={() => moveRecipientDown(index)}
+                              style={{
+                                width: '28px', height: '28px', borderRadius: '4px',
+                                background: 'white', border: '1px solid #e5e7eb', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+                              }}
+                            >
+                              ↓
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

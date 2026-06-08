@@ -7,7 +7,7 @@ import ContributionGroupList from './contributions/ContributionGroupList';
 import CreateGroupForm from './contributions/CreateGroupForm';
 import ContributionGroupDetail from './contributions/ContributionGroupDetail';
 import GroupSettings from './contributions/GroupSettings';
-import { getGroups, createGroup, updateGroup, deleteGroup, addMember } from '../services/contributionService';
+import { getGroups, createGroup, updateGroup, deleteGroup, addMemberSafe } from '../services/contributionService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -1031,42 +1031,43 @@ Thank you for your payment! 🙏`;
                 }}
                 onAddMember={async (memberData) => {
                   try {
-                    // Calculate payout position for the new member
-                    const currentMembers = selectedGroup.members || [];
-                    const nextPosition = currentMembers.length + 1;
+                    // Stage 3: add via RPC — it gates on "no payout recorded yet" (rotation
+                    // not started), appends at the end (max position + 1), and recomputes
+                    // total_members. The position is decided server-side, not here.
+                    const result = await addMemberSafe(
+                      selectedGroup.id,
+                      memberData.name,
+                      memberData.phone
+                    );
 
-                    // Add member to Supabase
-                    const result = await addMember(selectedGroup.id, {
-                      name: memberData.name,
-                      phone: memberData.phone,
-                      payoutPosition: nextPosition
-                    });
-
-                    if (!result.error && result.data) {
-                      // Update local state with the new member
-                      const newMember = {
-                        id: result.data.id,
-                        name: result.data.name,
-                        phone: result.data.phone,
-                        isPaid: false,
-                        hasPaid: false
-                      };
-
-                      const updatedGroup = {
-                        ...selectedGroup,
-                        members: [...(selectedGroup.members || []), newMember],
-                        totalCycles: (selectedGroup.members?.length || 0) + 1
-                      };
-
-                      setSelectedGroup(updatedGroup);
-                      setContributionGroups(contributionGroups.map(g =>
-                        g.id === updatedGroup.id ? updatedGroup : g
-                      ));
-
-                      onToast?.(`${memberData.name} has been added to the group`);
-                    } else {
-                      throw new Error(result.error || 'Failed to add member');
+                    if (result.error) {
+                      const msg = (result.error as any)?.message || 'Failed to add member';
+                      // Surface the standard rule clearly to the owner.
+                      onToast?.(
+                        msg.includes('rotation has already started')
+                          ? 'Cannot add members once the rotation has started (a payout was recorded).'
+                          : `Failed to add member: ${msg}`
+                      );
+                      return;
                     }
+
+                    // Reload members so the new member shows with its real position.
+                    const { data: freshMembers } = await supabase
+                      .from('contribution_members')
+                      .select('id, name, phone, payout_position, status')
+                      .eq('group_id', selectedGroup.id)
+                      .order('payout_position');
+                    const updatedGroup = {
+                      ...selectedGroup,
+                      members: freshMembers || selectedGroup.members || [],
+                      contribution_members: freshMembers || selectedGroup.members || [],
+                      totalCycles: (freshMembers?.length ?? ((selectedGroup.members?.length || 0) + 1))
+                    };
+                    setSelectedGroup(updatedGroup);
+                    setContributionGroups(contributionGroups.map(g =>
+                      g.id === updatedGroup.id ? updatedGroup : g
+                    ));
+                    onToast?.(`${memberData.name} has been added to the group`);
                   } catch (error) {
                     console.error('Failed to add member:', error);
                     onToast?.('Failed to add member. Please try again.');

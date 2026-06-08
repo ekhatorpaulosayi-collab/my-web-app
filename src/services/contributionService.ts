@@ -428,23 +428,46 @@ export async function removeMember(memberId: string) {
   }
 }
 
+// Stage 3: transactional reorder via RPC (single atomic statement; no UNIQUE collision;
+// collected members kept at front; rejects reordering a collected member). memberIds is
+// the desired order of the NOT-yet-collected members.
 export async function reorderMembers(groupId: string, memberIds: string[]) {
   try {
-    // Update payout positions for all members
-    const updates = memberIds.map((memberId, index) =>
-      supabase
-        .from('contribution_members')
-        .update({ payout_position: index + 1 })
-        .eq('id', memberId)
-    );
+    const { error } = await supabase.rpc('reorder_contribution_members', {
+      p_group_id: groupId,
+      p_member_ids: memberIds
+    });
+    if (error) return { data: null, error };
+    return { data: true, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
 
-    const results = await Promise.all(updates);
-    const hasError = results.some(r => r.error);
+// Stage 3: add member via RPC — allowed only before the first payout; appends at end;
+// recomputes total_members. Returns the new member id.
+export async function addMemberSafe(groupId: string, name: string, phone?: string) {
+  try {
+    const { data, error } = await supabase.rpc('add_contribution_member', {
+      p_group_id: groupId,
+      p_name: name,
+      p_phone: phone ?? null
+    });
+    if (error) return { data: null, error };
+    return { data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
 
-    if (hasError) {
-      return { data: null, error: 'Failed to reorder members' };
-    }
-
+// Stage 3: remove member via RPC — blocked if the member already collected; otherwise
+// deletes, re-packs positions 1..N, recomputes total_members. One atomic transaction.
+export async function removeMemberSafe(memberId: string) {
+  try {
+    const { error } = await supabase.rpc('remove_contribution_member', {
+      p_member_id: memberId
+    });
+    if (error) return { data: null, error };
     return { data: true, error: null };
   } catch (error) {
     return { data: null, error };
