@@ -258,6 +258,27 @@ export default function AIChatWidget({
   const justSentRef = useRef(false);
   const lastMessageTimestampRef = useRef<string | null>(null);
 
+  // Mirror of `messages` so cursor computation always reads CURRENT state, not a stale
+  // closure (handleSendMessage / initializeConversation capture `messages` at definition
+  // time). Updated after every render via the effect below.
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // SERVER-TIME cursor: newest created_at among SERVER messages already in state
+  // (isLocal falsy + valid Date). NEVER uses Date.now(). When there are no server
+  // messages yet, returns a far-past sentinel so the first poll fetches everything.
+  // Compared against server created_at in the .gt() poll, so it can never overshoot.
+  const SAFE_PAST_CURSOR = '1970-01-01T00:00:00.000Z';
+  const computeServerCursor = (msgs: Message[]): string => {
+    let newest = 0;
+    for (const m of msgs) {
+      if (m.isLocal) continue;
+      const t = m.timestamp instanceof Date ? m.timestamp.getTime() : NaN;
+      if (!isNaN(t) && t > newest) newest = t;
+    }
+    return newest > 0 ? new Date(newest).toISOString() : SAFE_PAST_CURSOR;
+  };
+
   // Handle desktop detection
   useEffect(() => {
     const handleResize = () => {
@@ -836,10 +857,9 @@ export default function AIChatWidget({
         // the AI response timestamp, causing polling to skip the AI response entirely.
         // Trust the timestamp set in handleSend instead.
         if (!lastMessageTimestampRef.current) {
-          console.log('[AIChatWidget] WARNING: No lastMessageTimestamp set for conversation init');
-          // Set to a very early timestamp so polling fetches all messages
-          // This is a fallback that should rarely happen
-          lastMessageTimestampRef.current = new Date(Date.now() - 60000).toISOString(); // 1 minute ago
+          // Server-time anchored. With no prior server messages this returns the
+          // far-past sentinel so the first poll fetches everything for the conversation.
+          lastMessageTimestampRef.current = computeServerCursor(messagesRef.current);
         }
       } catch (error) {
         console.error('[AIChatWidget] Error initializing conversation:', error);
@@ -1338,13 +1358,12 @@ export default function AIChatWidget({
       // This prevents duplicates since the edge function already saves it to the DB
       console.log('[AIChatWidget] AI response received, will be added via polling');
 
-      // CRITICAL: Update timestamp to slightly in the past to avoid clock skew issues
-      // On mobile devices, the client clock might be ahead of the server clock
-      // Using current time would cause polling to skip messages that were just saved
-      // Subtracting 2 seconds ensures we catch all new messages even with clock differences
-      const safeTimestamp = new Date(Date.now() - 2000).toISOString(); // 2 seconds ago
-      lastMessageTimestampRef.current = safeTimestamp;
-      console.log('[AIChatWidget] Updated lastMessageTimestamp after edge function (2s ago):', safeTimestamp);
+      // Server-time cursor (no client clock): anchor to the newest server message we
+      // already hold. With only the optimistic local user message in state, this yields
+      // the far-past sentinel, so the next poll fetches the just-saved user + assistant
+      // rows. Reads messagesRef.current to avoid this handler's stale `messages` closure.
+      lastMessageTimestampRef.current = computeServerCursor(messagesRef.current);
+      console.log('[AIChatWidget] Cursor set from server messages:', lastMessageTimestampRef.current);
 
       // Always capture conversation ID if provided
       if (data.conversationId && !conversationId) {
