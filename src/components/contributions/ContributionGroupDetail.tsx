@@ -125,11 +125,21 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     setLocalMembers(group.members || group.contribution_members || []);
   }, [group]);
 
-  // Load payments for current cycle + payouts (collected ledger) on mount
+  // Load payments for current cycle + payouts (collected ledger) on mount and whenever
+  // the group/cycle changes.
   React.useEffect(() => {
     loadCyclePayments();
     loadGroupPayouts();
   }, [group.id, group.cycleNumber]);
+
+  // Post-payout refresh: when a payout is recorded the collected ledger grows
+  // (groupPayouts.length increases). A new rotation turn begins with everyone unpaid,
+  // so re-query the current cycle's payments. This is robust even if group.cycleNumber
+  // doesn't visibly change (recordPayout sets current_cycle to the payout count, which
+  // can equal the prior value), so the [group.cycleNumber] effect alone may not re-fire.
+  React.useEffect(() => {
+    loadCyclePayments();
+  }, [groupPayouts.length]);
 
   // Stage 2 fix: payouts = the has-collected ledger for this group.
   const loadGroupPayouts = async () => {
@@ -148,11 +158,17 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
   const loadCyclePayments = async () => {
     try {
+      // The "current turn" = completed payouts + 1. This advances by exactly 1 each
+      // payout, so each rotation round has its own payment key. (group.cycleNumber was
+      // unreliable — in prod all rounds' payments landed under cycle_number=1 while
+      // current_cycle drifted, so paid-status never reset per round.) Recording uses the
+      // same turn key (handleConfirmPayment), so query and record always agree.
+      const currentTurn = groupPayouts.length + 1;
       const { data, error } = await supabase
         .from('contribution_payments')
         .select('*')
         .eq('group_id', group.id)
-        .eq('cycle_number', group.cycleNumber);
+        .eq('cycle_number', currentTurn);
 
       if (!error && data) {
         setCyclePayments(data);
@@ -320,15 +336,20 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const handleConfirmPayment = async (method: 'cash' | 'transfer' | 'other') => {
     if (!selectedMemberForPayment) return;
 
+    // Record under the SAME current-turn key the paid-status query uses
+    // (completed payouts + 1), so each rotation round tracks its own payments and the
+    // "X/N paid" view resets correctly after each payout.
+    const currentTurn = groupPayouts.length + 1;
+
     // Save payment to database
     await contributionService.markPaid(
       group.id,
       selectedMemberForPayment,
-      group.cycleNumber,
+      currentTurn,
       {
         amount: group.amount,
         paymentMethod: method,
-        note: paymentNote || `Cycle ${group.cycleNumber} payment`
+        note: paymentNote || `Cycle ${currentTurn} payment`
       }
     );
 
@@ -421,9 +442,12 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         return;
       }
 
-      // Refresh local collected ledger so the recipient advances immediately, and ask
-      // the parent to reload the group from the backend (parent was a no-op before).
-      await loadGroupPayouts();
+      // Refresh local state immediately so the UI reflects the NEW cycle without a
+      // manual refresh: (a) collected ledger → recipient advances; (b) current-cycle
+      // payments → "X/N paid" and per-member Paid badges reset to the new (unpaid)
+      // cycle. Then ask the parent to reload the group (which also bumps cycleNumber so
+      // the [group.id, group.cycleNumber] effect re-queries payments for the new cycle).
+      await Promise.all([loadGroupPayouts(), loadCyclePayments()]);
       onRecordPayout(currentRecipient.id, totalCollected);
 
       setShowPayoutModal(false);
@@ -1372,7 +1396,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               lineHeight: '1.5'
             }}>
               Record payout of <strong>{formatNaira(totalCollected)}</strong> to{' '}
-              <strong>{currentRecipient?.name}</strong> for cycle {group.cycleNumber}?
+              <strong>{currentRecipient?.name}</strong> for cycle {currentCycle}?
             </p>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -1652,7 +1676,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 marginBottom: '12px'
               }}>
                 <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
-                  Current cycle: {group.cycleNumber}
+                  Current cycle: {currentCycle}
                 </div>
                 <div style={{ fontSize: '14px', fontWeight: '500', color: '#1f2937' }}>
                   Current recipient: {currentRecipient?.name || 'None'}
@@ -2247,7 +2271,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
               <div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-                  Payment Status (Cycle {group.cycleNumber})
+                  Payment Status (Cycle {currentCycle})
                 </div>
                 <div style={{ fontSize: '16px', fontWeight: '500', color: getMemberPaidStatus(selectedMember.id) ? '#059669' : '#dc2626' }}>
                   {(() => {

@@ -1098,16 +1098,32 @@ Thank you for your payment! 🙏`;
                   // Stage 2 fix: reload the group from the backend so the UI reflects
                   // the new collected state and advances to the next recipient. The
                   // previous handler did nothing, so the recipient never moved.
+                  // ALSO re-fetch current_cycle and update cycleNumber: recordPayout
+                  // advances current_cycle, and the detail component keys its
+                  // cyclePayments query on group.cycleNumber — so we MUST bump it here,
+                  // otherwise the child's [group.id, group.cycleNumber] effect won't
+                  // re-fire and the "X/N paid" status stays stale on the old cycle.
                   try {
-                    const { data: freshMembers } = await supabase
-                      .from('contribution_members')
-                      .select('id, name, phone, payout_position, status')
-                      .eq('group_id', selectedGroup.id)
-                      .order('payout_position');
+                    const [{ data: freshMembers }, { data: freshGroup }] = await Promise.all([
+                      supabase
+                        .from('contribution_members')
+                        .select('id, name, phone, payout_position, status')
+                        .eq('group_id', selectedGroup.id)
+                        .order('payout_position'),
+                      supabase
+                        .from('contribution_groups')
+                        .select('current_cycle, status')
+                        .eq('id', selectedGroup.id)
+                        .single()
+                    ]);
+                    const newCycle = freshGroup?.current_cycle ?? selectedGroup.current_cycle;
                     setSelectedGroup({
                       ...selectedGroup,
                       members: freshMembers || selectedGroup.members || [],
-                      contribution_members: freshMembers || selectedGroup.members || []
+                      contribution_members: freshMembers || selectedGroup.members || [],
+                      current_cycle: newCycle,
+                      cycleNumber: newCycle, // detail component reads group.cycleNumber
+                      status: freshGroup?.status ?? selectedGroup.status
                     });
                   } catch (reloadErr) {
                     console.error('Failed to reload group after payout:', reloadErr);
