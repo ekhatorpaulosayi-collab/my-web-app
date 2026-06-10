@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as contributionService from '../../services/contributionService';
 import { supabase } from '../../lib/supabase';
 import { collectionDate, formatCollectionDate, formatCollectionDateShort, hasStartDate } from '../../utils/ajoDates';
+import { formatPhoneForWhatsApp } from '../../utils/whatsapp';
 
 interface Member {
   id: string;
@@ -101,7 +102,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [newMemberPhone, setNewMemberPhone] = useState('');
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showRemindModal, setShowRemindModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [selectedMemberForPayment, setSelectedMemberForPayment] = useState<string | null>(null);
@@ -115,6 +115,27 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showPayoutSchedule, setShowPayoutSchedule] = useState(false);
+
+  // Stage 5 (reminders, Level A — owner-triggered): a non-blocking confirmation toast
+  // offered AFTER mark-paid / payout. It NEVER auto-sends — the owner taps "Send on
+  // WhatsApp". `waUrl` is the pre-filled wa.me link (omitted when the person has no
+  // phone, so the toast just confirms without a Send button). Auto-dismisses after 8s.
+  const [confirmToast, setConfirmToast] = useState<{ title: string; body: string; waUrl?: string } | null>(null);
+  const confirmToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Show the confirmation toast and auto-dismiss it after 8s (clearing any prior timer so
+  // a second action doesn't dismiss the new toast early). Cleared on unmount below.
+  const showConfirmToast = (toast: { title: string; body: string; waUrl?: string }) => {
+    if (confirmToastTimer.current) clearTimeout(confirmToastTimer.current);
+    setConfirmToast(toast);
+    confirmToastTimer.current = setTimeout(() => setConfirmToast(null), 8000);
+  };
+  const dismissConfirmToast = () => {
+    if (confirmToastTimer.current) clearTimeout(confirmToastTimer.current);
+    confirmToastTimer.current = null;
+    setConfirmToast(null);
+  };
+  useEffect(() => () => { if (confirmToastTimer.current) clearTimeout(confirmToastTimer.current); }, []);
 
   // Add local state for members to enable immediate UI updates
   const [localMembers, setLocalMembers] = useState<Member[]>(
@@ -241,6 +262,17 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   // member has collected there is NO current recipient (rotation complete).
   const collectedMemberIds = new Set(groupPayouts.map(p => p.member_id));
   const hasMemberCollected = (m: Member) => m.hasCollected === true || collectedMemberIds.has(m.id);
+  // Stage 5 (review item 1, secondary): the MOST RECENT payout row, used to show the
+  // durable "Payout receipt" chip on exactly one row (its recipient) until the next payout
+  // supersedes it. "Latest" = max paid_at, tie-broken by max cycle_number. null when no
+  // payout has been recorded yet.
+  const latestPayout = groupPayouts.reduce<any | null>((latest, p) => {
+    if (!latest) return p;
+    const tp = p?.paid_at ? new Date(p.paid_at).getTime() : 0;
+    const tl = latest?.paid_at ? new Date(latest.paid_at).getTime() : 0;
+    if (tp !== tl) return tp > tl ? p : latest;
+    return (p?.cycle_number ?? 0) > (latest?.cycle_number ?? 0) ? p : latest;
+  }, null);
   const uncollectedMembers = sortedMembers.filter(m => !hasMemberCollected(m));
   const currentRecipient = uncollectedMembers.length > 0 ? uncollectedMembers[0] : null;
   const nextRecipient = uncollectedMembers.length > 1 ? uncollectedMembers[1] : null;
@@ -257,6 +289,209 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   };
   const groupHasStartDate = hasStartDate(dateGroup);
   const memberCollectionDate = (m: Member) => collectionDate(m, dateGroup);
+
+  // ── Stage 5: smart, date-driven WhatsApp reminders (owner-triggered / Level A) ──
+  // All dates come ONLY from ajoDates.collectionDate (via memberCollectionDate). We NEVER
+  // fabricate a date — when the group has no start date the callers route the owner to the
+  // Stage 4 "Set start date" prompt instead. The phrasing is plain and grandma-readable,
+  // and NOTHING ever auto-sends: every builder just produces a wa.me link the owner taps.
+
+  // The "due date" for the current round = the date the CURRENT recipient collects.
+  // Everyone contributes by that date, so it's the same date for every member this cycle.
+  const currentCycleCollectionDate = currentRecipient ? memberCollectionDate(currentRecipient) : null;
+
+  // Normalize a stored phone for wa.me using the SAME canonical helper the rest of the app
+  // uses (RecordSaleModal, OnlineStoreSetup, debt reminders) — formatPhoneForWhatsApp turns
+  // Nigerian local "0803…" into "234803…", keeps 234…/intl numbers as-is. The old ~:329
+  // Ajo reminder only did `.replace(/\D/g,'')`, which left "0803…" as a bare local number
+  // wa.me can't dial; routing through this helper fixes that for every Stage 5 link.
+  const waDigits = (phone?: string) => (phone ? formatPhoneForWhatsApp(phone) : '');
+
+  // Single source of truth for a per-number deep link. The FULL message string is passed
+  // through encodeURIComponent (covers ₦, names, spaces, and emoji like 🎉/🙏). Returns ''
+  // when there is no usable number so callers can omit the Send affordance.
+  const waLinkTo = (phone: string | undefined, message: string): string => {
+    const digits = waDigits(phone);
+    if (!digits) return '';
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  };
+
+  // Open a pre-filled WhatsApp chat for a specific number. No-op (returns false) when there
+  // is no number. Used by the explicit per-row "Remind"/"Send receipt" taps (one open per
+  // tap — never a loop).
+  const openWhatsAppTo = (phone: string | undefined, message: string): boolean => {
+    const url = waLinkTo(phone, message);
+    if (!url) return false;
+    window.open(url, '_blank');
+    return true;
+  };
+
+  // Open WhatsApp with NO number → WhatsApp shows a chat picker so the owner drops the
+  // message into their existing group chat. Used for the single whole-group reminder.
+  const openWhatsAppPicker = (message: string) => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  // "who collects this round" clause — second person when the reader is the recipient.
+  const recipientClause = (readerIsRecipient: boolean) =>
+    readerIsRecipient
+      ? 'You collect this round.'
+      : `${currentRecipient?.name || 'Someone'} collects this round.`;
+
+  // 1. CONTRIBUTION-DUE (per member): name + amount + DERIVED current-cycle date + whose turn.
+  const buildDueMessage = (member: Member): string => {
+    const dueDate = formatCollectionDate(currentCycleCollectionDate); // "Mon, 1 Aug 2026"
+    const readerIsRecipient = !!currentRecipient && member.id === currentRecipient.id;
+    return `Hi ${member.name}, your ${formatNaira(group.amount)} ajo contribution for ${group.name} is due ${dueDate}. ${recipientClause(readerIsRecipient)} Thank you!`;
+  };
+
+  // 2. WHOLE-GROUP reminder: one message for the whole chat (no member name, no number).
+  const buildGroupMessage = (): string => {
+    const dueDate = formatCollectionDate(currentCycleCollectionDate);
+    const turn = currentRecipient ? ` ${currentRecipient.name} collects this round.` : '';
+    return `Hi everyone 👋 Reminder: your ${formatNaira(group.amount)} ajo contribution for ${group.name} is due ${dueDate}.${turn} Please pay in on time so we stay on track. Thank you!`;
+  };
+
+  // 3. PAYMENT received (after mark-paid). Date is the current-cycle collection date when
+  //    we have one; otherwise we simply leave it out (never invent a date).
+  const buildPaymentReceivedMessage = (member: Member): string => {
+    const datePart = currentCycleCollectionDate ? ` (${formatCollectionDateShort(currentCycleCollectionDate)})` : '';
+    return `Hi ${member.name}, we've received your ${formatNaira(group.amount)} ajo contribution for ${group.name}${datePart}. Thank you! 🙏`;
+  };
+
+  // 4. PAYOUT confirmation (after a payout is recorded). Uses the ACTUAL recorded payout
+  //    amount passed in (from contribution_payouts), not a recomputed figure.
+  const buildPayoutMessage = (member: Member, potAmount: number): string =>
+    `Hi ${member.name}, you've received ${formatNaira(potAmount)} from ${group.name} for this round. Enjoy! 🎉`;
+
+  // Per-member due reminder (per-row "Remind" button). Guards: no phone → handled by the
+  // disabled button state in the UI; no start date → route to the "Set start date" prompt
+  // rather than sending a date-less reminder.
+  const handleRemindMember = (member: Member) => {
+    if (!member.phone) return; // button is disabled in this state; defensive no-op
+    if (!groupHasStartDate) {
+      alert('Set a start date first so the reminder can show the right collection date. Opening settings…');
+      setShowSettings(true);
+      return;
+    }
+    openWhatsAppTo(member.phone, buildDueMessage(member));
+  };
+
+  // Whole-group reminder (chat-picker form — does NOT loop per-member sends).
+  const handleRemindWholeGroup = () => {
+    if (!groupHasStartDate) {
+      alert('Set a start date first so the reminder can show the right collection date. Opening settings…');
+      setShowSettings(true);
+      return;
+    }
+    openWhatsAppPicker(buildGroupMessage());
+  };
+
+  // Stage 5 (review item 2a): DURABLE payment confirmation. A paid member's row shows
+  // "Send receipt" in the same slot the unpaid "Remind" button uses, so the confirmation
+  // stays reachable after the post-mark-paid toast dismisses. Same message as the toast.
+  // No start-date gate — buildPaymentReceivedMessage simply omits the date when unset.
+  const handleSendReceipt = (member: Member) => {
+    if (!member.phone) return; // disabled state in the UI; defensive no-op
+    openWhatsAppTo(member.phone, buildPaymentReceivedMessage(member));
+  };
+
+  // The ACTUAL recorded pot for a collected member, read from this group's payout rows
+  // (contribution_payouts via groupPayouts) — never a recomputed figure. null if no row.
+  const memberPayoutAmount = (memberId: string): number | null => {
+    const row = groupPayouts.find(p => p.member_id === memberId);
+    return row && typeof row.amount === 'number' ? row.amount : null;
+  };
+
+  // Stage 5 (review item 1, secondary): DURABLE payout confirmation behind the "Payout
+  // receipt" chip on the latest recipient's row, so the message stays reachable after the
+  // post-payout toast dismisses. Uses that member's recorded payout amount
+  // (memberPayoutAmount); falls back to the current pot only if the row lacks an amount.
+  const handleSendPayoutReceipt = (member: Member) => {
+    if (!member.phone) return; // disabled state in the UI; defensive no-op
+    const pot = memberPayoutAmount(member.id) ?? (totalMembers * group.amount);
+    openWhatsAppTo(member.phone, buildPayoutMessage(member, pot));
+  };
+
+  // Stage 5 (review item 1): the PRIMARY per-row affordance is owned by PAYMENT state only,
+  // exactly one per row. paid-this-cycle → "Send receipt"; unpaid → "Remind" — and the
+  // contribution-due "Remind" shows whether or not the member has already collected
+  // (post-payout members are the highest default risk, so we never hide their reminder).
+  // The durable payout receipt is a SECONDARY chip on the latest recipient only (below).
+  // Each variant has a disabled "no phone number" form — the single group reminder still
+  // covers phone-less members. One open per deliberate tap, never a loop.
+  const renderMemberWaAction = (member: Member, isPaid: boolean) => {
+    const spec = isPaid
+      ? { label: '🟢 Send receipt', bg: '#25d366', onClick: () => handleSendReceipt(member), noPhone: 'Receipt · no phone number' }
+      : { label: '🟢 Remind', bg: '#25d366', onClick: () => handleRemindMember(member), noPhone: 'Remind · no phone number' };
+
+    if (!member.phone) {
+      return (
+        <span
+          title="Add a phone number in member details to send a WhatsApp message"
+          style={{
+            marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '6px 12px', background: '#f3f4f6', color: '#9ca3af',
+            border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px',
+            fontWeight: '500', cursor: 'not-allowed'
+          }}
+        >
+          {spec.noPhone}
+        </span>
+      );
+    }
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); spec.onClick(); }}
+        title={`Open WhatsApp for ${member.name}`}
+        style={{
+          marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+          padding: '6px 12px', background: spec.bg, color: 'white', border: 'none',
+          borderRadius: '8px', fontSize: '13px', fontWeight: '500', cursor: 'pointer'
+        }}
+      >
+        {spec.label}
+      </button>
+    );
+  };
+
+  // Stage 5 (review item 1, secondary): the durable "Payout receipt" chip. Rendered on AT
+  // MOST ONE row in the whole list — the recipient of the LATEST recorded payout — and only
+  // until the next payout supersedes it (latestPayout advances). Returns null for everyone
+  // else, so stale receipts never pin to every collected row. Uses the latest payout row's
+  // ACTUAL recorded amount; no phone → a disabled "no phone number" chip.
+  const renderLatestPayoutChip = (member: Member) => {
+    if (!latestPayout || member.id !== latestPayout.member_id) return null;
+    if (!member.phone) {
+      return (
+        <span
+          title="Add a phone number in member details to send the payout receipt"
+          style={{
+            marginTop: '8px', marginLeft: '8px', display: 'inline-flex', alignItems: 'center',
+            gap: '6px', padding: '6px 10px', background: '#eef2ff', color: '#9ca3af',
+            border: '1px dashed #c7d2fe', borderRadius: '8px', fontSize: '12px', fontWeight: '500',
+            cursor: 'not-allowed'
+          }}
+        >
+          🎉 Payout receipt · no phone
+        </span>
+      );
+    }
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); handleSendPayoutReceipt(member); }}
+        title={`Send ${member.name} their payout receipt`}
+        style={{
+          marginTop: '8px', marginLeft: '8px', display: 'inline-flex', alignItems: 'center',
+          gap: '6px', padding: '6px 10px', background: 'white', color: '#0F6E56',
+          border: '1px solid #0F6E56', borderRadius: '8px', fontSize: '12px', fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        🎉 Payout receipt
+      </button>
+    );
+  };
 
   // Calculate paid/unpaid members based on database payments
   const getMemberPaidStatus = (memberId: string) => {
@@ -359,6 +594,10 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const handleConfirmPayment = async (method: 'cash' | 'transfer' | 'other') => {
     if (!selectedMemberForPayment) return;
 
+    // Resolve the member NOW (before we clear selection) so the Stage 5 confirmation
+    // toast can address them by name and offer a pre-filled WhatsApp message.
+    const paidMember = localMembers.find(m => m.id === selectedMemberForPayment) || null;
+
     // Record under the SAME current-turn key the paid-status query uses
     // (completed payouts + 1), so each rotation round tracks its own payments and the
     // "X/N paid" view resets correctly after each payout.
@@ -386,47 +625,27 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     setShowPaymentMethodModal(false);
     setSelectedMemberForPayment(null);
     setPaymentNote('');
-  };
 
-  // Fix 3: Wire up Remind All button
-  const handleRemindAll = async () => {
-    const unpaidWithPhone = unpaidMembers.filter(m => m.phone);
-
-    if (unpaidWithPhone.length === 0) {
-      // Show toast: "No phone numbers saved. Add phone numbers in member details."
-      alert('No phone numbers saved. Add phone numbers in member details.');
-      return;
-    }
-
-    if (unpaidWithPhone.length > 1) {
-      setShowRemindModal(true);
-    } else {
-      // Single unpaid member, go straight to WhatsApp
-      sendWhatsAppReminder(unpaidWithPhone[0]);
+    // Stage 5: offer a non-blocking "payment received" confirmation. Never auto-sends —
+    // the owner taps Send in the toast. When the member has no phone we still confirm the
+    // record (no Send button). The mark-paid flow above has already completed.
+    if (paidMember) {
+      showConfirmToast({
+        title: '✓ Payment recorded',
+        body: paidMember.phone
+          ? `Send ${paidMember.name} a payment confirmation?`
+          : `${paidMember.name} marked paid. (No phone saved — no message to send.)`,
+        waUrl: waLinkTo(paidMember.phone, buildPaymentReceivedMessage(paidMember)) || undefined
+      });
     }
   };
 
-  const sendWhatsAppReminder = (member: Member) => {
-    if (!member.phone) return;
-
-    const shareUrl = group.share_code ? `https://storehouse.ng/a/${group.share_code}` : '';
-    const message = `Hi ${member.name}, your ${formatNaira(group.amount)} contribution for ${group.name} is due. Please pay to keep the group on track. ${shareUrl ? `View status: ${shareUrl}` : ''}`;
-    const encodedMessage = encodeURIComponent(message);
-    const cleanPhone = member.phone.replace(/\D/g, '');
-
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
-  };
-
-  const sendAllReminders = () => {
-    const unpaidWithPhone = unpaidMembers.filter(m => m.phone);
-    unpaidWithPhone.forEach((member, index) => {
-      setTimeout(() => {
-        sendWhatsAppReminder(member);
-      }, index * 500); // Stagger the opens slightly
-    });
-    setShowRemindModal(false);
-    alert('Reminders sent!');
-  };
+  // Stage 5 (review item 1): the old per-member "Remind all" LOOP is gone. Looping
+  // window.open is killed by popup blockers after the first open and, on Android, each
+  // wa.me navigation tears the page down. There is now exactly ONE group-level action —
+  // the single wa.me/?text= chat-picker message (handleRemindWholeGroup, defined above) —
+  // wired to the "Remind all" button below. Per-member nudges remain available as the
+  // explicit per-row "Remind" button (one open per deliberate tap, never a loop).
 
   // Fix 4: Record Payout functionality (Stage 2 execution fixes)
   const [recordingPayout, setRecordingPayout] = useState(false);
@@ -446,16 +665,19 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
     }
     if (recordingPayout) return; // prevent double-submit
 
+    // Capture the recipient now — after the awaits the derived recipient advances.
+    const payoutRecipient = currentRecipient;
+
     setRecordingPayout(true);
     try {
       // Call the Stage 2 gated recordPayout with the CORRECT signature: the 4th arg
       // is an object { amount, paymentMethod }, not a bare number. The gate rejects a
       // second collect for the same member. cycle_number = the recipient's turn (their
       // payout_position) so payouts are keyed stably to the rotation turn.
-      const { error } = await contributionService.recordPayout(
+      const { data: payout, error } = await contributionService.recordPayout(
         group.id,
-        currentRecipient.id,
-        currentRecipient.payout_position,
+        payoutRecipient.id,
+        payoutRecipient.payout_position,
         { amount: totalCollected, paymentMethod: 'cash' }
       );
 
@@ -465,16 +687,31 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
         return;
       }
 
+      // Stage 5: the ACTUAL recorded payout amount from contribution_payouts (the inserted
+      // row), not a recomputed figure. Falls back to totalCollected only if the row is
+      // somehow missing its amount.
+      const recordedPot = typeof (payout as any)?.amount === 'number' ? (payout as any).amount : totalCollected;
+
       // Refresh local state immediately so the UI reflects the NEW cycle without a
       // manual refresh: (a) collected ledger → recipient advances; (b) current-cycle
       // payments → "X/N paid" and per-member Paid badges reset to the new (unpaid)
       // cycle. Then ask the parent to reload the group (which also bumps cycleNumber so
       // the [group.id, group.cycleNumber] effect re-queries payments for the new cycle).
       await Promise.all([loadGroupPayouts(), loadCyclePayments()]);
-      onRecordPayout(currentRecipient.id, totalCollected);
+      onRecordPayout(payoutRecipient.id, recordedPot);
 
       setShowPayoutModal(false);
-      alert(`₦${totalCollected.toLocaleString()} payout to ${currentRecipient.name} recorded.`);
+      alert(`₦${recordedPot.toLocaleString()} payout to ${payoutRecipient.name} recorded.`);
+
+      // Stage 5: offer a non-blocking payout confirmation to the recipient. Never
+      // auto-sends. No-phone → confirm without a Send button. Uses the recorded amount.
+      showConfirmToast({
+        title: '✓ Payout recorded',
+        body: payoutRecipient.phone
+          ? `Tell ${payoutRecipient.name} they've received the money?`
+          : `${payoutRecipient.name} collected ${formatNaira(recordedPot)}. (No phone saved — no message to send.)`,
+        waUrl: waLinkTo(payoutRecipient.phone, buildPayoutMessage(payoutRecipient, recordedPot)) || undefined
+      });
     } catch (error) {
       console.error('Failed to record payout:', error);
       alert('Failed to record payout. Please try again.');
@@ -1062,6 +1299,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                         Collects {formatCollectionDateShort(memberCollectionDate(member))}
                       </div>
                     )}
+                    {/* Stage 5 (review item 1): PRIMARY action owned by payment state
+                        (paid → "Send receipt"; unpaid → "Remind", shown even after the
+                        member has collected). SECONDARY "Payout receipt" chip appears only
+                        on the latest payout's recipient (at most one row). Both have a
+                        disabled no-phone variant; the single group reminder covers phone-less
+                        members. One open per deliberate tap — never a loop, never auto-sends. */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {renderMemberWaAction(member, isPaid)}
+                      {renderLatestPayoutChip(member)}
+                    </div>
                   </div>
                 </div>
 
@@ -1239,19 +1486,24 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           gap: '8px',
           marginTop: '16px'
         }}>
+          {/* Stage 5 (review item 1): the SINGLE group-level reminder. One tap opens
+              WhatsApp's chat picker (wa.me/?text=) with the smart, date-aware message so
+              the owner drops it into their existing group chat — no per-member loop.
+              Available whenever the rotation is still running. */}
           <button
-            onClick={handleRemindAll} // Fix 3: Wired up
-            disabled={unpaidMembers.length === 0}
+            onClick={handleRemindWholeGroup}
+            title="Open WhatsApp to post one reminder in your group chat"
+            disabled={rotationComplete || localMembers.length === 0}
             style={{
               flex: 1,
               padding: '14px',
               borderRadius: '12px',
               border: '1.5px solid #ddd',
               background: 'transparent',
-              color: unpaidMembers.length > 0 ? '#666' : '#ccc',
+              color: (!rotationComplete && localMembers.length > 0) ? '#666' : '#ccc',
               fontSize: '14px',
               fontWeight: '500',
-              cursor: unpaidMembers.length > 0 ? 'pointer' : 'not-allowed'
+              cursor: (!rotationComplete && localMembers.length > 0) ? 'pointer' : 'not-allowed'
             }}
           >
             Remind all
@@ -1293,86 +1545,6 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           fontSize: '14px', fontWeight: 600, textAlign: 'center'
         }}>
           ✅ Rotation complete — everyone has collected.
-        </div>
-      )}
-
-      {/* Remind Modal */}
-      {showRemindModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setShowRemindModal(false)}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '16px',
-              padding: '24px',
-              maxWidth: '400px',
-              width: '90%'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: '600',
-              marginBottom: '16px',
-              color: '#1f2937'
-            }}>
-              Send Reminders
-            </h3>
-            <p style={{
-              fontSize: '14px',
-              color: '#6b7280',
-              marginBottom: '20px'
-            }}>
-              Send reminder to {unpaidMembers.filter(m => m.phone).length} unpaid members?
-            </p>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setShowRemindModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  background: '#f3f4f6',
-                  color: '#374151',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={sendAllReminders}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  background: '#25d366',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Send via WhatsApp
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -2859,6 +3031,91 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
 
           </div>
         </div>
+      )}
+
+      {/* Stage 5: non-blocking confirmation toast (offered after mark-paid / payout). It
+          slides in at the bottom and never blocks the page (no full-screen backdrop). The
+          owner taps "Send on WhatsApp" to send the pre-filled message — it NEVER auto-sends.
+          When the relevant person has no phone there's no Send button, just the confirmation
+          and a dismiss. Auto-dismisses after 8s. */}
+      {confirmToast && (
+        <>
+          <style>{`
+            @keyframes ajoToastIn {
+              from { transform: translate(-50%, 120%); opacity: 0; }
+              to   { transform: translate(-50%, 0);    opacity: 1; }
+            }
+          `}</style>
+          <div
+            role="status"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              bottom: '24px',
+              transform: 'translateX(-50%)',
+              width: 'calc(100% - 32px)',
+              maxWidth: '420px',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+              border: '1px solid #e5e7eb',
+              padding: '14px 16px',
+              zIndex: 2000,
+              animation: 'ajoToastIn 0.25s ease-out'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#065f46', marginBottom: '2px' }}>
+                  {confirmToast.title}
+                </div>
+                <div style={{ fontSize: '13px', color: '#4b5563', lineHeight: 1.4 }}>
+                  {confirmToast.body}
+                </div>
+              </div>
+              <button
+                onClick={dismissConfirmToast}
+                aria-label="Dismiss"
+                style={{
+                  flexShrink: 0,
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '18px',
+                  lineHeight: 1,
+                  color: '#9ca3af',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {confirmToast.waUrl && (
+              <button
+                onClick={() => {
+                  window.open(confirmToast.waUrl!, '_blank');
+                  dismissConfirmToast();
+                }}
+                style={{
+                  marginTop: '12px',
+                  width: '100%',
+                  padding: '10px',
+                  background: '#25d366',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Send on WhatsApp
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
     </>
