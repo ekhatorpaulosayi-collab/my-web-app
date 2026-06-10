@@ -572,6 +572,9 @@ supabase functions deploy ai-chat --project-ref yzlniqwzqlsftxrtapdl
 6. If broken: git stash pop (or restore backup) and redeploy
 7. If working: git add -A && git commit -m "description of change"
 
+## MODULE RESOLUTION RULE
+Duplicate-basename modules (x.js + x.ts) are forbidden — Vite resolves .js first. Delete or rename; never let two copies coexist.
+
 ## Paystack Subaccount Work — Session 1 complete (2026-05-13)
 
 ### State

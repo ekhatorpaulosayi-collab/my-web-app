@@ -1,0 +1,449 @@
+- generic [ref=e26]:
+  - banner [ref=e27]:
+    - generic [ref=e28]:
+      - generic [ref=e29]: osayi1
+      - time [ref=e30]: Wednesday, June 10, 2026
+    - generic [ref=e31]:
+      - 'generic "Pro Tier: 4 of 1,500 AI chats used this month (1,496 remaining)" [ref=e32] [cursor=pointer]':
+        - img [ref=e34]
+        - generic [ref=e36]: 4/1,500 AI
+      - button "Open calculator" [ref=e37] [cursor=pointer]:
+        - img [ref=e38]
+      - button "Business Settings" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+  - generic [ref=e44]:
+    - generic [ref=e45]:
+      - generic [ref=e46]: 👋 Welcome to Storehouse!
+      - generic [ref=e47]: Complete your business profile to get started
+    - button "Set Up Now →" [ref=e48] [cursor=pointer]
+    - button "Dismiss welcome banner" [ref=e49] [cursor=pointer]: ×
+  - generic [ref=e50]:
+    - generic [ref=e51]: Wednesday, June 10, 2026
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - img [ref=e55]
+        - generic [ref=e59]:
+          - generic [ref=e60]: "Payment Methods: Bank Transfer Active"
+          - generic [ref=e61]:
+            - img [ref=e62]
+            - text: Add online payments for instant checkout
+      - generic [ref=e63]:
+        - button "Setup" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - text: Setup
+        - button "Dismiss payment banner" [ref=e68] [cursor=pointer]:
+          - img [ref=e69]
+    - generic [ref=e72]:
+      - button "💰 Record Sale" [ref=e73] [cursor=pointer]
+      - button "+ Add Item" [ref=e74] [cursor=pointer]
+      - button "💎 More Features" [ref=e75] [cursor=pointer]:
+        - generic [ref=e76]: 💎
+        - generic [ref=e77]: More Features
+    - generic [ref=e78] [cursor=pointer]:
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - heading "Today's Sales" [level=3] [ref=e81]
+          - generic [ref=e82]: View all →
+        - generic [ref=e83]:
+          - button "Hide sales data" [ref=e84]:
+            - img [ref=e85]
+          - img [ref=e88]
+      - generic [ref=e90]: ₦0
+      - generic [ref=e91]: 0 sales
+      - generic [ref=e92]: No sales yet today
+      - generic [ref=e94]:
+        - text: View all
+        - img [ref=e95]
+    - generic [ref=e97]:
+      - generic [ref=e98]:
+        - heading "Today's Profit" [level=3] [ref=e99]
+        - button "Hide profit data" [ref=e100] [cursor=pointer]:
+          - img [ref=e101]
+      - generic [ref=e104]: ₦0
+      - generic [ref=e105]:
+        - generic [ref=e106]: "Margin: 0.0%"
+        - generic [ref=e107]: "Revenue: ₦0"
+      - generic [ref=e108]: No sales yet today
+      - generic [ref=e110]:
+        - text: View all
+        - img [ref=e111]
+    - generic [ref=e114] [cursor=pointer]:
+      - heading "Sales Trend (Last 7 Days)" [level=3] [ref=e115]
+      - button "Expand Sales Trend":
+        - img
+    - generic [ref=e116]:
+      - generic [ref=e117] [cursor=pointer]:
+        - generic [ref=e118]:
+          - generic [ref=e119]: 💰
+          - generic [ref=e120]:
+            - heading "Partner Program" [level=4] [ref=e121]
+            - paragraph [ref=e122]: Refer 2+ paid customers → Earn 30% annually
+        - button "Expand details" [ref=e123]: ▼
+      - generic:
+        - generic [ref=e124]:
+          - generic [ref=e125]:
+            - generic [ref=e126]: 2 customers @ ₦50k/year
+            - generic [ref=e127]: ₦30k/year
+          - generic [ref=e128]:
+            - generic [ref=e129]: 50 customers @ ₦50k/year
+            - generic [ref=e130]: ₦750k/year
+          - generic [ref=e131]:
+            - generic [ref=e132]: 100 customers @ ₦50k/year
+            - generic [ref=e133]: ₦1.5M/year
+        - paragraph [ref=e134]:
+          - text: Earn 30% of what they pay, every year they subscribe.
+          - strong [ref=e135]: "Minimum: 2 paid customers."
+        - button "Become a Partner" [ref=e136] [cursor=pointer]
+        - generic [ref=e137]: 🎯 127 partners earning recurring income
+    - generic [ref=e138]:
+      - generic [ref=e139] [cursor=pointer]:
+        - heading "Quick Sell" [level=3] [ref=e140]
+        - button "Collapse Quick Sell":
+          - img
+      - paragraph [ref=e141]: 👇 Tap any item to record a sale
+      - generic [ref=e142]:
+        - button "Greggs ₦4,000 📦 191 in stock" [ref=e143] [cursor=pointer]:
+          - generic [ref=e144]: Greggs
+          - generic [ref=e145]: ₦4,000
+          - generic [ref=e146]: 📦 191 in stock
+        - button "Yam ₦100 📦 100 in stock" [ref=e147] [cursor=pointer]:
+          - generic [ref=e148]: Yam
+          - generic [ref=e149]: ₦100
+          - generic [ref=e150]: 📦 100 in stock
+        - button "Rice ₦1,000 📦 59 in stock" [ref=e151] [cursor=pointer]:
+          - generic [ref=e152]: Rice
+          - generic [ref=e153]: ₦1,000
+          - generic [ref=e154]: 📦 59 in stock
+        - button "Shirt ₦100 📦 43 in stock" [ref=e155] [cursor=pointer]:
+          - generic [ref=e156]: Shirt
+          - generic [ref=e157]: ₦100
+          - generic [ref=e158]: 📦 43 in stock
+        - button "Income noodles (cartoon) ₦8,500 📦 42 in stock" [ref=e159] [cursor=pointer]:
+          - generic [ref=e160]: Income noodles (cartoon)
+          - generic [ref=e161]: ₦8,500
+          - generic [ref=e162]: 📦 42 in stock
+        - button "Titus sandines(cartoon) ₦15,000 📦 22 in stock" [ref=e163] [cursor=pointer]:
+          - generic [ref=e164]: Titus sandines(cartoon)
+          - generic [ref=e165]: ₦15,000
+          - generic [ref=e166]: 📦 22 in stock
+    - generic [ref=e167]:
+      - generic [ref=e168] [cursor=pointer]:
+        - heading "All Items (16)" [level=3] [ref=e169]
+        - button "Collapse Items Table":
+          - img
+      - generic [ref=e170]:
+        - img [ref=e171]
+        - searchbox "Search items..." [ref=e174]
+        - button "📥 Import" [ref=e175] [cursor=pointer]
+      - table [ref=e177]:
+        - rowgroup [ref=e178]:
+          - row "ITEM QTY PRICE" [ref=e179]:
+            - columnheader "ITEM" [ref=e180] [cursor=pointer]:
+              - generic [ref=e181]:
+                - text: ITEM
+                - img [ref=e182]
+            - columnheader "QTY" [ref=e184] [cursor=pointer]:
+              - generic [ref=e185]:
+                - text: QTY
+                - img [ref=e186]
+            - columnheader "PRICE" [ref=e189] [cursor=pointer]:
+              - generic [ref=e190]:
+                - text: PRICE
+                - img [ref=e191]
+            - columnheader [ref=e194]
+        - rowgroup [ref=e195]:
+          - row "Ankara dress ⚠️ LOW 0 ₦10,000 Actions for Ankara dress" [ref=e196] [cursor=pointer]:
+            - cell "Ankara dress ⚠️ LOW" [ref=e197]:
+              - generic [ref=e198]:
+                - text: Ankara dress
+                - generic [ref=e199]: ⚠️ LOW
+            - cell "0" [ref=e200]
+            - cell "₦10,000" [ref=e201]
+            - cell "Actions for Ankara dress" [ref=e202]:
+              - button "Actions for Ankara dress" [ref=e204]:
+                - img [ref=e205]
+          - row "Ankara dresss ⚠️ LOW 2 ₦10,000 Actions for Ankara dresss" [ref=e209] [cursor=pointer]:
+            - cell "Ankara dresss ⚠️ LOW" [ref=e210]:
+              - generic [ref=e211]:
+                - text: Ankara dresss
+                - generic [ref=e212]: ⚠️ LOW
+            - cell "2" [ref=e213]
+            - cell "₦10,000" [ref=e214]
+            - cell "Actions for Ankara dresss" [ref=e215]:
+              - button "Actions for Ankara dresss" [ref=e217]:
+                - img [ref=e218]
+          - row "Dangote Rice(50kg) ⚠️ LOW 0 ₦75,000 Actions for Dangote Rice(50kg)" [ref=e222] [cursor=pointer]:
+            - cell "Dangote Rice(50kg) ⚠️ LOW" [ref=e223]:
+              - generic [ref=e224]:
+                - text: Dangote Rice(50kg)
+                - generic [ref=e225]: ⚠️ LOW
+            - cell "0" [ref=e226]
+            - cell "₦75,000" [ref=e227]
+            - cell "Actions for Dangote Rice(50kg)" [ref=e228]:
+              - button "Actions for Dangote Rice(50kg)" [ref=e230]:
+                - img [ref=e231]
+          - row "Golden penny semovita(1kg) ⚠️ LOW 13 ₦850 Actions for Golden penny semovita(1kg)" [ref=e235] [cursor=pointer]:
+            - cell "Golden penny semovita(1kg) ⚠️ LOW" [ref=e236]:
+              - generic [ref=e237]:
+                - text: Golden penny semovita(1kg)
+                - generic [ref=e238]: ⚠️ LOW
+            - cell "13" [ref=e239]
+            - cell "₦850" [ref=e240]
+            - cell "Actions for Golden penny semovita(1kg)" [ref=e241]:
+              - button "Actions for Golden penny semovita(1kg)" [ref=e243]:
+                - img [ref=e244]
+          - row "Greggs 191 ₦4,000 Actions for Greggs" [ref=e248] [cursor=pointer]:
+            - cell "Greggs" [ref=e249]:
+              - generic [ref=e250]: Greggs
+            - cell "191" [ref=e251]
+            - cell "₦4,000" [ref=e252]
+            - cell "Actions for Greggs" [ref=e253]:
+              - button "Actions for Greggs" [ref=e255]:
+                - img [ref=e256]
+          - row "Groundnut oil(5litres) 8 ₦12,000 Actions for Groundnut oil(5litres)" [ref=e260] [cursor=pointer]:
+            - cell "Groundnut oil(5litres)" [ref=e261]:
+              - generic [ref=e262]: Groundnut oil(5litres)
+            - cell "8" [ref=e263]
+            - cell "₦12,000" [ref=e264]
+            - cell "Actions for Groundnut oil(5litres)" [ref=e265]:
+              - button "Actions for Groundnut oil(5litres)" [ref=e267]:
+                - img [ref=e268]
+          - row "Income noodles (cartoon) 42 ₦8,500 Actions for Income noodles (cartoon)" [ref=e272] [cursor=pointer]:
+            - cell "Income noodles (cartoon)" [ref=e273]:
+              - generic [ref=e274]: Income noodles (cartoon)
+            - cell "42" [ref=e275]
+            - cell "₦8,500" [ref=e276]
+            - cell "Actions for Income noodles (cartoon)" [ref=e277]:
+              - button "Actions for Income noodles (cartoon)" [ref=e279]:
+                - img [ref=e280]
+          - row "Iphone 13 15 ₦1,500,000 Actions for Iphone 13" [ref=e284] [cursor=pointer]:
+            - cell "Iphone 13" [ref=e285]:
+              - generic [ref=e286]: Iphone 13
+            - cell "15" [ref=e287]
+            - cell "₦1,500,000" [ref=e288]
+            - cell "Actions for Iphone 13" [ref=e289]:
+              - button "Actions for Iphone 13" [ref=e291]:
+                - img [ref=e292]
+          - row "Iphone 14 ⚠️ LOW 10 ₦2,000,000 Actions for Iphone 14" [ref=e296] [cursor=pointer]:
+            - cell "Iphone 14 ⚠️ LOW" [ref=e297]:
+              - generic [ref=e298]:
+                - text: Iphone 14
+                - generic [ref=e299]: ⚠️ LOW
+            - cell "10" [ref=e300]
+            - cell "₦2,000,000" [ref=e301]
+            - cell "Actions for Iphone 14" [ref=e302]:
+              - button "Actions for Iphone 14" [ref=e304]:
+                - img [ref=e305]
+          - row "lipstick 15 ₦10 Actions for lipstick" [ref=e309] [cursor=pointer]:
+            - cell "lipstick" [ref=e310]:
+              - generic [ref=e311]: lipstick
+            - cell "15" [ref=e312]
+            - cell "₦10" [ref=e313]
+            - cell "Actions for lipstick" [ref=e314]:
+              - button "Actions for lipstick" [ref=e316]:
+                - img [ref=e317]
+          - row "Peak milk tin(400g) ⚠️ LOW 15 ₦1,200 Actions for Peak milk tin(400g)" [ref=e321] [cursor=pointer]:
+            - cell "Peak milk tin(400g) ⚠️ LOW" [ref=e322]:
+              - generic [ref=e323]:
+                - text: Peak milk tin(400g)
+                - generic [ref=e324]: ⚠️ LOW
+            - cell "15" [ref=e325]
+            - cell "₦1,200" [ref=e326]
+            - cell "Actions for Peak milk tin(400g)" [ref=e327]:
+              - button "Actions for Peak milk tin(400g)" [ref=e329]:
+                - img [ref=e330]
+          - row "Rice 59 ₦1,000 Actions for Rice" [ref=e334] [cursor=pointer]:
+            - cell "Rice" [ref=e335]:
+              - generic [ref=e336]: Rice
+            - cell "59" [ref=e337]
+            - cell "₦1,000" [ref=e338]
+            - cell "Actions for Rice" [ref=e339]:
+              - button "Actions for Rice" [ref=e341]:
+                - img [ref=e342]
+          - row "Shirt 43 ₦100 Actions for Shirt" [ref=e346] [cursor=pointer]:
+            - cell "Shirt" [ref=e347]:
+              - generic [ref=e348]: Shirt
+            - cell "43" [ref=e349]
+            - cell "₦100" [ref=e350]
+            - cell "Actions for Shirt" [ref=e351]:
+              - button "Actions for Shirt" [ref=e353]:
+                - img [ref=e354]
+          - row "Tea cup 20 ₦100 Actions for Tea cup" [ref=e358] [cursor=pointer]:
+            - cell "Tea cup" [ref=e359]:
+              - generic [ref=e360]: Tea cup
+            - cell "20" [ref=e361]
+            - cell "₦100" [ref=e362]
+            - cell "Actions for Tea cup" [ref=e363]:
+              - button "Actions for Tea cup" [ref=e365]:
+                - img [ref=e366]
+          - row "Titus sandines(cartoon) 22 ₦15,000 Actions for Titus sandines(cartoon)" [ref=e370] [cursor=pointer]:
+            - cell "Titus sandines(cartoon)" [ref=e371]:
+              - generic [ref=e372]: Titus sandines(cartoon)
+            - cell "22" [ref=e373]
+            - cell "₦15,000" [ref=e374]
+            - cell "Actions for Titus sandines(cartoon)" [ref=e375]:
+              - button "Actions for Titus sandines(cartoon)" [ref=e377]:
+                - img [ref=e378]
+          - row "Yam 100 ₦100 Actions for Yam" [ref=e382] [cursor=pointer]:
+            - cell "Yam" [ref=e383]:
+              - generic [ref=e384]: Yam
+            - cell "100" [ref=e385]
+            - cell "₦100" [ref=e386]
+            - cell "Actions for Yam" [ref=e387]:
+              - button "Actions for Yam" [ref=e389]:
+                - img [ref=e390]
+    - dialog [ref=e400]:
+      - generic [ref=e401]:
+        - generic [ref=e402]:
+          - heading "More Features" [level=3] [ref=e403]
+          - button "Close menu" [active] [ref=e404] [cursor=pointer]:
+            - img [ref=e405]
+        - generic [ref=e408]:
+          - generic [ref=e409]:
+            - heading "SELL" [level=4] [ref=e410]
+            - generic [ref=e411]:
+              - button "Sales History View and search all your sales ›" [ref=e412] [cursor=pointer]:
+                - generic [ref=e413]:
+                  - img [ref=e415]
+                  - generic [ref=e416]:
+                    - generic [ref=e417]: Sales History
+                    - generic [ref=e418]: View and search all your sales
+                  - generic [ref=e419]: ›
+              - button "Online Store Share your catalog — customers browse 24/7 ›" [ref=e420] [cursor=pointer]:
+                - generic [ref=e421]:
+                  - img [ref=e423]
+                  - generic [ref=e429]:
+                    - generic [ref=e430]: Online Store
+                    - generic [ref=e431]: Share your catalog — customers browse 24/7
+                  - generic [ref=e432]: ›
+              - button "WhatsApp Store Link Share via WhatsApp or QR code ›" [ref=e433] [cursor=pointer]:
+                - generic [ref=e434]:
+                  - img [ref=e436]
+                  - generic [ref=e442]:
+                    - generic [ref=e443]: WhatsApp Store Link
+                    - generic [ref=e444]: Share via WhatsApp or QR code
+                  - generic [ref=e445]: ›
+          - generic [ref=e446]:
+            - heading "MANAGE" [level=4] [ref=e447]
+            - generic [ref=e448]:
+              - button "Money Book Credit sales and ajo/contribution groups ›" [ref=e449] [cursor=pointer]:
+                - generic [ref=e450]:
+                  - img [ref=e452]
+                  - generic [ref=e454]:
+                    - generic [ref=e455]: Money Book
+                    - generic [ref=e456]: Credit sales and ajo/contribution groups
+                  - generic [ref=e457]: ›
+              - button "Customer Chats Conversations from your online store ›" [ref=e458] [cursor=pointer]:
+                - generic [ref=e459]:
+                  - img [ref=e461]
+                  - generic [ref=e463]:
+                    - generic [ref=e464]: Customer Chats
+                    - generic [ref=e465]: Conversations from your online store
+                  - generic [ref=e466]: ›
+              - button "Professional Invoices Send invoices in 30 seconds ›" [ref=e467] [cursor=pointer]:
+                - generic [ref=e468]:
+                  - img [ref=e470]
+                  - generic [ref=e473]:
+                    - generic [ref=e474]: Professional Invoices
+                    - generic [ref=e475]: Send invoices in 30 seconds
+                  - generic [ref=e476]: ›
+              - button "Staff Management Add and manage team members ›" [ref=e477] [cursor=pointer]:
+                - generic [ref=e478]:
+                  - img [ref=e480]
+                  - generic [ref=e492]:
+                    - generic [ref=e493]: Staff Management
+                    - generic [ref=e494]: Add and manage team members
+                  - generic [ref=e495]: ›
+              - button "Export Data Download for Excel or Google Sheets ›" [ref=e496] [cursor=pointer]:
+                - generic [ref=e497]:
+                  - img [ref=e499]
+                  - generic [ref=e502]:
+                    - generic [ref=e503]: Export Data
+                    - generic [ref=e504]: Download for Excel or Google Sheets
+                  - generic [ref=e505]: ›
+          - generic [ref=e506]:
+            - heading "TRACK" [level=4] [ref=e507]
+            - generic [ref=e508]:
+              - button "Business Insights AI-powered daily summary of your business ›" [ref=e509] [cursor=pointer]:
+                - generic [ref=e510]:
+                  - img [ref=e512]
+                  - generic [ref=e515]:
+                    - generic [ref=e516]: Business Insights
+                    - generic [ref=e517]: AI-powered daily summary of your business
+                  - generic [ref=e518]: ›
+              - button "Money & Profits Item costs, prices, and margins ›" [ref=e519] [cursor=pointer]:
+                - generic [ref=e520]:
+                  - img [ref=e522]
+                  - generic [ref=e525]:
+                    - generic [ref=e526]: Money & Profits
+                    - generic [ref=e527]: Item costs, prices, and margins
+                  - generic [ref=e528]: ›
+              - button "Daily Sales Summary Daily digest via email or WhatsApp ›" [ref=e529] [cursor=pointer]:
+                - generic [ref=e530]:
+                  - img [ref=e532]
+                  - generic [ref=e535]:
+                    - generic [ref=e536]: Daily Sales Summary
+                    - generic [ref=e537]: Daily digest via email or WhatsApp
+                  - generic [ref=e538]: ›
+              - button "Sales by Channel Instagram, WhatsApp, Walk-in ›" [ref=e539] [cursor=pointer]:
+                - generic [ref=e540]:
+                  - img [ref=e542]
+                  - generic [ref=e544]:
+                    - generic [ref=e545]: Sales by Channel
+                    - generic [ref=e546]: Instagram, WhatsApp, Walk-in
+                  - generic [ref=e547]: ›
+              - button "Customers Purchases, loyalty, outstanding payments ›" [ref=e548] [cursor=pointer]:
+                - generic [ref=e549]:
+                  - img [ref=e551]
+                  - generic [ref=e555]:
+                    - generic [ref=e556]: Customers
+                    - generic [ref=e557]: Purchases, loyalty, outstanding payments
+                  - generic [ref=e558]: ›
+          - generic [ref=e559]:
+            - heading "GROWTH" [level=4] [ref=e560]
+            - generic [ref=e561]:
+              - button "Customer Reviews Collect and display testimonials ›" [ref=e562] [cursor=pointer]:
+                - generic [ref=e563]:
+                  - img [ref=e565]
+                  - generic [ref=e567]:
+                    - generic [ref=e568]: Customer Reviews
+                    - generic [ref=e569]: Collect and display testimonials
+                  - generic [ref=e570]: ›
+              - button "Partner Program EARN MONEY 30% recurring commission on referrals ›" [ref=e571] [cursor=pointer]:
+                - generic [ref=e572]:
+                  - img [ref=e574]
+                  - generic [ref=e578]:
+                    - generic [ref=e579]:
+                      - text: Partner Program
+                      - generic [ref=e580]: EARN MONEY
+                    - generic [ref=e581]: 30% recurring commission on referrals
+                  - generic [ref=e582]: ›
+          - generic [ref=e583]:
+            - heading "ACCOUNT" [level=4] [ref=e584]
+            - generic [ref=e585]:
+              - button "Subscription & Billing Upgrade plan, manage billing ›" [ref=e586] [cursor=pointer]:
+                - generic [ref=e587]:
+                  - img [ref=e589]
+                  - generic [ref=e591]:
+                    - generic [ref=e592]: Subscription & Billing
+                    - generic [ref=e593]: Upgrade plan, manage billing
+                  - generic [ref=e594]: ›
+              - button "Staff Mode Login as staff member ›" [ref=e595] [cursor=pointer]:
+                - generic [ref=e596]:
+                  - img [ref=e598]
+                  - generic [ref=e603]:
+                    - generic [ref=e604]: Staff Mode
+                    - generic [ref=e605]: Login as staff member
+                  - generic [ref=e606]: ›
+              - button "Getting Started Guide Show setup checklist ›" [ref=e607] [cursor=pointer]:
+                - generic [ref=e608]:
+                  - img [ref=e610]
+                  - generic [ref=e613]:
+                    - generic [ref=e614]: Getting Started Guide
+                    - generic [ref=e615]: Show setup checklist
+                  - generic [ref=e616]: ›
+  - button "Open AI Chat Assistant" [ref=e395] [cursor=pointer]:
+    - generic [ref=e396]: 🤖
+    - generic [ref=e397]: Need Help?
+  - contentinfo [ref=e398]:
+    - paragraph [ref=e399]: ⚡ Powered by Storehouse

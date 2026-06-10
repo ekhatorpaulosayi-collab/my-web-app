@@ -1,0 +1,27 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img "Storehouse"
+    - generic [ref=e6]:
+      - heading "Welcome Back" [level=1] [ref=e7]
+      - paragraph [ref=e8]: Sign in to your store
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: Email Address
+        - textbox "Email Address" [active] [ref=e12]:
+          - /placeholder: you@example.com
+      - generic [ref=e13]:
+        - generic [ref=e14]: Password
+        - generic [ref=e15]:
+          - textbox "Password" [ref=e16]:
+            - /placeholder: ••••••••
+          - button "Show password" [ref=e17] [cursor=pointer]: 👁️‍🗨️
+      - link "Forgot Password?" [ref=e19] [cursor=pointer]:
+        - /url: /forgot-password
+      - button "Sign In" [ref=e20] [cursor=pointer]
+    - paragraph [ref=e22]:
+      - text: Don't have an account?
+      - link "Create one" [ref=e23] [cursor=pointer]:
+        - /url: /signup
+  - contentinfo [ref=e24]:
+    - paragraph [ref=e25]: ⚡ Powered by Storehouse

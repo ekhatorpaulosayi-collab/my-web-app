@@ -12,7 +12,6 @@ import { ensureQty, ensurePrice } from '../utils/validators';
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { formatNGPhone, validateInternationalPhone } from '../utils/phone';
-import { openWhatsApp } from '../utils/whatsapp';
 import { ReceiptOptionsModal } from './ReceiptOptionsModal';
 import {
   isPaystackEnabled,
