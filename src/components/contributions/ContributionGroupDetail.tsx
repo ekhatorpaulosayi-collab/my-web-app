@@ -123,6 +123,14 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [confirmToast, setConfirmToast] = useState<{ title: string; body: string; waUrl?: string } | null>(null);
   const confirmToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Stage 5 follow-up: inline add/edit of a member's phone number (owner-detail only —
+  // this component is mounted ONLY from the authenticated dashboard, never on the public
+  // /a/:shareCode route, which renders ContributionPublicView instead). When
+  // editingPhoneMemberId matches a row, that row shows an inline tel input + Save/Cancel.
+  const [editingPhoneMemberId, setEditingPhoneMemberId] = useState<string | null>(null);
+  const [editingPhoneValue, setEditingPhoneValue] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+
   // Show the confirmation toast and auto-dismiss it after 8s (clearing any prior timer so
   // a second action doesn't dismiss the new toast early). Cleared on unmount below.
   const showConfirmToast = (toast: { title: string; body: string; waUrl?: string }) => {
@@ -418,40 +426,62 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   // contribution-due "Remind" shows whether or not the member has already collected
   // (post-payout members are the highest default risk, so we never hide their reminder).
   // The durable payout receipt is a SECONDARY chip on the latest recipient only (below).
-  // Each variant has a disabled "no phone number" form — the single group reminder still
-  // covers phone-less members. One open per deliberate tap, never a loop.
+  // No phone → "+ Add phone" (opens the inline editor, no longer a dead end); when a phone
+  // exists, a small ✎ next to the action edits/corrects it. One open per tap, never a loop.
   const renderMemberWaAction = (member: Member, isPaid: boolean) => {
+    // While this row's phone editor is open, suppress the action/add affordance — the
+    // editor (rendered just below) is the only control, so nothing jumps or duplicates.
+    if (editingPhoneMemberId === member.id) return null;
+
     const spec = isPaid
-      ? { label: '🟢 Send receipt', bg: '#25d366', onClick: () => handleSendReceipt(member), noPhone: 'Receipt · no phone number' }
-      : { label: '🟢 Remind', bg: '#25d366', onClick: () => handleRemindMember(member), noPhone: 'Remind · no phone number' };
+      ? { label: '🟢 Send receipt', bg: '#25d366', onClick: () => handleSendReceipt(member) }
+      : { label: '🟢 Remind', bg: '#25d366', onClick: () => handleRemindMember(member) };
 
     if (!member.phone) {
+      // Add a number: turns the old disabled "no phone" chip into a real action.
       return (
-        <span
-          title="Add a phone number in member details to send a WhatsApp message"
+        <button
+          onClick={(e) => { e.stopPropagation(); openPhoneEditor(member); }}
+          title={`Add a phone number for ${member.name}`}
           style={{
             marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px',
-            padding: '6px 12px', background: '#f3f4f6', color: '#9ca3af',
-            border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px',
-            fontWeight: '500', cursor: 'not-allowed'
+            padding: '6px 12px', background: 'white', color: '#0F6E56',
+            border: '1px dashed #0F6E56', borderRadius: '8px', fontSize: '13px',
+            fontWeight: '500', cursor: 'pointer'
           }}
         >
-          {spec.noPhone}
-        </span>
+          + Add phone
+        </button>
       );
     }
     return (
-      <button
-        onClick={(e) => { e.stopPropagation(); spec.onClick(); }}
-        title={`Open WhatsApp for ${member.name}`}
-        style={{
-          marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px',
-          padding: '6px 12px', background: spec.bg, color: 'white', border: 'none',
-          borderRadius: '8px', fontSize: '13px', fontWeight: '500', cursor: 'pointer'
-        }}
-      >
-        {spec.label}
-      </button>
+      <>
+        <button
+          onClick={(e) => { e.stopPropagation(); spec.onClick(); }}
+          title={`Open WhatsApp for ${member.name}`}
+          style={{
+            marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '6px 12px', background: spec.bg, color: 'white', border: 'none',
+            borderRadius: '8px', fontSize: '13px', fontWeight: '500', cursor: 'pointer'
+          }}
+        >
+          {spec.label}
+        </button>
+        {/* Correct a wrong number — a wrong number opens a stranger's chat, worse than none. */}
+        <button
+          onClick={(e) => { e.stopPropagation(); openPhoneEditor(member); }}
+          title={`Edit ${member.name}'s phone number`}
+          aria-label={`Edit ${member.name}'s phone number`}
+          style={{
+            marginTop: '8px', marginLeft: '6px', display: 'inline-flex', alignItems: 'center',
+            justifyContent: 'center', width: '30px', height: '30px', background: 'white',
+            color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: '8px',
+            fontSize: '13px', cursor: 'pointer'
+          }}
+        >
+          ✎
+        </button>
+      </>
     );
   };
 
@@ -490,6 +520,105 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
       >
         🎉 Payout receipt
       </button>
+    );
+  };
+
+  // ── Stage 5 follow-up: inline add/edit of a member's phone (owner-detail only) ──
+  // Open the inline editor for a member, pre-filling the current value (empty for add).
+  const openPhoneEditor = (member: Member) => {
+    setEditingPhoneMemberId(member.id);
+    setEditingPhoneValue(member.phone || '');
+  };
+  const closePhoneEditor = () => {
+    setEditingPhoneMemberId(null);
+    setEditingPhoneValue('');
+  };
+
+  // Save the phone via a DIRECT owner UPDATE — RLS permits this (live policies "Users
+  // manage members in own groups" [ALL] + "Group owners can update member status"
+  // [UPDATE]); no RPC needed. Stored EXACTLY like the add-member flow (.trim(), raw —
+  // no validation, no normalization; normalization stays at link-build via
+  // formatPhoneForWhatsApp). Empty input → NULL, which clears a wrong number back to the
+  // no-phone state. On success we patch localMembers so the row flips to the live
+  // Remind/Send-receipt button immediately, with no page refresh, and sync the parent.
+  const handleSavePhone = async (member: Member) => {
+    if (savingPhone) return;
+    const next = editingPhoneValue.trim();
+    setSavingPhone(true);
+    try {
+      const { error } = await supabase
+        .from('contribution_members')
+        .update({ phone: next || null })
+        .eq('id', member.id);
+      if (error) {
+        console.error('Failed to save phone:', error);
+        alert('Could not save the phone number. Please try again.');
+        return;
+      }
+      const updated = localMembers.map(m =>
+        m.id === member.id ? { ...m, phone: next || undefined } : m
+      );
+      setLocalMembers(updated);
+      if (onUpdate) {
+        onUpdate({ ...group, members: updated, contribution_members: updated } as any);
+      }
+      closePhoneEditor();
+    } catch (err) {
+      console.error('Failed to save phone:', err);
+      alert('Could not save the phone number. Please try again.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
+  // The inline tel editor row, shown under a member's detail text while editing. Reuses the
+  // add-member input convention (type="tel", "Phone (optional)"). stopPropagation keeps the
+  // row's open-detail click from firing while typing. Enter saves, Escape cancels.
+  const renderPhoneEditor = (member: Member) => {
+    if (editingPhoneMemberId !== member.id) return null;
+    return (
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
+      >
+        <input
+          type="tel"
+          value={editingPhoneValue}
+          onChange={(e) => setEditingPhoneValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); handleSavePhone(member); }
+            if (e.key === 'Escape') { e.preventDefault(); closePhoneEditor(); }
+          }}
+          placeholder="Phone (optional)"
+          autoFocus
+          style={{
+            flex: '1 1 140px', minWidth: '120px', padding: '8px 10px',
+            border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', outline: 'none'
+          }}
+        />
+        <button
+          onClick={() => handleSavePhone(member)}
+          disabled={savingPhone}
+          style={{
+            padding: '8px 12px', background: savingPhone ? '#e5e7eb' : '#14b8a6',
+            color: savingPhone ? '#9ca3af' : 'white', border: 'none', borderRadius: '8px',
+            fontSize: '13px', fontWeight: '500', cursor: savingPhone ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {savingPhone ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          onClick={closePhoneEditor}
+          disabled={savingPhone}
+          style={{
+            padding: '8px 12px', background: '#f3f4f6', color: '#374151', border: 'none',
+            borderRadius: '8px', fontSize: '13px', fontWeight: '500',
+            cursor: savingPhone ? 'not-allowed' : 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+      </div>
     );
   };
 
@@ -1302,13 +1431,16 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                     {/* Stage 5 (review item 1): PRIMARY action owned by payment state
                         (paid → "Send receipt"; unpaid → "Remind", shown even after the
                         member has collected). SECONDARY "Payout receipt" chip appears only
-                        on the latest payout's recipient (at most one row). Both have a
-                        disabled no-phone variant; the single group reminder covers phone-less
-                        members. One open per deliberate tap — never a loop, never auto-sends. */}
+                        on the latest payout's recipient (at most one row). No phone → an
+                        "+ Add phone" action; an existing number gets a ✎ to correct it.
+                        One open per deliberate tap — never a loop, never auto-sends. */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
                       {renderMemberWaAction(member, isPaid)}
                       {renderLatestPayoutChip(member)}
                     </div>
+                    {/* Inline add/edit-phone editor (owner-detail only) — shown for the row
+                        being edited; flips to the live button on save with no refresh. */}
+                    {renderPhoneEditor(member)}
                   </div>
                 </div>
 
