@@ -3248,15 +3248,27 @@ Thank you for your business! 🙏
 
       // Use current state instead of loading from localStorage (to preserve Supabase data)
       const currentSales = [...sales]; // Use the React state, not localStorage
+      const paymentValue = formData.isCreditSale ? "credit" : (formData.paymentMethod || 'cash');
       const saleRow = {
         id: saleId,
         date: new Date().toISOString(),
+        // Sales list + KPI memos sort/filter on a NUMERIC createdAt (App.jsx:4099,
+        // :4122, :847). Without it the just-recorded row is NaN-sorted / filtered out.
+        createdAt: Date.now(),
         itemId: selectedItem.id.toString(),
         itemName: selectedItem.name,
         qty,
         unitPrice,
         amount,
-        payment: formData.isCreditSale ? "credit" : (formData.paymentMethod || 'cash'),
+        // PARITY with the canonical cloud-mapped row shape (App.jsx:1045/1050/1053):
+        // the dashboard total/profit (:788/:805) and the history-row amount (:6865/
+        // :6888) read sellKobo; the payment filter (:4121) + badge read paymentMethod;
+        // the today filter (:771) reads dayKey. Without these the optimistic row
+        // renders ₦NaN and corrupts the total until a cloud refresh re-maps.
+        sellKobo,                       // kobo unit price (same var used for totalKobo above)
+        payment: paymentValue,
+        paymentMethod: paymentValue,    // alias the cloud-map sets at :1045
+        dayKey: localDayKey(),          // same no-arg helper the IDB write uses at :3043
         customerName: formData.isCreditSale ? formData.customerName.trim() : undefined,
         phone: formData.isCreditSale && formData.phone ? formData.phone.trim() : undefined,
         note: formData.note.trim() || undefined,
@@ -3412,23 +3424,13 @@ Thank you for your business! 🙏
       // Note: Items will update automatically via real-time subscription
       // No need to manually reload - Firebase listener handles it
 
-      // Refresh sales to update KPIs
-      const db2 = await getDB();
-      const updatedSales = await new Promise((resolve, reject) => {
-        const tx2 = db2.transaction(['sales'], 'readonly');
-        const salesStore2 = tx2.objectStore('sales');
-        const getAllRequest = salesStore2.getAll();
-
-        getAllRequest.onsuccess = () => {
-          resolve(getAllRequest.result);
-        };
-
-        getAllRequest.onerror = () => {
-          reject(new Error('Failed to fetch sales'));
-        };
-      });
-
-      setSales(updatedSales);
+      // (Removed) A raw-IndexedDB re-read here (getDB → getAll → setSales(updatedSales))
+      // ran ~20ms after the optimistic append above and OVERWROTE it with un-mapped
+      // IDB rows. Those raw rows lack the app-shape fields the sales list/KPI memos
+      // read (amount/unitPrice/itemName), so the just-recorded sale visually
+      // disappeared until a full reload (which re-runs the proper IDB→app mapping in
+      // the load path). The optimistic saleRow above (now createdAt-complete) is the
+      // correct app-shape source of truth; KPIs recompute from that `sales` update.
 
       // Refresh the unsynced-sales badge count (a just-recorded sale may be
       // unsynced if the cloud write above failed).
