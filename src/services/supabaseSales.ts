@@ -29,6 +29,9 @@ export interface Sale {
   created_at?: string;
   day_key?: string;
   notes?: string;
+  // OFF-01 idempotency key. Set ONLY by offline/manual paths (drain passes the
+  // IndexedDB id; manual sale passes its saleId). NULL for checkout/hook/RPC rows.
+  client_sale_id?: string;
   // Additional fields from IndexedDB
   itemId?: string;  // This is the product ID from the app
   itemName?: string;
@@ -91,16 +94,32 @@ export async function createSale(sale: Sale, userId?: string): Promise<Sale | nu
       amount_due: sale.amount_due || 0,
       notes: sale.notes || null,
       sale_date: sale.sale_date || new Date().toISOString().split('T')[0],
-      sale_time: sale.sale_time || new Date().toTimeString().split(' ')[0]
+      sale_time: sale.sale_time || new Date().toTimeString().split(' ')[0],
+      // OFF-01 idempotency key. Populated ONLY by the offline/manual paths.
+      // Every other caller passes nothing => NULL => behaves exactly as before.
+      client_sale_id: sale.client_sale_id ?? sale.id ?? null
     };
 
     console.log('[supabaseSales] Formatted sale data for Supabase:', saleData);
 
-    const { data, error } = await supabase
-      .from('sales')
-      .insert([saleData])
-      .select()
-      .single();
+    // OFF-01: when a client_sale_id is present, use upsert with ignoreDuplicates so
+    // a replayed offline sale (same client_sale_id) is a silent no-op at the DB
+    // (INSERT ... ON CONFLICT (client_sale_id) DO NOTHING) instead of a second row.
+    // supabase-js@2.81.1: .upsert(payload, { onConflict, ignoreDuplicates: true }).
+    // Binds to the FULL unique index sales_client_sale_id_uniq (migration 20260611b).
+    // With NO client_sale_id, fall back to a plain insert so behaviour is unchanged.
+    const hasClientId = saleData.client_sale_id != null;
+    const { data, error } = hasClientId
+      ? await supabase
+          .from('sales')
+          .upsert([saleData], { onConflict: 'client_sale_id', ignoreDuplicates: true })
+          .select()
+          .maybeSingle()
+      : await supabase
+          .from('sales')
+          .insert([saleData])
+          .select()
+          .single();
 
     if (error) {
       console.error('[supabaseSales] ❌ ERROR creating sale:', error);
@@ -121,11 +140,24 @@ export async function createSale(sale: Sale, userId?: string): Promise<Sale | nu
       throw error;
     }
 
-    // CONFIRMED-PERSISTED guard: success means the server returned the inserted row.
-    // .insert(...).select().single() returns the row on a real insert. If data is
-    // null/empty (e.g. a resolution that didn't actually persist), treat as failure
-    // so the caller does NOT mark the sale syncedToCloud=true.
+    // CONFIRMED-PERSISTED guard.
+    // Plain insert: a row MUST come back, else it didn't persist -> failure.
+    // OFF-01 dedup upsert (ignoreDuplicates): a CONFLICT returns NO row even though
+    // the sale IS already persisted (a prior run inserted it). That is SUCCESS, not
+    // failure -> re-select by client_sale_id and return the existing row so the
+    // caller can mark it synced. Only treat as failure if it's truly absent.
     if (!data || !data.id) {
+      if (hasClientId) {
+        const { data: existing } = await supabase
+          .from('sales')
+          .select()
+          .eq('client_sale_id', saleData.client_sale_id as string)
+          .maybeSingle();
+        if (existing && existing.id) {
+          console.log('[supabaseSales] ✅ Idempotent no-op: sale already persisted (client_sale_id match).');
+          return existing;
+        }
+      }
       throw new Error('Sale insert returned no row (not persisted)');
     }
 
@@ -579,6 +611,9 @@ export async function syncOfflineSales(userId: string): Promise<SyncResult> {
 
       try {
         const cloudSale = await createSale({
+          // OFF-01: carry the IndexedDB UUID so a replay of THIS sale dedupes
+          // server-side (the prior insert's client_sale_id collides -> no-op).
+          client_sale_id: sale.id,
           product_id: productId,
           product_name: productName,
           quantity: qty,

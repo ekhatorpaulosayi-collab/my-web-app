@@ -3210,7 +3210,10 @@ Thank you for your business! 🙏
         // on ANY failure (offline, network reject, RLS error, no-row). It does NOT
         // throw on a network reject — so we MUST check the return value. Only a real
         // confirmed row counts as success; null => not persisted => treat as failure.
-        const cloudRow = await createSupabaseSale(supabaseSaleData, currentUser.uid);
+        const cloudRow = await createSupabaseSale(
+          { ...supabaseSaleData, client_sale_id: saleId }, // OFF-01: same UUID as the IDB row -> at most one row ever
+          currentUser.uid
+        );
         if (!cloudRow || !cloudRow.id) {
           throw new Error('cloud write not confirmed (offline or insert returned no row)');
         }
