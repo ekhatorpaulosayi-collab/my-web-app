@@ -26,7 +26,7 @@ git diff HEAD~1 supabase/functions/ai-chat/index.ts
 
 ### Core Philosophy
 - **NO WEBSOCKETS**: Using polling due to Supabase free tier limits
-- **OPTIMISTIC UI**: Customer messages show immediately with `isLocal: true`
+- **OPTIMISTIC UI (customer messages only)**: Customer messages show immediately with `isLocal: true`; AI replies are NEVER optimistic — they render only from DB polling (see "Troubleshooting: chat widget not responding")
 - **DEDUPLICATION**: UUID and content matching prevents duplicates
 - **SINGLE INSERTION POINT**: ONLY edge function inserts messages
 
@@ -80,7 +80,7 @@ During Modal → Auto-dismiss if owner joins
 
 **CRITICAL RULES**:
 - NEVER load full message history on conversationId change
-- ALWAYS use timestamp cursor for polling: `.gt('created_at', lastMessageTimestamp)`
+- ALWAYS use timestamp cursor for polling: `.gte('created_at', lastMessageTimestamp)` + id-based dedup (inclusive boundary; `.gt` dropped replies sharing the cursor's timestamp — fixed in commit c740363)
 - NEVER set messages from edge function response
 - ALWAYS update `waiting_for_owner_since` when owner is requested
 
@@ -140,7 +140,7 @@ ORDER BY created_at DESC LIMIT 10;
 **Fix**:
 1. Ensure only 3 setMessages calls exist
 2. Remove message insertion from ChatTracking
-3. Always use `.gt('created_at', lastMessageTimestamp)`
+3. Always use `.gte('created_at', lastMessageTimestamp)` + id-based dedup (inclusive boundary, per commit c740363)
 
 ### Bug 2: First Message Gets Duplicated
 **Symptom**: First customer message appears twice
@@ -556,6 +556,69 @@ If chat is completely broken and rollback doesn't work:
 3. Review recent commits
 4. Test in local environment first
 
+## Troubleshooting: chat widget not responding
+
+**FIRST PRINCIPLE:** "saved in the DB" ≠ "rendered on screen." These are different
+tests. Verify the OBSERVABLE thing (does a reply appear in the widget, multi-turn),
+never just a DB row count. A past marathon happened because a DB check (replies saved
+6/6) was mistaken for "fixed" when the real failure was render/routing.
+
+> Note (reconciles with earlier sections): the render contract below applies to **AI
+> replies** — they are poll-only, never optimistic. **Customer** messages are still
+> optimistic (`isLocal: true`, see SYSTEM ARCHITECTURE). The poll cursor is `.gte`
+> (inclusive) + id-based dedup as of commit c740363, superseding the older `.gt`.
+
+### Diagnostic order (in sequence — do NOT theorise from code first)
+
+1. **CHECK THE LIVE RESPONSE.** On the affected URL: DevTools → Network → the `ai-chat`
+   request → Response JSON. Two fields decide everything:
+   - `source`: `"ai"` = storefront product assistant (correct). A marketing/pricing
+     pitch with no `source` and `conversationId: null` → request hit the **MARKETING**
+     handler, not the storefront one. Root cause: `storeSlug` missing (see #4).
+   - `conversationId`: `null` on a storefront request → poll never starts → no replies
+     render. Symptom of wrong-handler routing.
+
+2. **CHECK THE CONSOLE.** Look for `[RAW-POLL-DATA]` lines firing every ~3s.
+   - ABSENT → polling loop isn't running → replies never fetched even if saved.
+   - Present but no reply renders → render/dedup issue.
+
+3. **CONFIRM SAVE vs RENDER with SQL** (psql via `~/.supabase-paystack-dburl` — the
+   transaction-pooler connection string, verified working):
+   ```sql
+   select role, content, created_at from ai_chat_messages
+   where conversation_id = '<id>' order by created_at;
+   ```
+   - Assistant rows EXIST but don't render → **READ/render bug** (poll, cursor, dedup).
+   - Assistant rows MISSING → **WRITE bug** (edge function not inserting).
+
+4. **URL / ROUTING.** Subdomain (`osayi.storehouse.ng`) and path (`/store/osayi`)
+   resolve the store slug **differently**. The widget needs `contextType` + `storeSlug`
+   truthy or the edge dispatch (`ai-chat/index.ts` ~869) falls through to the marketing
+   handler. Subdomain-case fix lives at `StorefrontPage.tsx` (pass
+   `store?.storeSlug ?? slug`).
+
+5. **"WORKED BEFORE, BROKE NOW" → git FIRST, before reading current code:**
+   ```bash
+   git log --oneline -- src/components/AIChatWidget.tsx supabase/functions/ai-chat/
+   git log -p -L '/<anchor>/,+10:<file>'   # history of a specific block
+   ```
+   A half-shipped prior fix is a common cause (a 2-part fix where only part 1 landed).
+
+### Known separate bugs (as of 17 Jun 2026)
+- **Greeting fast-path:** bare "Hello"/"hi" hits a fast-path that returns WITHOUT saving
+  the reply (`ai-chat/index.ts` ~2731). No render fix can rescue an unsaved reply.
+  **Test with a PRODUCT question, not a greeting.**
+- **Edge not hardened against missing `storeSlug`** (falls to marketing). Fix is
+  client-side.
+
+### Render contract (do not violate)
+AI replies render ONLY from DB polling, never optimistic. Cursor is server-time
+`created_at` with an inclusive `.gte` boundary + id-based dedup.
+
+### Rollback
+Frontend change → Vercel "Promote last good deploy" (~10s), or
+`git revert <commit> && git push`.
+
 ---
 
 **REMEMBER**:
@@ -568,6 +631,6 @@ If chat is completely broken and rollback doesn't work:
 - "Request Store Owner" button requires 3+ messages OR AI help needed
 - Business hours must be configured for human takeover
 
-Last Updated: March 29, 2026
-Version: 1.7.0
+Last Updated: 2026-06-17
+Version: 1.8.0
 Status: PRODUCTION READY
