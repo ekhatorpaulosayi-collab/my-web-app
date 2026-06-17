@@ -2648,7 +2648,7 @@ function StorefrontContent() {
       {/* AI Shopping Assistant */}
       <AIChatWidget
         contextType="storefront"
-        storeSlug={slug}
+        storeSlug={store?.storeSlug ?? slug}
         storeInfo={store ? {
           businessName: store.businessName,
           aboutUs: store.aboutUs,
