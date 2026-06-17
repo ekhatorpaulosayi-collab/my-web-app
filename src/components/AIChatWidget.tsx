@@ -884,17 +884,22 @@ export default function AIChatWidget({
           .from('ai_chat_messages')
           .select('*, detected_language, translated_text')
           .eq('conversation_id', conversationId)
-          .gt('created_at', lastMessageTimestampRef.current)
+          // INCLUSIVE boundary: replies saved at the SAME microsecond as the cursor
+          // row would be excluded by .gt() and silently never render (proven
+          // user→assistant created_at ties). .gte() re-includes the boundary row;
+          // the id-based dedup in the merge below drops the re-fetched duplicate.
+          .gte('created_at', lastMessageTimestampRef.current)
           .order('created_at', { ascending: true });
 
         // Debug: Log raw Supabase response
         console.log('[RAW-POLL-DATA]', JSON.stringify(newMessages?.[0]));
 
-        // FALLBACK: If we've polled 3+ times and found nothing, but have few/no messages, do a full fetch
-        // This handles the case where mobile clock skew causes timestamp mismatch
-        // Note: Using a simple counter that's incremented on each poll attempt
-        if (!msgError && (!newMessages || newMessages.length === 0) &&
-            messages.filter(m => !m.isLocal).length <= 1) {
+        // FALLBACK: incremental poll returned nothing — re-sync from the source of
+        // truth on ANY turn. Previously gated to <=1 server message, which disabled
+        // this after the first reply and let later misses become permanent. The fetch
+        // below is a REPLACE ordered by created_at, so running it on every empty poll
+        // cannot duplicate — it just self-heals any missed reply.
+        if (!msgError && (!newMessages || newMessages.length === 0)) {
 
           console.log('[AIChatWidget] Fallback: Fetching all messages after 3 polls with no results');
           const { data: allMessages, error: fallbackError } = await supabase
@@ -949,31 +954,38 @@ export default function AIChatWidget({
           }));
 
           setMessages(prev => {
+            // SERVER-ROW IDENTITY IS THE DB UUID — never content. Every insert path
+            // (ai-chat user/assistant, storefront reply, system 'Customer requested…',
+            // agent-takeover rows) gets a DB-generated UUID, so id-dedup is total and
+            // safe. The old content.substring(0,50) heuristic dropped legitimately
+            // distinct rows (same suggested-question tapped twice, identical FAQ
+            // replies). It is removed for all SERVER rows.
             const existingIds = new Set(prev.filter(m => m.id && !m.isLocal).map(m => m.id));
 
-            // Replace local messages with their database versions
+            // LOCAL RECONCILE — the ONLY case without a usable id: the in-flight
+            // optimistic user message (isLocal:true, role:'user', no id). Match it to
+            // its incoming DB row by EXACT content equality, scoped to user locals
+            // only — NEVER assistant rows (assistant is never optimistic here).
+            const reconciledIds = new Set<string>();
             const updated = prev.map(existing => {
-              if (!existing.isLocal) return existing;
+              if (!existing.isLocal || existing.role !== 'user') return existing;
               const dbVersion = formattedNewMessages.find(nm =>
-                nm.role === existing.role &&
-                nm.content?.substring(0, 50) === existing.content?.substring(0, 50)
+                nm.role === 'user' &&
+                nm.content === existing.content &&   // exact equality, not prefix
+                !reconciledIds.has(nm.id)            // one DB row reconciles one local
               );
-              if (dbVersion) return { ...dbVersion, isLocal: false };
+              if (dbVersion) {
+                reconciledIds.add(dbVersion.id);
+                return { ...dbVersion, isLocal: false };
+              }
               return existing;
             });
 
-            // Find which local messages were replaced (so we don't add them again)
-            const replacedContents = prev
-              .filter(m => m.isLocal)
-              .map(m => m.content?.substring(0, 50))
-              .filter(content =>
-                formattedNewMessages.some(nm => nm.content?.substring(0, 50) === content)
-              );
-
-            // Add only genuinely new messages — not already in state by UUID, not replacements for local messages
+            // Add genuinely-new server rows: not already in state by UUID, and not the
+            // DB row we just used to reconcile a local (tracked by id, not content).
             const toAdd = formattedNewMessages.filter(msg => {
               if (existingIds.has(msg.id)) return false;
-              if (replacedContents.includes(msg.content?.substring(0, 50))) return false;
+              if (reconciledIds.has(msg.id)) return false;
               return true;
             });
 
@@ -1722,7 +1734,9 @@ export default function AIChatWidget({
               });
 
               return (
-                <div key={index}>
+                // Key by stable DB id when present; fall back to index for the few
+                // id-less rows (optimistic local + in-code system notices).
+                <div key={msg.id ?? `idx-${index}`}>
                 <div
                   style={{
                     display: 'flex',
