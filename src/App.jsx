@@ -1074,7 +1074,14 @@ function App() {
               req.onerror = () => reject(req.error);
             });
 
-            if (idbSales.length > 0) {
+            // OFF-05: hide rows OTHER accounts recorded — the shared per-device IDB
+            // also holds other logins' local sales. Legacy rows with no ownerUid
+            // stay visible (grandfathered, same as the drain) so a merchant's
+            // pre-OFF-05 offline history doesn't vanish from the offline view.
+            const ownedIdbSales = idbSales.filter(
+              (s) => !s.ownerUid || s.ownerUid === currentUser.uid
+            );
+            if (ownedIdbSales.length > 0) {
               // Build an itemId -> name map for the name lookup. The `products` local
               // from the products-load try block above is NOT in scope here; use the
               // offline-safe products cache that getProducts maintains in localStorage,
@@ -1093,7 +1100,7 @@ function App() {
                 console.warn('[App] Offline name-map build failed (non-fatal):', nameMapErr);
               }
 
-              salesToShow = idbSales.map(s => {
+              salesToShow = ownedIdbSales.map(s => {
                 // Per-sale name lookup must NEVER throw — a missing product still shows
                 // the sale with a fallback name.
                 let resolvedName = 'Item';
@@ -3044,6 +3051,10 @@ Thank you for your business! 🙏
         const saleData = {
           id: saleId,
           itemId: selectedItem.id,
+          // OFF-05: bind the row to the account that recorded it. IndexedDB is
+          // per-origin and shared across logins on this device — the drain and
+          // the offline dashboard fallback only touch rows whose ownerUid matches.
+          ownerUid: currentUser.uid,
           qty,
           sellKobo,
           createdAt: Date.now(),
@@ -3784,8 +3795,17 @@ Low Stock: ${lowStockItems.length}
           const all = req.result || [];
           // Count sales genuinely awaiting sync. Exclude rows flagged with a
           // syncError (legacy non-UUID product id) — those won't auto-sync and
-          // are a separate manual-attention class, not "pending sync".
-          resolve(all.filter((s) => !s.syncedToCloud && !s.syncError).length);
+          // are a separate manual-attention class, not "pending sync". OFF-05:
+          // also exclude rows OTHER accounts recorded — this account's drain
+          // skips them, so counting them would show a badge that never clears.
+          resolve(
+            all.filter(
+              (s) =>
+                !s.syncedToCloud &&
+                !s.syncError &&
+                (!s.ownerUid || s.ownerUid === currentUser?.uid)
+            ).length
+          );
         };
         req.onerror = () => reject(req.error);
       });

@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { X, TrendingUp } from 'lucide-react';
 import { formatNGN } from '../utils/currency';
 import { getDB } from '../db/idb';
+import { useAuth } from '../contexts/AuthContext';
 import './ChannelAnalytics.css';
 
 interface ChannelStat {
@@ -23,6 +24,7 @@ interface ChannelAnalyticsProps {
 }
 
 export const ChannelAnalytics: React.FC<ChannelAnalyticsProps> = ({ onClose }) => {
+  const { currentUser } = useAuth();
   const [stats, setStats] = useState<ChannelStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -73,9 +75,16 @@ export const ChannelAnalytics: React.FC<ChannelAnalyticsProps> = ({ onClose }) =
         request.onerror = () => resolve([]);
       });
 
+      // OFF-05: hide rows OTHER accounts recorded on this shared device; legacy
+      // unowned rows stay visible (grandfathered — same rule as the dashboard
+      // offline fallback and the sync drain).
+      const ownedSales = allSales.filter(
+        (s) => !s.ownerUid || s.ownerUid === currentUser?.uid
+      );
+
       // Filter by date range
       const dateFilter = getDateFilter();
-      const filteredSales = allSales.filter(sale => sale.createdAt >= dateFilter);
+      const filteredSales = ownedSales.filter(sale => sale.createdAt >= dateFilter);
 
       // Group by channel
       const channelGroups: Record<string, { count: number; revenue: number }> = {};

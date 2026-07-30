@@ -5,7 +5,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { getDB, initDB } from '../db/idb';
+import { getDB, initDB, localDayKey } from '../db/idb';
 
 export interface Sale {
   id?: string;
@@ -32,6 +32,10 @@ export interface Sale {
   // OFF-01 idempotency key. Set ONLY by offline/manual paths (drain passes the
   // IndexedDB id; manual sale passes its saleId). NULL for checkout/hook/RPC rows.
   client_sale_id?: string;
+  // DB sale_channel (CHECK: in-person | online-store | wholesale | social-media |
+  // offline-sync). Only included in the insert when the caller sets it — omitted,
+  // the DB default 'in-person' applies, so existing callers are unchanged.
+  sale_channel?: string;
   // Additional fields from IndexedDB
   itemId?: string;  // This is the product ID from the app
   itemName?: string;
@@ -97,7 +101,10 @@ export async function createSale(sale: Sale, userId?: string): Promise<Sale | nu
       sale_time: sale.sale_time || new Date().toTimeString().split(' ')[0],
       // OFF-01 idempotency key. Populated ONLY by the offline/manual paths.
       // Every other caller passes nothing => NULL => behaves exactly as before.
-      client_sale_id: sale.client_sale_id ?? sale.id ?? null
+      client_sale_id: sale.client_sale_id ?? sale.id ?? null,
+      // Include sale_channel ONLY when the caller sets one so every existing
+      // caller keeps the DB default ('in-person').
+      ...(sale.sale_channel ? { sale_channel: sale.sale_channel } : {})
     };
 
     console.log('[supabaseSales] Formatted sale data for Supabase:', saleData);
@@ -378,112 +385,32 @@ export async function deleteSale(saleId: string): Promise<boolean> {
 }
 
 /**
- * Migrate sales from IndexedDB to Supabase
- * This is a one-time migration function
+ * DEPRECATED / NEUTRALIZED (2026-07-30, shared-device sale-ownership fix).
+ *
+ * This one-time IndexedDB→Supabase migration read the WHOLE shared per-origin
+ * sales store and uploaded every row under whichever account was logged in,
+ * guarded only by a GLOBAL localStorage flag. On a shared browser that is
+ * cross-account data transfer (it seeded the March 2026 wrong-owner rows), and
+ * a re-run (flag loss) would mass-duplicate rows because these inserts carried
+ * no client_sale_id. Every active user is cloud-native now — the migration's
+ * job is done. Kept as a no-op so the App.jsx call site stays harmless (same
+ * pattern as utils/offlineQueue.ts).
  */
-export async function migrateSalesToSupabase(userId: string): Promise<{
+export async function migrateSalesToSupabase(_userId: string): Promise<{
   success: boolean;
   migratedCount: number;
   errors: any[];
 }> {
-  const result = {
-    success: false,
-    migratedCount: 0,
-    errors: [] as any[]
-  };
-
+  console.warn('[supabaseSales] migrateSalesToSupabase is neutralized (shared-device ownership fix). No-op.');
+  // Persist the done-flag the old body only set on success: it gates the App.jsx
+  // call site, and leaving it unset would re-run the full-store upload on every
+  // device if the old body were ever resurrected (merge/revert accident).
   try {
-    console.log('[supabaseSales] Starting migration from IndexedDB to Supabase...');
-
-    // Initialize IndexedDB
-    await initDB();
-    const db = await getDB();
-
-    // Get all sales from IndexedDB
-    const tx = db.transaction(['sales'], 'readonly');
-    const salesStore = tx.objectStore('sales');
-    const getAllRequest = salesStore.getAll();
-
-    const indexedDBSales = await new Promise<any[]>((resolve, reject) => {
-      getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-      getAllRequest.onerror = () => reject(new Error('Failed to fetch sales from IndexedDB'));
-    });
-
-    console.log(`[supabaseSales] Found ${indexedDBSales.length} sales in IndexedDB`);
-
-    if (indexedDBSales.length === 0) {
-      result.success = true;
-      return result;
-    }
-
-    // Check if migration was already done
-    const { data: existingSales } = await supabase
-      .from('sales')
-      .select('id')
-      .eq('user_id', userId)
-      .limit(1);
-
-    if (existingSales && existingSales.length > 0) {
-      console.log('[supabaseSales] Sales already exist in Supabase, checking for duplicates...');
-    }
-
-    // Migrate each sale
-    for (const idbSale of indexedDBSales) {
-      try {
-        // Convert IndexedDB sale format to Supabase format
-        const supabaseSale: Sale = {
-          product_name: idbSale.itemName || 'Unknown Product',
-          quantity: idbSale.qty || 1,
-          unit_price: idbSale.sellKobo || idbSale.unitPrice || 0,
-          total_amount: idbSale.amount || (idbSale.qty * (idbSale.sellKobo || 0)),
-          final_amount: idbSale.amount || (idbSale.qty * (idbSale.sellKobo || 0)),
-          customer_name: idbSale.customerName || null,
-          customer_phone: idbSale.phone || idbSale.customerPhone || null,
-          payment_method: mapPaymentMethod(idbSale.payment || idbSale.paymentMethod),
-          payment_status: idbSale.payment === 'credit' ? 'pending' : 'paid',
-          amount_paid: idbSale.payment === 'credit' ? 0 : (idbSale.amount || 0),
-          amount_due: idbSale.payment === 'credit' ? (idbSale.amount || 0) : 0,
-          notes: idbSale.note || idbSale.notes || null,
-          sale_date: idbSale.date ||
-            (typeof idbSale.createdAt === 'string'
-              ? idbSale.createdAt.split('T')[0]
-              : typeof idbSale.createdAt === 'number'
-                ? new Date(idbSale.createdAt).toISOString().split('T')[0]
-                : new Date().toISOString().split('T')[0]),
-          sales_channel: idbSale.sales_channel,
-          recorded_by_staff_id: idbSale.recorded_by_staff_id,
-          cogsKobo: idbSale.cogsKobo
-        };
-
-        // Create the sale in Supabase
-        await createSale(supabaseSale, userId);
-        result.migratedCount++;
-
-        // Log progress every 10 sales
-        if (result.migratedCount % 10 === 0) {
-          console.log(`[supabaseSales] Migrated ${result.migratedCount} sales...`);
-        }
-      } catch (error) {
-        console.error('[supabaseSales] Error migrating sale:', error, idbSale);
-        result.errors.push({ sale: idbSale, error });
-      }
-    }
-
-    result.success = result.migratedCount > 0;
-    console.log(`[supabaseSales] Migration completed. Migrated ${result.migratedCount}/${indexedDBSales.length} sales`);
-
-    // Mark migration as complete in localStorage
-    if (result.success) {
-      localStorage.setItem('storehouse-sales-migrated-to-supabase', 'true');
-      localStorage.setItem('storehouse-sales-migration-date', new Date().toISOString());
-    }
-
-  } catch (error) {
-    console.error('[supabaseSales] Migration failed:', error);
-    result.errors.push({ general: error });
+    localStorage.setItem('storehouse-sales-migrated-to-supabase', 'true');
+  } catch {
+    /* ignore */
   }
-
-  return result;
+  return { success: true, migratedCount: 0, errors: [] };
 }
 
 /**
@@ -585,6 +512,26 @@ export async function syncOfflineSales(userId: string): Promise<SyncResult> {
     const productNames = loadProductNameMap();
 
     for (const sale of offlineSales) {
+      // OFF-05: a slow drain can span an account switch, and createSale binds
+      // user_id to the LIVE auth user — not our userId parameter. If the live
+      // session no longer matches the account this drain started for, stop:
+      // continuing would insert the remaining rows under the wrong account.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user?.id !== userId) {
+        console.warn('[supabaseSales] Auth user changed mid-drain — aborting remaining sync.');
+        break;
+      }
+
+      // OFF-05 ownership guard: the IndexedDB sales store is per-device and shared
+      // across logins, so never drain a row another account recorded — its owner's
+      // own drain will take it. Legacy rows with no ownerUid are grandfathered:
+      // they sync under the draining account (the pre-OFF-05 behaviour, so no
+      // merchant's pending pre-deploy sale is ever stranded) and get ownership
+      // stamped on success below, closing the legacy window after one drain.
+      if (sale.ownerUid && sale.ownerUid !== userId) {
+        continue;
+      }
+
       // The offline record stores the cloud product UUID as `itemId`
       // (items come from supabaseProducts.getProducts → Supabase products.id).
       const productId = sale.itemId != null ? String(sale.itemId) : '';
@@ -609,6 +556,29 @@ export async function syncOfflineSales(userId: string): Promise<SyncResult> {
       const totalKobo = unitKobo * qty;
       const productName = productNames.get(productId) || sale.itemName || 'Unknown Product';
 
+      // OFF-05: preserve the ORIGINAL recorded date/time. Without these, createSale
+      // stamps drain-time defaults and a late-synced sale materializes dated the
+      // drain day (the "phantom ₦8,000 sale", 2026-07-30). Replays exactly what the
+      // live path would have stamped at record time on this device (dayKey via
+      // localDayKey; time device-local, same shape as handleSaveSale's direct write).
+      const rawCreatedAt = sale.createdAt;
+      const recordedAtMs =
+        typeof rawCreatedAt === 'string'
+          ? /^\d+$/.test(rawCreatedAt)
+            ? Number(rawCreatedAt) // numeric epoch serialized as a string
+            : Date.parse(rawCreatedAt) // ISO string (oldest records)
+          : Number(rawCreatedAt);
+      const hasRecordedAt = Number.isFinite(recordedAtMs) && recordedAtMs > 0;
+      const originalSaleDate =
+        sale.dayKey || (hasRecordedAt ? localDayKey(new Date(recordedAtMs)) : undefined);
+      // With a known day but unknown time, use a visible 00:00:00 sentinel rather
+      // than the drain-moment clock (a time that never happened on that day).
+      const originalSaleTime = hasRecordedAt
+        ? new Date(recordedAtMs).toTimeString().split(' ')[0]
+        : originalSaleDate
+          ? '00:00:00'
+          : undefined;
+
       try {
         const cloudSale = await createSale({
           // OFF-01: carry the IndexedDB UUID so a replay of THIS sale dedupes
@@ -623,16 +593,32 @@ export async function syncOfflineSales(userId: string): Promise<SyncResult> {
           customer_name: sale.customerName,
           customer_phone: sale.phone,
           payment_method: mapPaymentMethod(sale.paymentMethod || sale.payment),
-          notes: sale.note
+          notes: sale.note,
+          sale_date: originalSaleDate,
+          sale_time: originalSaleTime,
+          // OFF-05: visible provenance — the vendor SEES the sale arrived via late
+          // offline sync (needs the extended valid_sale_channel CHECK, migration
+          // 20260730_off05).
+          sale_channel: 'offline-sync'
         }, userId);
 
         if (cloudSale) {
           // Mark as synced in IndexedDB so it never re-inserts (idempotency).
           sale.syncedToCloud = true;
           sale.cloudId = cloudSale.id;
+          // OFF-05: stamp ownership on grandfathered legacy rows — they synced
+          // under this account, so they belong to it from here on.
+          sale.ownerUid = sale.ownerUid || userId;
 
+          // Await the put: losing it would drop syncedToCloud AND the ownership
+          // stamp, letting a different account's drain grandfather this row later
+          // (its recovery re-select would then dead-end behind RLS).
           const updateTx = db.transaction(['sales'], 'readwrite');
           updateTx.objectStore('sales').put(sale);
+          await new Promise<void>((resolve) => {
+            updateTx.oncomplete = () => resolve();
+            updateTx.onerror = () => resolve(); // best-effort: OFF-01 dedup covers a lost flag
+          });
 
           result.synced++;
         } else {
