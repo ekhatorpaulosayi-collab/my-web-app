@@ -19,7 +19,7 @@ Deployed: Dec 30, 2024
 ### 2. Supabase Secret Set ✅
 ```
 Secret: PAYSTACK_SECRET_KEY
-Value: sk_test_7387309060a256c0161a585bd447bc8929cd9081
+Value: REDACTED_ROTATE_ME
 Status: SET
 ```
 
@@ -45,7 +45,7 @@ Tables:
 4. Set:
    ```
    Name: VITE_PAYSTACK_PUBLIC_KEY
-   Value: pk_test_39a20b23c03d540083e95dc82af26ee7a4668746
+   Value: REDACTED_ROTATE_ME
    Environment: Production, Preview, Development (check all)
    ```
 5. Click **Save**
@@ -150,7 +150,7 @@ After you create all 6 plans in Paystack, you'll have 6 plan codes. Run this scr
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A';
+const supabaseServiceKey = '<REDACTED_service_role_ROTATE_ME>';
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

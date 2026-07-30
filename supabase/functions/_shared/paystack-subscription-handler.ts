@@ -25,6 +25,51 @@ export interface SubscriptionHandlerResult {
   body: Record<string, unknown>;
 }
 
+// Identity resolution for subscription webhook events. The original
+// handlers looked up `public.profiles` — a table that does not exist in
+// production, so every handler silently skipped (2026-07-30 incident:
+// paid upgrade never granted). Primary: data.metadata.user_id, which
+// SubscriptionUpgrade's popup sends on checkout charges. Fallback:
+// public.users by email (id = auth uid) — needed for renewal charges
+// and subscription.* events, which don't carry our metadata.
+async function resolveWebhookUser(
+  supabase: any,
+  data: any,
+): Promise<{ userId: string; displayName: string | null } | null> {
+  const email = data?.customer?.email;
+  const metaUserId = data?.metadata?.user_id;
+  if (typeof metaUserId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metaUserId)) {
+    // metadata originates from our popup but is client-controllable at
+    // checkout — trust it only if that user exists AND owns the payer
+    // email (blocks a paying attacker granting/overwriting an arbitrary
+    // victim's row or misattributing affiliate commission).
+    const { data: metaRows } = await supabase
+      .from('users')
+      .select('id, full_name, email')
+      .eq('id', metaUserId)
+      .limit(1);
+    const metaRow = metaRows?.[0];
+    if (
+      metaRow &&
+      typeof email === 'string' &&
+      typeof metaRow.email === 'string' &&
+      metaRow.email.toLowerCase() === email.toLowerCase()
+    ) {
+      return { userId: metaRow.id, displayName: metaRow.full_name ?? null };
+    }
+    // Shape-valid but unverifiable metadata — fall through to email.
+  }
+  if (typeof email !== 'string' || !email) return null;
+  const { data: userRows, error } = await supabase
+    .from('users')
+    .select('id, full_name')
+    .eq('email', email.toLowerCase())
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error || !userRows || userRows.length === 0) return null;
+  return { userId: userRows[0].id, displayName: userRows[0].full_name ?? null };
+}
+
 export async function handleSubscriptionEvent(
   event: { event: string; data: any },
   admin: SupabaseClient,
@@ -71,18 +116,13 @@ async function handleSubscriptionCreate(supabase: any, data: any) {
 
   const { customer, plan, subscription_code } = data;
 
-  const { data: userData, error: userError } = await supabase
-    .from('profiles')
-    .select('user_id, display_name')
-    .eq('email', customer.email)
-    .single();
-
-  if (userError || !userData) {
-    console.error('[Webhook] User not found for email:', customer.email);
+  const resolved = await resolveWebhookUser(supabase, data);
+  if (!resolved) {
+    console.error('[Webhook] User not resolved for email:', customer.email);
     return;
   }
 
-  const userId = userData.user_id;
+  const userId = resolved.userId;
 
   const { data: tierData, error: tierError } = await supabase
     .from('subscription_tiers')
@@ -120,7 +160,7 @@ async function handleSubscriptionCreate(supabase: any, data: any) {
 
   console.log(`[Webhook] Subscription created for user ${userId} - Tier: ${tierData.name}`);
 
-  await trackAffiliateSale(supabase, userId, customer.email, userData.display_name, subData.id, tierData.name, plan.amount);
+  await trackAffiliateSale(supabase, userId, customer.email, resolved.displayName, subData.id, tierData.name, plan.amount);
 }
 
 async function handleChargeSuccess(supabase: any, data: any) {
@@ -128,18 +168,13 @@ async function handleChargeSuccess(supabase: any, data: any) {
 
   const { customer, amount, reference, authorization } = data;
 
-  const { data: userData, error: userError } = await supabase
-    .from('profiles')
-    .select('user_id')
-    .eq('email', customer.email)
-    .single();
-
-  if (userError || !userData) {
-    console.error('[Webhook] User not found for email:', customer.email);
+  const resolved = await resolveWebhookUser(supabase, data);
+  if (!resolved) {
+    console.error('[Webhook] User not resolved for email:', customer.email);
     return;
   }
 
-  const userId = userData.user_id;
+  const userId = resolved.userId;
 
   const { data: subData } = await supabase
     .from('user_subscriptions')
@@ -228,18 +263,13 @@ async function handleSubscriptionDisable(supabase: any, data: any) {
 
   const { customer } = data;
 
-  const { data: userData, error: userError } = await supabase
-    .from('profiles')
-    .select('user_id')
-    .eq('email', customer.email)
-    .single();
-
-  if (userError || !userData) {
-    console.error('[Webhook] User not found for email:', customer.email);
+  const resolved = await resolveWebhookUser(supabase, data);
+  if (!resolved) {
+    console.error('[Webhook] User not resolved for email:', customer.email);
     return;
   }
 
-  const userId = userData.user_id;
+  const userId = resolved.userId;
 
   const { data: freeTier } = await supabase
     .from('subscription_tiers')
@@ -277,18 +307,13 @@ async function handleSubscriptionNotRenew(supabase: any, data: any) {
 
   const { customer } = data;
 
-  const { data: userData, error: userError } = await supabase
-    .from('profiles')
-    .select('user_id')
-    .eq('email', customer.email)
-    .single();
-
-  if (userError || !userData) {
-    console.error('[Webhook] User not found for email:', customer.email);
+  const resolved = await resolveWebhookUser(supabase, data);
+  if (!resolved) {
+    console.error('[Webhook] User not resolved for email:', customer.email);
     return;
   }
 
-  const userId = userData.user_id;
+  const userId = resolved.userId;
 
   const { error: updateError } = await supabase
     .from('user_subscriptions')
@@ -311,18 +336,13 @@ async function handleChargeFailed(supabase: any, data: any) {
 
   const { customer, amount, reference } = data;
 
-  const { data: userData, error: userError } = await supabase
-    .from('profiles')
-    .select('user_id')
-    .eq('email', customer.email)
-    .single();
-
-  if (userError || !userData) {
-    console.error('[Webhook] User not found for email:', customer.email);
+  const resolved = await resolveWebhookUser(supabase, data);
+  if (!resolved) {
+    console.error('[Webhook] User not resolved for email:', customer.email);
     return;
   }
 
-  const userId = userData.user_id;
+  const userId = resolved.userId;
 
   const { data: subData } = await supabase
     .from('user_subscriptions')

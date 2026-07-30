@@ -65,7 +65,7 @@ node test-conversation-fetching.js
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A';
+const SUPABASE_SERVICE_KEY = '<REDACTED_service_role_ROTATE_ME>';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -106,7 +106,7 @@ checkUserConversations().catch(console.error);
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A';
+const SUPABASE_SERVICE_KEY = '<REDACTED_service_role_ROTATE_ME>';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -153,7 +153,7 @@ testConversationFetching().catch(console.error);
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A';
+const SUPABASE_SERVICE_KEY = '<REDACTED_service_role_ROTATE_ME>';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 

@@ -324,63 +324,37 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       console.log('[SubscriptionUpgrade] Provider:', currentSubscription.payment_provider);
       console.log('[SubscriptionUpgrade] Reference:', currentSubscription.payment_reference);
 
-      // Check if this is a Paystack subscription
-      if (currentSubscription.payment_provider === 'paystack' && currentSubscription.payment_reference) {
-        // Paystack subscription - try to cancel via API, but if it fails (already cancelled), just update database
-        console.log('[SubscriptionUpgrade] Cancelling Paystack subscription via API');
+      // Writes to user_subscriptions are service-role only (SEC-09), so
+      // cancellation — Paystack disable AND the DB status change — runs
+      // entirely inside the manage-subscription edge function. It tolerates
+      // Paystack failures (already-cancelled, manual subs with no code).
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
 
-        try {
-          // Get auth session
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            throw new Error('Not authenticated');
-          }
-
-          // Call Edge Function to cancel subscription
-          const response = await fetch(
-            `${supabase.supabaseUrl}/functions/v1/manage-subscription`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                action: 'cancel',
-                subscriptionCode: currentSubscription.payment_reference
-              })
-            }
-          );
-
-          const result = await response.json();
-
-          if (result.success) {
-            console.log('[SubscriptionUpgrade] Paystack subscription cancelled:', result);
-          } else {
-            console.log('[SubscriptionUpgrade] Paystack cancel failed (might be already cancelled):', result.error);
-          }
-        } catch (paystackError) {
-          console.log('[SubscriptionUpgrade] Paystack API error (might be already cancelled):', paystackError);
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/manage-subscription`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'cancel',
+            subscriptionCode: currentSubscription.payment_reference || null
+          })
         }
+      );
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Cancellation failed');
       }
 
-      // Always update database regardless of Paystack result
-      console.log('[SubscriptionUpgrade] Updating database to mark as cancelled');
-
-      const { error: updateError } = await supabase
-        .from('user_subscriptions')
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', currentUser!.uid);
-
-      if (updateError) {
-        throw new Error(`Failed to update subscription: ${updateError.message}`);
-      }
-
-      console.log('[SubscriptionUpgrade] Subscription marked as cancelled in database');
+      console.log('[SubscriptionUpgrade] Subscription cancelled:', result);
 
       // Immediately clear current subscription state
       setCurrentSubscription(null);
@@ -520,6 +494,11 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           email: currentUser.email || '',
           plan: planCode,
           currency: 'NGN',
+          // Card only: a bank-transfer payment against a plan creates NO
+          // Paystack subscription object (no reusable authorization), so
+          // nothing can activate or renew the tier (2026-07-30 incident).
+          // Transfer support returns as an explicit prepaid-period flow.
+          channels: ['card'],
           metadata: {
             user_id: currentUser.uid,
             tier_id: tier.id,

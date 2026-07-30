@@ -45,22 +45,36 @@ serve(async (req) => {
     let result;
 
     switch (action) {
-      case 'cancel':
-        // Cancel subscription on Paystack
-        result = await cancelPaystackSubscription(paystackSecretKey, subscriptionCode);
+      case 'cancel': {
+        // Disable on Paystack when a subscription code exists. Tolerate
+        // failures (already cancelled on Paystack's side, or a manual
+        // subscription with no code) — the DB status change below is the
+        // authoritative part and must succeed.
+        let paystackResult = null;
+        if (subscriptionCode) {
+          try {
+            paystackResult = await cancelPaystackSubscription(paystackSecretKey, subscriptionCode);
+          } catch (paystackError) {
+            console.log('[ManageSubscription] Paystack cancel failed (tolerated):', (paystackError as Error)?.message);
+          }
+        }
 
-        // Update database
-        await supabase
+        const { error: dbError } = await supabase
           .from('user_subscriptions')
           .update({
             status: 'cancelled',
             cancelled_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', user.id)
-          .eq('payment_reference', subscriptionCode);
+          .eq('user_id', user.id);
 
+        if (dbError) {
+          throw new Error(`Failed to update subscription: ${dbError.message}`);
+        }
+
+        result = { cancelled: true, paystack: paystackResult };
         break;
+      }
 
       case 'change_plan':
         // Change subscription plan on Paystack

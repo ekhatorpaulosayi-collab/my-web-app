@@ -177,7 +177,39 @@
 
 ---
 
-## Current state & critical gotchas (as of 2026-06-11)
+## Current state & critical gotchas (as of 2026-07-30)
+
+- **Paystack LIVE cutover (2026-07-30):** `PAYSTACK_SECRET_KEY` is a **live** `sk_live_`
+  key (confirmed live since ~2026-06-04; digest unchanged across rotation attempts).
+  Founder store `d93cd891-…` is **live**: `paystack_test_mode=false`, live subaccount
+  `ACCT_j2pfrv87o50gp62` (bank 050 = **Ecobank**, acct ····438, 0% split = Pro tier),
+  `active=true`. The old test subaccount `ACCT_l6okid3gb94w1r6` ("F2 Smoke Test") was
+  deleted. Webhook `paystack-webhook-router` registered in Paystack **Live** settings.
+  Live storefront checkout is fully open (gate chain proven via 412→400 probe).
+- **SEC-09 (LIVE, 2026-07-30):** `user_subscriptions` writes are **service-role only** —
+  revoked INSERT/UPDATE/DELETE/TRUNCATE from anon+authenticated and dropped the
+  unrestricted "Users can update own subscription" UPDATE policy (it had no WITH CHECK,
+  letting any user self-upgrade tier + 0% their own card fees). SELECT policy retained.
+  Signup free-tier row still works (SECURITY DEFINER trigger). Proven: authenticated
+  PostgREST self-upgrade → `403 permission denied`.
+- **Subscription rail — key facts:** plan popup is **card-only** (`channels:['card']`) —
+  a bank-transfer against a Paystack Plan creates NO subscription object (no reusable
+  auth), so nothing activates/renews the tier (2026-07-30 incident: paid ₦5k transfer,
+  user stuck Free). Webhook subscription handlers resolve the user via
+  `metadata.user_id` (verified to own the payer email) then `public.users` by email —
+  the old `public.profiles` lookup was dead (**that table does not exist in prod**), so
+  every subscription webhook silently no-opped. A prepaid-transfer branch + expiry cron
+  are **deferred, not built**. There is **no subscription-expiry cron**; feature gating
+  reads `status` only, and tier-resolver falls to `free` 7 days after `current_period_end`.
+- **SECRET ROTATION OWED (P0):** the Supabase **service-role JWT was committed to ~90
+  tracked files** (one-off scripts + 2 `public/*.html` that shipped to the browser).
+  All deleted/redacted 2026-07-30, but the key is **live in git history** and must be
+  rotated. Scheme is **legacy JWT** (anon + service_role both HS256 off the project JWT
+  secret) → rolling it **also invalidates the anon key**; requires updating Vercel
+  `VITE_SUPABASE_ANON_KEY`, the manual edge secret `SUPABASE_ANON_KEY`, and pg_cron job
+  #2 `send-daily-whatsapp-reports` (embeds anon JWT inline), then a frontend rebuild.
+
+## Prior state & critical gotchas (as of 2026-06-11)
 
 - **Vercel — one repo, many projects (cost leak):** the account
   (`pauls-projects-cfe953d7`) has **6 projects** (verified `vercel projects ls`,

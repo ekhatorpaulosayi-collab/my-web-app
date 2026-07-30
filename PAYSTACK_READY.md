@@ -34,10 +34,10 @@ What it does:
 ### 3. Environment Variables ✅
 ```
 Backend (Supabase):
-✅ PAYSTACK_SECRET_KEY = sk_test_7387309060a256c0161a585bd447bc8929cd9081
+✅ PAYSTACK_SECRET_KEY = REDACTED_ROTATE_ME
 
 Frontend (Vercel):
-⏳ VITE_PAYSTACK_PUBLIC_KEY = pk_test_39a20b23c03d540083e95dc82af26ee7a4668746
+⏳ VITE_PAYSTACK_PUBLIC_KEY = REDACTED_ROTATE_ME
    (You need to set this manually - instructions below)
 ```
 
@@ -56,7 +56,7 @@ Frontend (Vercel):
 4. Enter:
    ```
    Name: VITE_PAYSTACK_PUBLIC_KEY
-   Value: pk_test_39a20b23c03d540083e95dc82af26ee7a4668746
+   Value: REDACTED_ROTATE_ME
    Environments: Production, Preview, Development (check all 3)
    ```
 5. Click Save
@@ -217,7 +217,7 @@ node -e "
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   'https://yzlniqwzqlsftxrtapdl.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A'
+  '<REDACTED_service_role_ROTATE_ME>'
 );
 const { data } = await supabase
   .from('payment_transactions')

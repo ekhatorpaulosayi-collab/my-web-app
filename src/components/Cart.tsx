@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { X, ShoppingCart, Plus, Minus, Trash2, Phone, CreditCard, Tag, Copy, Check } from 'lucide-react';
 import PaystackPop from '@paystack/inline-js';
 import { useCart } from '../contexts/CartContext';
-import { currencyNGN } from '../utils/format';
+import { currencyNGN, currencyNGNExact } from '../utils/format';
 import type { StoreProfile, PaymentMethod } from '../types';
 import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
 import { supabase } from '../lib/supabase';
@@ -1449,15 +1449,15 @@ export function Cart({ store }: CartProps) {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#374151' }}>
                         <span>Subtotal</span>
-                        <span>{currencyNGN(subaccountBreakdown.subtotal_kobo)}</span>
+                        <span>{currencyNGNExact(subaccountBreakdown.subtotal_kobo)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: '#374151' }}>
                         <span>Card processing</span>
-                        <span>{currencyNGN(subaccountBreakdown.paystack_take_kobo)}</span>
+                        <span>{currencyNGNExact(subaccountBreakdown.paystack_take_kobo)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #E5E7EB', fontWeight: 700, color: '#111827' }}>
                         <span>Total</span>
-                        <span>{currencyNGN(subaccountBreakdown.customer_total_kobo)}</span>
+                        <span>{currencyNGNExact(subaccountBreakdown.customer_total_kobo)}</span>
                       </div>
                     </div>
                   )}
@@ -1530,7 +1530,7 @@ export function Cart({ store }: CartProps) {
                       ) : paymentMethod === 'paystack_subaccount' ? (
                         <>
                           <CreditCard size={18} />
-                          Pay {currencyNGN(subaccountBreakdown ? subaccountBreakdown.customer_total_kobo : finalTotal)}
+                          Pay {currencyNGNExact(subaccountBreakdown ? subaccountBreakdown.customer_total_kobo : finalTotal)}
                         </>
                       ) : paymentMethod === 'paystack' ? (
                         <>

@@ -9,8 +9,10 @@
  * - LQIP (Low Quality Image Placeholder) generation
  */
 
-const IMAGEKIT_URL_ENDPOINT = import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/onelove431212341234';
-const IMAGEKIT_PUBLIC_KEY = import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY;
+// .trim() guards against stray whitespace/newlines in env values (e.g. from
+// `echo val | vercel env add`) — a trailing newline here corrupts every srcset
+const IMAGEKIT_URL_ENDPOINT = (import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/onelove431212341234').trim().replace(/\/+$/, '');
+const IMAGEKIT_PUBLIC_KEY = import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY?.trim();
 
 // Track logged warnings to prevent spam
 const loggedWarnings = new Set<string>();

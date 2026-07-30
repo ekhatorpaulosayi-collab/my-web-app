@@ -5,7 +5,7 @@
 
 import React, { useRef } from 'react';
 import { Check, Download, Share2, ShoppingBag, X } from 'lucide-react';
-import { currencyNGN } from '../utils/format';
+import { currencyNGNExact } from '../utils/format';
 import type { StoreProfile } from '../types';
 import '../styles/order-confirmation.css';
 
@@ -92,15 +92,15 @@ export function OrderConfirmation({ isOpen, onClose, store, orderData }: OrderCo
     orderData.items.forEach(item => {
       const itemTotal = item.price * item.quantity;
       lines.push(`${item.name}${item.variant ? ` (${item.variant})` : ''}`);
-      lines.push(`  ${item.quantity} × ${currencyNGN(item.price)} = ${currencyNGN(itemTotal)}`);
+      lines.push(`  ${item.quantity} × ${currencyNGNExact(item.price)} = ${currencyNGNExact(itemTotal)}`);
     });
     lines.push('───────────────────────────');
     lines.push('');
-    lines.push(`Subtotal: ${currencyNGN(orderData.subtotal)}`);
+    lines.push(`Subtotal: ${currencyNGNExact(orderData.subtotal)}`);
     if (orderData.discount > 0) {
-      lines.push(`Discount${orderData.promoCode ? ` (${orderData.promoCode})` : ''}: -${currencyNGN(orderData.discount)}`);
+      lines.push(`Discount${orderData.promoCode ? ` (${orderData.promoCode})` : ''}: -${currencyNGNExact(orderData.discount)}`);
     }
-    lines.push(`TOTAL PAID: ${currencyNGN(orderData.finalTotal)}`);
+    lines.push(`TOTAL PAID: ${currencyNGNExact(orderData.finalTotal)}`);
     lines.push('');
     lines.push(`Payment: ${orderData.paymentMethod.toUpperCase()}`);
     lines.push('Status: CONFIRMED');
@@ -170,7 +170,7 @@ export function OrderConfirmation({ isOpen, onClose, store, orderData }: OrderCo
                     </span>
                     <span className="item-qty">× {item.quantity}</span>
                   </div>
-                  <span className="item-price">{currencyNGN(item.price * item.quantity)}</span>
+                  <span className="item-price">{currencyNGNExact(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
@@ -180,19 +180,19 @@ export function OrderConfirmation({ isOpen, onClose, store, orderData }: OrderCo
           <div className="receipt-section receipt-totals">
             <div className="total-line">
               <span>Subtotal</span>
-              <span>{currencyNGN(orderData.subtotal)}</span>
+              <span>{currencyNGNExact(orderData.subtotal)}</span>
             </div>
             {orderData.discount > 0 && (
               <div className="total-line discount-line">
                 <span>
                   Discount {orderData.promoCode && `(${orderData.promoCode})`}
                 </span>
-                <span>-{currencyNGN(orderData.discount)}</span>
+                <span>-{currencyNGNExact(orderData.discount)}</span>
               </div>
             )}
             <div className="total-line grand-total">
               <span>TOTAL PAID</span>
-              <span>{currencyNGN(orderData.finalTotal)}</span>
+              <span>{currencyNGNExact(orderData.finalTotal)}</span>
             </div>
           </div>
 

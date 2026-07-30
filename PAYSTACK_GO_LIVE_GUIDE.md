@@ -290,7 +290,7 @@ node -e "
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   'https://yzlniqwzqlsftxrtapdl.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM5OTAzMCwiZXhwIjoyMDc4OTc1MDMwfQ.4kLqZAbP1MrA-TYLxLJvr_BXj3-LGPuVKkuLtoIqK-A'
+  '<REDACTED_service_role_ROTATE_ME>'
 );
 const { data } = await supabase
   .from('payment_transactions')
