@@ -97,7 +97,7 @@ serve(async (req) => {
   const BYPASS_KYC = Deno.env.get('BYPASS_KYC_FOR_SMOKE') === 'true';
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const SUPABASE_SERVICE_ROLE_KEY = (Deno.env.get('EDGE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
   const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY');
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !PAYSTACK_SECRET_KEY) {
     return jsonResponse({ error: 'server_misconfigured' }, 500);
