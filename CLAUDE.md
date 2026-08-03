@@ -71,6 +71,41 @@
 - **Service worker caches aggressively.** A new deploy may serve the old bundle to existing
   tabs until the SW updates — verify in a fresh tab.
 
+### Edge-function deploy gates (run every time an edge function is deployed)
+`supabase functions deploy` **defaults to `verify_jwt=true`** and silently flips the flag
+on every deploy. For a **webhook/public-facing** function (`paystack-webhook-router`,
+`paystack-subaccount-webhook`, `whatsapp-webhook`, any Paystack/provider callback), `true`
+makes the Supabase **gateway reject the request before your code runs** — Paystack sends no
+JWT, so 100% of live webhook traffic 401s at the gateway and money events never process.
+This is a P0 that produces **no error in your logs** (the code never executes). It fires on
+**every** deploy, so it is a checklist, not prose:
+
+1. **`--no-verify-jwt` is MANDATORY** on any webhook/public-facing edge function deploy:
+   ```
+   supabase functions deploy <fn> --no-verify-jwt --project-ref yzlniqwzqlsftxrtapdl
+   ```
+   (Auth'd functions called with a user JWT — e.g. `create-*`, `verify-*` invoked from the
+   app — keep `verify_jwt=true`. `create-paystack-subaccount` is the exception: it verifies
+   the JWT *in code*, so it is deployed `--no-verify-jwt`.)
+2. **READ THE FLAG BACK from the management API post-deploy — never assume the CLI applied
+   it.** Report the value:
+   ```
+   curl -sS "https://api.supabase.com/v1/projects/<ref>/functions/<fn>" \
+     -H "Authorization: Bearer $(cat ~/.supabase/access-token)" \
+     | python3 -c "import sys,json;d=json.load(sys.stdin);print('verify_jwt=',d['verify_jwt'])"
+   ```
+   Then live-probe: a no-auth-header POST must return the **function's** response
+   (`bad_signature`), NOT the gateway `UNAUTHORIZED_NO_AUTH_HEADER`. Those look alike and
+   mean opposite things.
+3. **RECORD the before-state of the flag BEFORE any redeploy of a money-path function**, so
+   drift is detectable after. If you can't produce the before-value, you cannot claim the
+   deploy didn't change it.
+
+> Incident 2026-08-02 (see LEARNINGS.md): `paystack-webhook-router` was redeployed without
+> `--no-verify-jwt`; the gateway then 401'd all Paystack traffic before the code ran. Caught
+> only by an unrelated verification curl, not by process. Zero realized impact solely because
+> no checkout traffic hit the ~1h26m window. **Deploy flags are part of the deploy.**
+
 ### Safe migrations (migration drift is real — `db push` is UNSAFE)
 - Recorded migrations in `supabase_migrations.schema_migrations` lag the local
   `supabase/migrations/` directory (~30 recorded vs ~48 local). `supabase db push` would
@@ -201,13 +236,46 @@
   every subscription webhook silently no-opped. A prepaid-transfer branch + expiry cron
   are **deferred, not built**. There is **no subscription-expiry cron**; feature gating
   reads `status` only, and tier-resolver falls to `free` 7 days after `current_period_end`.
-- **SECRET ROTATION OWED (P0):** the Supabase **service-role JWT was committed to ~90
-  tracked files** (one-off scripts + 2 `public/*.html` that shipped to the browser).
-  All deleted/redacted 2026-07-30, but the key is **live in git history** and must be
-  rotated. Scheme is **legacy JWT** (anon + service_role both HS256 off the project JWT
-  secret) → rolling it **also invalidates the anon key**; requires updating Vercel
-  `VITE_SUPABASE_ANON_KEY`, the manual edge secret `SUPABASE_ANON_KEY`, and pg_cron job
-  #2 `send-daily-whatsapp-reports` (embeds anon JWT inline), then a frontend rebuild.
+- **TEMPORARY Blossom webhook-forward bridge (2026-08-02):** one Paystack business serves
+  **both Storehouse and Blossom**; Paystack allows one Live webhook URL and it points at
+  Storehouse's `paystack-webhook-router`. The router forwards **Blossom-bound events**
+  (server-set `BLS_` reference prefix; Storehouse uses `ord_`/native, provably disjoint)
+  **byte-for-byte** (original raw body + original `x-paystack-signature`) to Blossom's own
+  router `https://lmmznmywiwjyfyvgarof.supabase.co/functions/v1/paystack-webhook-router`.
+  Failure → non-200 so Paystack retries (409 marker-disagreement, 502 Blossom-down); never
+  200-drops a Blossom event, never touches Storehouse state. Observability in
+  `blossom_forward_log` (NOT `paystack_webhook_events`, to avoid foreign-ref collisions).
+  Code: `_shared/blossom-bridge.ts` + the branch in `paystack-webhook-router/index.ts`.
+  **DELETION TRIGGER (no fixed date):** delete the whole bridge when the **first non-Paul
+  school completes CARD-PAYMENTS onboarding (creates a Paystack subaccount)** — Blossom then
+  moves to its own Paystack business. Merely signing up for Blossom, or a cash/claims-only
+  school, does **not** trigger removal (no shared-business exposure). The onboarding path
+  `create-paystack-subaccount` carries the same reminder at the RPC that fires the trigger.
+  **DEPLOY GATE:** inert until Blossom's router is configured (`PAYSTACK_ENABLED=true` +
+  shared `sk_live_` `PAYSTACK_SECRET_KEY`) and a bogus-signature curl returns
+  **401 `bad_signature`** from the function (not 503 `not_configured` — the dark-gate — and
+  not a gateway 401 / 404). See `docs/follow-ups.md`.
+- **SECRET ROTATION — in progress (P0):** the Supabase **service-role JWT was committed
+  to ~90 tracked files** (one-off scripts + 2 `public/*.html` that shipped to the
+  browser). All deleted/redacted 2026-07-30, but the key is **live in git history** and
+  must be revoked. **Chosen path: migrate-and-disable (not JWT-secret roll).** The project
+  already has **new-style keys** provisioned (`sb_publishable_web`/`_mobile`, secret
+  `backend_api` — provenance unknown, left untouched, flagged for deletion). Plan: point
+  edge functions at a **freshly created** `sb_secret` (NOT backend_api) + frontend at
+  `sb_publishable_web`, then **disable the Legacy API keys tab** — this revokes the leaked
+  legacy service_role AND legacy anon with **no JWT-secret roll, no session wipe, no
+  restart**. Verified consumers on legacy keys: frontend (anon, Vercel + `.env.local`),
+  edge (service_role, auto-injected). API request logs (14-day) show **no unexplained
+  legacy consumer** — Mac Mini pipelines confirmed not calling this API. After disable,
+  both leaked legacy keys must return 401 (two-sided verify).
+- **APK dies on legacy disable (expected/OK):** the shipped Dec-2025 Play Store APK embeds
+  the **legacy anon key** and will 401 after disable. Acceptable — unlaunched, ~320
+  commits stale, only Paul's test installs. **The future mobile rebuild (OFF-04) MUST use
+  `sb_publishable_mobile`, not a legacy anon JWT.**
+- **Cron reports dead (pre-existing, unrelated):** both pg_cron jobs (`hourly-whatsapp-
+  reports`, `send-daily-whatsapp-reports`) target `send-daily-reports` and have returned
+  401 since 2026-05-01 — neither sends the required `x-cron-secret` header. Out of scope
+  for the key migration; fix as its own task (and dedupe the two redundant jobs).
 
 ## Prior state & critical gotchas (as of 2026-06-11)
 

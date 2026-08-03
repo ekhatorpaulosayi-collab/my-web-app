@@ -26,6 +26,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { routeEvent } from '../_shared/paystack-router.ts';
 import { handleSubaccountEvent } from '../_shared/paystack-subaccount-handler.ts';
 import { handleSubscriptionEvent } from '../_shared/paystack-subscription-handler.ts';
+// TEMPORARY BRIDGE — delete when Blossom moves to its own Paystack business;
+// trigger: first third-party school onboards card payments. See blossom-bridge.ts.
+import { classifyBlossomEvent, forwardToBlossom } from '../_shared/blossom-bridge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,6 +69,37 @@ function timingSafeEqualHex(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// TEMPORARY BRIDGE observability — answers "did it forward?" for every
+// Blossom-classified event. Best-effort: a log failure must never change the
+// forward decision or the response to Paystack, so this swallows its own
+// errors. Blossom refs (BLS_) are deliberately NOT written to
+// paystack_webhook_events — foreign references could collide with
+// Storehouse's replay-protection UNIQUE(paystack_reference, event_type).
+// Delete this helper with the rest of the bridge.
+async function logBlossomForward(
+  admin: ReturnType<typeof createClient>,
+  row: {
+    reference: string | null;
+    event_type: string;
+    outcome: 'forwarded' | 'blossom_error' | 'network_error' | 'disagreement';
+    response_code: number | null;
+    detail: string | null;
+  },
+): Promise<void> {
+  try {
+    const { error } = await admin.from('blossom_forward_log').insert({
+      reference: row.reference,
+      event_type: row.event_type,
+      outcome: row.outcome,
+      response_code: row.response_code,
+      detail: row.detail,
+    });
+    if (error) console.error('[bridge] blossom_forward_log insert failed', { error: error.message });
+  } catch (e) {
+    console.error('[bridge] blossom_forward_log threw', { detail: (e as { message?: string })?.message });
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -98,6 +132,61 @@ serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // ========================================================================
+    // TEMPORARY BRIDGE — Storehouse → Blossom Paystack webhook forward.
+    //
+    // temporary — delete when Blossom moves to its own Paystack business;
+    // trigger: first third-party school onboards card payments.
+    //
+    // One Paystack business serves both products; this endpoint holds the sole
+    // Live webhook URL. Blossom-bound events (server-set 'BLS_' reference) are
+    // forwarded byte-for-byte to Blossom's own router so its dark fee rail can
+    // receive events. This branch sits AFTER HMAC-verify + parse and BEFORE
+    // routeEvent(), and it RETURNS before any Storehouse handler — so it is
+    // purely additive to Storehouse's routing and cannot swallow, misroute, or
+    // delay a Storehouse event (Storehouse refs are 'ord_'/native, never 'BLS_').
+    //
+    // Failure contract (both non-200 so Paystack retries; distinct codes):
+    //   - marker disagreement (409): do NOT forward, do NOT guess.
+    //   - Blossom down / non-2xx / network (502): forward failed.
+    // Neither case touches Storehouse state.
+    //
+    // DEPLOY GATE: this bridge is inert until Blossom's router is configured
+    // (PAYSTACK_ENABLED=true + shared sk_live_ PAYSTACK_SECRET_KEY) and a
+    // bogus-signature curl returns 401 bad_signature (not 503 not_configured).
+    // ========================================================================
+    const blossom = classifyBlossomEvent(event);
+    if (blossom.kind !== 'not_blossom') {
+      const bRef = (typeof event.data?.reference === 'string' && event.data.reference) || null;
+      const bType = event.event || 'unknown';
+
+      if (blossom.kind === 'disagreement') {
+        console.error('[bridge] blossom marker disagreement — NOT forwarding', { ref: bRef, eventType: bType });
+        await logBlossomForward(admin, { reference: bRef, event_type: bType, outcome: 'disagreement', response_code: null, detail: 'marker/prefix conflict' });
+        return jsonResponse({ error: 'blossom_marker_disagreement' }, 409);
+      }
+
+      // Clean BLS_ match → forward the ORIGINAL raw bytes + ORIGINAL signature.
+      const fwd = await forwardToBlossom(rawBody, signature);
+      if (fwd.ok) {
+        console.log('[bridge] forwarded to Blossom', { ref: bRef, eventType: bType, status: fwd.status });
+        await logBlossomForward(admin, { reference: bRef, event_type: bType, outcome: 'forwarded', response_code: fwd.status, detail: null });
+        return jsonResponse({ ok: true, forwarded: 'blossom' }, 200);
+      }
+      // Forward failed — do NOT 200. Paystack's retry is our safety net.
+      console.error('[bridge] blossom forward FAILED', { ref: bRef, eventType: bType, status: fwd.status, networkError: fwd.networkError, detail: fwd.detail });
+      await logBlossomForward(admin, {
+        reference: bRef,
+        event_type: bType,
+        outcome: fwd.networkError ? 'network_error' : 'blossom_error',
+        response_code: fwd.networkError ? null : fwd.status,
+        detail: fwd.detail ?? null,
+      });
+      return jsonResponse({ error: 'blossom_forward_failed', networkError: fwd.networkError }, 502);
+    }
+    // Not a Blossom event — fall through to Storehouse routing, unchanged.
+
     const target = routeEvent(event);
 
     if (target === 'unknown') {

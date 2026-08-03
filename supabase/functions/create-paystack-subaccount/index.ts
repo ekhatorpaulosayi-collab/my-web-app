@@ -446,6 +446,18 @@ serve(async (req) => {
     duration_ms: responseDurationMs,
   });
 
+  // ==========================================================================
+  // BLOSSOM BRIDGE DELETION TRIGGER — read this when a NEW store onboards here.
+  // This RPC is the exact point a store completes CARD-PAYMENTS onboarding
+  // (a Paystack subaccount is created). When the FIRST non-Paul store reaches
+  // this line, that is the trigger to DELETE the temporary Storehouse → Blossom
+  // webhook-forward bridge (Blossom must move to its own Paystack business).
+  // Bridge lives in: supabase/functions/_shared/blossom-bridge.ts +
+  // paystack-webhook-router/index.ts + blossom_forward_log. See docs/follow-ups.md.
+  // Paul's store d93cd891-… does NOT count; cash/claims-only Blossom schools
+  // carry no shared-business exposure and do NOT reach this line.
+  // ==========================================================================
+  //
   // 9. Atomic onboarding via RPC. RPC handles insert + velocity row +
   // flag flip + bidirectional FK in one transaction with race-safe
   // ON CONFLICT. The p_mock_code parameter is named for Session 1 —
