@@ -18,7 +18,7 @@ import { deliveryFeeKobo, orderTotalKobo } from '../../src/utils/deliveryFee.ts'
 import { emptyNumberAsNull, parseAmountField } from '../../src/utils/emptyNumber.js';
 import { normalizeNgWhatsApp, isValidStoreWhatsApp } from '../../src/utils/ngPhone.js';
 import { normalizeSocialUrl } from '../../src/utils/socialLinks.js';
-import { CRAWLER_UA_PATTERN } from '../../src/utils/crawlerUa.js';
+import { CRAWLER_UA, CRAWLER_UA_PATTERN } from '../../src/utils/crawlerUa.js';
 import { formatWhatsAppNumber } from '../../src/utils/phone.ts';
 import { existsSync } from 'node:fs';
 
@@ -269,11 +269,16 @@ test('a blank free-delivery minimum is saved as null', () => {
   assert.equal(emptyNumberAsNull(50000), 50000);
   assert.equal(emptyNumberAsNull('5k'), 5000);
   assert.equal(emptyNumberAsNull('5K'), 5000);
-  assert.equal(emptyNumberAsNull('1,500.50'), 1500.5);
+  assert.equal(emptyNumberAsNull('1,500.50'), 1501);
+  assert.equal(emptyNumberAsNull('1,500.40'), 1500);
   assert.equal(parseAmountField('Free over ₦10,000').error, 'Enter an amount like 1500 or 5k, or leave it blank.');
   assert.throws(() => emptyNumberAsNull('Free over ₦10,000'), /1500 or 5k/);
   const online = readFileSync(new URL('../../src/components/OnlineStoreSetup.tsx', import.meta.url), 'utf8');
   const settings = readFileSync(new URL('../../src/components/StoreSettings.tsx', import.meta.url), 'utf8');
+  assert.match(online, /placeholder="e\.g\., 1500"/);
+  assert.match(settings, /placeholder="e\.g\., 1500"/);
+  assert.equal(online.includes('₦2,000 - ₦5,000'), false);
+  assert.equal(settings.includes('within Lagos'), false);
   assert.match(online, /delivery_fee = emptyNumberAsNull\(deliveryFee\)/);
   assert.match(online, /minimum_order = emptyNumberAsNull\(minimumOrder\)/);
   assert.match(settings, /delivery_fee: emptyNumberAsNull\(deliveryFee\)/);
@@ -344,13 +349,25 @@ test('preview links, phones, and social handles stay usable', () => {
   assert.equal(png.readUInt32BE(20), 630);
   assert.equal(existsSync(new URL('../../api/whatsapp/index.js', import.meta.url)), false);
   const webhook = readFileSync(new URL('../../supabase/functions/whatsapp-webhook/index.ts', import.meta.url), 'utf8');
-  assert.match(webhook, /WHATSAPP_APP_SECRET/);
-  assert.match(webhook, /x-hub-signature-256/);
+  assert.match(webhook, /DO NOT DEPLOY/);
+  assert.match(webhook, /x-360dialog-signature/);
+  assert.match(webhook, /D360_PLATFORM_SECRET/);
+  assert.match(webhook, /X-Twilio-Signature/);
+  assert.match(webhook, /twilio_auth_token/);
+  assert.match(webhook, /per server instance/);
+  assert.equal(webhook.includes('x-hub-signature-256'), false);
+  assert.equal(webhook.includes('WHATSAPP_APP_SECRET'), false);
   assert.match(webhook, /allowSender/);
   assert.equal(webhook.includes('Webhook received'), false);
   assert.equal(webhook.includes('business_phone.eq.${'), false);
+  const instagramShopper = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 312.0.0.0.0';
+  assert.equal(CRAWLER_UA.test(instagramShopper), false);
+  assert.equal(CRAWLER_UA.test('facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'), true);
+  assert.equal(CRAWLER_UA.test('meta-externalagent/1.1'), true);
   const vercel = readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8');
-  for (const token of ['Instagram', 'meta-externalagent', 'Facebot', 'facebookcatalog']) {
+  assert.equal(vercel.includes('Instagram'), false);
+  assert.equal(CRAWLER_UA_PATTERN.includes('Instagram'), false);
+  for (const token of ['facebookexternalhit', 'meta-externalagent', 'Facebot', 'facebookcatalog']) {
     assert.match(vercel, new RegExp(token));
     assert.match(CRAWLER_UA_PATTERN, new RegExp(token));
   }

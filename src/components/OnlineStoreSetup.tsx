@@ -1848,7 +1848,7 @@ export default function OnlineStoreSetup() {
                   type="text"
                   value={deliveryFee}
                   onChange={(e) => setDeliveryFee(e.target.value)}
-                  placeholder="e.g., ₦2,000 - ₦5,000"
+                  placeholder="e.g., 1500"
                   style={{
                     width: '100%',
                     padding: '12px 16px',

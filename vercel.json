@@ -6,7 +6,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot|Instagram|meta-externalagent|Facebot|facebookcatalog).*"
+          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot|meta-externalagent|Facebot|facebookcatalog).*"
         }
       ],
       "destination": "/api/og-meta?slug=:slug"
@@ -17,7 +17,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot|Instagram|meta-externalagent|Facebot|facebookcatalog).*"
+          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot|meta-externalagent|Facebot|facebookcatalog).*"
         }
       ],
       "destination": "/api/og-meta?slug=:slug"

@@ -1465,7 +1465,7 @@ export const StoreSettings: React.FC = () => {
             type="text"
             value={deliveryFee}
             onChange={(e) => setDeliveryFee(e.target.value)}
-            placeholder="e.g., ₦2,000 within Lagos, ₦3,500 outside Lagos"
+            placeholder="e.g., 1500"
           />
         </div>
 

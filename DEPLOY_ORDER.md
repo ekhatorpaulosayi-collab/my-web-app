@@ -715,7 +715,11 @@ Undo is not a recreate. The hourly job was a duplicate and it was failing. Do no
 
 ## Turn off the live WhatsApp webhook
 
-Do not deploy `whatsapp-webhook`. The copy in this pull request is not live until someone deploys it, and it should not be deployed.
+DO NOT DEPLOY `whatsapp-webhook`. The source in this pull request is marked the same way. This pull request does not deploy it.
+
+The handler parses 360dialog JSON and Twilio form posts. A 360dialog body is accepted when `x-360dialog-signature` is the HMAC-SHA256 hex of the raw body using `D360_PLATFORM_SECRET`. A Twilio body is accepted when `X-Twilio-Signature` is the HMAC-SHA1 of the request URL plus the sorted form fields, using that shop's `twilio_auth_token`. Meta's `x-hub-signature-256` header is not the check, because these providers do not send it.
+
+The rate limit is per server instance. It counts eight messages a minute for each sender in that instance's memory. A second instance does not share the count, and a restart clears it. It is not a shared store.
 
 The function that is already live has no signature check. To turn it off, this is the one command:
 
@@ -724,8 +728,6 @@ supabase functions delete whatsapp-webhook --project-ref yzlniqwzqlsftxrtapdl
 ```
 
 Approve that command before running it. This pull request does not run it.
-
-If that function is ever deployed again, the deploy must use `--no-verify-jwt`, and `WHATSAPP_APP_SECRET` must be set first. Read `verify_jwt` back after the deploy. A missing secret makes the function reject every call. `WHATSAPP_WEBHOOK_DISABLED=true` also makes it answer 404 before it reads a message.
 
 ## Wildcard shop addresses
 
