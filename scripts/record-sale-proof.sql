@@ -28,7 +28,15 @@ CREATE TABLE public.products (
   user_id text NOT NULL,
   quantity integer,
   selling_price bigint,
-  discount_price bigint
+  discount_price bigint,
+  cost_price bigint
+);
+
+CREATE TABLE public.stores (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  allow_staff_price_change boolean NOT NULL DEFAULT false
 );
 
 CREATE TABLE public.sales (

@@ -10,7 +10,19 @@
 -- policies hide sales (and other money tables) while that session is a cashier.
 -- Leaving staff mode requires the owner password inside end_staff_session.
 --
--- ROLLBACK:
+-- ROLLBACK (drop policies before acting_staff_role; they depend on it):
+--   DROP POLICY IF EXISTS sales_cashier_no_read ON public.sales;
+--   DROP POLICY IF EXISTS sales_cashier_no_write ON public.sales;
+--   DROP POLICY IF EXISTS sales_cashier_no_delete ON public.sales;
+--   DROP POLICY IF EXISTS sales_staff_no_direct_insert ON public.sales;
+--   DROP POLICY IF EXISTS customers_cashier_no_read ON public.customers;
+--   DROP POLICY IF EXISTS expenses_cashier_no_read ON public.expenses;
+--   DROP POLICY IF EXISTS invoices_cashier_no_read ON public.invoices;
+--   DROP POLICY IF EXISTS products_staff_no_edit ON public.products;
+--   DROP POLICY IF EXISTS products_staff_no_delete ON public.products;
+--   DROP POLICY IF EXISTS products_cashier_no_insert ON public.products;
+--   DROP FUNCTION IF EXISTS public.get_sales_summary(uuid, date, date);
+--   DROP FUNCTION IF EXISTS public.dashboard_bootstrap();
 --   DROP FUNCTION IF EXISTS public.begin_staff_session(text);
 --   DROP FUNCTION IF EXISTS public.end_staff_session(text);
 --   DROP FUNCTION IF EXISTS public.get_acting_staff();
@@ -18,6 +30,9 @@
 --   DROP TABLE IF EXISTS public.staff_pin_attempts;
 --   DROP TABLE IF EXISTS public.staff_active_sessions;
 --   Then re-apply 05 and 08 if you still want those function bodies.
+--   If 12 or 14 has also been applied, use the Step 11 rollback in
+--   DEPLOY_ORDER.md. record_sale and the till-price trigger also call
+--   acting_staff_role(), and the domain trigger must go before its function.
 -- =============================================================================
 BEGIN;
 
@@ -241,6 +256,12 @@ BEGIN
     EXECUTE 'CREATE POLICY sales_cashier_no_write ON public.sales AS RESTRICTIVE FOR UPDATE TO authenticated USING (public.acting_staff_role() IS DISTINCT FROM ''cashier'') WITH CHECK (public.acting_staff_role() IS DISTINCT FROM ''cashier'')';
     EXECUTE 'DROP POLICY IF EXISTS sales_cashier_no_delete ON public.sales';
     EXECUTE 'CREATE POLICY sales_cashier_no_delete ON public.sales AS RESTRICTIVE FOR DELETE TO authenticated USING (public.acting_staff_role() IS DISTINCT FROM ''cashier'')';
+    -- Staff sessions use the owner's JWT, so a permissive owner INSERT
+    -- policy would let a cashier or manager insert a sale directly.
+    -- record_sale is SECURITY DEFINER and bypasses this. The owner
+    -- (acting_staff_role() IS NULL) may still insert.
+    EXECUTE 'DROP POLICY IF EXISTS sales_staff_no_direct_insert ON public.sales';
+    EXECUTE 'CREATE POLICY sales_staff_no_direct_insert ON public.sales AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (public.acting_staff_role() IS NULL)';
   END IF;
 
   IF EXISTS (

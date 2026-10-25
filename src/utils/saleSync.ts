@@ -20,6 +20,7 @@ export function isPermanentSaleError(error: { code?: string; message?: string; p
     message.includes('invalid_sale_time') ||
     message.includes('unknown_product') ||
     message.includes('insufficient_stock') ||
-    message.includes('price_mismatch')
+    message.includes('price_mismatch') ||
+    message.includes('price_below_cost')
   );
 }

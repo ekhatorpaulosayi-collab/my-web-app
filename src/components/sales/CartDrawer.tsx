@@ -15,13 +15,15 @@ interface CartDrawerProps {
   onChangeQty: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   onClose: () => void;
+  onChangePrice?: (id: string, priceNaira: number) => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   items,
   onChangeQty,
   onRemove,
-  onClose
+  onClose,
+  onChangePrice
 }) => {
   // M7: stockAvailable can be undefined/0 for untracked items -> Math.min gave NaN/0
   const stockCap = (item: { stockAvailable?: number }) =>
@@ -62,7 +64,29 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div key={item.id} className="cart-item">
                 <div className="cart-item-info">
                   <div className="cart-item-name">{item.name}</div>
-                  <div className="cart-item-price">{formatNGN(item.price)} each</div>
+                  {onChangePrice ? (
+                    <label className="cart-item-price" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>₦</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        aria-label={`Price for ${item.name}`}
+                        value={Number.isFinite(item.price) ? String(item.price) : ''}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/,/g, '').trim();
+                          if (raw === '') {
+                            onChangePrice(item.id, 0);
+                            return;
+                          }
+                          const n = Number(raw);
+                          if (Number.isFinite(n) && n >= 0) onChangePrice(item.id, n);
+                        }}
+                        style={{ width: '7rem', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+                      />
+                    </label>
+                  ) : (
+                    <div className="cart-item-price">{formatNGN(item.price)} each</div>
+                  )}
                 </div>
 
                 <div className="cart-item-controls">

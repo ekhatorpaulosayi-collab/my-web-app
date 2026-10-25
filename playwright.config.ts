@@ -13,6 +13,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.UX_BASE_URL || 'http://127.0.0.1:4000',
     trace: 'off',
+    reducedMotion: 'reduce',
   },
   projects: [
     { name: 'phone', use: { ...browser, viewport: { width: 390, height: 844 } } },

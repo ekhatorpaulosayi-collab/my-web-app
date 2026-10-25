@@ -23,6 +23,10 @@ import { ensureQty, ensurePrice } from '../utils/validators';
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { lagosTodayPlus } from '../utils/businessDate';
+import { useAuth } from '../contexts/AuthContext';
+import { useStaff } from '../contexts/StaffContext';
+import { canEditTillPrice } from '../utils/staffPermissions';
+import { useAllowStaffPriceChange } from '../hooks/useAllowStaffPriceChange';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -47,6 +51,11 @@ export default function RecordSaleModal({
   showSalesData = true,
   onShowToast
 }: RecordSaleModalProps) {
+  const { currentUser } = useAuth();
+  const { currentRole } = useStaff();
+  const allowStaffPriceChange = useAllowStaffPriceChange(currentUser?.uid, isOpen);
+  const editTillPrice = canEditTillPrice(currentRole, allowStaffPriceChange);
+
   // Controlled state for all form fields
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItemId, setSelectedItemId] = useState('');
@@ -1122,9 +1131,10 @@ Powered by Storehouse
                       value={price}
                       onChange={e => handlePriceChange(e.target.value)}
                       placeholder="0"
+                      readOnly={!editTillPrice}
                     />
                     {/* Margin Indicator for Shop Owners */}
-                    {showMarginHint && selectedItem && price && (() => {
+                    {showMarginHint && currentRole !== 'cashier' && selectedItem && price && (() => {
                       try {
                         const priceNum = parseFloat(price.replace(/,/g, ''));
                         const costKobo = selectedItem.costKobo ?? selectedItem.costPrice ?? 0;

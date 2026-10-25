@@ -6,7 +6,12 @@
 -- Live stores.custom_domain_verified already exists (boolean). This file adds
 -- it only if a fresh database does not have it, then:
 --   * one store per custom domain
---   * owners cannot UPDATE the domain, the token, or the verified flag
+--   * owners cannot set the domain, the token, or the verified flag
+--   * an INSERT (including delete-and-reinsert) by anyone except the
+--     service role forces custom_domain and the token to NULL and
+--     custom_domain_verified to false
+--   * an UPDATE of those three columns by anyone except the service role
+--     is rejected (custom_domain_locked)
 --   * set_store_custom_domain is how an owner changes the domain
 --     (it always sets verified = false and rotates the token)
 --   * only the verify-custom-domain edge function (service role), after a
@@ -84,6 +89,14 @@ BEGIN
      OR COALESCE(auth.role(), '') = 'service_role' THEN
     RETURN NEW;
   END IF;
+  -- INSERT has no OLD row. stores_owner_all lets the owner insert, or
+  -- delete and insert again, so forcing the three columns is the lock.
+  IF TG_OP = 'INSERT' THEN
+    NEW.custom_domain := NULL;
+    NEW.domain_verification_token := NULL;
+    NEW.custom_domain_verified := false;
+    RETURN NEW;
+  END IF;
   IF NEW.custom_domain IS DISTINCT FROM OLD.custom_domain
      OR NEW.domain_verification_token IS DISTINCT FROM OLD.domain_verification_token
      OR NEW.custom_domain_verified IS DISTINCT FROM OLD.custom_domain_verified THEN
@@ -95,7 +108,7 @@ $$;
 
 DROP TRIGGER IF EXISTS stores_protect_custom_domain ON public.stores;
 CREATE TRIGGER stores_protect_custom_domain
-  BEFORE UPDATE ON public.stores
+  BEFORE INSERT OR UPDATE ON public.stores
   FOR EACH ROW
   EXECUTE FUNCTION public.protect_custom_domain_columns();
 

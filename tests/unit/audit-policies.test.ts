@@ -3,7 +3,7 @@ import test from 'node:test';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
 import { addCalendarDays, addCalendarMonths, businessDayKey } from '../../src/utils/businessDate.ts';
 import { saleRevenueKobo } from '../../src/utils/money.ts';
-import { canManageCustomers, canViewInvoices, canViewReports } from '../../src/utils/staffPermissions.ts';
+import { canEditTillPrice, canManageCustomers, canViewInvoices, canViewReports } from '../../src/utils/staffPermissions.ts';
 import { nextPinFailure } from '../../src/utils/pinLockout.ts';
 import { isPermanentSaleError } from '../../src/utils/saleSync.ts';
 import { scrubSentryEvent } from '../../src/lib/sentryScrub.ts';
@@ -12,7 +12,6 @@ import {
   chargeSuccessOutcome,
   chatCallAllowed,
   customDomainIsVerified,
-  isNativeChatClient,
   isBuiltInChatOrigin,
   markSignupAction,
   originsForVerifiedDomain,
@@ -64,6 +63,11 @@ test('permanent sale errors are not retried and a PIN locks after five misses', 
   assert.equal(isPermanentSaleError({ message: 'insufficient_stock: not enough items left to record this sale' }), true);
   assert.equal(isPermanentSaleError({ message: 'unknown_product: this product is not in your catalogue' }), true);
   assert.equal(isPermanentSaleError({ message: 'price_mismatch: the price does not match this product or its discount' }), true);
+  assert.equal(isPermanentSaleError({ message: 'price_below_cost: the price cannot be below the cost price' }), true);
+  assert.equal(canEditTillPrice('owner', false), true);
+  assert.equal(canEditTillPrice('manager', false), true);
+  assert.equal(canEditTillPrice('cashier', false), false);
+  assert.equal(canEditTillPrice('cashier', true), true);
   assert.equal(isPermanentSaleError({ message: 'invalid_client_sale_id' }), true);
   assert.equal(isPermanentSaleError({ code: '42804' }), true);
   assert.equal(isPermanentSaleError({ message: 'Failed to fetch' }), false);
@@ -102,10 +106,8 @@ test('Sentry events drop email and a chat call with no Origin is rejected', () =
   assert.equal(event.extra?.note, 'ok');
   assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: false }), false);
   assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: true }), false);
-  assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: true, nativeApp: true }), true);
-  assert.equal(isNativeChatClient('capacitor'), true);
-  assert.equal(isNativeChatClient('browser'), false);
-  assert.equal(chatCallAllowed({ origin: 'https://evil.example', originAllowed: false, authenticated: true, nativeApp: true }), false);
+  assert.equal(chatCallAllowed({ origin: null, originAllowed: true, authenticated: true }), false);
+  assert.equal(chatCallAllowed({ origin: 'https://evil.example', originAllowed: false, authenticated: true }), false);
   assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', custom_domain_verified: true }), true);
   assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', custom_domain_verified: false }), false);
   assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com' }), false);

@@ -121,9 +121,10 @@ Version `2026102504`, name `advisor_hardening_stage_a`.
 
 This file is safe to run before the new website. It does **not** include the chat-policy drop. That is the next file, later.
 
-Before you run it on the live database, you can rehearse it. Dump the schema only, then run `scripts/dry-run-04.sh` against that file. The script loads the dump into a throwaway local database, runs this file and `20261025_04b_chat_policies_stage_b.sql` inside one transaction, and rolls back. It refuses a Supabase URL.
+Before you run it on the live database, you can rehearse it. The rehearsal needs a local Supabase Postgres (`supabase start`), not an empty stock Postgres. Migration 04 expects that schema (`auth`, `public.green_api_pool`, and the rest of a schema-only dump). Dump the schema only, then run `scripts/dry-run-04.sh` against that file. The script loads the dump into a throwaway local database, runs this file and `20261025_04b_chat_policies_stage_b.sql` inside one transaction, and rolls back. It refuses a Supabase URL (`*.supabase.com` / `*.supabase.co`). Point it at the database from `supabase start`.
 
 ```bash
+supabase start
 supabase db dump --schema-only -f ~/storehouse-schema.sql
 scripts/dry-run-04.sh ~/storehouse-schema.sql
 ```
@@ -241,26 +242,43 @@ After the staff-sessions file, the **old** website cannot read staff PINs. Staff
 
 `record_sale` is what actually saves a sale and drops stock for a cashier. The new website does not update products from the browser. If you deploy the website **before** this file, sales can still be saved but server stock will not drop, and those sales will not drop stock later. Run this file first.
 
+`20261025_12` also adds `stores.allow_staff_price_change` (default false). That is the Store Settings switch **Allow staff to change the price at the till**. While it is off, a cashier must use the catalogue price or that product's discount. While it is on, a cashier may type another price that is not below `cost_price`. The owner and a manager may change the price either way. A staff session cannot turn the switch on. `20261025_09` adds `sales_staff_no_direct_insert`, so a staff session cannot insert into `sales` except through `record_sale`.
+
 Smoke test, after the website deploy in Step 12 as well:
 
 - `SELECT proname FROM pg_proc WHERE proname IN ('begin_staff_session', 'record_sale');` returns two rows.
 - You (the owner) can still open the dashboard.
 
-Rollback for these three, if you have not deployed the website yet:
+Rollback for these four, if you have not deployed the website yet. Drop the trigger first, then the policies that call `acting_staff_role()`, then the functions that call it, then `acting_staff_role()` itself. The other way round stops at the first error when `ON_ERROR_STOP` is on.
 
 ```sql
+DROP TRIGGER IF EXISTS stores_protect_custom_domain ON public.stores;
+DROP TRIGGER IF EXISTS stores_protect_staff_price_setting ON public.stores;
+DROP POLICY IF EXISTS sales_cashier_no_read ON public.sales;
+DROP POLICY IF EXISTS sales_cashier_no_write ON public.sales;
+DROP POLICY IF EXISTS sales_cashier_no_delete ON public.sales;
+DROP POLICY IF EXISTS sales_staff_no_direct_insert ON public.sales;
+DROP POLICY IF EXISTS customers_cashier_no_read ON public.customers;
+DROP POLICY IF EXISTS expenses_cashier_no_read ON public.expenses;
+DROP POLICY IF EXISTS invoices_cashier_no_read ON public.invoices;
+DROP POLICY IF EXISTS products_staff_no_edit ON public.products;
+DROP POLICY IF EXISTS products_staff_no_delete ON public.products;
+DROP POLICY IF EXISTS products_cashier_no_insert ON public.products;
 DROP FUNCTION IF EXISTS public.record_sale(text, text, integer, bigint, bigint, text, text, text, text, text, text, text, date, text, text, bigint, bigint);
 DROP FUNCTION IF EXISTS public.confirm_custom_domain_verified(uuid, text, text);
 DROP FUNCTION IF EXISTS public.set_store_custom_domain(text);
-DROP FUNCTION IF EXISTS public.protect_custom_domain_columns();
-DROP TRIGGER IF EXISTS stores_protect_custom_domain ON public.stores;
-DROP INDEX IF EXISTS public.stores_custom_domain_uniq;
+DROP FUNCTION IF EXISTS public.get_sales_summary(uuid, date, date);
+DROP FUNCTION IF EXISTS public.dashboard_bootstrap();
 DROP FUNCTION IF EXISTS public.begin_staff_session(text);
 DROP FUNCTION IF EXISTS public.end_staff_session(text);
 DROP FUNCTION IF EXISTS public.get_acting_staff();
+DROP FUNCTION IF EXISTS public.protect_staff_price_setting();
 DROP FUNCTION IF EXISTS public.acting_staff_role();
+DROP FUNCTION IF EXISTS public.protect_custom_domain_columns();
+DROP INDEX IF EXISTS public.stores_custom_domain_uniq;
 DROP TABLE IF EXISTS public.staff_pin_attempts;
 DROP TABLE IF EXISTS public.staff_active_sessions;
+GRANT UPDATE ON public.stores TO authenticated;
 ```
 
 Then re-run `supabase/migrations/20261025_05_scope_get_sales_summary.sql` and `supabase/migrations/20261025_08_dashboard_summary.sql` if you still want those function bodies.
@@ -346,7 +364,7 @@ Use that flag only when the value you wrote down was false. If it was true, depl
 
 Secrets from Step 10 (`AI_DAILY_COST_CAP_USD`, `AI_CHAT_CALL_USD`, `AI_CHAT_EXTRA_ORIGINS`) apply here. A custom domain is allowed only when `stores.custom_domain_verified` is true. That column exists. An empty `domain_verification_token` does not count. Store Settings calls `set_store_custom_domain`, which leaves the flag false until `verify-custom-domain` sees the TXT record.
 
-A browser call with no `Origin` header is rejected even when the caller is signed in. The Capacitor app is the exception: it sends the header `x-storehouse-client: capacitor`.
+A browser call with no `Origin` header is rejected even when the caller is signed in. There is no exception for a native app or for a client header. `capacitor://localhost` is allowed only when that Origin header is actually present.
 
 Smoke test: the storefront chat answers. A request with no Origin and no user token is rejected. Chat still answers the next day; if you set the daily cap very low on purpose, the widget shows the help-limit sentence and does not call OpenAI.
 

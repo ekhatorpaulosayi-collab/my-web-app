@@ -17,7 +17,7 @@ import {
   type StoreContext,
 } from './store-context.ts';
 import { cachedOpenAICall } from './cache-helper.ts';
-import { aiSpendGate, chatCallAllowed, customDomainIsVerified, isBuiltInChatOrigin, isNativeChatClient, originsForVerifiedDomain } from '../_shared/moneyPolicies.ts';
+import { aiSpendGate, chatCallAllowed, customDomainIsVerified, isBuiltInChatOrigin, originsForVerifiedDomain } from '../_shared/moneyPolicies.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -704,7 +704,7 @@ serve(async (req) => {
         'Access-Control-Allow-Origin': currentOrigin,
         'Vary': 'Origin',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-storehouse-client',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
   }
@@ -735,7 +735,6 @@ serve(async (req) => {
       origin: originHeader,
       originAllowed: Boolean(allowedOrigin),
       authenticated: Boolean(userId),
-      nativeApp: isNativeChatClient(req.headers.get('x-storehouse-client')),
     })) {
       currentOrigin = 'https://www.storehouse.ng';
       return jsonResponse({ error: 'origin_not_allowed' }, 403);

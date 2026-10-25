@@ -17,15 +17,60 @@
 -- sale_items table). A second call with the same client_sale_id returns the
 -- existing id and does not decrement stock again.
 --
--- Price must be the product's selling_price, or its discount_price when that
--- discount is positive and below the catalogue price. Stock is never taken
--- below zero: the sale is rejected with insufficient_stock. An unknown
--- product_id is rejected. A product owned by someone else is not_allowed.
+-- Price:
+--   * The owner (acting_staff_role() IS NULL) and a manager may record any
+--     unit price that is not negative.
+--   * A cashier must use selling_price, or discount_price when that discount
+--     is positive and below the catalogue price.
+--   * stores.allow_staff_price_change (default false) is the owner setting
+--     "Allow staff to change the price at the till". When it is true, a
+--     cashier may use another price that is not below cost_price
+--     (a missing cost_price counts as 0).
+-- Stock is never taken below zero: the sale is rejected with
+-- insufficient_stock. An unknown product_id is rejected. A product owned
+-- by someone else is not_allowed.
 --
 -- ROLLBACK:
+--   DROP TRIGGER IF EXISTS stores_protect_staff_price_setting ON public.stores;
+--   DROP FUNCTION IF EXISTS public.protect_staff_price_setting();
 --   DROP FUNCTION IF EXISTS public.record_sale(text, text, integer, bigint, bigint, text, text, text, text, text, text, text, date, text, text, bigint, bigint);
 -- =============================================================================
 BEGIN;
+
+-- Owner setting. Default off: cashiers stay on the catalogue price.
+-- Column UPDATE is granted because 14 takes away table-level UPDATE and
+-- only re-grants columns that already exist when it runs. Re-running 12
+-- after 14 still lets the owner save the toggle.
+ALTER TABLE public.stores
+  ADD COLUMN IF NOT EXISTS allow_staff_price_change boolean NOT NULL DEFAULT false;
+
+GRANT UPDATE (allow_staff_price_change) ON public.stores TO authenticated;
+
+-- A staff session uses the owner's JWT. Without this, a cashier could turn
+-- the setting on. The owner (acting_staff_role() IS NULL) can change it.
+CREATE OR REPLACE FUNCTION public.protect_staff_price_setting()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF public.acting_staff_role() IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE' THEN
+    NEW.allow_staff_price_change := OLD.allow_staff_price_change;
+  ELSE
+    NEW.allow_staff_price_change := false;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS stores_protect_staff_price_setting ON public.stores;
+CREATE TRIGGER stores_protect_staff_price_setting
+  BEFORE INSERT OR UPDATE ON public.stores
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_staff_price_setting();
 
 CREATE OR REPLACE FUNCTION public.record_sale(
   p_product_id text,
@@ -66,6 +111,8 @@ DECLARE
   v_qty integer;
   v_sell bigint;
   v_disc bigint;
+  v_cost bigint;
+  v_allow boolean;
   v_owner text;
   v_updated int;
 BEGIN
@@ -134,8 +181,9 @@ BEGIN
   SELECT COALESCE(p.quantity, 0),
          CASE WHEN p.selling_price IS NULL THEN NULL ELSE p.selling_price::bigint END,
          CASE WHEN p.discount_price IS NULL THEN NULL ELSE p.discount_price::bigint END,
+         CASE WHEN p.cost_price IS NULL THEN NULL ELSE p.cost_price::bigint END,
          p.user_id::text
-    INTO v_qty, v_sell, v_disc, v_owner
+    INTO v_qty, v_sell, v_disc, v_cost, v_owner
     FROM public.products p
    WHERE lower(p.id::text) = lower(btrim(p_product_id));
 
@@ -145,7 +193,22 @@ BEGIN
   IF v_owner IS DISTINCT FROM auth.uid()::text THEN
     RAISE EXCEPTION 'not_allowed' USING ERRCODE = '42501';
   END IF;
-  IF NOT (
+
+  SELECT COALESCE(s.allow_staff_price_change, false)
+    INTO v_allow
+    FROM public.stores s
+   WHERE s.user_id = auth.uid()::text
+   ORDER BY s.created_at DESC NULLS LAST
+   LIMIT 1;
+  v_allow := COALESCE(v_allow, false);
+
+  IF v_role IS NULL OR v_role = 'manager' THEN
+    NULL;
+  ELSIF v_allow THEN
+    IF p_unit_price < COALESCE(v_cost, 0) THEN
+      RAISE EXCEPTION 'price_below_cost: the price cannot be below the cost price' USING ERRCODE = '23514';
+    END IF;
+  ELSIF NOT (
     (v_sell IS NOT NULL AND p_unit_price = v_sell)
     OR (
       v_disc IS NOT NULL

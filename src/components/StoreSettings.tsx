@@ -109,6 +109,7 @@ export const StoreSettings: React.FC = () => {
   // About & Policies state
   const [aboutUs, setAboutUs] = useState('');
   const [returnPolicy, setReturnPolicy] = useState('');
+  const [allowStaffPriceChange, setAllowStaffPriceChange] = useState(false);
 
   // Slug normalization function
   const normalizeSlug = (s: string): string => {
@@ -215,6 +216,7 @@ export const StoreSettings: React.FC = () => {
     // Load about & policies
     setAboutUs(data.aboutUs || '');
     setReturnPolicy(data.returnPolicy || '');
+    setAllowStaffPriceChange(store.allow_staff_price_change === true);
   }, [store]);
 
   // Check slug availability (Supabase)
@@ -358,7 +360,10 @@ export const StoreSettings: React.FC = () => {
         twitter_url: twitterUrl.trim(),
         // About & Policies
         about_us: aboutUs.trim(),
-        return_policy: returnPolicy.trim()
+        return_policy: returnPolicy.trim(),
+        ...(Object.prototype.hasOwnProperty.call(store, 'allow_staff_price_change')
+          ? { allow_staff_price_change: allowStaffPriceChange }
+          : {}),
       };
 
       // Verify the auth session is alive *right before* the write. An expired
@@ -465,7 +470,10 @@ export const StoreSettings: React.FC = () => {
         provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
       }
 
-      alert(domainNote || 'Store settings saved successfully!');
+      const priceNote = allowStaffPriceChange && !Object.prototype.hasOwnProperty.call(store, 'allow_staff_price_change')
+        ? 'The rest of your settings were saved. Staff till prices stay on the catalogue price until the database update that adds that setting.'
+        : '';
+      alert(domainNote || priceNote || 'Store settings saved successfully!');
 
     } catch (error: any) {
       console.error('[StoreSettings] Save error:', error);
@@ -561,6 +569,21 @@ export const StoreSettings: React.FC = () => {
   return (
     <div className="store-settings">
       <h2>Store Settings</h2>
+
+      <div className="form-group" style={cleanCardStyle}>
+        <label style={{ fontSize: '1rem', fontWeight: 600, color: '#202223', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+          <input
+            type="checkbox"
+            checked={allowStaffPriceChange}
+            onChange={(e) => setAllowStaffPriceChange(e.target.checked)}
+            style={{ marginTop: '0.2rem' }}
+          />
+          <span>Allow staff to change the price at the till</span>
+        </label>
+        <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.75rem 0 0' }}>
+          Cashiers use the catalogue price. Turn this on and a cashier can type a different price, down to the product's cost price. You and a manager can change the price either way.
+        </p>
+      </div>
 
       {/* Store URL - Clean white card */}
       <div className="form-group" style={{

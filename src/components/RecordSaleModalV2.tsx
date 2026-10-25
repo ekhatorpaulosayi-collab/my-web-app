@@ -24,6 +24,10 @@ import {
 import { getProductVariants } from '../lib/supabase-variants';
 import { lagosTodayPlus } from '../utils/businessDate';
 import type { ProductVariant } from '../types/variants';
+import { useAuth } from '../contexts/AuthContext';
+import { useStaff } from '../contexts/StaffContext';
+import { canEditTillPrice } from '../utils/staffPermissions';
+import { useAllowStaffPriceChange } from '../hooks/useAllowStaffPriceChange';
 
 /**
  * Generate UUID with fallback for non-secure contexts
@@ -68,6 +72,11 @@ export default function RecordSaleModalV2({
   showSalesData = true,
   onShowToast
 }: RecordSaleModalV2Props) {
+  const { currentUser } = useAuth();
+  const { currentRole } = useStaff();
+  const allowStaffPriceChange = useAllowStaffPriceChange(currentUser?.uid, isOpen);
+  const editTillPrice = canEditTillPrice(currentRole, allowStaffPriceChange);
+
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
@@ -502,6 +511,15 @@ export default function RecordSaleModalV2({
 
     setCart(prev => prev.map(ci =>
       ci.id === cartItemId ? { ...ci, quantity: newQty } : ci
+    ));
+    setError('');
+  };
+
+  const handleUpdateCartPrice = (cartItemId: string, priceNaira: number) => {
+    if (!editTillPrice) return;
+    const price = Number.isFinite(priceNaira) && priceNaira >= 0 ? priceNaira : 0;
+    setCart(prev => prev.map(ci =>
+      ci.id === cartItemId ? { ...ci, price } : ci
     ));
     setError('');
   };
@@ -1148,6 +1166,7 @@ export default function RecordSaleModalV2({
               items={cart}
               onChangeQty={handleUpdateCartQty}
               onRemove={handleRemoveFromCart}
+              onChangePrice={editTillPrice ? handleUpdateCartPrice : undefined}
               onClose={() => setCartDrawerOpen(false)}
             />
           </div>

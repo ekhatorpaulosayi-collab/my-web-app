@@ -33,25 +33,21 @@ export function aiSpendGate(input: { rpcMissing: boolean; reserved: boolean }): 
 }
 
 /**
- * A call with no Origin is rejected, including a signed-in browser.
- * The only exception is the Capacitor app, which sends
- * `x-storehouse-client: capacitor` and often has no Origin header.
- * A present Origin is allowed only when it is on the allowlist.
- * `authenticated` does not unlock a missing Origin.
+ * A call with no Origin is rejected, including a signed-in browser and a
+ * native client. A header that claims to be the Capacitor app is not an
+ * exception: anyone can send it. A present Origin is allowed only when it
+ * is on the allowlist. `capacitor://localhost` is a built-in origin when
+ * the Origin header is actually present. `authenticated` does not unlock
+ * a missing Origin.
  */
 export function chatCallAllowed(input: {
   origin: string | null;
   originAllowed: boolean;
   authenticated: boolean;
-  nativeApp?: boolean;
 }): boolean {
-  if (!input.origin) return input.nativeApp === true;
+  void input.authenticated;
+  if (!input.origin) return false;
   return input.originAllowed;
-}
-
-/** Header value the native app sends when it has no browser Origin. */
-export function isNativeChatClient(header: string | null | undefined): boolean {
-  return String(header || '').trim().toLowerCase() === 'capacitor';
 }
 
 /**
