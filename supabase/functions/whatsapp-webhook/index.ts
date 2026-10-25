@@ -6,11 +6,14 @@
 // value refuses the request. The forwarded host is not a source for that URL.
 // A provider message id is claimed with INSERT ... ON CONFLICT DO NOTHING
 // and status pending before any reply work. It becomes sent after the reply
-// is sent. A failed send deletes the pending row. Pending rows older than
-// 2 minutes can be claimed again. Sent rows older than 7 days are removed
-// about every 50 requests, or once an hour. A message with no id is
-// deduplicated by a hash that includes a 2-minute time bucket. A failed
-// send does not count against the chat quota.
+// is sent. A duplicate that arrives while the row is still pending gets 503
+// so the provider retries. 200 replay is only for a row already sent.
+// A failed send deletes the pending row. The claim is refreshed while the
+// AI step runs. A pending row with no heartbeat for 2 minutes can be claimed
+// again. Sent rows older than 7 days are removed about every 50 requests, or
+// once an hour. A message with no id is deduplicated by a hash that includes
+// a 2-minute time bucket, and a retry also checks the previous bucket.
+// Chat quota is one conditional UPDATE. A failed send gives that unit back.
 // This branch does not deploy the function. The live copy is turned off
 // only by the delete command in DEPLOY_ORDER.md.
 //
@@ -20,14 +23,16 @@
 // whatsapp_seen_messages exists.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { messageFallbackId } from '../_shared/messageFallbackId.ts';
+import { HASH_BUCKET_MS, messageFallbackId } from '../_shared/messageFallbackId.ts';
 import {
   CLEANUP_EVERY,
   CLEANUP_INTERVAL_MS,
+  HEARTBEAT_MS,
   MemorySeenStore,
   PENDING_TTL_MS,
   SENT_TTL_MS,
-  claimDelivery,
+  claimWithPrevious,
+  startClaimHeartbeat,
   type SeenStore,
 } from '../_shared/seenClaim.ts';
 import { twilioPublicUrl } from '../_shared/twilioPublicUrl.ts';
@@ -120,6 +125,16 @@ function cleanProviderMessageId(value: unknown) {
   return id;
 }
 
+async function deliveryIds(channel: string, shopDigits: string, customerPhone: string, customerMessage: string, providerMessageId: string) {
+  if (providerMessageId) return { id: providerMessageId, previousId: '' };
+  const now = Date.now();
+  const parts = [channel, shopDigits, customerPhone, customerMessage];
+  return {
+    id: await messageFallbackId(parts, now),
+    previousId: await messageFallbackId(parts, now - HASH_BUCKET_MS),
+  };
+}
+
 function missingSeenStore(error: { code?: string } | null) {
   return error?.code === '42P01' || error?.code === 'PGRST205';
 }
@@ -146,6 +161,25 @@ function seenStore(supabase: any): SeenStore {
         .select('provider_message_id');
       if (error) throw error;
       return Array.isArray(data) && data.length > 0;
+    },
+    async statusOf(id) {
+      const { data, error } = await supabase
+        .from('whatsapp_seen_messages')
+        .select('status')
+        .eq('provider_message_id', id)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.status === 'sent') return 'sent';
+      if (data?.status === 'pending') return 'pending';
+      return null;
+    },
+    async touchPending(id, at) {
+      const { error } = await supabase
+        .from('whatsapp_seen_messages')
+        .update({ seen_at: new Date(at).toISOString() })
+        .eq('provider_message_id', id)
+        .eq('status', 'pending');
+      if (error) throw error;
     },
     async markSent(id) {
       const { error } = await supabase
@@ -183,16 +217,27 @@ async function maybeCleanup(supabase: any) {
   if (pending.error && !missingSeenStore(pending.error)) console.error('Seen-message cleanup error', pending.error.code || 'error');
 }
 
-async function claimIncoming(supabase: any, id: string) {
+async function claimIncoming(supabase: any, id: string, previousId = '') {
   await maybeCleanup(supabase);
   try {
-    return await claimDelivery(seenStore(supabase), id);
+    return await claimWithPrevious(seenStore(supabase), id, previousId);
   } catch (error) {
     const code = (error as { code?: string } | null)?.code;
-    if (missingSeenStore({ code })) return claimDelivery(memorySeen, id);
+    if (missingSeenStore({ code })) return claimWithPrevious(memorySeen, id, previousId);
     console.error('Seen-message store error', code || 'error');
     throw error;
   }
+}
+
+async function touchClaim(supabase: any, id: string) {
+  const at = Date.now();
+  try {
+    await seenStore(supabase).touchPending(id, at);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (!missingSeenStore({ code })) console.error('Seen-message store error', code || 'error');
+  }
+  await memorySeen.touchPending(id, at);
 }
 
 async function markSent(supabase: any, id: string) {
@@ -221,15 +266,9 @@ async function releaseClaim(supabase: any, id: string) {
   await memorySeen.releasePending(id);
 }
 
-async function chatQuotaOpen(supabase: any, userId: string) {
-  const { data, error } = await supabase
-    .from('subscription_tiers')
-    .select('monthly_chat_limit, chats_used_this_month')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error) return false;
-  if (!data) return true;
-  return Number(data.chats_used_this_month) < Number(data.monthly_chat_limit);
+async function releaseChatUnit(supabase: any, userId: string) {
+  const { error } = await supabase.rpc('release_chat_usage', { p_user_id: userId });
+  if (error) console.error('Chat quota release error', error.code || 'error');
 }
 
 function readDialogMessage(body: any) {
@@ -259,11 +298,12 @@ async function findShop(supabase: any, shopDigits: string) {
   return settingsResult;
 }
 
-async function handleTextMessage(supabase: any, customerPhone: string, customerMessage: string, shopDigits: string, providerMessageId: string) {
-  if ((await claimIncoming(supabase, providerMessageId)) !== 'claimed') {
-    return json({ status: 'ignored', reason: 'replay' }, 200);
-  }
+async function handleTextMessage(supabase: any, customerPhone: string, customerMessage: string, shopDigits: string, providerMessageId: string, previousId = '') {
+  const claim = await claimIncoming(supabase, providerMessageId, previousId);
+  if (claim === 'replay') return json({ status: 'ignored', reason: 'replay' }, 200);
+  if (claim === 'pending') return json({ status: 'in_progress' }, 503);
 
+  let reserved = false;
   try {
     if (!customerPhone || !allowSender(customerPhone)) {
       await releaseClaim(supabase, providerMessageId);
@@ -281,7 +321,9 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
     }
 
     const userId = settings.user_id;
-    if (!(await chatQuotaOpen(supabase, userId))) {
+    const reservedResult = await supabase.rpc('increment_chat_usage', { p_user_id: userId });
+    reserved = !reservedResult.error && Boolean(reservedResult.data);
+    if (!reserved) {
       const sent = await sendWhatsAppMessage(
         shopDigits,
         customerPhone,
@@ -310,22 +352,30 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
 
     console.log('Found products:', products.length);
 
-    const startTime = Date.now();
-    const aiResponse = await generateAIResponse(
-      customerMessage,
-      products || [],
-      settings.greeting_message,
-      settings.out_of_stock_message
-    );
-    const responseTime = Date.now() - startTime;
-
-    const sent = await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
+    const stopHeartbeat = startClaimHeartbeat(() => touchClaim(supabase, providerMessageId), HEARTBEAT_MS);
+    let aiResponse = '';
+    let responseTime = 0;
+    let sent = false;
+    try {
+      const startTime = Date.now();
+      aiResponse = await generateAIResponse(
+        customerMessage,
+        products || [],
+        settings.greeting_message,
+        settings.out_of_stock_message
+      );
+      responseTime = Date.now() - startTime;
+      sent = await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
+    } finally {
+      stopHeartbeat();
+    }
     if (!sent) {
+      await releaseChatUnit(supabase, userId);
+      reserved = false;
       await releaseClaim(supabase, providerMessageId);
       return json({ status: 'error' }, 500);
     }
     await markSent(supabase, providerMessageId);
-    await supabase.rpc('increment_chat_usage', { p_user_id: userId });
 
     await supabase.from('whatsapp_chats').insert({
       user_id: userId,
@@ -338,6 +388,7 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
 
     return json({ status: 'success', response_time_ms: responseTime }, 200);
   } catch (error) {
+    if (reserved) await releaseChatUnit(supabase, userId);
     try {
       await releaseClaim(supabase, providerMessageId);
     } catch {
@@ -371,9 +422,9 @@ serve(async (req) => {
       }
       const customerMessage = params.get('Body') || '';
       if (!customerMessage) return json({ status: 'ignored', reason: 'no_text' }, 200);
-      const providerMessageId = cleanProviderMessageId(params.get('MessageSid'))
-        || await messageFallbackId(['twilio', shopDigits, digitsOnly(params.get('From')), customerMessage]);
-      return handleTextMessage(supabase, digitsOnly(params.get('From')), customerMessage, shopDigits, providerMessageId);
+      const from = digitsOnly(params.get('From'));
+      const ids = await deliveryIds('twilio', shopDigits, from, customerMessage, cleanProviderMessageId(params.get('MessageSid')));
+      return handleTextMessage(supabase, from, customerMessage, shopDigits, ids.id, ids.previousId);
     }
 
     if (!(await dialogSignatureMatches(raw, req.headers.get('x-360dialog-signature')))) {
@@ -390,9 +441,8 @@ serve(async (req) => {
     const inbound = readDialogMessage(body);
     if (!inbound) return json({ status: 'ignored', reason: 'unknown_format' }, 200);
     if (!inbound.customerMessage) return json({ status: 'ignored', reason: 'no_text' }, 200);
-    const providerMessageId = inbound.providerMessageId
-      || await messageFallbackId(['360dialog', inbound.shopDigits, inbound.customerPhone, inbound.customerMessage]);
-    return handleTextMessage(supabase, inbound.customerPhone, inbound.customerMessage, inbound.shopDigits, providerMessageId);
+    const ids = await deliveryIds('360dialog', inbound.shopDigits, inbound.customerPhone, inbound.customerMessage, inbound.providerMessageId);
+    return handleTextMessage(supabase, inbound.customerPhone, inbound.customerMessage, inbound.shopDigits, ids.id, ids.previousId);
   } catch (error) {
     console.error('Webhook error', error instanceof Error ? error.name : 'Error');
     return json({ status: 'error' }, 500);
