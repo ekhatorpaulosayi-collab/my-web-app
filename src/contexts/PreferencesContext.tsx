@@ -175,14 +175,12 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        const id = data.user?.id;
-        if (!id || cancelled) return;
+    let loadedFor: string | null = null;
 
+    async function readAccountShopType(userId: string) {
+      try {
         if (!localStorage.getItem(STORAGE_KEYS.businessType)) {
-          const { data: row, error } = await supabase.from('users').select('store_type').eq('id', id).maybeSingle();
+          const { data: row, error } = await supabase.from('users').select('store_type').eq('id', userId).maybeSingle();
           if (!cancelled && !error && row?.store_type && BUSINESS_PRESETS[row.store_type as BusinessType]) {
             const type = row.store_type as BusinessType;
             setBusinessTypeState(type);
@@ -197,26 +195,54 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         const { data: row, error } = await supabase
           .from('users')
           .select('business_type_prompt_dismissed')
-          .eq('id', id)
+          .eq('id', userId)
           .maybeSingle();
         if (cancelled) return;
         if (error) {
           console.warn('[preferences] shop-type dismissal was not read', error.message);
           return;
         }
+        // A missing row can be the read running before the session is attached.
+        // Leave it unmarked so the next sign-in event reads it again.
+        if (!row) return;
+        loadedFor = userId;
         if (row?.business_type_prompt_dismissed) {
           setBusinessTypePromptDismissed(true);
           localStorage.setItem(BUSINESS_TYPE_PROMPT_KEY, 'true');
           return;
         }
+        setBusinessTypePromptDismissed(localStorage.getItem(BUSINESS_TYPE_PROMPT_KEY) === 'true');
         if (localStorage.getItem(BUSINESS_TYPE_PROMPT_KEY) === 'true') {
           void persistBusinessTypePromptDismissed();
         }
+      } catch (err) {
+        console.warn('[preferences] shop-type settings were not read', err);
       } finally {
         if (!cancelled) setShopTypeReady(true);
       }
-    })();
-    return () => { cancelled = true; };
+    }
+
+    // The first getUser() can finish before sign-in. Read again when the
+    // session is actually available, including a new device.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') return;
+      const userId = session?.user?.id ?? null;
+      if (!userId) {
+        loadedFor = null;
+        setShopTypeReady(true);
+        return;
+      }
+      if (loadedFor === userId) return;
+      setShopTypeReady(false);
+      setTimeout(() => {
+        if (!cancelled) void readAccountShopType(userId);
+      }, 0);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const dismissBusinessTypePrompt = () => {

@@ -17,6 +17,7 @@ import { validateStoreSlug } from '../utils/storeSlug';
 import { storeHealthFlags } from '../utils/storeHealth';
 import { mergeBankDetails, readStoreBankDetails, writeStoreBankDetails } from '../lib/storeBankDetails.js';
 import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
+import { emptyNumberAsNull } from '../utils/emptyNumber.js';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -341,7 +342,7 @@ export const StoreSettings: React.FC = () => {
         delivery_areas: deliveryAreas,
         delivery_fee: deliveryFee.trim(),
         delivery_time: deliveryTime.trim(),
-        minimum_order: minimumOrder.trim(),
+        minimum_order: emptyNumberAsNull(minimumOrder),
         // Business hours
         business_hours: businessHours.trim(),
         days_of_operation: daysOfOperation,

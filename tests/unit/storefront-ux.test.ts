@@ -15,6 +15,7 @@ import { RESERVED_SUBDOMAINS } from '../../src/utils/reservedSubdomains.ts';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
 import { currencyNGN } from '../../src/utils/format.ts';
 import { deliveryFeeKobo, orderTotalKobo } from '../../src/utils/deliveryFee.ts';
+import { emptyNumberAsNull } from '../../src/utils/emptyNumber.js';
 import { existsSync } from 'node:fs';
 
 test('store text is escaped before it is placed in a link preview', () => {
@@ -254,6 +255,23 @@ test('the live editor owns slug checks and chat errors stay out of the message l
     assert.equal(existsSync(new URL(`../../public/${page}`, import.meta.url)), false);
   }
   assert.equal(existsSync(new URL('../../public/offline.html', import.meta.url)), true);
+});
+
+test('a blank free-delivery minimum is saved as null', () => {
+  assert.equal(emptyNumberAsNull(''), null);
+  assert.equal(emptyNumberAsNull('   '), null);
+  assert.equal(emptyNumberAsNull('₦'), null);
+  assert.equal(emptyNumberAsNull('₦50,000'), 50000);
+  assert.equal(emptyNumberAsNull(50000), 50000);
+  assert.equal(emptyNumberAsNull('Free over ₦10,000'), 'Free over ₦10,000');
+  const online = readFileSync(new URL('../../src/components/OnlineStoreSetup.tsx', import.meta.url), 'utf8');
+  const settings = readFileSync(new URL('../../src/components/StoreSettings.tsx', import.meta.url), 'utf8');
+  assert.match(online, /minimum_order = emptyNumberAsNull\(minimumOrder\)/);
+  assert.match(settings, /minimum_order: emptyNumberAsNull\(minimumOrder\)/);
+  const prefs = readFileSync(new URL('../../src/contexts/PreferencesContext.tsx', import.meta.url), 'utf8');
+  assert.match(prefs, /onAuthStateChange/);
+  assert.match(prefs, /SIGNED_IN/);
+  assert.match(prefs, /business_type_prompt_dismissed/);
 });
 
 test('a naira delivery fee is included in the WhatsApp order total', () => {

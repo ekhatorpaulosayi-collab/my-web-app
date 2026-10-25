@@ -12,6 +12,7 @@ import { normalizeSlug, validateStoreSlug } from '../utils/storeSlug';
 import { storeHealthFlags } from '../utils/storeHealth';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
+import { emptyNumberAsNull } from '../utils/emptyNumber.js';
 import { PromoCodesManager } from './PromoCodesManager';
 import { TabNav, STORE_TABS, type TabId } from './OnlineStore/TabNav';
 
@@ -369,7 +370,7 @@ export default function OnlineStoreSetup() {
         case 'delivery':
           updateData.delivery_areas = deliveryAreas;
           updateData.delivery_fee = deliveryFee;
-          updateData.minimum_order = minimumOrder;
+          updateData.minimum_order = emptyNumberAsNull(minimumOrder);
           break;
         case 'hours':
           updateData.business_hours = businessHours;
