@@ -1349,7 +1349,7 @@ export default function BusinessSettings({
               </button>
               <p style={{
                 fontSize: '12px',
-                color: '#9ca3af',
+                color: '#475569',
                 textAlign: 'center',
                 marginTop: '8px',
                 marginBottom: '0'

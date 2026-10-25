@@ -931,7 +931,7 @@ export const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ onSubmit, onCa
                 padding: '14px',
                 minHeight: '52px',
                 background: isLoading
-                  ? 'linear-gradient(135deg, #9ca3af, #6b7280)'
+                  ? 'linear-gradient(135deg, #475569, #6b7280)'
                   : 'linear-gradient(135deg, #10b981, #059669)',
                 border: 'none',
                 borderRadius: '12px',

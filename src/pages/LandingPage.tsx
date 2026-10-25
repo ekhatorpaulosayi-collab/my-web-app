@@ -215,6 +215,7 @@ export default function LandingPage() {
 
           <button
             className="mobile-menu-btn"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -263,6 +264,7 @@ export default function LandingPage() {
           <div className="hero-image fade-up">
             <img
               src="/hero-professional-woman.jpg"
+              fetchPriority="high"
               alt="Professional woman using Storehouse app on mobile phone"
               className="hero-real-image"
               loading="eager"
@@ -1157,7 +1159,7 @@ export default function LandingPage() {
             onClick={() => navigate('/affiliate/signup')}
             style={{
               background: 'white',
-              color: '#667eea',
+              color: '#1d4ed8',
               border: 'none',
               borderRadius: '12px',
               padding: '18px 48px',
@@ -1294,7 +1296,7 @@ export default function LandingPage() {
               <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Blog</a>
               <a onClick={() => scrollToSection('testimonials')} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Reviews</a>
               <a onClick={() => navigate('/submit-testimonial')} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Share Your Story</a>
-              <a onClick={() => navigate('/affiliate/signup')} style={{ pointerEvents: 'auto', cursor: 'pointer', fontWeight: 600, color: '#667eea' }}>
+              <a onClick={() => navigate('/affiliate/signup')} style={{ pointerEvents: 'auto', cursor: 'pointer', fontWeight: 600, color: '#e2e8f0' }}>
                 💰 Become an Affiliate
               </a>
             </div>
@@ -1325,8 +1327,8 @@ export default function LandingPage() {
 
             <div className="footer-col">
               <h4>Legal</h4>
-              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Privacy Policy</a>
-              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Terms of Service</a>
+              <a href="/privacy" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Privacy Policy</a>
+              <a href="/terms" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Terms of Service</a>
               <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Refund Policy</a>
             </div>
           </div>

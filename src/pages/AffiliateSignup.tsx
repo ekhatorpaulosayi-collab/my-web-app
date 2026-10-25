@@ -616,7 +616,7 @@ export default function AffiliateSignup() {
                       {formErrors.accountName}
                     </p>
                   )}
-                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#9ca3af' }}>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569' }}>
                     Must match exactly as registered with your bank
                   </p>
                 </div>
@@ -651,7 +651,7 @@ export default function AffiliateSignup() {
               style={{
                 width: '100%',
                 padding: '16px',
-                background: submitting ? '#9ca3af' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: submitting ? '#475569' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',

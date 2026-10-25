@@ -532,10 +532,18 @@ function StorefrontContent() {
           <ShoppingBag size={64} strokeWidth={1} />
           <h2>{error || 'Store not found'}</h2>
           <p>This store may be private or the link may be incorrect.</p>
-          <button onClick={() => navigate('/')} className="btn-back">
-            <ArrowLeft size={20} />
-            Go Back
-          </button>
+          <div className="storefront-error-actions">
+            <button type="button" onClick={() => navigate(-1)} className="btn-back">
+              <ArrowLeft size={20} />
+              Go back
+            </button>
+            <button type="button" onClick={() => navigate('/')} className="btn-back">
+              Browse Storehouse
+            </button>
+            <a className="btn-back btn-back-secondary" href="mailto:storehouseapp@outlook.com">
+              Contact seller
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -826,7 +834,7 @@ function StorefrontContent() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: '#9ca3af'
+                            color: '#475569'
                           }}
                         >
                           No image
@@ -846,7 +854,7 @@ function StorefrontContent() {
                       gap: '8px',
                       marginBottom: '12px'
                     }}>
-                      <Camera size={56} color="#9ca3af" strokeWidth={1.5} />
+                      <Camera size={56} color="#475569" strokeWidth={1.5} />
                       <span style={{
                         fontSize: '13px',
                         color: '#94a3b8',
@@ -2371,7 +2379,7 @@ function StorefrontContent() {
                     width: '100%',
                     padding: '16px 24px',
                     backgroundColor: (selectedProductVariants.length > 0 && !selectedVariant)
-                      ? '#9ca3af'
+                      ? '#475569'
                       : store?.primaryColor || '#3b82f6',
                     color: 'white',
                     border: 'none',

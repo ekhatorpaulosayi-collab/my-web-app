@@ -287,7 +287,7 @@ export default function TestVariants() {
           disabled={variants.length === 0 || saving}
           style={{
             padding: '12px 24px',
-            background: variants.length > 0 && !saving ? '#3b82f6' : '#9ca3af',
+            background: variants.length > 0 && !saving ? '#3b82f6' : '#475569',
             color: 'white',
             border: 'none',
             borderRadius: '8px',

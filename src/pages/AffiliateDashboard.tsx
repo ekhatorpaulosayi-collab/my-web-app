@@ -513,7 +513,7 @@ export default function AffiliateDashboard() {
               <div style={{
                 textAlign: 'center',
                 padding: '40px 20px',
-                color: '#9ca3af'
+                color: '#475569'
               }}>
                 <Users size={48} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
                 <p style={{ margin: 0, fontSize: '14px' }}>

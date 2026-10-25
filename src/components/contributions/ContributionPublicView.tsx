@@ -611,7 +611,7 @@ export const ContributionPublicView: React.FC = () => {
           <p style={{
             marginTop: '16px',
             fontSize: '11px',
-            color: '#9ca3af'
+            color: '#475569'
           }}>
             Powered by Storehouse
           </p>

@@ -18,7 +18,7 @@ export interface CommonIssue {
 
 export interface Documentation {
   id: string;
-  category: 'getting-started' | 'products' | 'sales' | 'staff' | 'reports' | 'settings' | 'troubleshooting' | 'advanced';
+  category: 'getting-started' | 'products' | 'sales' | 'staff' | 'reports' | 'settings' | 'troubleshooting' | 'advanced' | 'marketing' | 'invoices' | 'customers' | 'credit-sales' | 'payments' | 'general';
   title: string;
   subtitle: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';

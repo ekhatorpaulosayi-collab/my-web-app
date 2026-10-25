@@ -807,7 +807,7 @@ export default function ConversationsSimplifiedFixed() {
         {/* Search Bar */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
           <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' }} size={20} />
+            <Search style={{ position: 'absolute', left: '12px', top: '10px', color: '#475569' }} size={20} />
             <input
               type="text"
               placeholder="Search conversations..."
@@ -870,7 +870,7 @@ export default function ConversationsSimplifiedFixed() {
                                    status === 'missed' ? '#FEF3C7' : '#F3F4F6',
                     color: status === 'waiting' ? '#DC2626' :
                           status === 'active' ? '#16A34A' :
-                          status === 'missed' ? '#92400E' : '#9CA3AF',
+                          status === 'missed' ? '#92400E' : '#475569',
                     flexShrink: 0,
                     fontSize: '16px',
                     fontWeight: '600'

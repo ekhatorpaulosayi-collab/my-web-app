@@ -87,6 +87,8 @@ import ShareStoreCard from './components/ShareStoreCard.jsx';
 import QuotaAlert from './components/dashboard/QuotaAlert.tsx';
 import { useAuth } from './contexts/AuthContext';
 import { useUser, useStore } from './lib/supabase-hooks';
+import { categoryForBusiness } from './utils/businessCategory';
+import { fetchDashboardBootstrap } from './services/dashboardBootstrap';
 import {
   getProducts,
   subscribeToProducts,
@@ -320,7 +322,7 @@ function App() {
   // Add Item form state
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Fashion', // Default category
+    category: categoryForBusiness(businessType),
     description: '', // Product description (optional)
     barcode: '', // Barcode/SKU (optional)
     qty: '',
@@ -896,6 +898,19 @@ function App() {
 
   const monthlyTax = useMemo(() => getMonthlyTax(), [sales, expensesUpdateCounter, settings?.taxRatePct]);
 
+  useEffect(() => {
+    const open = showRecordSale || showModal || showSettings || showSalesHistory || showCreditsDrawer || showDashboardCustomize || showCSVImport || showMoneyPage || showExpensesPage || showTestPayment;
+    if (open) document.body.setAttribute('data-modal-open', 'true');
+    else document.body.removeAttribute('data-modal-open');
+    return () => document.body.removeAttribute('data-modal-open');
+  }, [showRecordSale, showModal, showSettings, showSalesHistory, showCreditsDrawer, showDashboardCustomize, showCSVImport, showMoneyPage, showExpensesPage, showTestPayment]);
+
+  useEffect(() => {
+    const openMoney = () => setShowMoneyPage(true);
+    window.addEventListener('storehouse:open-money', openMoney);
+    return () => window.removeEventListener('storehouse:open-money', openMoney);
+  }, []);
+
   // Trial logic removed - Using Free/Paid subscription model
   useEffect(() => {
     // All users now use the subscription system (Free plan by default, paid plans via Paystack)
@@ -954,13 +969,27 @@ function App() {
         console.error('[App] IndexedDB initialization error (non-critical):', dbError);
       }
 
+      // One RPC when migration 08 is installed. Otherwise the two reads below.
+      let boot = null;
+      try {
+        boot = await fetchDashboardBootstrap();
+      } catch (bootError) {
+        console.warn('[App] dashboard_bootstrap unavailable', bootError);
+        boot = null;
+      }
+
       // Load products from Supabase FIRST (most critical for UI)
       try {
-        console.log('[App] Loading products from Supabase...');
-        console.log('[App] Current User UID:', currentUser.uid);
-        const products = await getProducts(currentUser.uid);
-        console.log('[App] Loaded', products.length, 'products from Supabase');
-        setItems(products);
+        if (boot) {
+          console.log('[App] Loaded', boot.products.length, 'products from dashboard_bootstrap');
+          setItems(boot.products);
+        } else {
+          console.log('[App] Loading products from Supabase...');
+          console.log('[App] Current User UID:', currentUser.uid);
+          const products = await getProducts(currentUser.uid);
+          console.log('[App] Loaded', products.length, 'products from Supabase');
+          setItems(products);
+        }
       } catch (productError) {
         console.error('[App] Error loading products:', productError);
         setItems([]); // Set empty array so UI doesn't break
@@ -994,7 +1023,10 @@ function App() {
 
         // ALWAYS use the authenticated user's ID for consistency
         // This ensures sales are loaded with the same ID they were saved with
-        if (currentUser && currentUser.uid) {
+        if (boot?.salesRaw) {
+          supabaseSales = boot.salesRaw;
+          console.log(`[App] Loaded ${supabaseSales.length} sales from dashboard_bootstrap`);
+        } else if (currentUser && currentUser.uid) {
           try {
             console.log('[App] Loading sales using UID (same as saving):', currentUser.uid);
             // Use the SAME UID that we use when saving sales
@@ -1743,7 +1775,7 @@ function App() {
       console.log('[App] open-record-sale event received:', e.detail);
       const itemId = e.detail?.itemId;
       if (!itemId) {
-        console.log('[App] No itemId in event');
+        setShowRecordSale(true);
         return;
       }
 
@@ -2396,7 +2428,7 @@ Thank you for your business! 🙏
       setShowModal(false);
       setFormData({
         name: '',
-        category: 'Fashion',
+        category: categoryForBusiness(businessType),
         description: '',
         qty: '',
         purchasePrice: '',
@@ -4341,7 +4373,7 @@ Low Stock: ${lowStockItems.length}
       </header>
 
       {/* First-Run Setup Banner */}
-      {!isProfileComplete && !welcomeBannerDismissed && (
+      {false && !isProfileComplete && !welcomeBannerDismissed && (
         <div style={{
           position: 'relative',
           margin: '8px 0',
@@ -4473,11 +4505,13 @@ Low Stock: ${lowStockItems.length}
         }}
         onExportData={handleExportCSV}
         userId={currentUser?.uid}
+        profileComplete={isProfileComplete}
+        onSetupProfile={() => setShowSettings(true)}
         hasOpenModal={showRecordSale || showModal || showSettings || showSalesHistory || showCreditsDrawer || showDashboardCustomize || showCSVImport}
       />
 
       {/* Center column for search, table */}
-      <section className="mainColumn">
+      <section className="mainColumn" id="inventory">
 
         {/* Search Bar */}
         <div className="searchBar" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -4662,7 +4696,7 @@ Low Stock: ${lowStockItems.length}
                                 </span>
                               )}
                               {variantPrice === sellNaira && (
-                                <span style={{ color: '#9ca3af' }}>—</span>
+                                <span style={{ color: '#475569' }}>—</span>
                               )}
                             </td>
                           </tr>
@@ -4684,7 +4718,7 @@ Low Stock: ${lowStockItems.length}
           setShowModal(false);
           setFormData({
             name: '',
-            category: 'Fashion',
+            category: categoryForBusiness(businessType),
             description: '',
             barcode: '',
             qty: '',
@@ -4708,7 +4742,7 @@ Low Stock: ${lowStockItems.length}
                 setShowModal(false);
                 setFormData({
                   name: '',
-                  category: 'Fashion',
+                  category: categoryForBusiness(businessType),
                   description: '',
                   barcode: '',
                   qty: '',
@@ -4807,6 +4841,7 @@ Low Stock: ${lowStockItems.length}
                 }}
                 className="form-input"
               >
+                <option value="General">General</option>
                 <option value="Fashion">Fashion</option>
                 <option value="Electronics">Electronics</option>
                 <option value="Food & Beverages">Food & Beverages</option>
@@ -5094,6 +5129,7 @@ Low Stock: ${lowStockItems.length}
 
                         {field.type === 'select' ? (
                           <select
+                            aria-label={field.label}
                             value={formData.attributes[field.key] || ''}
                             onChange={(e) => setFormData({
                               ...formData,
@@ -6028,7 +6064,7 @@ Low Stock: ${lowStockItems.length}
 
             <p style={{
               fontSize: '0.75rem',
-              color: '#9ca3af',
+              color: '#475569',
               marginTop: '1.25rem',
               textAlign: 'center',
               lineHeight: '1.5'

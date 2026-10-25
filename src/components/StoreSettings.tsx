@@ -2165,7 +2165,7 @@ export const StoreSettings: React.FC = () => {
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: '8px',
-                color: '#9CA3AF',
+                color: '#475569',
               }}>
                 <Camera size={40} />
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>No Logo</span>

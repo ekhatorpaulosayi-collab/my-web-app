@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useStaff } from '../contexts/StaffContext';
+import { AppShell } from './layout/AppShell';
 
 /**
  * Protected Route Component
@@ -70,7 +71,7 @@ export default function ProtectedRoute({ children, ownerOnly = false, devOnly = 
     return <Navigate to="/dashboard" replace />;
   }
 
-  // User is authenticated, render children
+  // User is authenticated, render children inside the app shell (side nav / bottom tabs).
   console.warn('🔐 [ProtectedRoute] User authenticated, rendering protected content');
-  return children;
+  return <AppShell>{children}</AppShell>;
 }

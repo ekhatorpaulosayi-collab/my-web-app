@@ -83,8 +83,15 @@ export default function Login() {
       // User-friendly error messages
       // M5: Supabase errors have no Firebase-style codes; authService already maps
       // them to friendly text (err.message), so only the legacy codes are handled here.
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Incorrect password. Forgot your password?');
+      const code = String(err.code || '').toLowerCase();
+      const message = String(err.message || '');
+      if (
+        code === 'auth/wrong-password' ||
+        code === 'auth/invalid-credential' ||
+        code === 'invalid_credentials' ||
+        /invalid login credentials|email or password is incorrect|wrong password/i.test(message)
+      ) {
+        setError('Email or password is incorrect');
       } else if (err.code === 'auth/user-not-found') {
         setError('No account found with this email. Want to sign up?');
       } else if (err.code === 'auth/invalid-email') {
@@ -92,7 +99,7 @@ export default function Login() {
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed attempts. Try again later or reset your password.');
       } else {
-        setError(err.message || 'Failed to log in. Please try again.');
+        setError(message || 'Failed to log in. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -205,6 +212,11 @@ export default function Login() {
           </button>
         </form>
 
+        <p style={{ fontSize: 14, color: '#475569', textAlign: 'center' }}>
+          <Link to="/terms">Terms</Link>
+          {' · '}
+          <Link to="/privacy">Privacy</Link>
+        </p>
         <div className="auth-footer">
           <p>
             Don't have an account?{' '}

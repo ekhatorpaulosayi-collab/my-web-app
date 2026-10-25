@@ -2,13 +2,18 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './utils/reservedSubdomains';
-import App from './App.jsx';
-import Login from './pages/Login.jsx';
-import Signup from './pages/Signup.jsx';
-import ForgotPassword from './pages/ForgotPassword.jsx';
 import AuthConfirm from './pages/AuthConfirm.jsx';
 import UpdatePassword from './pages/UpdatePassword.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { AppShell } from './components/layout/AppShell';
+
+const App = lazy(() => import('./App.jsx'));
+const Login = lazy(() => import('./pages/Login.jsx'));
+const Signup = lazy(() => import('./pages/Signup.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
+const NotFound = lazy(() => import('./pages/NotFound.tsx'));
+const Terms = lazy(() => import('./pages/Terms.tsx'));
+const Privacy = lazy(() => import('./pages/Privacy.tsx'));
 
 // Lazy load non-critical routes for better performance
 const Settings = lazy(() => import('./pages/Settings.jsx'));
@@ -61,11 +66,11 @@ const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
  *   - storehouse.ng, www.storehouse.ng, localhost,
  *     *.vercel.app, reserved/numeric subdomains              → LandingPage
  */
-// M12: unknown URLs used to dump signed-in owners on the marketing page.
 function CatchAllRoute() {
   const { currentUser, loading } = useAuth();
   if (loading) return null;
-  return <Navigate to={currentUser ? '/dashboard' : '/'} replace />;
+  const page = <NotFound />;
+  return currentUser ? <AppShell>{page}</AppShell> : page;
 }
 
 function RootRoute() {
@@ -552,13 +557,15 @@ export default function AppRoutes() {
             authoritative for actual order completion. */}
         <Route path="/store/:slug/order/return" element={<OrderReturn />} />
 
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+
         {/* Public invoice view - accessible without login */}
         <Route path="/invoice/:id" element={<PublicInvoiceView />} />
 
         {/* Public contribution group view - accessible without login */}
         <Route path="/a/:shareCode" element={<ContributionPublicView />} />
 
-        {/* Catch-all - redirect to landing page */}
         <Route path="*" element={<CatchAllRoute />} />
       </Routes>
     </Suspense>

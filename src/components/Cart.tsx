@@ -1067,7 +1067,7 @@ export function Cart({ store }: CartProps) {
                         disabled={checkingPromo || !promoCode.trim()}
                         style={{
                           padding: '10px 16px',
-                          background: checkingPromo || !promoCode.trim() ? '#9ca3af' : '#3b82f6',
+                          background: checkingPromo || !promoCode.trim() ? '#475569' : '#3b82f6',
                           color: 'white',
                           border: 'none',
                           borderRadius: '6px',
@@ -1573,7 +1573,7 @@ export function Cart({ store }: CartProps) {
                     {store.whatsappNumber && (
                       <div style={{
                         fontSize: '11px',
-                        color: '#9ca3af'
+                        color: '#475569'
                       }}>
                         Questions? Contact: {store.whatsappNumber}
                       </div>

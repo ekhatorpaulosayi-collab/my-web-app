@@ -139,7 +139,7 @@
   }
 
   .more-menu-close {
-    color: #9ca3af;
+    color: #475569;
   }
 
   .more-menu-close:hover {
@@ -324,7 +324,7 @@
 
 @media (prefers-color-scheme: dark) {
   .more-menu-description {
-    color: #9ca3af;
+    color: #475569;
   }
 }
 
@@ -369,7 +369,7 @@
 }
 
 .more-menu-item:hover .more-menu-chevron {
-  color: #9ca3af;
+  color: #475569;
 }
 
 @media (prefers-color-scheme: dark) {

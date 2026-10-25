@@ -196,7 +196,7 @@
 }
 
 .sales-history-search svg {
-  color: #9ca3af;
+  color: #475569;
   flex-shrink: 0;
 }
 
@@ -210,7 +210,7 @@
 }
 
 .sales-history-search-input::placeholder {
-  color: #9ca3af;
+  color: #475569;
 }
 
 /* Summary Section */
@@ -243,7 +243,7 @@
 }
 
 .sales-history-total-count {
-  color: #9ca3af;
+  color: #475569;
   font-size: 13px;
 }
 
@@ -381,7 +381,7 @@
 
 .sales-history-item-time {
   font-size: 12px;
-  color: #9ca3af;
+  color: #475569;
 }
 
 .sales-history-item-qty {
@@ -426,7 +426,7 @@
 .sales-history-empty {
   text-align: center;
   padding: 60px 20px;
-  color: #9ca3af;
+  color: #475569;
   font-size: 14px;
 }
 

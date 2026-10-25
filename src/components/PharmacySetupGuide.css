@@ -414,7 +414,7 @@
 .tip-example {
   font-size: 13px;
   font-style: italic;
-  color: #9ca3af;
+  color: #475569;
 }
 
 .guide-success {
@@ -598,7 +598,7 @@
 }
 
 .pharmacy-guide-content::-webkit-scrollbar-thumb {
-  background: #9ca3af;
+  background: #475569;
   border-radius: 4px;
 }
 

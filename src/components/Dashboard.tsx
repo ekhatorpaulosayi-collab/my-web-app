@@ -8,11 +8,11 @@ import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Ed
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { PaymentStatusIndicator } from './PaymentStatusIndicator';
-import { PaymentSetupNudge } from './PaymentSetupNudge';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
 import { MoreMenu } from './MoreMenu';
 import { ChannelAnalytics } from './ChannelAnalytics';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
+import { SetupChecklist } from './SetupChecklist';
 import { StaffPinLogin } from './StaffPinLogin';
 import { StaffPerformanceWidget } from './StaffPerformanceWidget';
 import { ReferralRewardsWidget } from './ReferralRewardsWidget';
@@ -45,6 +45,8 @@ interface DashboardProps {
   onExportData?: () => void;
   hasOpenModal?: boolean;
   userId?: string;
+  profileComplete?: boolean;
+  onSetupProfile?: () => void;
 }
 
 export function Dashboard({
@@ -65,6 +67,8 @@ export function Dashboard({
   onSendDailySummary,
   onExportData,
   userId,
+  profileComplete = true,
+  onSetupProfile,
 }: DashboardProps) {
   const navigate = useNavigate();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -72,6 +76,9 @@ export function Dashboard({
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showShareBanner, setShowShareBanner] = useState(false);
+  const [checklistDismissed, setChecklistDismissed] = useState(
+    () => localStorage.getItem('storehouse:setup-checklist:dismissed') === 'true'
+  );
 
   // Three-dot menu state
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -229,6 +236,12 @@ export function Dashboard({
 
     return !hasBank && !hasOnlinePayments;
   }, [paymentNudgeDismissed, store, items.length]);
+
+  useEffect(() => {
+    const openMore = () => setShowMoreMenu(true);
+    window.addEventListener('storehouse:open-more', openMore);
+    return () => window.removeEventListener('storehouse:open-more', openMore);
+  }, []);
 
   // Listen for hero re-enable from settings
   useEffect(() => {
@@ -532,43 +545,20 @@ export function Dashboard({
         />
       )}
 
-      {/* Payment Setup Nudge - Shows after 3+ products added, no payment methods */}
-      {shouldShowPaymentNudge && (
-        <PaymentSetupNudge
-          productCount={items.length}
-          onSetupClick={() => {
-            if (onViewSettings) {
-              onViewSettings();
-              // Scroll to payment section AND open Paystack modal
-              setTimeout(() => {
-                const paymentSection = document.querySelector('[data-section="payment"]');
-                if (paymentSection) {
-                  // Expand the section first if collapsed
-                  const sectionHeader = paymentSection.querySelector('.bs-section-header');
-                  if (sectionHeader) {
-                    const isExpanded = paymentSection.querySelector('.bs-section-content');
-                    if (!isExpanded) {
-                      (sectionHeader as HTMLElement).click();
-                    }
-                  }
-
-                  // Scroll to the section
-                  setTimeout(() => {
-                    paymentSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-                    // After scrolling, click the Paystack button to open modal
-                    setTimeout(() => {
-                      const addPaystackBtn = document.querySelector('[data-action="add-paystack"]');
-                      if (addPaystackBtn) {
-                        (addPaystackBtn as HTMLElement).click();
-                      }
-                    }, 500);
-                  }, 100);
-                }
-              }, 300);
-            }
+      {!checklistDismissed && (
+        <SetupChecklist
+          profileComplete={profileComplete}
+          hasItems={items.length > 0}
+          hasSales={sales.length > 0}
+          hasPayments={!!(store?.bank_name && store?.account_number)}
+          onProfile={onSetupProfile || onViewSettings || (() => {})}
+          onAddItem={onAddItem}
+          onRecordSale={onRecordSale}
+          onPayments={() => navigate('/settings/payments')}
+          onDismiss={() => {
+            localStorage.setItem('storehouse:setup-checklist:dismissed', 'true');
+            setChecklistDismissed(true);
           }}
-          onDismiss={handleDismissPaymentNudge}
         />
       )}
 

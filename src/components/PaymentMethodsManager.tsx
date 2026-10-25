@@ -238,7 +238,7 @@ export default function PaymentMethodsManager({ onToast }: PaymentMethodsManager
           borderRadius: '12px',
           border: '2px dashed #e5e7eb'
         }}>
-          <CreditCard size={48} color="#9ca3af" style={{ margin: '0 auto 1rem' }} />
+          <CreditCard size={48} color="#475569" style={{ margin: '0 auto 1rem' }} />
           <h4 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1f2937', marginBottom: '0.5rem' }}>
             No Payment Methods Yet
           </h4>

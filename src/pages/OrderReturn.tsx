@@ -145,7 +145,7 @@ export default function OrderReturn() {
             {reference && (
               <p style={{
                 fontSize: 12,
-                color: '#9CA3AF',
+                color: '#475569',
                 textAlign: 'center',
                 margin: '0 0 24px',
                 fontFamily: 'monospace',

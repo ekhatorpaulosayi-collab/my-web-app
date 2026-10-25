@@ -348,7 +348,7 @@ Thank you for your business! 🙏
             <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
               Debt Balance
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: selectedCustomer.debtBalance && selectedCustomer.debtBalance > 0 ? '#dc2626' : '#9ca3af' }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: selectedCustomer.debtBalance && selectedCustomer.debtBalance > 0 ? '#dc2626' : '#475569' }}>
               {selectedCustomer.debtBalance && selectedCustomer.debtBalance > 0
                 ? formatCurrency(selectedCustomer.debtBalance)
                 : '₦0'}
@@ -597,7 +597,7 @@ Thank you for your business! 🙏
             left: '12px',
             top: '50%',
             transform: 'translateY(-50%)',
-            color: '#9ca3af'
+            color: '#475569'
           }}
         />
         <input
@@ -765,7 +765,7 @@ Thank you for your business! 🙏
                           fontSize: '14px',
                           textAlign: 'right',
                           fontWeight: 600,
-                          color: hasDebt ? '#dc2626' : '#9ca3af',
+                          color: hasDebt ? '#dc2626' : '#475569',
                           cursor: 'pointer'
                         }}
                         onClick={() => setSelectedCustomer(customer)}
@@ -787,7 +787,7 @@ Thank you for your business! 🙏
                               gap: '6px',
                               padding: '8px 14px',
                               background: hasPhone ? (customer.hasOverdueDebt ? '#dc2626' : '#25D366') : '#e5e7eb',
-                              color: hasPhone ? 'white' : '#9ca3af',
+                              color: hasPhone ? 'white' : '#475569',
                               border: 'none',
                               borderRadius: '8px',
                               fontSize: '13px',

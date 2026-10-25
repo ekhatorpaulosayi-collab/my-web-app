@@ -619,7 +619,7 @@ export default function QuickDebugger() {
               disabled={status !== 'idle'}
               style={{
                 flex: 1,
-                backgroundColor: status !== 'idle' ? '#9ca3af' : '#3b82f6',
+                backgroundColor: status !== 'idle' ? '#475569' : '#3b82f6',
                 color: 'white',
                 padding: '8px 12px',
                 borderRadius: '4px',
@@ -651,7 +651,7 @@ export default function QuickDebugger() {
               disabled={status !== 'idle'}
               style={{
                 flex: 1,
-                backgroundColor: status !== 'idle' ? '#9ca3af' : '#a855f7',
+                backgroundColor: status !== 'idle' ? '#475569' : '#a855f7',
                 color: 'white',
                 padding: '8px 12px',
                 borderRadius: '4px',

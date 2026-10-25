@@ -1111,7 +1111,7 @@ export default function RecordSaleModalV2({
               style={{
                 flex: 1,
                 padding: '14px 24px',
-                backgroundColor: cart.length > 0 && !isProcessing && !collectingPayment ? '#2563eb' : '#9ca3af',
+                backgroundColor: cart.length > 0 && !isProcessing && !collectingPayment ? '#2563eb' : '#475569',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',

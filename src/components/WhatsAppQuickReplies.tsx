@@ -164,7 +164,7 @@ const WhatsAppQuickReplies: React.FC<WhatsAppQuickRepliesProps> = ({
       <p style={{
         marginTop: '8px',
         fontSize: '11px',
-        color: '#9ca3af',
+        color: '#475569',
         textAlign: 'center'
       }}>
         Messages open in WhatsApp. You can edit before sending.

@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { BusinessType, WidgetId, BUSINESS_PRESETS, DEFAULT_WIDGETS } from '../constants/widgets';
 import { CollapsedState } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface OwnerAccess {
   isAuthenticated: boolean;
@@ -59,6 +60,17 @@ const STORAGE_KEYS = {
 };
 
 const OWNER_SESSION_DURATION = 30 * 60 * 1000; // 30 minutes
+
+async function persistStoreType(type: string) {
+  try {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user?.id) return;
+    const { error } = await supabase.from('users').update({ store_type: type }).eq('id', data.user.id);
+    if (error) console.warn('[preferences] store_type was not saved', error.message);
+  } catch (err) {
+    console.warn('[preferences] store_type save skipped', err);
+  }
+}
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   // Load saved preferences
@@ -129,7 +141,29 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     if (preset) {
       setActiveWidgets(preset.widgets);
     }
+    void persistStoreType(type);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (localStorage.getItem(STORAGE_KEYS.businessType)) return;
+      const { data } = await supabase.auth.getUser();
+      const id = data.user?.id;
+      if (!id || cancelled) return;
+      const { data: row, error } = await supabase.from('users').select('store_type').eq('id', id).maybeSingle();
+      if (cancelled || error || !row?.store_type) return;
+      const type = row.store_type as BusinessType;
+      if (!BUSINESS_PRESETS[type]) return;
+      setBusinessTypeState(type);
+      localStorage.setItem(STORAGE_KEYS.businessType, type);
+      const preset = BUSINESS_PRESETS[type];
+      if (preset) setActiveWidgets(preset.widgets);
+      setIsFirstTimeSetup(false);
+      localStorage.setItem(STORAGE_KEYS.isFirstTimeSetup, 'false');
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const setActiveWidgets = (widgets: WidgetId[]) => {
     setActiveWidgetsState(widgets);

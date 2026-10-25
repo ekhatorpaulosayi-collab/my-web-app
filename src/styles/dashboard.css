@@ -164,7 +164,7 @@
 
 .muted:hover {
   background: #f9fafb;
-  border-color: #9ca3af;
+  border-color: #475569;
   color: #374151;
 }
 
@@ -234,7 +234,7 @@
 }
 
 .inventory-count-widget .metric-secondary {
-  color: #9ca3af;
+  color: #475569;
   font-size: 12px;
   margin-top: 4px;
 }

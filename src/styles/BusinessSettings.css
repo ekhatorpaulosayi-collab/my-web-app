@@ -716,7 +716,7 @@ html, body {
 
 .advanced-config-btn:hover {
   background: #f3f4f6;
-  border-color: #9ca3af;
+  border-color: #475569;
 }
 
 .config-modal-overlay {
@@ -766,7 +766,7 @@ html, body {
   background: transparent;
   border: none;
   font-size: 24px;
-  color: #9ca3af;
+  color: #475569;
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -860,7 +860,7 @@ html, body {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   font-size: 14px;
-  color: #9ca3af;
+  color: #475569;
   background: #f9fafb;
   cursor: not-allowed;
 }

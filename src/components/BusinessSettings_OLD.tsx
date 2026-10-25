@@ -950,7 +950,7 @@ export default function BusinessSettings({
 
                       <p style={{
                         fontSize: '0.75rem',
-                        color: '#9ca3af',
+                        color: '#475569',
                         marginTop: '0.75rem',
                         lineHeight: '1.5'
                       }}>

@@ -873,7 +873,7 @@ Thank you for your payment! 🙏`;
                           style={{
                             padding: '10px',
                             background: hasPhone ? 'white' : '#f3f4f6',
-                            color: hasPhone ? '#374151' : '#9ca3af',
+                            color: hasPhone ? '#374151' : '#475569',
                             border: '1px solid #d1d5db',
                             borderRadius: '8px',
                             fontSize: '13px',

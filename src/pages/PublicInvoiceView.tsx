@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { userFacingError } from '../utils/userFacingError';
 import { formatCurrency } from '../services/invoiceService';
 import '../styles/PublicInvoiceView.css';
 
@@ -59,7 +60,7 @@ export default function PublicInvoiceView() {
       });
     } catch (err: any) {
       console.error('[PublicInvoiceView] Error:', err);
-      setError(err.message || 'Invoice not found');
+      setError(userFacingError(err));
     } finally {
       setLoading(false);
     }

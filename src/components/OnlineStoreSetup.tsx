@@ -81,6 +81,7 @@ export default function OnlineStoreSetup() {
   const [paystackEnabled, setPaystackEnabled] = useState(false);
   const [paystackPublicKey, setPaystackPublicKey] = useState('');
   const [paystackTestMode, setPaystackTestMode] = useState(true);
+  const [storeLive, setStoreLive] = useState(false);
 
   // Accordion state
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -111,6 +112,7 @@ export default function OnlineStoreSetup() {
     setPaystackEnabled(store.paystack_enabled || false);
     setPaystackPublicKey(store.paystack_public_key || '');
     setPaystackTestMode(store.paystack_test_mode !== false);
+    setStoreLive(store.is_public === true);
 
     // If main fields are filled, consider setup complete
     if (store.business_name && store.whatsapp_number && store.store_slug) {
@@ -260,7 +262,7 @@ export default function OnlineStoreSetup() {
         whatsapp_number: whatsappNumber,
         store_slug: storeSlug,
         subdomain: nextSubdomain,
-        is_public: true,
+        is_public: storeLive,
       };
 
       // Create or update store
@@ -486,12 +488,49 @@ export default function OnlineStoreSetup() {
         }}>
           🛍️ Online Store Setup
         </h1>
-        <p style={{ color: '#6B7280', fontSize: '14px' }}>
+        <p style={{ color: '#475569', fontSize: '14px' }}>
           {mainSetupComplete
             ? 'Customize your store with additional settings below'
             : 'Create your online store in 3 simple steps'
           }
         </p>
+      </div>
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap',
+        background: '#fff',
+        border: '1px solid #E2E8F0',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 16,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: '#0F172A' }}>{storeLive ? 'Store is live' : 'Store is hidden'}</div>
+          <div style={{ fontSize: 14, color: '#475569' }}>
+            {storeLive ? 'Customers with the link can see your shop.' : 'New stores stay private until you turn this on.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          aria-pressed={storeLive}
+          onClick={() => setStoreLive((v) => !v)}
+          style={{
+            minHeight: 48,
+            minWidth: 120,
+            borderRadius: 999,
+            border: '1px solid #E2E8F0',
+            background: storeLive ? '#F0FDF4' : '#F8FAFC',
+            color: storeLive ? '#15803D' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {storeLive ? 'Live' : 'Hidden'}
+        </button>
       </div>
 
       {/* Success Message */}
@@ -510,7 +549,7 @@ export default function OnlineStoreSetup() {
             Store Created Successfully!
           </div>
           <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            Your store is live at: {buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug })}
+            {storeLive ? 'Your store is live at' : 'Saved. It stays hidden until you switch it to Live'}: {buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug })}
           </div>
         </div>
       )}
@@ -541,7 +580,7 @@ export default function OnlineStoreSetup() {
               fontSize: '14px',
               fontWeight: '600',
               color: 'white',
-              background: reconnecting ? '#9CA3AF' : '#DC2626',
+              background: reconnecting ? '#475569' : '#DC2626',
               border: 'none',
               borderRadius: '6px',
               cursor: reconnecting ? 'not-allowed' : 'pointer',
@@ -659,8 +698,8 @@ export default function OnlineStoreSetup() {
           }}>
             Store URL <span style={{ color: '#DC2626' }}>*</span>
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#6B7280', fontSize: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+            <span style={{ color: '#475569', fontSize: '14px', minWidth: 0, overflowWrap: 'anywhere' }}>
               {storefrontUrlPrefix({ subdomain: storeSlug, storeSlug })}
             </span>
             <input
@@ -676,7 +715,8 @@ export default function OnlineStoreSetup() {
               autoCapitalize="none"
               spellCheck="false"
               style={{
-                flex: 1,
+                flex: '1 1 160px',
+                minWidth: 0,
                 padding: '12px 16px',
                 fontSize: '16px',
                 border: '2px solid #E5E7EB',

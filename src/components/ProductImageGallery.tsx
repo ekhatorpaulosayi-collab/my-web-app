@@ -162,7 +162,7 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#9ca3af'
+        color: '#475569'
       }}>
         Loading...
       </div>
@@ -179,7 +179,7 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#9ca3af',
+        color: '#475569',
         fontSize: '14px'
       }}>
         No image available

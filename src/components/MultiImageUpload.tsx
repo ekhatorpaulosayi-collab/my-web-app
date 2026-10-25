@@ -597,7 +597,7 @@ export default function MultiImageUpload({
               onChange={handleFileSelect}
               style={{ display: 'none' }}
             />
-            <div style={{ fontSize: '32px', color: '#9ca3af', marginBottom: '4px' }}>+</div>
+            <div style={{ fontSize: '32px', color: '#475569', marginBottom: '4px' }}>+</div>
             <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: 500 }}>Add Image</div>
           </label>
         )}
@@ -633,7 +633,7 @@ export default function MultiImageUpload({
       {/* Help Text */}
       <div style={{
         fontSize: '12px',
-        color: '#9ca3af',
+        color: '#475569',
         marginTop: '8px'
       }}>
         💡 Drag images to reorder • First image is shown in listings • Click ★ to set as primary

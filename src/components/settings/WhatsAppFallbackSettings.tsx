@@ -151,7 +151,7 @@ export default function WhatsAppFallbackSettings({
             justifyContent: 'space-between',
             marginTop: '4px',
             fontSize: '11px',
-            color: '#9ca3af'
+            color: '#475569'
           }}>
             <span>1 min</span>
             <span style={{ fontWeight: '600', color: '#1f2937' }}>

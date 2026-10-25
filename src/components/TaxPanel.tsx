@@ -177,12 +177,12 @@ export default function TaxPanel() {
                 <strong>{formatNaira(salesKobo)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', paddingLeft: '1rem' }}>
-                <span style={{ color: '#9ca3af', fontSize: '0.9rem' }}>− Cost of Goods Sold</span>
-                <span style={{ color: '#9ca3af' }}>({formatNaira(cogsKobo)})</span>
+                <span style={{ color: '#475569', fontSize: '0.9rem' }}>− Cost of Goods Sold</span>
+                <span style={{ color: '#475569' }}>({formatNaira(cogsKobo)})</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', paddingLeft: '1rem' }}>
-                <span style={{ color: '#9ca3af', fontSize: '0.9rem' }}>− Operating Expenses</span>
-                <span style={{ color: '#9ca3af' }}>({formatNaira(expensesKobo)})</span>
+                <span style={{ color: '#475569', fontSize: '0.9rem' }}>− Operating Expenses</span>
+                <span style={{ color: '#475569' }}>({formatNaira(expensesKobo)})</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 0', borderTop: '2px solid #e5e7eb', marginTop: '0.5rem' }}>
                 <span style={{ fontWeight: '600' }}>Net Profit</span>

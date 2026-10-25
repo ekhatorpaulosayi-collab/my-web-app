@@ -835,7 +835,7 @@ export default function ConversationsPageFixed() {
           </>
         ) : (
           <div style={styles.emptyChatState}>
-            <MessageSquare size={48} style={{ color: '#9ca3af' }} />
+            <MessageSquare size={48} style={{ color: '#475569' }} />
             <p style={{ marginTop: '16px', color: '#6b7280' }}>
               Select a conversation to start
             </p>
@@ -884,7 +884,7 @@ const styles = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#9ca3af'
+    color: '#475569'
   } as React.CSSProperties,
 
   searchInput: {
@@ -954,7 +954,7 @@ const styles = {
 
   timestamp: {
     fontSize: '12px',
-    color: '#9ca3af'
+    color: '#475569'
   } as React.CSSProperties,
 
   emptyState: {
@@ -1067,7 +1067,7 @@ const styles = {
 
   messageTime: {
     fontSize: '11px',
-    color: '#9ca3af'
+    color: '#475569'
   } as React.CSSProperties,
 
   messageContent: {

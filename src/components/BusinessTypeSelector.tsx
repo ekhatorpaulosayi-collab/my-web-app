@@ -196,6 +196,16 @@ export function BusinessTypeSelector({ onComplete }: BusinessTypeSelectorProps) 
           >
             Continue
           </button>
+          <button
+            type="button"
+            className="bts-btn bts-btn-large"
+            onClick={() => {
+              setBusinessType('general');
+              onComplete();
+            }}
+          >
+            Skip for now
+          </button>
         </div>
       </div>
     </div>

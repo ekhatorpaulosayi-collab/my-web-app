@@ -20,7 +20,7 @@ interface SubscriptionTier {
 }
 
 const TIER_INFO = {
-  free: { name: 'Free Trial', price: '₦0', limit: 10, color: '#9ca3af' },
+  free: { name: 'Free Trial', price: '₦0', limit: 10, color: '#475569' },
   starter: { name: 'AI Starter', price: '₦10,000', limit: 100, color: '#10b981' },
   pro: { name: 'AI Pro', price: '₦15,000', limit: 500, color: '#6366f1' },
   business: { name: 'AI Business', price: '₦25,000', limit: 2000, color: '#f59e0b' },

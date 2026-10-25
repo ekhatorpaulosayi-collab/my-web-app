@@ -459,7 +459,7 @@
   }
 
   .share-menu-close {
-    color: #9ca3af;
+    color: #475569;
   }
 
   .share-menu-close:hover {
@@ -494,13 +494,13 @@
   }
 
   .share-option-desc {
-    color: #9ca3af;
+    color: #475569;
   }
 
   .share-button {
     background: #374151;
     border-color: #4b5563;
-    color: #9ca3af;
+    color: #475569;
   }
 
   .share-button:hover {

@@ -1419,7 +1419,7 @@ Powered by Storehouse
                       />
                       <span>
                         Send WhatsApp receipt for entire order
-                        {!phone && <span style={{ color: '#9ca3af', fontSize: '13px', display: 'block', marginTop: '4px' }}>
+                        {!phone && <span style={{ color: '#475569', fontSize: '13px', display: 'block', marginTop: '4px' }}>
                           (Enter phone number above to enable)
                         </span>}
                       </span>

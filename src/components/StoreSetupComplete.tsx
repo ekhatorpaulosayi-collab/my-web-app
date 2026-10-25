@@ -402,7 +402,7 @@ export default function StoreSetupComplete() {
                 </div>
                 <div style={{
                   fontSize: '20px',
-                  color: '#9CA3AF',
+                  color: '#475569',
                   flexShrink: 0,
                 }}>
                   →

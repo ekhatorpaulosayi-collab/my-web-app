@@ -498,7 +498,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           title="Add a phone number in member details to send the payout receipt"
           style={{
             marginTop: '8px', marginLeft: '8px', display: 'inline-flex', alignItems: 'center',
-            gap: '6px', padding: '6px 10px', background: '#eef2ff', color: '#9ca3af',
+            gap: '6px', padding: '6px 10px', background: '#eef2ff', color: '#475569',
             border: '1px dashed #c7d2fe', borderRadius: '8px', fontSize: '12px', fontWeight: '500',
             cursor: 'not-allowed'
           }}
@@ -601,7 +601,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
           disabled={savingPhone}
           style={{
             padding: '8px 12px', background: savingPhone ? '#e5e7eb' : '#14b8a6',
-            color: savingPhone ? '#9ca3af' : 'white', border: 'none', borderRadius: '8px',
+            color: savingPhone ? '#475569' : 'white', border: 'none', borderRadius: '8px',
             fontSize: '13px', fontWeight: '500', cursor: savingPhone ? 'not-allowed' : 'pointer'
           }}
         >
@@ -1559,7 +1559,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       flex: 1,
                       padding: '10px',
                       background: newMemberName.trim() && !isAddingMember ? '#14b8a6' : '#e5e7eb',
-                      color: newMemberName.trim() && !isAddingMember ? 'white' : '#9ca3af',
+                      color: newMemberName.trim() && !isAddingMember ? 'white' : '#475569',
                       border: 'none',
                       borderRadius: '8px',
                       fontSize: '14px',
@@ -1656,7 +1656,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
               borderRadius: '12px',
               border: 'none',
               background: (allPaid && currentRecipient && !rotationComplete) ? '#14b8a6' : '#e5e7eb',
-              color: (allPaid && currentRecipient && !rotationComplete) ? 'white' : '#9ca3af',
+              color: (allPaid && currentRecipient && !rotationComplete) ? 'white' : '#475569',
               fontSize: '14px',
               fontWeight: '500',
               cursor: (allPaid && currentRecipient && !rotationComplete) ? 'pointer' : 'not-allowed',
@@ -2156,7 +2156,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                       </div>
                       {/* Collected rows are locked — no arrows. */}
                       {collected ? (
-                        <span style={{ fontSize: '12px', color: '#9ca3af' }}>🔒 locked</span>
+                        <span style={{ fontSize: '12px', color: '#475569' }}>🔒 locked</span>
                       ) : (
                         <div style={{ display: 'flex', gap: '4px' }}>
                           {canMoveUp && (
@@ -3217,7 +3217,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                   border: 'none',
                   fontSize: '18px',
                   lineHeight: 1,
-                  color: '#9ca3af',
+                  color: '#475569',
                   cursor: 'pointer'
                 }}
               >

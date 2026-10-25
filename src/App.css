@@ -445,7 +445,7 @@ body {
 
 .kpi-subtitle {
   font-size: 12px;
-  color: #9ca3af;
+  color: #475569;
   margin: 0;
 }
 
@@ -569,7 +569,7 @@ body {
 
 .modal-footer .btn-secondary:hover {
   background: #f9fafb;
-  border-color: #9ca3af;
+  border-color: #475569;
 }
 
 @media (max-width: 480px) {
@@ -5775,7 +5775,7 @@ select.calc-input,
 
 .widget-action-btn:hover {
   background: #f9fafb;
-  border-color: #9ca3af;
+  border-color: #475569;
   transform: translateY(-1px);
 }
 
@@ -6001,7 +6001,7 @@ select.calc-input,
 
 .expense-form .form-input::placeholder,
 .expense-form .form-textarea::placeholder {
-  color: #9ca3af;
+  color: #475569;
 }
 
 .expense-form .amount-input-wrapper {
@@ -6033,7 +6033,7 @@ select.calc-input,
   display: block;
   text-align: right;
   font-size: 12px;
-  color: #9ca3af;
+  color: #475569;
   margin-top: 4px;
 }
 
@@ -6328,7 +6328,7 @@ select.calc-input,
 
 .expense-date {
   font-size: 13px;
-  color: #9ca3af;
+  color: #475569;
   margin: 0;
 }
 
@@ -6824,7 +6824,7 @@ select.calc-input,
 .info-icon-small {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: #475569;
   font-size: 14px;
   cursor: pointer;
   padding: 0 4px;

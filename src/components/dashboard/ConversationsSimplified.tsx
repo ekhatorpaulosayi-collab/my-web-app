@@ -271,7 +271,7 @@ export default function ConversationsSimplified() {
         <div style={{ padding: '16px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>Conversations</h2>
           <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' }} size={20} />
+            <Search style={{ position: 'absolute', left: '12px', top: '10px', color: '#475569' }} size={20} />
             <input
               type="text"
               placeholder="Search conversations..."
@@ -325,7 +325,7 @@ export default function ConversationsSimplified() {
                 <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                   {conv.visitor_email || conv.session_id.slice(0, 8)}
                 </div>
-                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                <div style={{ fontSize: '11px', color: '#475569', marginTop: '4px' }}>
                   {new Date(conv.updated_at).toLocaleString()}
                 </div>
               </div>
@@ -477,7 +477,7 @@ export default function ConversationsSimplified() {
                     disabled={sendingMessage || !messageText.trim()}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: sendingMessage ? '#9ca3af' : '#3b82f6',
+                      backgroundColor: sendingMessage ? '#475569' : '#3b82f6',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',

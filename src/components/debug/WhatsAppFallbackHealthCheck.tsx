@@ -304,7 +304,7 @@ export default function WhatsAppFallbackHealthCheck() {
               {check.details && (
                 <div style={{
                   fontSize: '12px',
-                  color: '#9ca3af',
+                  color: '#475569',
                   fontFamily: 'monospace',
                   backgroundColor: '#f9fafb',
                   padding: '4px 8px',
@@ -356,7 +356,7 @@ export default function WhatsAppFallbackHealthCheck() {
       <div style={{
         marginTop: '12px',
         fontSize: '12px',
-        color: '#9ca3af',
+        color: '#475569',
         textAlign: 'center'
       }}>
         Last checked: {new Date().toLocaleString()} | Auto-refresh on component mount

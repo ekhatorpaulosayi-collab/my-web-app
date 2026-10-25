@@ -1344,7 +1344,7 @@ body {
 }
 
 .btn-whatsapp {
-  background: #25D366 !important;
+  background: #075e54 !important;
   color: white !important;
   border: none;
   text-decoration: none;
@@ -1353,7 +1353,7 @@ body {
 }
 
 .btn-whatsapp:hover {
-  background: #1fb855 !important;
+  background: #054c44 !important;
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -4px rgba(37, 211, 102, 0.5);
 }
@@ -1394,7 +1394,7 @@ body {
 
 .landing-footer {
   background: #1e293b;
-  color: #94a3b8;
+  color: #e2e8f0;
   padding: 4rem 0 2rem;
   position: relative;
   z-index: 10;
@@ -1440,7 +1440,7 @@ body {
 
 .footer-col a {
   display: block;
-  color: #94a3b8;
+  color: #e2e8f0;
   margin-bottom: 0.75rem;
   cursor: pointer;
   transition: color 0.2s;
@@ -1450,7 +1450,7 @@ body {
 }
 
 .footer-col a:hover {
-  color: white;
+  color: #ffffff;
 }
 
 /* Social Media Links */
@@ -1707,7 +1707,7 @@ body {
   font-weight: 700 !important;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8 !important;
+  color: #475569 !important;
 }
 
 /* Locked Items List */
@@ -1720,13 +1720,12 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  opacity: 0.5;
   padding: 4px 0;
 }
 
 .locked-text {
-  color: #64748b;
-  text-decoration: line-through;
+  color: #475569;
+  text-decoration: none;
   font-size: 0.875rem;
 }
 
@@ -1734,8 +1733,8 @@ body {
   display: inline-block;
   padding: 2px 8px;
   background: rgba(148, 163, 184, 0.15);
-  color: #64748b;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #475569;
+  border: 1px solid rgba(71, 85, 105, 0.35);
   border-radius: 999px;
   font-size: 0.625rem;
   font-weight: 700;
@@ -1750,7 +1749,7 @@ body {
   text-align: center;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #6366f1;
+  color: #1d4ed8;
   margin: 0.5rem 0 0 0;
   font-style: italic;
 }

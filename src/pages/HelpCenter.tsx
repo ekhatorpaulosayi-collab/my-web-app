@@ -68,18 +68,26 @@ export default function HelpCenter() {
     }
   };
 
-  const getCategoryColor = (category: string) => {
+  const categoryLabel = (category?: string) => (category ? category.replace(/-/g, ' ') : 'General');
+
+  const getCategoryColor = (category?: string) => {
     const colors: Record<string, string> = {
-      'getting-started': '#8b5cf6',
-      'products': '#3b82f6',
-      'sales': '#10b981',
-      'staff': '#f59e0b',
-      'reports': '#06b6d4',
-      'settings': '#6b7280',
-      'troubleshooting': '#ef4444',
-      'advanced': '#ec4899',
+      'getting-started': '#1d4ed8',
+      'products': '#1d4ed8',
+      'sales': '#15803d',
+      'staff': '#b45309',
+      'reports': '#0e7490',
+      'settings': '#475569',
+      'troubleshooting': '#b91c1c',
+      'advanced': '#1d4ed8',
+      'marketing': '#1d4ed8',
+      'invoices': '#1d4ed8',
+      'customers': '#1d4ed8',
+      'credit-sales': '#b45309',
+      'payments': '#15803d',
+      'general': '#475569',
     };
-    return colors[category] || '#6b7280';
+    return colors[category || ''] || '#475569';
   };
 
   return (
@@ -128,7 +136,7 @@ export default function HelpCenter() {
                 left: '16px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: '#9ca3af'
+                color: '#475569'
               }}
             />
             <input
@@ -203,7 +211,7 @@ export default function HelpCenter() {
                     fontWeight: '600',
                     textTransform: 'uppercase'
                   }}>
-                    {doc.category.replace('-', ' ')}
+                    {categoryLabel(doc.category)}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -215,7 +223,7 @@ export default function HelpCenter() {
                   <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 12px 0', lineHeight: '1.5' }}>
                     {doc.subtitle}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#9ca3af' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#475569' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Clock size={14} />
                       {doc.estimatedTime}
@@ -327,7 +335,7 @@ export default function HelpCenter() {
                     color: getCategoryColor(doc.category),
                     textTransform: 'uppercase'
                   }}>
-                    {doc.category.replace('-', ' ')}
+                    {categoryLabel(doc.category)}
                   </span>
                 </div>
                 <ChevronRight size={20} color="#d1d5db" />
@@ -345,7 +353,7 @@ export default function HelpCenter() {
 
               {/* Footer */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#9ca3af' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#475569' }}>
                   <Clock size={14} />
                   {doc.estimatedTime}
                 </div>

@@ -92,7 +92,7 @@
 
 .widget-description {
   font-size: 13px;
-  color: #9ca3af;
+  color: #475569;
   margin: 0;
   line-height: 1.4;
 }
@@ -101,7 +101,7 @@
 .widget-empty {
   padding: 20px 0;
   text-align: center;
-  color: #9ca3af;
+  color: #475569;
   font-size: 14px;
 }
 
@@ -161,7 +161,7 @@
 
 .widget-list-meta {
   font-size: 12px;
-  color: #9ca3af;
+  color: #475569;
   margin-top: 2px;
 }
 
@@ -233,7 +233,7 @@
 }
 
 .widget-card-locked:hover {
-  border-color: #9ca3af;
+  border-color: #475569;
   transform: translateY(0);
 }
 

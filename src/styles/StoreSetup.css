@@ -197,7 +197,7 @@
 .camera-icon {
   width: 32px;
   height: 32px;
-  color: #9ca3af;
+  color: #475569;
 }
 
 .upload-text {
@@ -236,7 +236,7 @@
 }
 
 .form-input::placeholder {
-  color: #9ca3af;
+  color: #475569;
   font-weight: 400;
 }
 
@@ -521,7 +521,7 @@
 
 .continue-btn:disabled {
   background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
-  color: #9ca3af;
+  color: #475569;
   cursor: not-allowed;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   opacity: 0.6;
@@ -557,7 +557,7 @@
 .helper-text {
   text-align: center;
   font-size: 0.8125rem;
-  color: #9ca3af;
+  color: #475569;
   margin: 0;
   margin-top: -0.5rem;
 }

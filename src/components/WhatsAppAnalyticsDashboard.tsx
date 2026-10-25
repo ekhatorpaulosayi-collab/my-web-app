@@ -302,7 +302,7 @@ export default function WhatsAppAnalyticsDashboard() {
               ))}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#475569' }}>
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📦</div>
               <div>No product queries yet</div>
             </div>
@@ -355,7 +355,7 @@ export default function WhatsAppAnalyticsDashboard() {
               })}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#475569' }}>
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
               <div>No chat data yet</div>
             </div>
@@ -472,7 +472,7 @@ export default function WhatsAppAnalyticsDashboard() {
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>
+          <div style={{ textAlign: 'center', padding: '3rem', color: '#475569' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💬</div>
             <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.5rem' }}>
               No chats yet

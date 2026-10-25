@@ -284,6 +284,9 @@ export default function Signup() {
           </button>
         </form>
 
+        <p style={{ fontSize: 14, color: '#475569', textAlign: 'center' }}>
+          By creating an account you agree to the <Link to="/terms">terms</Link> and <Link to="/privacy">privacy policy</Link>.
+        </p>
         <div className="auth-footer">
           <p>
             Already have an account?{' '}

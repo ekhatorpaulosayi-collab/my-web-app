@@ -11,7 +11,7 @@ import { debtCreditMicroChunks } from './debtCreditMicroChunks';
 import { staffMicroChunks } from './staffMicroChunks';
 import { paystackDocumentation } from './paystackDocumentation';
 
-export const DOCUMENTATION: Documentation[] = [
+const DOCUMENTATION_RAW: Documentation[] = [
 
   // ============================================
   // GETTING STARTED (5 guides)
@@ -8217,3 +8217,8 @@ Total: ₦125,000
   ...paystackDocumentation,
 
 ];
+
+export const DOCUMENTATION: Documentation[] = DOCUMENTATION_RAW.map((doc) => ({
+  ...doc,
+  category: (doc.category || 'getting-started') as Documentation['category'],
+}));

@@ -299,6 +299,9 @@ export default function AIChatWidget({
       const hasBottomSheet = document.querySelector('.bottom-sheet') !== null;
       const hasActionSheet = document.querySelector('.action-sheet') !== null;
       const hasCartSidebar = document.querySelector('.cart-sidebar') !== null;
+      const hasRecordSale = document.querySelector('.rs-overlay, .rs-modal') !== null;
+      const hasDialog = document.querySelector('dialog[open], [role="dialog"], .ds-overlay') !== null;
+      const flagged = document.body?.dataset?.modalOpen === 'true';
 
       // Check if any element has "Send EOD Report" or "Send via WhatsApp" text
       const hasEODReportText = Array.from(document.querySelectorAll('h2, button')).some(el =>
@@ -307,7 +310,8 @@ export default function AIChatWidget({
       );
 
       const hasAnyModal = hasEODModal || hasModalOverlay || hasSheetModal ||
-                         hasBottomSheet || hasActionSheet || hasCartSidebar || hasEODReportText;
+                         hasBottomSheet || hasActionSheet || hasCartSidebar || hasEODReportText ||
+                         hasRecordSale || hasDialog || flagged;
 
       if (hasAnyModal !== hasModalOpen) {
         console.log('[AIChatWidget] Modal state changed:', hasAnyModal, {
@@ -2058,7 +2062,7 @@ export default function AIChatWidget({
 
       {/* Chat Bubble - Enhanced Visibility for Storefront */}
       {!isOpen && (
-        <div style={{
+        <div className="need-help-fab" style={{
           position: 'fixed',
           bottom: !isDesktop && contextType === 'storefront' ? '80px' : '20px', // Higher on mobile storefront to avoid bottom nav
           right: !isDesktop && contextType === 'storefront' ? '20px' : contextType === 'storefront' && isDesktop ? '120px' : '20px',

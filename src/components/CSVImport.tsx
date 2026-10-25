@@ -120,14 +120,16 @@ export const CSVImport: React.FC = () => {
 
       {/* Upload CSV */}
       <div style={{ marginBottom: '20px' }}>
-        <label style={{
+        <label htmlFor="csv-import-file" style={{
           display: 'block',
-          marginBottom: '8px',
+          marginBottom: '6px',
           fontWeight: 500
         }}>
           Upload CSV/Excel File
         </label>
         <input
+          id="csv-import-file"
+          aria-label="Upload CSV or Excel file"
           type="file"
           accept=".csv,.xlsx,.xls"
           onChange={handleFileUpload}

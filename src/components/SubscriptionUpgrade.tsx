@@ -746,8 +746,39 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       {/* Header */}
       <div className="upgrade-header">
         <h2>Choose Your Plan</h2>
-        <p>Unlock more features and grow your business</p>
+        <p>Unlock more features and grow your business. Pro is the recommended plan for shops taking card payments.</p>
       </div>
+
+      <table className="plan-compare">
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th>Subscription</th>
+            <th>Customer fee</th>
+            <th>Your share of the fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Free</td>
+            <td className="ds-money">₦0</td>
+            <td>2.5%</td>
+            <td>1.0% (cap ₦500,000/mo)</td>
+          </tr>
+          <tr>
+            <td>Starter</td>
+            <td className="ds-money">₦5,000</td>
+            <td>2.0%</td>
+            <td>0.5%</td>
+          </tr>
+          <tr className="recommended">
+            <td>Pro · Recommended</td>
+            <td className="ds-money">₦10,000</td>
+            <td>1.5%</td>
+            <td>0%</td>
+          </tr>
+        </tbody>
+      </table>
 
       {/* Current Subscription Info */}
       {currentSubscription && currentSubscription.status === 'active' && currentSubscription.tier_name !== 'Free' && (
@@ -1280,23 +1311,41 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .not-included-heading {
           margin-top: 20px;
-          color: #94a3b8;
+          color: #475569;
           font-size: 0.75rem;
           letter-spacing: 0.08em;
         }
+
+        .plan-compare {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 0 0 24px;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+        .plan-compare th, .plan-compare td {
+          padding: 12px 16px;
+          text-align: left;
+          border-bottom: 1px solid #e2e8f0;
+          color: #0f172a;
+        }
+        .plan-compare th { font-size: 14px; color: #475569; }
+        .plan-compare .recommended { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
 
         .locked-feature {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 8px;
-          opacity: 0.5;
+          opacity: 1;
           padding: 4px 0;
         }
 
         .locked-text {
-          color: #64748b;
-          text-decoration: line-through;
+          color: #475569;
+          text-decoration: none;
           font-size: 0.875rem;
         }
 

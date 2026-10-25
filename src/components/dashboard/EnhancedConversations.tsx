@@ -158,7 +158,7 @@ const styles = {
     left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
-    color: '#9ca3af'
+    color: '#475569'
   },
   searchInput: {
     width: '100%',
@@ -682,7 +682,7 @@ export function EnhancedConversations() {
                           Take Over
                         </button>
                       )}
-                      <ChevronRight size={20} color="#9ca3af" />
+                      <ChevronRight size={20} color="#475569" />
                     </div>
                   </div>
                 </div>
