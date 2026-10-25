@@ -89,14 +89,14 @@ BEGIN
     RAISE EXCEPTION 'no_session';
   END IF;
   IF p_pin IS NULL OR length(p_pin) < 4 OR length(p_pin) > 8 OR p_pin !~ '^[0-9]+$' THEN
-    RAISE EXCEPTION 'invalid_pin';
+    RETURN jsonb_build_object('error', 'invalid_pin');
   END IF;
 
   SELECT attempts, locked_until INTO v_attempts, v_locked
     FROM public.staff_pin_attempts
    WHERE owner_uid = auth.uid();
   IF v_locked IS NOT NULL AND v_locked > now() THEN
-    RAISE EXCEPTION 'pin_locked';
+    RETURN jsonb_build_object('error', 'pin_locked');
   END IF;
   IF v_locked IS NOT NULL AND v_locked <= now() THEN
     UPDATE public.staff_pin_attempts
@@ -129,6 +129,8 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- RETURN, do not RAISE. An exception rolls this insert back, so the
+  -- counter would stay at 0 and the lock would never fire.
   INSERT INTO public.staff_pin_attempts (owner_uid, attempts, locked_until, updated_at)
   VALUES (auth.uid(), 1, NULL, now())
   ON CONFLICT (owner_uid) DO UPDATE
@@ -141,9 +143,9 @@ BEGIN
   RETURNING attempts INTO v_attempts;
 
   IF v_attempts >= 5 THEN
-    RAISE EXCEPTION 'pin_locked';
+    RETURN jsonb_build_object('error', 'pin_locked');
   END IF;
-  RAISE EXCEPTION 'invalid_pin';
+  RETURN jsonb_build_object('error', 'invalid_pin');
 END;
 $$;
 

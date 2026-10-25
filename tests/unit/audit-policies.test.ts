@@ -12,6 +12,7 @@ import {
   chargeSuccessOutcome,
   chatCallAllowed,
   customDomainIsVerified,
+  isNativeChatClient,
   isBuiltInChatOrigin,
   markSignupAction,
   originsForVerifiedDomain,
@@ -60,6 +61,11 @@ test('permanent sale errors are not retried and a PIN locks after five misses', 
   assert.equal(isPermanentSaleError({ code: '42501', message: 'permission denied' }), true);
   assert.equal(isPermanentSaleError({ code: '23503', message: 'foreign key' }), true);
   assert.equal(isPermanentSaleError({ message: 'Product selection is required' }), true);
+  assert.equal(isPermanentSaleError({ message: 'insufficient_stock: not enough items left to record this sale' }), true);
+  assert.equal(isPermanentSaleError({ message: 'unknown_product: this product is not in your catalogue' }), true);
+  assert.equal(isPermanentSaleError({ message: 'price_mismatch: the price does not match this product or its discount' }), true);
+  assert.equal(isPermanentSaleError({ message: 'invalid_client_sale_id' }), true);
+  assert.equal(isPermanentSaleError({ code: '42804' }), true);
   assert.equal(isPermanentSaleError({ message: 'Failed to fetch' }), false);
   assert.equal(isPermanentSaleError(null), false);
   let state = { attempts: 0, lockedUntil: 0 };
@@ -67,10 +73,24 @@ test('permanent sale errors are not retried and a PIN locks after five misses', 
   assert.equal(state.lockedUntil, 0);
   state = nextPinFailure(state, 1_000);
   assert.equal(state.lockedUntil, 1_000 + 15 * 60 * 1000);
-  assert.equal(nextPinFailure(state, 1_500).attempts, 5);
+  const sixth = nextPinFailure(state, 1_500);
+  assert.equal(sixth.attempts, 5);
+  assert.equal(sixth.locked, true);
 });
 
-test('Sentry events drop email and a chat call with no Origin needs a session', () => {
+test('six wrong PINs end in a lock that does not add a seventh attempt', () => {
+  let state = { attempts: 0, lockedUntil: 0 };
+  const results = [];
+  for (let i = 0; i < 6; i++) {
+    state = nextPinFailure(state, 1_000);
+    results.push(state.locked);
+  }
+  assert.deepEqual(results, [false, false, false, false, true, true]);
+  assert.equal(state.attempts, 5);
+  assert.equal(nextPinFailure(state, 1_000).attempts, 5);
+});
+
+test('Sentry events drop email and a chat call with no Origin is rejected', () => {
   const event = scrubSentryEvent({
     user: { id: 'user-1', email: 'merchant@example.com', ip_address: '1.2.3.4' },
     extra: { email: 'merchant@example.com', note: 'ok' },
@@ -81,11 +101,15 @@ test('Sentry events drop email and a chat call with no Origin needs a session', 
   assert.equal(event.extra?.email, undefined);
   assert.equal(event.extra?.note, 'ok');
   assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: false }), false);
-  assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: true }), true);
-  assert.equal(chatCallAllowed({ origin: 'https://evil.example', originAllowed: false, authenticated: true }), false);
-  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', domain_verification_token: null }), true);
-  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', domain_verification_token: 'pending' }), false);
-  assert.equal(customDomainIsVerified({ custom_domain: '', domain_verification_token: null }), false);
+  assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: true }), false);
+  assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: true, nativeApp: true }), true);
+  assert.equal(isNativeChatClient('capacitor'), true);
+  assert.equal(isNativeChatClient('browser'), false);
+  assert.equal(chatCallAllowed({ origin: 'https://evil.example', originAllowed: false, authenticated: true, nativeApp: true }), false);
+  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', custom_domain_verified: true }), true);
+  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', custom_domain_verified: false }), false);
+  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com' }), false);
+  assert.equal(customDomainIsVerified({ custom_domain: '', custom_domain_verified: true }), false);
 });
 
 test('a recorded payment returns 200 and queues a stock failure', () => {

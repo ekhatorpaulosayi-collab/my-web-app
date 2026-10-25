@@ -208,7 +208,7 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 # ImageKit
 VITE_IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/onelove431212341234
 VITE_IMAGEKIT_PUBLIC_KEY=public_QdLLjPTKH/+dRHxXqo0lSiOs310=
-VITE_IMAGEKIT_PRIVATE_KEY=private_3aE43Ff8Wh96MBV47ri3Jp2zsIA=
+VITE_IMAGEKIT_PRIVATE_KEY=YOUR_IMAGEKIT_PRIVATE_KEY
 ```
 
 **Note:** These must also be set in Vercel environment variables for production.

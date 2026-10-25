@@ -474,7 +474,7 @@ User Journey:
 node check-tier-features.js
 
 # Check if quota function exists
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c \
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN \
 supabase db ls
 ```
 

@@ -3259,10 +3259,9 @@ Thank you for your business! 🙏
         };
 
         // Save to Supabase - pass the current user's ID.
-        // CRITICAL: createSupabaseSale returns the persisted row on success, or null
-        // on ANY failure (offline, network reject, RLS error, no-row). It does NOT
-        // throw on a network reject — so we MUST check the return value. Only a real
-        // confirmed row counts as success; null => not persisted => treat as failure.
+        // createSupabaseSale returns the persisted row on success. A network
+        // failure with no Postgres code returns null. A real server error
+        // (stock, price, unknown product, bad id) is thrown and caught below.
         const cloudRow = await createSupabaseSale(
           { ...supabaseSaleData, client_sale_id: saleId }, // OFF-01: same UUID as the IDB row -> at most one row ever
           currentUser.uid
@@ -3287,7 +3286,7 @@ Thank you for your business! 🙏
         const permanent = isPermanentSaleError(cloudError);
         try {
           await updateSale(saleId, permanent
-            ? { syncedToCloud: false, syncError: cloudError?.code || 'permanent' }
+            ? { syncedToCloud: false, syncError: String(cloudError?.message || cloudError?.code || 'permanent').slice(0, 180) }
             : { syncedToCloud: false });
         } catch (flagErr) {
           console.warn('[handleSaveSale] Could not update the local sync flag:', flagErr);

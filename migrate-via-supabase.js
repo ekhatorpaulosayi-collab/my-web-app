@@ -2,7 +2,11 @@
 import fetch from 'node-fetch';
 
 const SUPABASE_PROJECT_ID = 'yzlniqwzqlsftxrtapdl';
-const SUPABASE_ACCESS_TOKEN = 'sbp_0e49aecc340f38054a0a937101177d76f7b3574c'; // Your access token
+const SUPABASE_ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
+if (!SUPABASE_ACCESS_TOKEN) {
+  console.error('Set SUPABASE_ACCESS_TOKEN (Supabase dashboard → Account → Access Tokens).');
+  process.exit(1);
+}
 
 async function runMigrationViaAPI() {
   console.log('🚀 Applying migration via Supabase API...\n');

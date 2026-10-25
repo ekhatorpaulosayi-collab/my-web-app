@@ -128,6 +128,8 @@ export async function createSale(sale: Sale, _userId?: string): Promise<Sale | n
     if (error && missingSaleRpc(error)) {
       return insertSaleWithoutReadback(saleData);
     }
+    // A real RPC error (wrong types, unknown product, price, stock) must
+    // reach the caller. Swallowing it as null looked like a dropped network.
     if (error) throw error;
 
     const row = data as { id?: string; client_sale_id?: string; already_recorded?: boolean } | null;
@@ -136,8 +138,11 @@ export async function createSale(sale: Sale, _userId?: string): Promise<Sale | n
     }
     return { ...saleData, id: row.id, client_sale_id: row.client_sale_id || saleData.client_sale_id || undefined };
   } catch (error) {
-    console.error('[supabaseSales] Failed to create sale:', (error as { code?: string; message?: string })?.code || (error as Error)?.message);
-    if (isPermanentSaleError(error as { code?: string; message?: string; permanent?: boolean })) {
+    const coded = error as { code?: string; message?: string; permanent?: boolean };
+    console.error('[supabaseSales] Failed to create sale:', coded?.code || coded?.message);
+    // Postgres and PostgREST codes are answers from the server. Only a
+    // failure with no code (offline, failed fetch) stays retryable.
+    if (coded?.code || isPermanentSaleError(coded)) {
       throw error;
     }
     return null;

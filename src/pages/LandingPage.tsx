@@ -1103,7 +1103,7 @@ export default function LandingPage() {
       {/* Affiliate Program CTA */}
       <section style={{
         padding: '80px 20px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
         color: 'white',
         textAlign: 'center'
       }}>
@@ -1111,7 +1111,7 @@ export default function LandingPage() {
           <h2 style={{ fontSize: '42px', fontWeight: 700, marginBottom: '16px' }}>
             💰 Earn 30% Commission as an Affiliate
           </h2>
-          <p style={{ fontSize: '20px', marginBottom: '32px', opacity: 0.95 }}>
+          <p style={{ fontSize: '20px', marginBottom: '32px', color: '#ffffff' }}>
             Refer businesses to Storehouse and earn recurring commission on every paid subscription
           </p>
 
@@ -1129,7 +1129,7 @@ export default function LandingPage() {
             }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>30%</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>Commission Rate</div>
-              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>On all paid plans</div>
+              <div style={{ fontSize: '14px', color: '#ffffff', marginTop: '4px' }}>On all paid plans</div>
             </div>
 
             <div style={{
@@ -1140,7 +1140,7 @@ export default function LandingPage() {
             }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>2</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>Conversions to Unlock</div>
-              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>Low barrier to start</div>
+              <div style={{ fontSize: '14px', color: '#ffffff', marginTop: '4px' }}>Low barrier to start</div>
             </div>
 
             <div style={{
@@ -1151,7 +1151,7 @@ export default function LandingPage() {
             }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>Weekly</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>Payouts</div>
-              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>Every Monday</div>
+              <div style={{ fontSize: '14px', color: '#ffffff', marginTop: '4px' }}>Every Monday</div>
             </div>
           </div>
 
@@ -1181,7 +1181,7 @@ export default function LandingPage() {
             Become an Affiliate Partner →
           </button>
 
-          <p style={{ marginTop: '24px', fontSize: '14px', opacity: 0.85 }}>
+          <p style={{ marginTop: '24px', fontSize: '14px', color: '#ffffff' }}>
             Perfect for influencers, business coaches, consultants, and community leaders
           </p>
         </div>

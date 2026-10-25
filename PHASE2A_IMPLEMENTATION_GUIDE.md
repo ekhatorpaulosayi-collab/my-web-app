@@ -276,7 +276,7 @@ WhatsApp +447459044300 to choose! 📱"
 ### 2. Deploy Backend
 ```bash
 cd /home/ekhator1/smartstock-v2
-export SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c
+export SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN
 supabase functions deploy ai-chat --no-verify-jwt
 ```
 

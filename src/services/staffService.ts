@@ -154,6 +154,9 @@ export async function authenticateStaffWithPin(
   // Server session (migration 09). The PIN is checked in Postgres and the
   // JWT session is locked to this role until end_staff_session.
   const { data: started, error: rpcError } = await supabase.rpc('begin_staff_session', { p_pin: pin });
+  const sessionError = String(started?.error || '');
+  if (!rpcError && sessionError === 'pin_locked') throw new Error(PIN_LOCK_MESSAGE);
+  if (!rpcError && sessionError === 'invalid_pin') return null;
   if (!rpcError && started?.staff_id) {
     clearPinLock(ownerUid);
     return {

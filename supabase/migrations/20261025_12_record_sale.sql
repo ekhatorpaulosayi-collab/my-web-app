@@ -3,6 +3,11 @@
 -- Run AFTER 20261025_09_staff_sessions.sql (this function calls
 -- acting_staff_role()) and BEFORE the frontend that records sales.
 --
+-- Re-run this file if an earlier copy was applied. CREATE OR REPLACE replaces
+-- the function. Live sales.sale_time is timetz and sales.client_sale_id is
+-- uuid. The arguments stay text; the body casts them. A bad client id returns
+-- invalid_client_sale_id (23514), not 22P02.
+--
 -- Cashiers use the owner's JWT. Migration 09 hides sales from them and blocks
 -- product edits, so the browser cannot insert a sale and then read it back,
 -- and it cannot decrement products.quantity. This function does both in one
@@ -11,6 +16,11 @@
 -- One call is one line. public.sales is one row per item (there is no
 -- sale_items table). A second call with the same client_sale_id returns the
 -- existing id and does not decrement stock again.
+--
+-- Price must be the product's selling_price, or its discount_price when that
+-- discount is positive and below the catalogue price. Stock is never taken
+-- below zero: the sale is rejected with insufficient_stock. An unknown
+-- product_id is rejected. A product owned by someone else is not_allowed.
 --
 -- ROLLBACK:
 --   DROP FUNCTION IF EXISTS public.record_sale(text, text, integer, bigint, bigint, text, text, text, text, text, text, text, date, text, text, bigint, bigint);
@@ -46,11 +56,18 @@ DECLARE
   v_existing uuid;
   v_id uuid;
   v_client text := NULLIF(btrim(COALESCE(p_client_sale_id, '')), '');
+  v_client_uuid uuid;
   v_discount bigint;
   v_total bigint;
   v_final bigint;
   v_channel text;
-  v_owned int;
+  v_time_text text;
+  v_sale_time timetz;
+  v_qty integer;
+  v_sell bigint;
+  v_disc bigint;
+  v_owner text;
+  v_updated int;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not_signed_in' USING ERRCODE = '42501';
@@ -71,6 +88,22 @@ BEGIN
     RAISE EXCEPTION 'invalid_price' USING ERRCODE = '23514';
   END IF;
 
+  IF v_client IS NOT NULL THEN
+    IF v_client !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+      RAISE EXCEPTION 'invalid_client_sale_id' USING ERRCODE = '23514';
+    END IF;
+    v_client_uuid := v_client::uuid;
+  END IF;
+
+  v_time_text := NULLIF(btrim(COALESCE(p_sale_time, '')), '');
+  IF v_time_text IS NULL THEN
+    v_sale_time := ((now() AT TIME ZONE 'Africa/Lagos')::time AT TIME ZONE 'Africa/Lagos');
+  ELSIF v_time_text !~ '^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$' THEN
+    RAISE EXCEPTION 'invalid_sale_time' USING ERRCODE = '23514';
+  ELSE
+    v_sale_time := (v_time_text::time AT TIME ZONE 'Africa/Lagos');
+  END IF;
+
   v_discount := GREATEST(COALESCE(p_discount_amount, 0), 0);
   v_total := p_unit_price * p_quantity;
   IF v_discount > v_total THEN
@@ -83,11 +116,11 @@ BEGIN
     RAISE EXCEPTION 'invalid_channel' USING ERRCODE = '23514';
   END IF;
 
-  IF v_client IS NOT NULL THEN
+  IF v_client_uuid IS NOT NULL THEN
     SELECT s.id INTO v_existing
       FROM public.sales s
      WHERE s.user_id = auth.uid()::text
-       AND s.client_sale_id::text = v_client
+       AND s.client_sale_id = v_client_uuid
      LIMIT 1;
     IF v_existing IS NOT NULL THEN
       RETURN jsonb_build_object(
@@ -98,15 +131,43 @@ BEGIN
     END IF;
   END IF;
 
+  SELECT COALESCE(p.quantity, 0),
+         CASE WHEN p.selling_price IS NULL THEN NULL ELSE p.selling_price::bigint END,
+         CASE WHEN p.discount_price IS NULL THEN NULL ELSE p.discount_price::bigint END,
+         p.user_id::text
+    INTO v_qty, v_sell, v_disc, v_owner
+    FROM public.products p
+   WHERE lower(p.id::text) = lower(btrim(p_product_id));
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'unknown_product: this product is not in your catalogue' USING ERRCODE = '23514';
+  END IF;
+  IF v_owner IS DISTINCT FROM auth.uid()::text THEN
+    RAISE EXCEPTION 'not_allowed' USING ERRCODE = '42501';
+  END IF;
+  IF NOT (
+    (v_sell IS NOT NULL AND p_unit_price = v_sell)
+    OR (
+      v_disc IS NOT NULL
+      AND v_disc > 0
+      AND (v_sell IS NULL OR v_disc < v_sell)
+      AND p_unit_price = v_disc
+    )
+  ) THEN
+    RAISE EXCEPTION 'price_mismatch: the price does not match this product or its discount' USING ERRCODE = '23514';
+  END IF;
+  IF v_qty < p_quantity THEN
+    RAISE EXCEPTION 'insufficient_stock: not enough items left to record this sale' USING ERRCODE = '23514';
+  END IF;
+
   UPDATE public.products
      SET quantity = COALESCE(quantity, 0) - p_quantity
-   WHERE id::text = p_product_id
-     AND user_id::text = auth.uid()::text;
-  GET DIAGNOSTICS v_owned = ROW_COUNT;
-  IF v_owned = 0 AND EXISTS (
-    SELECT 1 FROM public.products WHERE id::text = p_product_id
-  ) THEN
-    RAISE EXCEPTION 'not_allowed' USING ERRCODE = '42501';
+   WHERE lower(id::text) = lower(btrim(p_product_id))
+     AND user_id::text = auth.uid()::text
+     AND COALESCE(quantity, 0) >= p_quantity;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  IF v_updated = 0 THEN
+    RAISE EXCEPTION 'insufficient_stock: not enough items left to record this sale' USING ERRCODE = '23514';
   END IF;
 
   INSERT INTO public.sales (
@@ -118,7 +179,7 @@ BEGIN
     sale_date, sale_time, sale_channel, notes, client_sale_id
   ) VALUES (
     auth.uid()::text,
-    p_product_id,
+    btrim(p_product_id),
     COALESCE(NULLIF(btrim(COALESCE(p_product_name, '')), ''), 'Unknown Product'),
     p_quantity,
     p_unit_price,
@@ -133,10 +194,10 @@ BEGIN
     COALESCE(p_amount_paid, v_final),
     COALESCE(p_amount_due, 0),
     COALESCE(p_sale_date, (now() AT TIME ZONE 'Africa/Lagos')::date),
-    COALESCE(NULLIF(btrim(COALESCE(p_sale_time, '')), ''), to_char(now() AT TIME ZONE 'Africa/Lagos', 'HH24:MI:SS')),
+    v_sale_time,
     v_channel,
     NULLIF(btrim(COALESCE(p_notes, '')), ''),
-    v_client
+    v_client_uuid
   )
   RETURNING id INTO v_id;
 
@@ -150,8 +211,8 @@ EXCEPTION
     SELECT s.id INTO v_existing
       FROM public.sales s
      WHERE s.user_id = auth.uid()::text
-       AND v_client IS NOT NULL
-       AND s.client_sale_id::text = v_client
+       AND v_client_uuid IS NOT NULL
+       AND s.client_sale_id = v_client_uuid
      LIMIT 1;
     IF v_existing IS NULL THEN
       RAISE;

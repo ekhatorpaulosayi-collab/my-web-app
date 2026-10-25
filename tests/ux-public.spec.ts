@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 
+const artifactDir = process.env.UX_ARTIFACT_DIR || `${process.cwd()}/artifacts/ux-after`;
+
 const routes = [
   ['home', '/'],
   ['login', '/login'],
@@ -17,7 +19,7 @@ const routes = [
 ];
 
 test.beforeAll(async () => {
-  await mkdir('/opt/cursor/artifacts/ux-after', { recursive: true });
+  await mkdir(artifactDir, { recursive: true });
 });
 
 for (const [name, path] of routes) {
@@ -38,7 +40,7 @@ for (const [name, path] of routes) {
 
     const width = page.viewportSize()?.width ?? 0;
     const sizeLabel = width <= 400 ? '390x844' : '1440x900';
-    const shot = `/opt/cursor/artifacts/ux-after/${name}-${sizeLabel}.png`;
+    const shot = `${artifactDir}/${name}-${sizeLabel}.png`;
     await page.screenshot({ path: shot, fullPage: false });
 
     if (name === 'help' || name === 'upgrade' || name === 'referrals' || name === 'quick-setup') {

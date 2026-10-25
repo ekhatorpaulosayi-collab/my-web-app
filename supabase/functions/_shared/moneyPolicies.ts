@@ -33,32 +33,38 @@ export function aiSpendGate(input: { rpcMissing: boolean; reserved: boolean }): 
 }
 
 /**
- * A browser call with no Origin is rejected unless the caller has a real user
- * session. A present Origin is allowed only when it is on the allowlist.
+ * A call with no Origin is rejected, including a signed-in browser.
+ * The only exception is the Capacitor app, which sends
+ * `x-storehouse-client: capacitor` and often has no Origin header.
+ * A present Origin is allowed only when it is on the allowlist.
+ * `authenticated` does not unlock a missing Origin.
  */
 export function chatCallAllowed(input: {
   origin: string | null;
   originAllowed: boolean;
   authenticated: boolean;
+  nativeApp?: boolean;
 }): boolean {
-  if (!input.origin) return input.authenticated;
+  if (!input.origin) return input.nativeApp === true;
   return input.originAllowed;
 }
 
+/** Header value the native app sends when it has no browser Origin. */
+export function isNativeChatClient(header: string | null | undefined): boolean {
+  return String(header || '').trim().toLowerCase() === 'capacitor';
+}
+
 /**
- * Live stores columns are custom_domain and domain_verification_token.
- * custom_domain_verified does not exist. A leftover token means DNS is still
- * pending. No token and a non-empty domain counts as verified. Saving a
- * domain without writing a token (Store Settings today) therefore counts.
+ * A custom domain is on the allowlist only when the store row has
+ * custom_domain_verified = true. An empty domain_verification_token is not
+ * verification. The DNS TXT function is the only writer of that flag.
  */
 export function customDomainIsVerified(row: {
   custom_domain?: string | null;
-  domain_verification_token?: string | null;
+  custom_domain_verified?: boolean | null;
 }): boolean {
   const domain = String(row.custom_domain || '').trim();
-  if (!domain) return false;
-  const token = row.domain_verification_token;
-  return token == null || String(token).trim() === '';
+  return Boolean(domain) && row.custom_domain_verified === true;
 }
 
 export function isBuiltInChatOrigin(origin: string, extraOrigins: string[] = []): boolean {

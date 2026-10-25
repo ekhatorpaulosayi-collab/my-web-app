@@ -17,7 +17,7 @@ This is the ONLY thing you must do manually (can't be automated).
 Host:           smtp.resend.com
 Port:           587
 Username:       resend
-Password:       re_XPVQSN5h_LiRBx7v2HE7uUQWTswAKavrN
+Password:       YOUR_RESEND_API_KEY
 Sender email:   noreply@storehouse.app
 Sender name:    Storehouse
 ```
@@ -91,7 +91,7 @@ This fixes the password reset links.
 Host: smtp.resend.com
 Port: 587
 Username: resend
-Password: re_XPVQSN5h_LiRBx7v2HE7uUQWTswAKavrN
+Password: YOUR_RESEND_API_KEY
 Sender email: noreply@storehouse.app
 Sender name: Storehouse
 ```

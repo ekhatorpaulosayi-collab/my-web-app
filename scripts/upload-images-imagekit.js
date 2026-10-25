@@ -13,7 +13,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ImageKit credentials from .env
-const IMAGEKIT_PRIVATE_KEY = 'private_3aE43Ff8Wh96MBV47ri3Jp2zsIA=';
+const IMAGEKIT_PRIVATE_KEY = process.env.IMAGEKIT_PRIVATE_KEY;
+if (!IMAGEKIT_PRIVATE_KEY) {
+  console.error('Set IMAGEKIT_PRIVATE_KEY (ImageKit dashboard → Developer options).');
+  process.exit(1);
+}
 const IMAGEKIT_PUBLIC_KEY = 'public_QdLLjPTKH/+dRHxXqo0lSiOs310=';
 const IMAGEKIT_URL_ENDPOINT = 'https://ik.imagekit.io/onelove431212341234';
 

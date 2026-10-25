@@ -73,6 +73,7 @@ export const StoreSettings: React.FC = () => {
   // Custom domain state
   const [customDomain, setCustomDomain] = useState('');
   const [customDomainVerified, setCustomDomainVerified] = useState(false);
+  const [domainToken, setDomainToken] = useState('');
   const [subdomain, setSubdomain] = useState('');
   const [verifyingDomain, setVerifyingDomain] = useState(false);
 
@@ -147,7 +148,7 @@ export const StoreSettings: React.FC = () => {
       logoUrl: store.logo_url,
       subdomain: store.subdomain,
       customDomain: store.custom_domain,
-      customDomainVerified: Boolean(store.custom_domain) && !store.domain_verification_token,
+      customDomainVerified: store.custom_domain_verified === true,
       bankName: store.bank_name,
       accountNumber: store.account_number,
       accountName: store.account_name,
@@ -181,6 +182,7 @@ export const StoreSettings: React.FC = () => {
     setSubdomain(data.subdomain || '');
     setCustomDomain(data.customDomain || '');
     setCustomDomainVerified(data.customDomainVerified || false);
+    setDomainToken(store.domain_verification_token || '');
 
     // Load payment details
     setBankName(data.bankName || '');
@@ -327,7 +329,6 @@ export const StoreSettings: React.FC = () => {
         // grandfathered "234" case) stay NULL so 234.storehouse.ng
         // never resolves as a storefront.
         subdomain: /^\d+$/.test(normalizedSlug) ? null : normalizedSlug,
-        custom_domain: customDomain.trim() || null,
         logo_url: logoUrl || '',
         whatsapp_number: whatsappNumber.trim(),
         address: address.trim(),
@@ -430,6 +431,32 @@ export const StoreSettings: React.FC = () => {
       // the canonical server value (and so any subsequent save sees store.id).
       setStore(updatedStore);
 
+      const previousDomain = String(store.custom_domain || '').trim().toLowerCase();
+      const nextDomain = customDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '');
+      let domainNote = '';
+      if (previousDomain !== nextDomain) {
+        const { data: domainRow, error: domainError } = await supabase.rpc('set_store_custom_domain', {
+          p_domain: nextDomain || null,
+        });
+        if (domainError) {
+          const missing = domainError.code === 'PGRST202' || domainError.code === '42883' || /does not exist|could not find the function/i.test(domainError.message || '');
+          domainNote = missing
+            ? 'The rest of your settings were saved. The custom domain was not changed because that function is not installed yet.'
+            : `The rest of your settings were saved. The custom domain was not changed (${domainError.message || 'error'}).`;
+        } else {
+          const saved = domainRow as { custom_domain?: string | null; domain_verification_token?: string | null; custom_domain_verified?: boolean } | null;
+          setCustomDomain(saved?.custom_domain || '');
+          setDomainToken(saved?.domain_verification_token || '');
+          setCustomDomainVerified(false);
+          setStore({
+            ...updatedStore,
+            custom_domain: saved?.custom_domain || null,
+            domain_verification_token: saved?.domain_verification_token || null,
+            custom_domain_verified: false,
+          });
+        }
+      }
+
       // If the subdomain actually changed on this save, register the
       // new value with Vercel. The previous Vercel domain is left in
       // place (no charge, harmless stale cert).
@@ -438,7 +465,7 @@ export const StoreSettings: React.FC = () => {
         provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
       }
 
-      alert('Store settings saved successfully!');
+      alert(domainNote || 'Store settings saved successfully!');
 
     } catch (error: any) {
       console.error('[StoreSettings] Save error:', error);
@@ -809,9 +836,54 @@ export const StoreSettings: React.FC = () => {
                 <div><strong>Name:</strong> www (or @)</div>
                 <div><strong>Value:</strong> {subdomain || storeSlug}.storehouse.ng</div>
               </div>
-              <div style={{ fontSize: '12px', color: '#78350F' }}>
-                After adding the DNS record, save your settings. Verification can take up to 24 hours.
+              <div style={{ marginBottom: '8px' }}>
+                Add this TXT record as well. The domain stays off until it matches.
               </div>
+              <div style={{
+                background: 'white',
+                padding: '8px',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                marginBottom: '8px'
+              }}>
+                <div><strong>Type:</strong> TXT</div>
+                <div><strong>Name:</strong> _storehouse.{customDomain.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}</div>
+                <div><strong>Value:</strong> {domainToken || 'Save settings to get a verification value'}</div>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setVerifyingDomain(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke('verify-custom-domain', { body: {} });
+                    if (error) throw error;
+                    if (data?.verified) {
+                      setCustomDomainVerified(true);
+                      alert('Domain verified.');
+                    } else {
+                      alert(data?.message || 'The TXT record was not found yet. Add it and try again in a few minutes.');
+                    }
+                  } catch {
+                    alert('Could not verify the domain yet. Add the TXT record, wait a few minutes, and try again.');
+                  } finally {
+                    setVerifyingDomain(false);
+                  }
+                }}
+                disabled={verifyingDomain || !domainToken}
+                style={{
+                  marginTop: '8px',
+                  background: '#1d4ed8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontWeight: 600,
+                  cursor: verifyingDomain || !domainToken ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {verifyingDomain ? 'Checking DNS…' : 'Check DNS'}
+              </button>
             </div>
           )}
         </div>

@@ -34,19 +34,36 @@ psql "$(cat ~/.supabase-paystack-dburl)" -v ON_ERROR_STOP=1 -c \
 
 ## Step 0 — before any SQL
 
-Do this once, before the files below.
+Do this once, before the files below. Do not paste any new secret into git, this file, or a chat. Old copies stay in git history. Do not rewrite history.
 
-1. **Backup.** In the Supabase dashboard open Database → Backups. Confirm a backup exists. Turn on Point-in-Time Recovery (PITR). PITR needs the Pro plan. If you cannot turn it on, do not continue.
-2. **Reset the database password.** The old password is still in old git commits. This branch removed it from the current files and did not rewrite history. In Supabase → Project Settings → Database, reset the password. Update `~/.supabase-paystack-dburl` with the new URL. Do not commit that file. Old copies of the password stop working after the reset.
-3. **Rotate API keys.** The old service-role key was committed in the past. Create a new secret key and point edge functions at it. Point the website's `VITE_SUPABASE_ANON_KEY` at the new publishable key (`sb_publishable_...`). Do not paste either key into this file. After the site and the functions are using the new keys, disable the legacy anon and service-role keys. Check both old keys return 401. The old Play Store app will stop loading. That is expected.
-4. **Auth settings.** Authentication → Providers → Email:
+1. **Backup.** In the Supabase dashboard open Database → Backups. Confirm a backup exists. Turn on Point-in-Time Recovery (PITR) if the project is on the Pro plan. If PITR is not available, take your own dump before any migration and keep the file off the repo:
+
+   ```bash
+   pg_dump "$(cat ~/.supabase-paystack-dburl)" -Fc -f ~/storehouse-prechange.dump
+   ```
+
+   Do not echo that URL. Check the file exists and is not empty (`ls -lh ~/storehouse-prechange.dump`). Restore later with `pg_restore` only if you mean to replace the database.
+
+2. **Reset the database password.** The old password is still in old git commits. This branch removed it from the current files. Supabase dashboard → Project Settings → Database → Database password → Reset. Update `~/.supabase-paystack-dburl` (permissions `600`) with the new URL. Do not commit that file. The new value goes only in that file. Old copies of the password stop working after the reset.
+
+3. **Rotate the Supabase access token (`sbp_`).** Dashboard → Account (your avatar) → Access Tokens. Revoke the token that was committed. Create a new token. Put it in the environment variable `SUPABASE_ACCESS_TOKEN` for the Supabase CLI (`supabase login` or that variable). Scripts that call the management API read that variable. It does not go in the repo.
+
+4. **Rotate the ImageKit private key.** ImageKit dashboard → Developer options → API keys → regenerate the private key. Put the new value in `IMAGEKIT_PRIVATE_KEY` for the upload scripts only. The public endpoint key can stay. Do not commit the private key.
+
+5. **Rotate the Resend key.** Resend dashboard → API Keys → revoke the old key → create a new one. Put it in the edge secret `RESEND_API_KEY` (Supabase → Project Settings → Edge Functions → Secrets). It does not go in a markdown file.
+
+6. **Rotate the VAPID key pair.** Generate a new pair (the web-push docs describe the generator). The new private key goes in the edge secret `VAPID_PRIVATE_KEY` for `send-push-notification`. The new public key goes in the website variable `VITE_VAPID_PUBLIC_KEY`. Phones that subscribed with the old key must subscribe again. Do not commit the private key.
+
+7. **Rotate Supabase API keys.** The old service-role key was committed in the past. Create a new secret key and point edge functions at it. Point the website's `VITE_SUPABASE_ANON_KEY` at the new publishable key (`sb_publishable_...`). After the site and the functions are using the new keys, disable the legacy anon and service-role keys. Check both old keys return 401. The old Play Store app will stop loading. That is expected.
+
+8. **Auth settings.** Authentication → Providers → Email:
    - Minimum password length **8**
    - Turn on leaked-password protection
    - Confirm anonymous sign-ins are off
 
 Smoke test: you can still sign in to https://www.storehouse.ng with your account. A password shorter than 8 characters is rejected on sign-up.
 
-Rollback: a password reset cannot be undone. The new password is the password. If sign-in breaks, reset it again and update the local URL file. Do not put the password back into git.
+Rollback: a password reset cannot be undone. The new password is the password. If sign-in breaks, reset it again and update the local URL file. If a migration goes wrong and PITR is off, restore `~/storehouse-prechange.dump`. Do not put any of these secrets back into git.
 
 ## Step 1 — affiliate ledger function
 
@@ -103,6 +120,13 @@ File: `supabase/migrations/20261025_04_advisor_hardening.sql`
 Version `2026102504`, name `advisor_hardening_stage_a`.
 
 This file is safe to run before the new website. It does **not** include the chat-policy drop. That is the next file, later.
+
+Before you run it on the live database, you can rehearse it. Dump the schema only, then run `scripts/dry-run-04.sh` against that file. The script loads the dump into a throwaway local database, runs this file and `20261025_04b_chat_policies_stage_b.sql` inside one transaction, and rolls back. It refuses a Supabase URL.
+
+```bash
+supabase db dump --schema-only -f ~/storehouse-schema.sql
+scripts/dry-run-04.sh ~/storehouse-schema.sql
+```
 
 Smoke test: the storefront opens, the chat widget still answers, you can add a product, and you can record a sale.
 
@@ -199,6 +223,17 @@ Do these three files, then deploy the website, in one sitting.
 1. `supabase/migrations/20261025_08_dashboard_summary.sql` — version `2026102508`, name `dashboard_summary`
 2. `supabase/migrations/20261025_09_staff_sessions.sql` — version `2026102509`, name `staff_sessions`
 3. `supabase/migrations/20261025_12_record_sale.sql` — version `2026102512`, name `record_sale`
+4. `supabase/migrations/20261025_14_custom_domain_verification.sql` — version `2026102514`, name `custom_domain_verification`
+
+If you already applied an older copy of 09 or 12, run these files again. `CREATE OR REPLACE` replaces the functions. 09 must return `pin_locked` / `invalid_pin` in the JSON (a `RAISE` rolls the attempt counter back, so the lock never sticks). 12 must cast `sale_time` to `timetz` and `client_sale_id` to `uuid`. Those are the live column types. A bad client id comes back as `invalid_client_sale_id`, not `22P02`.
+
+`20261025_14` makes `custom_domain` unique, takes away the owner's ability to update `custom_domain`, `domain_verification_token`, and `custom_domain_verified`, and adds `set_store_custom_domain` (that call sets verified to false and issues a new token). Run its pre-check first. Duplicate domains must be cleared or the file stops.
+
+Deploy `verify-custom-domain` after 14 and before you rely on custom domains. Leave `verify_jwt` **true**. Write the flag down, deploy, read it back. It must stay true. This function is the only path that sets `custom_domain_verified` to true, and only after the TXT record `_storehouse.<domain>` matches the token.
+
+```bash
+supabase functions deploy verify-custom-domain --project-ref yzlniqwzqlsftxrtapdl
+```
 
 `20261025_09_staff_sessions.sql` replaces the functions from the dashboard file and from Step 6. If you run the dashboard file again later, run the staff-sessions file again after it.
 
@@ -215,6 +250,11 @@ Rollback for these three, if you have not deployed the website yet:
 
 ```sql
 DROP FUNCTION IF EXISTS public.record_sale(text, text, integer, bigint, bigint, text, text, text, text, text, text, text, date, text, text, bigint, bigint);
+DROP FUNCTION IF EXISTS public.confirm_custom_domain_verified(uuid, text, text);
+DROP FUNCTION IF EXISTS public.set_store_custom_domain(text);
+DROP FUNCTION IF EXISTS public.protect_custom_domain_columns();
+DROP TRIGGER IF EXISTS stores_protect_custom_domain ON public.stores;
+DROP INDEX IF EXISTS public.stores_custom_domain_uniq;
 DROP FUNCTION IF EXISTS public.begin_staff_session(text);
 DROP FUNCTION IF EXISTS public.end_staff_session(text);
 DROP FUNCTION IF EXISTS public.get_acting_staff();
@@ -237,7 +277,7 @@ Smoke test:
 - Record the same sale again only if the app retries it. You should still have one row, and stock should not drop a second time.
 - Sign in with a wrong password. The message is `Email or password is incorrect`, once, not a second generic error.
 - Open the site as a cashier (staff PIN). Sales history, customers, and Invoices are hidden. Recording a sale still works.
-- Enter a wrong staff PIN five times. That fifth try, and any try in the next 15 minutes, says to wait 15 minutes.
+- Enter a wrong staff PIN six times. The fifth try locks the account. The sixth try still says to wait 15 minutes (the counter was saved).
 - Open the dashboard and the online-store setup page. Body text is readable (dark grey on white, not light grey). Buttons with white text use a dark blue, not pale purple.
 
 Rollback: in Vercel, open Deployments, find the last good production deploy, and choose Promote. That restores the previous website in about a minute. If you already ran Step 13, do not roll the website back without also running Step 13's rollback, or checkout stock writes will fail.
@@ -304,9 +344,9 @@ supabase functions deploy ai-chat --no-verify-jwt --project-ref yzlniqwzqlsftxrt
 
 Use that flag only when the value you wrote down was false. If it was true, deploy without the flag.
 
-Secrets from Step 10 (`AI_DAILY_COST_CAP_USD`, `AI_CHAT_CALL_USD`, `AI_CHAT_EXTRA_ORIGINS`) apply here. A custom domain is allowed when `stores.custom_domain` is set and `domain_verification_token` is empty. There is no `custom_domain_verified` column. A domain saved from Store Settings without a token counts as verified.
+Secrets from Step 10 (`AI_DAILY_COST_CAP_USD`, `AI_CHAT_CALL_USD`, `AI_CHAT_EXTRA_ORIGINS`) apply here. A custom domain is allowed only when `stores.custom_domain_verified` is true. That column exists. An empty `domain_verification_token` does not count. Store Settings calls `set_store_custom_domain`, which leaves the flag false until `verify-custom-domain` sees the TXT record.
 
-A browser call with no `Origin` header is rejected unless the caller is signed in.
+A browser call with no `Origin` header is rejected even when the caller is signed in. The Capacitor app is the exception: it sends the header `x-storehouse-client: capacitor`.
 
 Smoke test: the storefront chat answers. A request with no Origin and no user token is rejected. Chat still answers the next day; if you set the daily cap very low on purpose, the widget shows the help-limit sentence and does not call OpenAI.
 
