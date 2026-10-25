@@ -7,6 +7,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, QrCode, FileSpreadsheet, Sparkles, Lock } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
+import { canViewInvoices } from '../utils/staffPermissions';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserTier } from '../services/subscriptionService';
 import { NotificationBadge } from './dashboard/OwnerNotificationManager';
@@ -155,12 +156,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           description: 'Conversations from your online store',
           action: () => navigate('/conversations')
         },
-        {
+        ...(canViewInvoices(currentRole) ? [{
           icon: Receipt,
           label: 'Professional Invoices',
           description: 'Send invoices in 30 seconds',
           action: () => navigate('/invoices')
-        },
+        }] : []),
         // Staff Management (owner only)
         ...(canManageStaff() && !isStaffMode ? [{
           icon: UserCog,

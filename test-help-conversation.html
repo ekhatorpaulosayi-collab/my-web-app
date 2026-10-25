@@ -6,7 +6,9 @@
 </head>
 <body>
   <h1>Test Help Chat Conversation</h1>
-  <button id="testBtn">Send Test Message to AI Chat</button>
+  <label for="pw">Password</label>
+        <input id="pw" type="password" autocomplete="current-password" />
+        <button id="testBtn">Send Test Message to AI Chat</button>
   <div id="result"></div>
 
   <script type="module">
@@ -17,7 +19,7 @@
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    document.getElementById('testBtn').addEventListener('click', async () => {
+    document.getElementById('pw') && document.getElementById('testBtn').addEventListener('click', async () => {
       const resultDiv = document.getElementById('result');
       resultDiv.innerHTML = '<p>Testing...</p>';
 
@@ -25,7 +27,7 @@
         // Sign in first
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: 'olaniyiekhator@gmail.com',
-          password: 'Godisgood1.'
+          password: document.getElementById('pw').value
         });
 
         if (authError) throw authError;

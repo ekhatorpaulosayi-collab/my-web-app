@@ -183,7 +183,7 @@ export default function OnlineStoreSetup() {
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 16px',
           }}></div>
-          <p style={{ color: '#6B7280' }}>Setting up your account...</p>
+          <p style={{ color: '#475569' }}>Setting up your account...</p>
         </div>
       </div>
     );
@@ -481,7 +481,7 @@ export default function OnlineStoreSetup() {
         <h1 style={{
           fontSize: '28px',
           fontWeight: '700',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           marginBottom: '8px',
@@ -738,7 +738,7 @@ export default function OnlineStoreSetup() {
                   style={{
                     padding: '4px 8px',
                     fontSize: '12px',
-                    background: '#667eea',
+                    background: '#1d4ed8',
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
@@ -757,7 +757,7 @@ export default function OnlineStoreSetup() {
               Already taken. Try: <button
                 onClick={() => setStoreSlug(slugSuggestion)}
                 style={{
-                  color: '#667eea',
+                  color: '#1d4ed8',
                   textDecoration: 'underline',
                   background: 'none',
                   border: 'none',
@@ -799,7 +799,7 @@ export default function OnlineStoreSetup() {
                 fontWeight: '600',
                 color: 'white',
                 background: isMainSetupValid
-                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                  ? 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)'
                   : '#D1D5DB',
                 border: 'none',
                 borderRadius: '8px',
@@ -828,14 +828,14 @@ export default function OnlineStoreSetup() {
                 {storeSlug.trim().length < 3 && <div style={{ marginBottom: '4px' }}>• Store URL must be at least 3 characters</div>}
                 {storeSlug.trim().length >= 3 && slugStatus === 'checking' && (
                   <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ marginRight: '8px', color: '#667eea' }}>• Checking URL availability...</span>
+                    <span style={{ marginRight: '8px', color: '#1d4ed8' }}>• Checking URL availability...</span>
                     <button
                       type="button"
                       onClick={() => setSlugStatus('available')}
                       style={{
                         padding: '4px 12px',
                         fontSize: '12px',
-                        background: '#667eea',
+                        background: '#1d4ed8',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
@@ -857,7 +857,7 @@ export default function OnlineStoreSetup() {
                       style={{
                         padding: '4px 12px',
                         fontSize: '12px',
-                        background: '#667eea',
+                        background: '#1d4ed8',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
@@ -895,7 +895,7 @@ export default function OnlineStoreSetup() {
                     padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#667eea',
+                    color: '#1d4ed8',
                     background: 'white',
                     border: '2px solid #667eea',
                     borderRadius: '8px',
@@ -923,7 +923,7 @@ export default function OnlineStoreSetup() {
                     fontSize: '14px',
                     fontWeight: '600',
                     color: 'white',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
                     border: 'none',
                     borderRadius: '8px',
                     cursor: isEditingSlug ? 'not-allowed' : 'pointer',
@@ -983,7 +983,7 @@ export default function OnlineStoreSetup() {
                     padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#6B7280',
+                    color: '#475569',
                     background: 'white',
                     border: '2px solid #E5E7EB',
                     borderRadius: '8px',
@@ -993,18 +993,18 @@ export default function OnlineStoreSetup() {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#667eea';
-                    e.currentTarget.style.color = '#667eea';
+                    e.currentTarget.style.color = '#1d4ed8';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = '#E5E7EB';
-                    e.currentTarget.style.color = '#6B7280';
+                    e.currentTarget.style.color = '#475569';
                   }}
                 >
                   ✏️ Edit
                 </button>
               </div>
               {isEditingSlug && (
-                <p style={{ marginTop: '8px', fontSize: '13px', color: '#6B7280', textAlign: 'center' }}>
+                <p style={{ marginTop: '8px', fontSize: '13px', color: '#475569', textAlign: 'center' }}>
                   💡 Save changes to update your share links
                 </p>
               )}
@@ -1078,7 +1078,7 @@ export default function OnlineStoreSetup() {
                     padding: '12px 20px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#6B7280',
+                    color: '#475569',
                     background: 'white',
                     border: '2px solid #E5E7EB',
                     borderRadius: '8px',
@@ -1172,7 +1172,7 @@ export default function OnlineStoreSetup() {
                 onClick={() => handleSaveSection('logo')}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1249,7 +1249,7 @@ export default function OnlineStoreSetup() {
                           style={{
                             width: '48px',
                             height: '24px',
-                            background: daysOfOperation.includes(day) ? '#667eea' : '#D1D5DB',
+                            background: daysOfOperation.includes(day) ? '#1d4ed8' : '#D1D5DB',
                             borderRadius: '12px',
                             position: 'relative',
                             cursor: 'pointer',
@@ -1275,7 +1275,7 @@ export default function OnlineStoreSetup() {
                     onClick={() => handleSaveSection('hours')}
                     style={{
                       padding: '10px 20px',
-                      background: '#667eea',
+                      background: '#1d4ed8',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -1466,7 +1466,7 @@ export default function OnlineStoreSetup() {
                         WebkitAppearance: 'none',
                       }}
                     />
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
                       {aboutUs.length}/1500 characters
                     </div>
                   </div>
@@ -1474,7 +1474,7 @@ export default function OnlineStoreSetup() {
                     onClick={() => handleSaveSection('about')}
                     style={{
                       padding: '10px 20px',
-                      background: '#667eea',
+                      background: '#1d4ed8',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -1635,7 +1635,7 @@ export default function OnlineStoreSetup() {
                     style={{
                       width: '48px',
                       height: '24px',
-                      background: paystackEnabled ? '#667eea' : '#D1D5DB',
+                      background: paystackEnabled ? '#1d4ed8' : '#D1D5DB',
                       borderRadius: '12px',
                       position: 'relative',
                       cursor: 'pointer',
@@ -1657,7 +1657,7 @@ export default function OnlineStoreSetup() {
                   </div>
                   Enable Paystack
                 </label>
-                <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px', marginLeft: '60px' }}>
+                <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', marginLeft: '60px' }}>
                   Accept card payments directly on your store
                 </div>
               </div>
@@ -1687,13 +1687,13 @@ export default function OnlineStoreSetup() {
                         borderRadius: '8px',
                       }}
                     />
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
                       Get your key from{' '}
                       <a
                         href="https://dashboard.paystack.com/#/settings/developer"
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#667eea', textDecoration: 'underline' }}
+                        style={{ color: '#1d4ed8', textDecoration: 'underline' }}
                       >
                         Paystack Dashboard
                       </a>
@@ -1736,7 +1736,7 @@ export default function OnlineStoreSetup() {
                       </div>
                       Test Mode
                     </label>
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px', marginLeft: '60px' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', marginLeft: '60px' }}>
                       {paystackTestMode
                         ? '⚠️ Using test mode - no real charges will be made'
                         : '✅ Live mode - real payments will be processed'
@@ -1752,7 +1752,7 @@ export default function OnlineStoreSetup() {
                 style={{
                   width: '100%',
                   padding: '10px 20px',
-                  background: ((bankName && validateAccountNumber(accountNumber)) || (paystackEnabled && paystackPublicKey)) ? '#667eea' : '#D1D5DB',
+                  background: ((bankName && validateAccountNumber(accountNumber)) || (paystackEnabled && paystackPublicKey)) ? '#1d4ed8' : '#D1D5DB',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1865,7 +1865,7 @@ export default function OnlineStoreSetup() {
                 onClick={() => handleSaveSection('delivery')}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1955,7 +1955,7 @@ export default function OnlineStoreSetup() {
                 onClick={() => handleSaveSection('social')}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -2012,7 +2012,7 @@ export default function OnlineStoreSetup() {
                 onClick={handleDownloadQR}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -2025,7 +2025,7 @@ export default function OnlineStoreSetup() {
               >
                 Download QR Code
               </button>
-              <p style={{ fontSize: '13px', color: '#6B7280', marginTop: '12px', textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', color: '#475569', marginTop: '12px', textAlign: 'center' }}>
                 Customers can scan this QR code to visit your store
               </p>
             </div>
@@ -2034,7 +2034,7 @@ export default function OnlineStoreSetup() {
             <p style={{
               marginTop: '24px',
               fontSize: '13px',
-              color: '#6B7280',
+              color: '#475569',
               textAlign: 'center',
             }}>
               💡 Save changes to generate a QR code for your new link
@@ -2098,7 +2098,7 @@ function AccordionSection({
             }}>
               {title}
             </div>
-            <div style={{ fontSize: '13px', color: '#6B7280' }}>
+            <div style={{ fontSize: '13px', color: '#475569' }}>
               {description}
             </div>
           </div>

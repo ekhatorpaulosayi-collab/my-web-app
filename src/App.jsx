@@ -73,6 +73,7 @@ import {
 } from './services/supabaseSales.ts';
 import { openWhatsApp } from './utils/wa.ts';
 import { formatNaira, safeMoney, saleRevenueKobo } from './utils/money.ts';
+import { isPermanentSaleError } from './utils/saleSync.ts';
 import { businessDayKey } from './utils/businessDate.ts';
 import { useBusinessProfile } from './contexts/BusinessProfile.jsx';
 import CurrentDate from './components/CurrentDate.tsx';
@@ -3065,7 +3066,7 @@ Thank you for your business! 🙏
       }
 
       // OFFLINE-SAFE ORDERING: the local IndexedDB write happens FIRST, before any
-      // network call (updateProduct / createSupabaseSale below). This guarantees the
+      // network call (createSupabaseSale below). This guarantees the
       // sale is durably recorded regardless of connectivity; a network call that hangs
       // or fails offline can never prevent the sale from being saved. The cloud writes
       // run AFTER, best-effort, and set syncedToCloud so the reconnect drain catches up.
@@ -3202,15 +3203,9 @@ Thank you for your business! 🙏
       // must NEVER throw out of handleSaveSale — offline, these all fail/swallow and
       // the sale stays safely in IndexedDB with syncedToCloud=false for the drain.
 
-      // Update product quantity in Supabase (non-blocking - don't fail sale if this fails).
-      // Moved to AFTER the IDB write so an offline/hanging network call can't block the sale.
+      // Server stock moves inside record_sale (migration 12). A cashier cannot
+      // UPDATE products after migration 09, so this path must not call updateProduct.
       try {
-        await updateProduct(currentUser.uid, selectedItem.id, {
-          quantity: selectedItem.qty - qty  // Use 'quantity' for Supabase
-        });
-        console.log('[handleSaveSale] ✅ Product quantity updated in Supabase');
-
-        // INSTANT UI UPDATE: Update local state immediately (optimistic update)
         setItems(prevItems =>
           prevItems.map(item =>
             item.id === selectedItem.id
@@ -3218,7 +3213,6 @@ Thank you for your business! 🙏
               : item
           )
         );
-        console.log('[handleSaveSale] ✅ Local inventory updated instantly');
 
         // Log stock movement
         logStockMovement({
@@ -3287,14 +3281,16 @@ Thank you for your business! 🙏
           console.warn('[handleSaveSale] Could not set syncedToCloud=true on local sale:', flagErr);
         }
       } catch (cloudError) {
-        console.error('[handleSaveSale] ⚠️ Failed to save to cloud (will remain in local storage):', cloudError);
-        // Don't fail the sale - it's saved locally at least.
-        // Mark it explicitly unsynced so the badge counts it and syncOfflineSales
-        // picks it up on the next online login.
+        console.error('[handleSaveSale] Failed to save to cloud (sale stays on this device):', cloudError?.code || cloudError?.message || cloudError);
+        // A permission or validation error will not succeed on retry. Leave it
+        // flagged so syncOfflineSales stops. Network failures stay retryable.
+        const permanent = isPermanentSaleError(cloudError);
         try {
-          await updateSale(saleId, { syncedToCloud: false });
+          await updateSale(saleId, permanent
+            ? { syncedToCloud: false, syncError: cloudError?.code || 'permanent' }
+            : { syncedToCloud: false });
         } catch (flagErr) {
-          console.warn('[handleSaveSale] Could not set syncedToCloud=false on local sale:', flagErr);
+          console.warn('[handleSaveSale] Could not update the local sync flag:', flagErr);
         }
       }
 
@@ -3325,6 +3321,8 @@ Thank you for your business! 🙏
         // the today filter (:771) reads dayKey. Without these the optimistic row
         // renders ₦NaN and corrupts the total until a cloud refresh re-maps.
         sellKobo,                       // kobo unit price (same var used for totalKobo above)
+        discountKobo: 0,
+        finalKobo: qty * sellKobo,
         payment: paymentValue,
         paymentMethod: paymentValue,    // alias the cloud-map sets at :1045
         dayKey: localDayKey(),          // same no-arg helper the IDB write uses at :3043
@@ -6968,7 +6966,7 @@ Low Stock: ${lowStockItems.length}
                           </td>
                           <td>{sale.itemName}</td>
                           <td>{sale.qty}</td>
-                          <td>₦{((sale.sellKobo * sale.qty) / 100).toLocaleString()}</td>
+                          <td>₦{(saleRevenueKobo(sale) / 100).toLocaleString()}</td>
                           <td>
                             <span className={`payment-badge ${sale.paymentMethod}`}>
                               {sale.paymentMethod || 'cash'}
@@ -6991,7 +6989,7 @@ Low Stock: ${lowStockItems.length}
                     >
                       <div className="sale-card-header">
                         <div className="sale-item-name">{sale.itemName}</div>
-                        <div className="sale-amount">₦{((sale.sellKobo * sale.qty) / 100).toLocaleString()}</div>
+                        <div className="sale-amount">₦{(saleRevenueKobo(sale) / 100).toLocaleString()}</div>
                       </div>
                       <div className="sale-card-details">
                         <span>Qty: {sale.qty}</span>

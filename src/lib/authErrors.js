@@ -7,6 +7,10 @@ export function friendlyAuthError(error) {
   const raw = String(error?.message || '');
   const lower = raw.toLowerCase();
 
+  // Already the public sentence. A second format must not turn it into
+  // "Something went wrong".
+  if (raw === 'Email or password is incorrect') return raw;
+
   const credentialFailure =
     code === 'invalid_credentials' ||
     code === 'invalid_grant' ||

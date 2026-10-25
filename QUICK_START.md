@@ -95,7 +95,7 @@ Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
 #### Database Connection Issues
 ```bash
 # Test connection
-PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT NOW();"
+psql "$DATABASE_URL" -c "SELECT NOW();"
 ```
 
 ---

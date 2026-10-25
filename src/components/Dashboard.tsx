@@ -256,10 +256,7 @@ export function Dashboard({
     const todayRange = getTodayRange();
     const filtered = filterSalesByTimestamp(sales, todayRange);
     // Calculate total from sellKobo * qty (sales don't have pre-calculated totalKobo)
-    const total = filtered.reduce((sum, s) => {
-      const saleTotal = (s.sellKobo || 0) * (s.qty || 0);
-      return sum + saleTotal;
-    }, 0);
+    const total = filtered.reduce((sum, s) => sum + saleRevenueKobo(s), 0);
 
     return {
       total,
@@ -783,7 +780,7 @@ export function Dashboard({
           <div className="sales-total" style={{ color: todaysProfit.profit >= 0 ? '#10b981' : '#ef4444' }}>
             {showProfitData ? currencyNGN(todaysProfit.profit) : '******'}
           </div>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
             <div>
               Margin: {showProfitData ? `${todaysProfit.profitMargin.toFixed(1)}%` : '**%'}
             </div>
@@ -935,7 +932,7 @@ export function Dashboard({
               <>
                 <p style={{
                   fontSize: '14px',
-                  color: '#6b7280',
+                  color: '#475569',
                   marginBottom: '16px',
                   textAlign: 'center'
                 }}>
@@ -967,7 +964,7 @@ export function Dashboard({
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600, color: '#374151' }}>
                   No Items Yet
                 </h4>
-                <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#6b7280' }}>
+                <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#475569' }}>
                   Add products to your inventory first.<br />
                   They'll appear here for quick selling!
                 </p>
@@ -1195,7 +1192,7 @@ export function Dashboard({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#6b7280',
+                                color: '#475569',
                                 transition: 'all 0.2s',
                                 borderRadius: '4px',
                                 minWidth: '36px',
@@ -1206,7 +1203,7 @@ export function Dashboard({
                                 e.currentTarget.style.background = '#f3f4f6';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#6b7280';
+                                e.currentTarget.style.color = '#475569';
                                 e.currentTarget.style.background = 'none';
                               }}
                             >

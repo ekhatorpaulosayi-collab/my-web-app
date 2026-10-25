@@ -15,6 +15,7 @@
 --   DROP FUNCTION IF EXISTS public.end_staff_session(text);
 --   DROP FUNCTION IF EXISTS public.get_acting_staff();
 --   DROP FUNCTION IF EXISTS public.acting_staff_role();
+--   DROP TABLE IF EXISTS public.staff_pin_attempts;
 --   DROP TABLE IF EXISTS public.staff_active_sessions;
 --   Then re-apply 05 and 08 if you still want those function bodies.
 -- =============================================================================
@@ -38,6 +39,17 @@ CREATE POLICY staff_sessions_select_own ON public.staff_active_sessions
   FOR SELECT TO authenticated
   USING (owner_uid = auth.uid());
 REVOKE INSERT, UPDATE, DELETE ON public.staff_active_sessions FROM anon, authenticated;
+
+-- Five wrong PINs lock this owner for 15 minutes. The row is not readable
+-- by the browser. A successful PIN clears it.
+CREATE TABLE IF NOT EXISTS public.staff_pin_attempts (
+  owner_uid uuid PRIMARY KEY,
+  attempts integer NOT NULL DEFAULT 0,
+  locked_until timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.staff_pin_attempts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.staff_pin_attempts FROM PUBLIC, anon, authenticated;
 
 -- NULL means the signed-in session is the owner (no active staff lock).
 CREATE OR REPLACE FUNCTION public.acting_staff_role()
@@ -67,6 +79,8 @@ DECLARE
   v_session uuid := NULLIF(auth.jwt()->>'session_id', '')::uuid;
   v_staff record;
   v_hash text;
+  v_attempts int;
+  v_locked timestamptz;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not_signed_in';
@@ -78,6 +92,18 @@ BEGIN
     RAISE EXCEPTION 'invalid_pin';
   END IF;
 
+  SELECT attempts, locked_until INTO v_attempts, v_locked
+    FROM public.staff_pin_attempts
+   WHERE owner_uid = auth.uid();
+  IF v_locked IS NOT NULL AND v_locked > now() THEN
+    RAISE EXCEPTION 'pin_locked';
+  END IF;
+  IF v_locked IS NOT NULL AND v_locked <= now() THEN
+    UPDATE public.staff_pin_attempts
+       SET attempts = 0, locked_until = NULL, updated_at = now()
+     WHERE owner_uid = auth.uid();
+  END IF;
+
   FOR v_staff IN
     SELECT id, name, role, pin
       FROM public.staff_members
@@ -87,6 +113,7 @@ BEGIN
   LOOP
     v_hash := replace(v_staff.pin, '$2b$', '$2a$');
     IF v_hash ~ '^\$2a\$' AND crypt(p_pin, v_hash) = v_hash THEN
+      DELETE FROM public.staff_pin_attempts WHERE owner_uid = auth.uid();
       INSERT INTO public.staff_active_sessions (owner_uid, session_id, staff_id, role, staff_name)
       VALUES (auth.uid(), v_session, v_staff.id, v_staff.role, coalesce(v_staff.name, 'Staff'))
       ON CONFLICT (owner_uid, session_id) DO UPDATE
@@ -102,6 +129,20 @@ BEGIN
     END IF;
   END LOOP;
 
+  INSERT INTO public.staff_pin_attempts (owner_uid, attempts, locked_until, updated_at)
+  VALUES (auth.uid(), 1, NULL, now())
+  ON CONFLICT (owner_uid) DO UPDATE
+    SET attempts = public.staff_pin_attempts.attempts + 1,
+        locked_until = CASE
+          WHEN public.staff_pin_attempts.attempts + 1 >= 5 THEN now() + interval '15 minutes'
+          ELSE NULL
+        END,
+        updated_at = now()
+  RETURNING attempts INTO v_attempts;
+
+  IF v_attempts >= 5 THEN
+    RAISE EXCEPTION 'pin_locked';
+  END IF;
   RAISE EXCEPTION 'invalid_pin';
 END;
 $$;

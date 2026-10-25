@@ -1,82 +1,352 @@
 # Deploy order
 
-Paul runs every step. This branch does not apply SQL, deploy edge functions, push `main`, or change Vercel.
+You run every step. This branch does not apply SQL, deploy edge functions, push `main`, or change Vercel.
 
-Apply each migration with `psql` (not `supabase db push`), then record the version in `supabase_migrations.schema_migrations`. Wrap is already `BEGIN`/`COMMIT` inside the files that have it. Connection string stays in `~/.supabase-paystack-dburl`. Project ref: `yzlniqwzqlsftxrtapdl`.
+Do the steps from top to bottom. Do not skip a smoke test. If a smoke test fails, stop and use that step's rollback. Do not run `supabase db push`.
 
-`paystack-webhook-router` is public. Deploy it with `--no-verify-jwt`, then read `verify_jwt` back from the management API. A no-auth POST must return the function's `bad_signature`, not the gateway `UNAUTHORIZED_NO_AUTH_HEADER`. Record the flag before the redeploy.
+The database password lives in `~/.supabase-paystack-dburl` (permissions `600`). Never paste it into this file, a chat, or a command that prints it. Never run `echo` on that file.
 
-## 1. Patch
+Project ref: `yzlniqwzqlsftxrtapdl`.
 
-Review this branch. The working tree is the patch. Nothing in this step touches production.
+## How to run a SQL file
 
-## 2. Edge functions that can ship before the new SQL
+From the repo root, with `DATABASE_URL` set to the contents of that file (do not print it):
 
-Deploy `affiliate-ledger` with `verify_jwt=true`. `mark_signup` uses `attribute_affiliate_signup` when migration 11 is present. Until then it increments `total_signups` only after it claims one unconverted click, so a repeat call does not inflate the count.
-
-Leave `ai-chat` on the current production build until step 11. The build in this branch refuses the OpenAI call when `reserve_ai_chat_spend` is missing, so deploying it early stops help chat.
-
-Leave `paystack-webhook-router` on the current production build until steps 6 and 10 are applied. The new handler returns 200 after `record_successful_payment` succeeds and queues a stock failure. Paystack will not retry a 200, so the inventory function and the queue table need to exist first. Deploy command, after those two files:
-
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/FILE.sql
 ```
+
+Or, without putting the URL in your shell history:
+
+```bash
+psql "$(cat ~/.supabase-paystack-dburl)" -v ON_ERROR_STOP=1 -f supabase/migrations/FILE.sql
+```
+
+`ON_ERROR_STOP=1` makes `psql` stop at the first error instead of continuing.
+
+After a file succeeds, record it so Supabase knows it was applied. Replace `VERSION` and `NAME` with the values in that step:
+
+```bash
+psql "$(cat ~/.supabase-paystack-dburl)" -v ON_ERROR_STOP=1 -c \
+"INSERT INTO supabase_migrations.schema_migrations (version, name, statements) \
+ VALUES ('VERSION', 'NAME', ARRAY[]::text[]) ON CONFLICT (version) DO NOTHING;"
+```
+
+## Step 0 — before any SQL
+
+Do this once, before the files below.
+
+1. **Backup.** In the Supabase dashboard open Database → Backups. Confirm a backup exists. Turn on Point-in-Time Recovery (PITR). PITR needs the Pro plan. If you cannot turn it on, do not continue.
+2. **Reset the database password.** The old password is still in old git commits. This branch removed it from the current files and did not rewrite history. In Supabase → Project Settings → Database, reset the password. Update `~/.supabase-paystack-dburl` with the new URL. Do not commit that file. Old copies of the password stop working after the reset.
+3. **Rotate API keys.** The old service-role key was committed in the past. Create a new secret key and point edge functions at it. Point the website's `VITE_SUPABASE_ANON_KEY` at the new publishable key (`sb_publishable_...`). Do not paste either key into this file. After the site and the functions are using the new keys, disable the legacy anon and service-role keys. Check both old keys return 401. The old Play Store app will stop loading. That is expected.
+4. **Auth settings.** Authentication → Providers → Email:
+   - Minimum password length **8**
+   - Turn on leaked-password protection
+   - Confirm anonymous sign-ins are off
+
+Smoke test: you can still sign in to https://www.storehouse.ng with your account. A password shorter than 8 characters is rejected on sign-up.
+
+Rollback: a password reset cannot be undone. The new password is the password. If sign-in breaks, reset it again and update the local URL file. Do not put the password back into git.
+
+## Step 1 — affiliate ledger function
+
+Deploy `affiliate-ledger` **before** the Stage A SQL file. Leave `verify_jwt` **true**.
+
+Before you deploy, write down the current `verify_jwt` value. After you deploy, read it back. It must still be true.
+
+```bash
+supabase functions deploy affiliate-ledger --project-ref yzlniqwzqlsftxrtapdl
+```
+
+Smoke test: open the affiliate page while signed in. It should load, not return a gateway 401.
+
+Rollback: deploy the previous copy of `supabase/functions/affiliate-ledger` and read `verify_jwt` back.
+
+## Step 2 — public ajo and invoice access
+
+File: `supabase/migrations/20261023_01_ajo_and_invoice_public_access.sql`
+
+Version `2026102301`, name `ajo_and_invoice_public_access`.
+
+Smoke test: a shared ajo link still opens that one group. A public invoice link still opens that one invoice. A stranger cannot list every group.
+
+Rollback: the `ROLLBACK` section at the bottom of that file. If you are unsure, restore the Step 0 backup instead of guessing.
+
+## Step 3 — invoice numbers and store columns
+
+File: `supabase/migrations/20261023_02_invoice_numbers_stores_columns_staff.sql`
+
+Version `2026102302`, name `invoice_numbers_stores_columns_staff`.
+
+Run the pre-check in the file first (duplicate invoice numbers). It must return no rows.
+
+Smoke test: open store settings and save. Create a second invoice. Both save.
+
+Rollback: the `ROLLBACK` section at the bottom of that file.
+
+## Step 4 — payouts and payment transactions
+
+File: `supabase/migrations/20261023_03_payout_guard_payment_tx_policies.sql`
+
+Version `2026102303`, name `payout_guard_payment_tx_policies`.
+
+Run the pre-check in the file first (duplicate payouts). It must return no rows.
+
+Smoke test: record stays as it was. You should not be able to insert into `payment_transactions` from the browser.
+
+Rollback: drop the unique index `contribution_payouts_one_per_member` only if you are certain, and restore the Step 0 backup if a real payout was blocked. Do not drop it just to “make the error go away” while two payouts exist.
+
+## Step 5 — Stage A security SQL
+
+File: `supabase/migrations/20261025_04_advisor_hardening.sql`
+
+Version `2026102504`, name `advisor_hardening_stage_a`.
+
+This file is safe to run before the new website. It does **not** include the chat-policy drop. That is the next file, later.
+
+Smoke test: the storefront opens, the chat widget still answers, you can add a product, and you can record a sale.
+
+Rollback: open the `ROLLBACK` section at the bottom of that same file and run **only** the numbered piece that matches what broke. Do not run the whole file backwards. If more than one section is wrong, restore the Step 0 backup / PITR instead.
+
+## Step 6 — sales summary
+
+File: `supabase/migrations/20261025_05_scope_get_sales_summary.sql`
+
+Version `2026102505`, name `scope_get_sales_summary`.
+
+Smoke test: the dashboard total still matches today's sales for your own store. You do not see another store's sales.
+
+Rollback: the `ROLLBACK` note at the top of that file (drop and restore the previous function). File `20261025_09_staff_sessions.sql` replaces this function again later, so if you have already run that file, re-run it instead of restoring this one.
+
+## Step 7 — storefront stock function
+
+File: `supabase/migrations/20261025_06_storefront_inventory.sql`
+
+Version `2026102506`, name `storefront_inventory`.
+
+Smoke test: nothing visible changes yet. In the SQL editor, `SELECT proname FROM pg_proc WHERE proname = 'apply_storefront_inventory';` returns one row.
+
+Rollback:
+
+```sql
+DROP FUNCTION IF EXISTS public.apply_storefront_inventory(text);
+DROP TABLE IF EXISTS public.storefront_fulfillments;
+```
+
+## Step 8 — deploy complete-storefront-order
+
+Deploy `complete-storefront-order` **before** Step 13 (the file that revokes browser stock writes). Keep `verify_jwt` as it is live today (expected **true**, because the app calls it with a user token). Write the flag down before the deploy and read it back after.
+
+```bash
+supabase functions deploy complete-storefront-order --project-ref yzlniqwzqlsftxrtapdl
+```
+
+Smoke test: a storefront checkout still creates an order. Do not use a real card until Step 10 is also done if this function is what records the payment.
+
+Rollback: deploy the previous copy of that function and read `verify_jwt` back.
+
+## Step 9 — stock queue and the queue worker
+
+Files, in this order:
+
+1. `supabase/migrations/20261025_10_inventory_queue.sql` — version `2026102510`, name `inventory_queue`
+2. `supabase/migrations/20261025_13_inventory_queue_processor.sql` — version `2026102513`, name `inventory_queue_processor`
+
+Smoke test:
+
+```sql
+SELECT proname FROM pg_proc WHERE proname = 'process_storefront_inventory_queue';
+```
+
+returns one row.
+
+Rollback:
+
+```sql
+DROP FUNCTION IF EXISTS public.process_storefront_inventory_queue(integer);
+DROP TABLE IF EXISTS public.storefront_inventory_alerts;
+DROP TABLE IF EXISTS public.storefront_inventory_queue;
+```
+
+## Step 10 — Paystack webhook
+
+Only after Steps 7 and 9. Deploy `paystack-webhook-router` with JWT verification **off**. Paystack does not send a Supabase token. If the flag flips to true, every payment is rejected before your code runs.
+
+Write down `verify_jwt` before you deploy.
+
+```bash
 supabase functions deploy paystack-webhook-router --no-verify-jwt --project-ref yzlniqwzqlsftxrtapdl
 ```
 
-## 3. SQL 01, 02, 03
+Read the flag back from the management API. It must be false. Then POST with no auth header and a fake body. You must get the function's `bad_signature`, not the gateway message `UNAUTHORIZED_NO_AUTH_HEADER`.
 
-In order:
+Set these function secrets if they are not set. Do not paste the values into git:
 
-1. `supabase/migrations/20261023_01_ajo_and_invoice_public_access.sql`
-2. `supabase/migrations/20261023_02_invoice_numbers_stores_columns_staff.sql`
-3. `supabase/migrations/20261023_03_payout_guard_payment_tx_policies.sql`
+- `AI_DAILY_COST_CAP_USD` (used by the chat function in Step 15; default 20 if you leave it unset)
+- `AI_CHAT_CALL_USD` (default 0.01)
+- `AI_CHAT_EXTRA_ORIGINS` (extra https origins, comma-separated, or leave empty)
 
-## 4. SQL 04 Stage A, then 05, then 06
+The new publishable key from Step 0 is a **website** variable (`VITE_SUPABASE_ANON_KEY`), not a webhook secret.
 
-1. `supabase/migrations/20261025_04_advisor_hardening.sql` (Stage A: sections 0–6, 7a, 8). This file drops open SELECT on pending product reviews. The storefront insert no longer reads the new row back.
-2. `supabase/migrations/20261025_05_scope_get_sales_summary.sql`
-3. `supabase/migrations/20261025_06_storefront_inventory.sql` (`apply_storefront_inventory`, idempotent on reference).
+Smoke test: the fake-signature POST returns `bad_signature`. After the next real payment, the order shows paid and stock has moved. If stock did not move, the payment must still show paid (the webhook returns 200 and queues stock).
 
-`20261025_04b_chat_policies_stage_b.sql` stays unrun in this step.
+Rollback: deploy the previous webhook source **with** `--no-verify-jwt` and read the flag back. Do not deploy it without that flag.
 
-## 5. Frontend
+## Step 11 — dashboard summary, then staff sessions, then record_sale
 
-Deploy this branch's frontend after Stage A is applied (the chat widget calls the visitor RPCs from section 6). Staff PIN login no longer selects the `pin` column when `begin_staff_session` exists. Route guards read `get_acting_staff`. Until migration 09 is applied, a missing RPC falls back to the saved local session so the app still opens.
+Do these three files, then deploy the website, in one sitting.
 
-## 6. SQL 04b
+1. `supabase/migrations/20261025_08_dashboard_summary.sql` — version `2026102508`, name `dashboard_summary`
+2. `supabase/migrations/20261025_09_staff_sessions.sql` — version `2026102509`, name `staff_sessions`
+3. `supabase/migrations/20261025_12_record_sale.sql` — version `2026102512`, name `record_sale`
 
-`supabase/migrations/20261025_04b_chat_policies_stage_b.sql` only after the frontend from step 5 is what customers are loading. It removes the open chat policies the old widget needs.
+`20261025_09_staff_sessions.sql` replaces the functions from the dashboard file and from Step 6. If you run the dashboard file again later, run the staff-sessions file again after it.
 
-## 7. SQL 07
+After the staff-sessions file, the **old** website cannot read staff PINs. Staff sign-in on the old website stops until you deploy this branch. Owner sign-in still works. That is why the website deploy is the next action, not a later day.
 
-`supabase/migrations/20261025_07_revoke_storefront_client_writes.sql` only after all of these are true:
+`record_sale` is what actually saves a sale and drops stock for a cashier. The new website does not update products from the browser. If you deploy the website **before** this file, sales can still be saved but server stock will not drop, and those sales will not drop stock later. Run this file first.
 
-- SQL 06 has been run
-- `complete-storefront-order` is deployed
-- `paystack-webhook-router` from this branch is deployed (`--no-verify-jwt`, flag read back)
-- the step 5 frontend is live (the browser no longer calls the revoked inventory writes)
+Smoke test, after the website deploy in Step 12 as well:
 
-## 8. SQL 08
+- `SELECT proname FROM pg_proc WHERE proname IN ('begin_staff_session', 'record_sale');` returns two rows.
+- You (the owner) can still open the dashboard.
 
-`supabase/migrations/20261025_08_dashboard_summary.sql` after SQL 05. It creates `dashboard_bootstrap()`.
+Rollback for these three, if you have not deployed the website yet:
 
-## 9. SQL 09 — after 08
+```sql
+DROP FUNCTION IF EXISTS public.record_sale(text, text, integer, bigint, bigint, text, text, text, text, text, text, text, date, text, text, bigint, bigint);
+DROP FUNCTION IF EXISTS public.begin_staff_session(text);
+DROP FUNCTION IF EXISTS public.end_staff_session(text);
+DROP FUNCTION IF EXISTS public.get_acting_staff();
+DROP FUNCTION IF EXISTS public.acting_staff_role();
+DROP TABLE IF EXISTS public.staff_pin_attempts;
+DROP TABLE IF EXISTS public.staff_active_sessions;
+```
 
-`supabase/migrations/20261025_09_staff_sessions.sql` replaces `dashboard_bootstrap()` and `get_sales_summary()`. Run it after 08. If 08 is applied again later, run 09 again. It also revokes SELECT on `staff.pin`, which is safe only after the step 5 frontend is live.
+Then re-run `supabase/migrations/20261025_05_scope_get_sales_summary.sql` and `supabase/migrations/20261025_08_dashboard_summary.sql` if you still want those function bodies.
 
-Cashiers then fail `get_sales_summary`, receive products without `cost_price` from the bootstrap RPC, and lose SELECT on sales, customers, expenses, and invoices through restrictive policies. A direct PostgREST select of `products.cost_price` can still succeed, because the cashier uses the owner's JWT and column grants cannot tell the roles apart. The client zeros that field when the server role is cashier.
+## Step 12 — website
 
-## 10. SQL 10 and the webhook deploy
+Deploy this branch's website (Vercel production for `smartstock-v2`) only after Step 11. Do not change unrelated Vercel settings.
 
-`supabase/migrations/20261025_10_inventory_queue.sql`, then deploy `paystack-webhook-router` as in step 2. `charge.success` returns 200 once `record_successful_payment` has committed. A stock error upserts `storefront_inventory_queue` on `paystack_reference` and still returns 200. Replaying `apply_storefront_inventory(reference)` is idempotent via `storefront_fulfillments`.
+The site build needs the new publishable key in `VITE_SUPABASE_ANON_KEY` if you already disabled the legacy anon key in Step 0. If you have not rotated keys yet, leave the current key until Step 0 is done, then redeploy the site with the new key before you disable the old one.
 
-## 11. SQL 11 and the AI chat deploy
+Smoke test:
 
-`supabase/migrations/20261025_11_affiliate_signup_and_ai_cap.sql`, then deploy `ai-chat`. This function is called from the browser. Deploy it with `--no-verify-jwt` if that is how it is live today, then read `verify_jwt` back from the management API and confirm a browser call still reaches the function.
+- Record a sale. The line appears, the total is the price minus any discount, and the product's stock dropped by the quantity you sold.
+- Record the same sale again only if the app retries it. You should still have one row, and stock should not drop a second time.
+- Sign in with a wrong password. The message is `Email or password is incorrect`, once, not a second generic error.
+- Open the site as a cashier (staff PIN). Sales history, customers, and Invoices are hidden. Recording a sale still works.
+- Enter a wrong staff PIN five times. That fifth try, and any try in the next 15 minutes, says to wait 15 minutes.
+- Open the dashboard and the online-store setup page. Body text is readable (dark grey on white, not light grey). Buttons with white text use a dark blue, not pale purple.
 
-- `attribute_affiliate_signup` inserts one row per customer and increments `total_signups` only on that insert.
-- `reserve_ai_chat_spend` is the global Lagos-day cap (`AI_DAILY_COST_CAP_USD`, default 20; `AI_CHAT_CALL_USD`, default 0.01). Over the cap, or if this function is missing, the function answers with the help-limit sentence and does not call OpenAI.
-- Browser `Origin` must be storehouse.ng, `www`, `*.storehouse.ng`, localhost, `capacitor://localhost`, `AI_CHAT_EXTRA_ORIGINS`, or a `stores.custom_domain` with `custom_domain_verified = true` (apex and www, cached five minutes). A missing Origin is treated as a non-browser caller.
+Rollback: in Vercel, open Deployments, find the last good production deploy, and choose Promote. That restores the previous website in about a minute. If you already ran Step 13, do not roll the website back without also running Step 13's rollback, or checkout stock writes will fail.
 
-## Rollback
+## Step 13 — revoke browser stock writes
 
-Each new migration file states its `DROP` statements in the header. After dropping 09, re-apply 05 and 08 if those function bodies are still wanted. Promoting the previous Vercel deployment restores the previous frontend. Redeploy the previous edge-function source if a function deploy misbehaves, and read `verify_jwt` back on `paystack-webhook-router`.
+File: `supabase/migrations/20261025_07_revoke_storefront_client_writes.sql`
+
+Version `2026102507`, name `revoke_storefront_client_writes`.
+
+Run this only when **all** of these are true:
+
+- Step 7 (storefront stock function) has been run
+- Step 8 (`complete-storefront-order`) is deployed
+- Step 10 (webhook) is deployed
+- Step 12 (this website) is what customers are loading
+
+Smoke test: place a small storefront order. Stock drops once. Refreshing the success page does not drop it again.
+
+Rollback — paste this, then redeploy the previous website if customers are still on the old checkout:
+
+```sql
+GRANT EXECUTE ON FUNCTION public.decrement_variant_quantity(uuid, integer) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.decrement_product_quantity(uuid, integer) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_customer(text, text, text, text, bigint, date) TO anon, authenticated;
+```
+
+If the function argument types differ, the file's header tells you to read them from `pg_proc` instead of guessing. Recreate `promo_usage_insert_checkout` from section 8 of `20261025_04_advisor_hardening.sql` only if checkout promo codes start failing.
+
+## Step 14 — chat policies (Stage B)
+
+File: `supabase/migrations/20261025_04b_chat_policies_stage_b.sql`
+
+Version `2026102504b`, name `chat_policies_stage_b`.
+
+Run this only after Step 12 is live. It removes the open chat policies the old widget needs.
+
+Smoke test: the storefront chat still answers, and a shopper can still ask to talk to the store owner.
+
+Rollback (this opens chat rows to the public again; use it only to get the widget back, then fix forward):
+
+```sql
+DROP POLICY IF EXISTS conv_owner_select ON public.ai_chat_conversations;
+DROP POLICY IF EXISTS conv_owner_delete ON public.ai_chat_conversations;
+DROP POLICY IF EXISTS msg_owner_select ON public.ai_chat_messages;
+DROP POLICY IF EXISTS msg_owner_insert ON public.ai_chat_messages;
+DROP POLICY IF EXISTS msg_owner_update ON public.ai_chat_messages;
+DROP POLICY IF EXISTS msg_owner_delete ON public.ai_chat_messages;
+CREATE POLICY temp_allow_all_conversations ON public.ai_chat_conversations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY temp_allow_all_messages ON public.ai_chat_messages FOR ALL USING (true) WITH CHECK (true);
+```
+
+## Step 15 — affiliate signup SQL and the chat function
+
+File: `supabase/migrations/20261025_11_affiliate_signup_and_ai_cap.sql`
+
+Version `2026102511`, name `affiliate_signup_and_ai_cap`.
+
+Then deploy `ai-chat`. If the live function was deployed with `--no-verify-jwt`, deploy it that way again. Write `verify_jwt` down first and read it back after. Do not flip it by accident.
+
+```bash
+supabase functions deploy ai-chat --no-verify-jwt --project-ref yzlniqwzqlsftxrtapdl
+```
+
+Use that flag only when the value you wrote down was false. If it was true, deploy without the flag.
+
+Secrets from Step 10 (`AI_DAILY_COST_CAP_USD`, `AI_CHAT_CALL_USD`, `AI_CHAT_EXTRA_ORIGINS`) apply here. A custom domain is allowed when `stores.custom_domain` is set and `domain_verification_token` is empty. There is no `custom_domain_verified` column. A domain saved from Store Settings without a token counts as verified.
+
+A browser call with no `Origin` header is rejected unless the caller is signed in.
+
+Smoke test: the storefront chat answers. A request with no Origin and no user token is rejected. Chat still answers the next day; if you set the daily cap very low on purpose, the widget shows the help-limit sentence and does not call OpenAI.
+
+Rollback:
+
+```sql
+DROP FUNCTION IF EXISTS public.attribute_affiliate_signup(uuid, uuid);
+DROP TABLE IF EXISTS public.affiliate_attributions;
+DROP FUNCTION IF EXISTS public.reserve_ai_chat_spend(numeric, numeric);
+DROP TABLE IF EXISTS public.ai_chat_daily_spend;
+```
+
+Then deploy the previous `ai-chat` source and read `verify_jwt` back. The previous chat build does not need this SQL.
+
+## Step 16 — retry stock that got stuck
+
+When a payment is saved but stock fails, the webhook returns 200 and stores the Paystack reference in `storefront_inventory_queue`. Paystack will not retry a 200. You retry stock yourself.
+
+Run:
+
+```sql
+SELECT public.process_storefront_inventory_queue(50);
+```
+
+Then look at what is still stuck, and at the alerts (one row per reference per hour after the second failure):
+
+```sql
+SELECT paystack_reference, attempts, last_error, updated_at
+  FROM public.storefront_inventory_queue
+ ORDER BY updated_at;
+SELECT paystack_reference, attempts, last_error, created_at
+  FROM public.storefront_inventory_alerts
+ ORDER BY created_at DESC
+ LIMIT 20;
+```
+
+A reference that disappears from the queue was applied. Applying the same reference again does not drop stock twice. If `last_error` is still set after a few runs, fix that error (usually a missing product) and run the `SELECT` again.
+
+The webhook also calls this function once after it queues a failure. You still run it yourself when the alert table has rows, because Paystack will not keep retrying.
+
+## If everything is on fire
+
+Promote the previous Vercel deployment. Redeploy the previous edge functions. Read `verify_jwt` back on `paystack-webhook-router` (it must be false). Restore the database with the Step 0 PITR point if a SQL file corrupted data. Do not run `DELETE` or `UPDATE` without a `WHERE`.

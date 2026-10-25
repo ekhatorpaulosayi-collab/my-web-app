@@ -3,10 +3,15 @@ import test from 'node:test';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
 import { addCalendarDays, addCalendarMonths, businessDayKey } from '../../src/utils/businessDate.ts';
 import { saleRevenueKobo } from '../../src/utils/money.ts';
-import { canManageCustomers, canViewReports } from '../../src/utils/staffPermissions.ts';
+import { canManageCustomers, canViewInvoices, canViewReports } from '../../src/utils/staffPermissions.ts';
+import { nextPinFailure } from '../../src/utils/pinLockout.ts';
+import { isPermanentSaleError } from '../../src/utils/saleSync.ts';
+import { scrubSentryEvent } from '../../src/lib/sentryScrub.ts';
 import {
   aiSpendGate,
   chargeSuccessOutcome,
+  chatCallAllowed,
+  customDomainIsVerified,
   isBuiltInChatOrigin,
   markSignupAction,
   originsForVerifiedDomain,
@@ -18,6 +23,8 @@ test('wrong password and unknown email share one sentence', () => {
   assert.equal(friendlyAuthError({ message: 'Wrong password' }), 'Email or password is incorrect');
   assert.equal(friendlyAuthError({ message: 'No account found' }), 'Email or password is incorrect');
   assert.match(friendlyAuthError({ message: 'Network request failed' }), /Network error/);
+  const once = friendlyAuthError({ message: 'Invalid login credentials' });
+  assert.equal(friendlyAuthError({ message: once }), once);
 });
 
 test('Lagos calendar day is one hour ahead of UTC', () => {
@@ -38,12 +45,47 @@ test('revenue subtracts the discount and prefers the stored final amount', () =>
   assert.equal(saleRevenueKobo({ unit_price: 2500, quantity: 1, discount_amount: 2500 }), 0);
 });
 
-test('cashiers cannot open money, export, or customers', () => {
+test('cashiers cannot open money, export, customers, or invoices', () => {
   assert.equal(canViewReports('cashier'), false);
   assert.equal(canManageCustomers('cashier'), false);
+  assert.equal(canViewInvoices('cashier'), false);
   assert.equal(canViewReports('manager'), true);
   assert.equal(canManageCustomers('manager'), true);
+  assert.equal(canViewInvoices('manager'), true);
+  assert.equal(canViewInvoices('owner'), true);
   assert.equal(canViewReports('owner'), true);
+});
+
+test('permanent sale errors are not retried and a PIN locks after five misses', () => {
+  assert.equal(isPermanentSaleError({ code: '42501', message: 'permission denied' }), true);
+  assert.equal(isPermanentSaleError({ code: '23503', message: 'foreign key' }), true);
+  assert.equal(isPermanentSaleError({ message: 'Product selection is required' }), true);
+  assert.equal(isPermanentSaleError({ message: 'Failed to fetch' }), false);
+  assert.equal(isPermanentSaleError(null), false);
+  let state = { attempts: 0, lockedUntil: 0 };
+  for (let i = 0; i < 4; i++) state = nextPinFailure(state, 1_000);
+  assert.equal(state.lockedUntil, 0);
+  state = nextPinFailure(state, 1_000);
+  assert.equal(state.lockedUntil, 1_000 + 15 * 60 * 1000);
+  assert.equal(nextPinFailure(state, 1_500).attempts, 5);
+});
+
+test('Sentry events drop email and a chat call with no Origin needs a session', () => {
+  const event = scrubSentryEvent({
+    user: { id: 'user-1', email: 'merchant@example.com', ip_address: '1.2.3.4' },
+    extra: { email: 'merchant@example.com', note: 'ok' },
+    contexts: { user: { email: 'merchant@example.com' } },
+  });
+  assert.equal(event.user?.id, 'user-1');
+  assert.equal(event.user?.email, undefined);
+  assert.equal(event.extra?.email, undefined);
+  assert.equal(event.extra?.note, 'ok');
+  assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: false }), false);
+  assert.equal(chatCallAllowed({ origin: null, originAllowed: false, authenticated: true }), true);
+  assert.equal(chatCallAllowed({ origin: 'https://evil.example', originAllowed: false, authenticated: true }), false);
+  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', domain_verification_token: null }), true);
+  assert.equal(customDomainIsVerified({ custom_domain: 'pay.example.com', domain_verification_token: 'pending' }), false);
+  assert.equal(customDomainIsVerified({ custom_domain: '', domain_verification_token: null }), false);
 });
 
 test('a recorded payment returns 200 and queues a stock failure', () => {

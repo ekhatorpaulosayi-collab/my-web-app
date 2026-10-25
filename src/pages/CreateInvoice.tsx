@@ -316,6 +316,7 @@ export default function CreateInvoice() {
                       updateItem(index, 'productName', e.target.value)
                     }
                     placeholder="Item name"
+                    aria-label={`Item ${index + 1} name`}
                     required
                   />
                   <input
@@ -325,6 +326,7 @@ export default function CreateInvoice() {
                       updateItem(index, 'description', e.target.value)
                     }
                     placeholder="Description (optional)"
+                    aria-label={`Item ${index + 1} description`}
                     className="item-description"
                   />
                 </div>
@@ -337,6 +339,7 @@ export default function CreateInvoice() {
                     onChange={(e) =>
                       updateItem(index, 'quantity', parseInt(e.target.value) || 0)
                     }
+                    aria-label={`Item ${index + 1} quantity`}
                     required
                   />
                 </div>
@@ -346,6 +349,7 @@ export default function CreateInvoice() {
                     type="number"
                     min="0"
                     step="0.01"
+                    aria-label={`Item ${index + 1} price`}
                     value={item.unitPriceKobo / 100}
                     onChange={(e) =>
                       updateItem(
@@ -367,6 +371,7 @@ export default function CreateInvoice() {
                     onClick={() => removeItem(index)}
                     className="remove-item-btn"
                     type="button"
+                    aria-label={`Remove item ${index + 1}`}
                     disabled={items.length === 1}
                   >
                     <Trash2 size={16} />

@@ -1,0 +1,33 @@
+title = "Storehouse working tree"
+
+[extend]
+useDefault = true
+
+# Default rules do not flag a Postgres URL. This one does.
+[[rules]]
+id = "postgres-url-with-password"
+description = "Postgres connection string that includes a password"
+regex = '''(?i)postgres(?:ql)?://[^\s'\"$]+:[^\s'\"$@]+@[^\s'\"$]+'''
+keywords = ["postgres"]
+
+[[rules]]
+id = "pgpassword-assignment"
+description = "Hard-coded PGPASSWORD"
+regex = '''(?i)PGPASSWORD\s*=\s*['\"][^'\"]{6,}['\"]'''
+keywords = ["pgpassword"]
+
+# Scan the current files only. Git history is not scanned: old commits still
+# contain a database password, and that history must not be rewritten.
+# Reset the database password (DEPLOY_ORDER.md step 0) instead.
+[allowlist]
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)package-lock\.json''',
+]
+regexes = [
+  '''\[PASSWORD\]''',
+  '''\[PROJECT''',
+  '''your-password''',
+  '''YOUR_PASSWORD''',
+]

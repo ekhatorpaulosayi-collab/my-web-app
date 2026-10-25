@@ -70,6 +70,10 @@ export async function handleSubaccountEvent(
       if (queueError) {
         console.error('inventory queue insert failed', { reference, error: queueError.message });
       }
+      const { error: processError } = await admin.rpc('process_storefront_inventory_queue', { p_limit: 10 });
+      if (processError && !/process_storefront_inventory_queue|PGRST202|42883/i.test(processError.message || '')) {
+        console.error('inventory queue processor failed', { reference, error: processError.message });
+      }
       inventoryQueued = true;
     }
     console.log('webhook_processed', { eventType, reference, result: rpcResult, inventoryQueued });

@@ -48,4 +48,9 @@ export function canManageCustomers(role: StaffRole): boolean {
   return role === 'owner' || role === 'manager';
 }
 
+/** Invoices are money records. Cashiers cannot open them. Managers can. */
+export function canViewInvoices(role: StaffRole): boolean {
+  return role === 'owner' || role === 'manager';
+}
+
 export const PRODUCT_EDIT_DENIED = 'Ask the owner';

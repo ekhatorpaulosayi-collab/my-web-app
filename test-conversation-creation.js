@@ -7,12 +7,16 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function testConversationCreation() {
+  if (!process.env.TEST_USER_PASSWORD) {
+    console.error('TEST_USER_PASSWORD is not set.');
+    return;
+  }
   console.log('🚀 Testing conversation creation...\n');
 
   // 1. Sign in as test user
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email: 'olaniyiekhator@gmail.com',
-    password: 'Godisgood1.'
+    password: process.env.TEST_USER_PASSWORD
   });
 
   if (authError) {

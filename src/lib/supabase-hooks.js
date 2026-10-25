@@ -362,7 +362,7 @@ export function usePublicStore(identifier, lookupType = 'slug') {
         if (lookupType === 'subdomain') {
           query = query.eq('subdomain', identifier);
         } else if (lookupType === 'customDomain') {
-          query = query.eq('custom_domain', identifier).eq('custom_domain_verified', true);
+          query = query.eq('custom_domain', identifier).is('domain_verification_token', null);
         } else {
           // Default: lookup by store_slug
           query = query.eq('store_slug', identifier);

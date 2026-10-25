@@ -3,10 +3,14 @@
 import pg from 'pg';
 const { Client } = pg;
 
-const connectionString = "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set. Do not paste a connection string into this file.');
+  process.exit(1);
+}
 
 const client = new Client({
-  connectionString: connectionString,
+  connectionString,
   ssl: {
     rejectUnauthorized: false
   }

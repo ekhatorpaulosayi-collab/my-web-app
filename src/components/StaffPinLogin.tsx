@@ -75,8 +75,8 @@ export function StaffPinLogin({ isOpen, onClose }: StaffPinLoginProps) {
         setPin('');
       }
     } catch (error) {
-      console.error('[StaffPinLogin] Error:', error);
-      setError('Login failed. Please try again.');
+      const message = error instanceof Error ? error.message : '';
+      setError(message.includes('15 minutes') ? message : 'Login failed. Please try again.');
       setPin('');
     } finally {
       setIsLoading(false);

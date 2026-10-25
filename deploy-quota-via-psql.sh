@@ -13,12 +13,17 @@ if [ ! -f "$SQL_FILE" ]; then
     exit 1
 fi
 
+if [ -z "${DATABASE_URL:-}" ]; then
+    echo "DATABASE_URL is not set. Do not paste a connection string into this file."
+    exit 1
+fi
+
 echo "📦 Deploying check_chat_quota() function..."
 echo ""
 
 # Deploy via docker + postgres
 docker run --rm postgres:15 psql \
-  "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" \
+  "$DATABASE_URL" \
   -f "$SQL_FILE"
 
 if [ $? -eq 0 ]; then
@@ -27,7 +32,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "Testing function..."
     docker run --rm postgres:15 psql \
-      "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" \
+      "$DATABASE_URL" \
       -c "SELECT proname FROM pg_proc WHERE proname = 'check_chat_quota';"
     echo ""
 else

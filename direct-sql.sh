@@ -1,14 +1,10 @@
 #!/bin/bash
 
-# Supabase Database Connection Details
-DB_HOST="aws-0-eu-central-1.pooler.supabase.com"
-DB_PORT="6543"
-DB_NAME="postgres"
-DB_USER="postgres.yzlniqwzqlsftxrtapdl"
-DB_PASS="Godisgood1."
-
-# Connection string
-CONNECTION_STRING="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "DATABASE_URL is not set. Do not paste a connection string into this file."
+  exit 1
+fi
+CONNECTION_STRING="$DATABASE_URL"
 
 echo "🔗 Connecting to Supabase Database..."
 echo ""
@@ -31,5 +27,5 @@ if [ $? -ne 0 ]; then
     echo "1. Install PostgreSQL client: sudo apt-get install postgresql-client"
     echo "2. Use the Supabase Dashboard: https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new"
     echo "3. Use the connection string in any SQL client:"
-    echo "   $CONNECTION_STRING"
+    echo "   (DATABASE_URL is set; the value is not printed)"
 fi

@@ -122,7 +122,7 @@ function StorefrontContent() {
             .from('stores')
             .select('*')
             .eq('custom_domain', hostname)
-            .eq('custom_domain_verified', true)
+            .is('domain_verification_token', null)
             .eq('is_public', true)
             .maybeSingle();
 

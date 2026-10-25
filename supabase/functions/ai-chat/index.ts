@@ -17,7 +17,7 @@ import {
   type StoreContext,
 } from './store-context.ts';
 import { cachedOpenAICall } from './cache-helper.ts';
-import { aiSpendGate, isBuiltInChatOrigin, originsForVerifiedDomain } from '../_shared/moneyPolicies.ts';
+import { aiSpendGate, chatCallAllowed, customDomainIsVerified, isBuiltInChatOrigin, originsForVerifiedDomain } from '../_shared/moneyPolicies.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -636,15 +636,18 @@ function builtInOrigin(origin: string): boolean {
 
 async function verifiedCustomOrigins(supabase: ReturnType<typeof createClient>): Promise<Set<string>> {
   if (Date.now() - customOriginCache.at < 5 * 60 * 1000) return customOriginCache.origins;
+  // Live schema: custom_domain + domain_verification_token. There is no
+  // custom_domain_verified column. A token means verification is still pending.
   const { data, error } = await supabase
     .from('stores')
-    .select('custom_domain')
-    .eq('custom_domain_verified', true)
+    .select('custom_domain, domain_verification_token')
     .not('custom_domain', 'is', null);
   const origins = new Set<string>();
   if (!error) {
     for (const row of data || []) {
-      for (const origin of originsForVerifiedDomain(String((row as { custom_domain?: string }).custom_domain || ''))) {
+      const domainRow = row as { custom_domain?: string | null; domain_verification_token?: string | null };
+      if (!customDomainIsVerified(domainRow)) continue;
+      for (const origin of originsForVerifiedDomain(String(domainRow.custom_domain || ''))) {
         origins.add(origin);
       }
     }
@@ -654,7 +657,7 @@ async function verifiedCustomOrigins(supabase: ReturnType<typeof createClient>):
 }
 
 async function resolveAllowedOrigin(origin: string | null, supabase: ReturnType<typeof createClient>): Promise<string | null> {
-  if (!origin) return 'https://www.storehouse.ng';
+  if (!origin) return null;
   if (builtInOrigin(origin)) return origin;
   const custom = await verifiedCustomOrigins(supabase);
   if (custom.has(origin)) return origin;
@@ -711,14 +714,7 @@ serve(async (req) => {
     console.log('[ai-chat] Request received');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     spendClient = supabase;
-    const allowedOrigin = await resolveAllowedOrigin(req.headers.get('origin'), supabase);
-    if (!allowedOrigin) {
-      currentOrigin = 'https://www.storehouse.ng';
-      return jsonResponse({ error: 'origin_not_allowed' }, 403);
-    }
-    currentOrigin = allowedOrigin;
 
-    // Get user from auth header
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
     console.log('[ai-chat] Auth header present:', !!authHeader, 'Token length:', token?.length || 0);
@@ -733,6 +729,18 @@ serve(async (req) => {
       }
       console.log('[ai-chat] Auth check:', { hasUser: !!user, error: error?.message });
     }
+
+    const originHeader = req.headers.get('origin');
+    const allowedOrigin = await resolveAllowedOrigin(originHeader, supabase);
+    if (!chatCallAllowed({
+      origin: originHeader,
+      originAllowed: Boolean(allowedOrigin),
+      authenticated: Boolean(userId),
+    })) {
+      currentOrigin = 'https://www.storehouse.ng';
+      return jsonResponse({ error: 'origin_not_allowed' }, 403);
+    }
+    currentOrigin = allowedOrigin || 'https://www.storehouse.ng';
 
     // Parse request
     const body: ChatRequest = await req.json();

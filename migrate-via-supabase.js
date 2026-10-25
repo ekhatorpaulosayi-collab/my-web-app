@@ -264,7 +264,7 @@ async function alternativeApproach() {
   console.log('OPTION 2 (Via Supabase CLI):');
   console.log('============================');
   console.log('If you have Supabase CLI installed:');
-  console.log('npx supabase db push --db-url "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"\n');
+  console.log('Use the Supabase SQL editor. Do not pass a database URL on the command line.');
   console.log('After applying the migration, validate with:');
   console.log('node validate-migration.js');
 }

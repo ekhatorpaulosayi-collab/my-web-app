@@ -147,7 +147,7 @@ export const StoreSettings: React.FC = () => {
       logoUrl: store.logo_url,
       subdomain: store.subdomain,
       customDomain: store.custom_domain,
-      customDomainVerified: store.custom_domain_verified,
+      customDomainVerified: Boolean(store.custom_domain) && !store.domain_verification_token,
       bankName: store.bank_name,
       accountNumber: store.account_number,
       accountName: store.account_name,

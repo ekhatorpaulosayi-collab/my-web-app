@@ -415,7 +415,7 @@ export default function AppRoutes() {
         <Route
           path="/invoices"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <Invoices />
             </ProtectedRoute>
           }
@@ -424,7 +424,7 @@ export default function AppRoutes() {
         <Route
           path="/invoices/create"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <CreateInvoice />
             </ProtectedRoute>
           }
@@ -433,7 +433,7 @@ export default function AppRoutes() {
         <Route
           path="/invoices/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <InvoiceDetail />
             </ProtectedRoute>
           }

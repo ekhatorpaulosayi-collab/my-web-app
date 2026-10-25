@@ -810,6 +810,7 @@ export default function ConversationsSimplifiedFixed() {
             <Search style={{ position: 'absolute', left: '12px', top: '10px', color: '#475569' }} size={20} />
             <input
               type="text"
+              aria-label="Search conversations"
               placeholder="Search conversations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1203,6 +1204,7 @@ export default function ConversationsSimplifiedFixed() {
                 }}>
                   <input
                     type="text"
+                    aria-label="Reply in English"
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyPress={(e) => {
@@ -1231,6 +1233,8 @@ export default function ConversationsSimplifiedFixed() {
                     disabled={sendingMessage}
                   />
                   <button
+                    type="button"
+                    aria-label="Send reply"
                     onClick={sendAgentMessage}
                     disabled={sendingMessage || !messageText.trim()}
                     style={{

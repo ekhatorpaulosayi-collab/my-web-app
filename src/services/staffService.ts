@@ -6,6 +6,35 @@
 import { supabase } from '../lib/supabase';
 import bcrypt from 'bcryptjs';
 import { saleRevenueKobo } from '../utils/money';
+import { nextPinFailure, PinLockState } from '../utils/pinLockout';
+
+const PIN_LOCK_KEY = 'storehouse:pin-lock';
+const PIN_LOCK_MESSAGE = 'Too many PIN attempts. Try again in 15 minutes.';
+
+function readPinLock(ownerUid: string): PinLockState {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(PIN_LOCK_KEY) || '{}');
+    const row = all[ownerUid];
+    if (!row || typeof row.attempts !== 'number') return { attempts: 0, lockedUntil: 0 };
+    return { attempts: row.attempts, lockedUntil: Number(row.lockedUntil) || 0 };
+  } catch {
+    return { attempts: 0, lockedUntil: 0 };
+  }
+}
+
+function writePinLock(ownerUid: string, state: PinLockState) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(PIN_LOCK_KEY) || '{}');
+    all[ownerUid] = state;
+    sessionStorage.setItem(PIN_LOCK_KEY, JSON.stringify(all));
+  } catch {
+    // The server lock in migration 09 is the real control.
+  }
+}
+
+function clearPinLock(ownerUid: string) {
+  writePinLock(ownerUid, { attempts: 0, lockedUntil: 0 });
+}
 
 const STAFF_COLUMNS = 'id, store_owner_uid, name, phone, email, role, is_active, created_at, updated_at, last_login_at';
 
@@ -126,6 +155,7 @@ export async function authenticateStaffWithPin(
   // JWT session is locked to this role until end_staff_session.
   const { data: started, error: rpcError } = await supabase.rpc('begin_staff_session', { p_pin: pin });
   if (!rpcError && started?.staff_id) {
+    clearPinLock(ownerUid);
     return {
       id: started.staff_id,
       store_owner_uid: ownerUid,
@@ -137,10 +167,14 @@ export async function authenticateStaffWithPin(
     };
   }
   if (rpcError && !missingRpc(rpcError)) {
+    if (/pin_locked/i.test(rpcError.message || '')) throw new Error(PIN_LOCK_MESSAGE);
     if (/invalid_pin/i.test(rpcError.message || '')) return null;
-    console.error('[staffService] begin_staff_session failed:', rpcError);
+    console.error('[staffService] begin_staff_session failed:', rpcError.code || 'error');
     throw new Error('Could not start staff session');
   }
+
+  const existingLock = readPinLock(ownerUid);
+  if (existingLock.lockedUntil > Date.now()) throw new Error(PIN_LOCK_MESSAGE);
 
   // Migration 09 not applied yet. Client check still works, but clearing
   // localStorage restores the owner until the SQL is run.
@@ -174,11 +208,15 @@ export async function authenticateStaffWithPin(
         staff_name: staff.name
       });
 
-      console.log('[staffService] ✅ Staff authenticated:', staff.name);
+      clearPinLock(ownerUid);
+      console.log('[staffService] Staff authenticated:', staff.name);
       return staff;
     }
   }
 
+  const next = nextPinFailure(readPinLock(ownerUid), Date.now());
+  writePinLock(ownerUid, next);
+  if (next.locked) throw new Error(PIN_LOCK_MESSAGE);
   return null;
 }
 

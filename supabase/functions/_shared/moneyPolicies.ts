@@ -32,6 +32,35 @@ export function aiSpendGate(input: { rpcMissing: boolean; reserved: boolean }): 
   return input.reserved ? 'ok' : 'capped';
 }
 
+/**
+ * A browser call with no Origin is rejected unless the caller has a real user
+ * session. A present Origin is allowed only when it is on the allowlist.
+ */
+export function chatCallAllowed(input: {
+  origin: string | null;
+  originAllowed: boolean;
+  authenticated: boolean;
+}): boolean {
+  if (!input.origin) return input.authenticated;
+  return input.originAllowed;
+}
+
+/**
+ * Live stores columns are custom_domain and domain_verification_token.
+ * custom_domain_verified does not exist. A leftover token means DNS is still
+ * pending. No token and a non-empty domain counts as verified. Saving a
+ * domain without writing a token (Store Settings today) therefore counts.
+ */
+export function customDomainIsVerified(row: {
+  custom_domain?: string | null;
+  domain_verification_token?: string | null;
+}): boolean {
+  const domain = String(row.custom_domain || '').trim();
+  if (!domain) return false;
+  const token = row.domain_verification_token;
+  return token == null || String(token).trim() === '';
+}
+
 export function isBuiltInChatOrigin(origin: string, extraOrigins: string[] = []): boolean {
   const allowed = new Set([
     'https://www.storehouse.ng',

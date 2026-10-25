@@ -35,7 +35,7 @@ export async function signUp(email, password, storeName = null, storeType = null
 
     if (error) {
       console.error('[Auth] Signup error:', error);
-      throw formatAuthError(error);
+      throw error;
     }
 
     const user = data.user;
@@ -206,7 +206,7 @@ export async function signIn(email, password) {
         errorMessage: error.message,
       });
 
-      throw formatAuthError(error);
+      throw error;
     }
 
     const user = data.user;
@@ -438,5 +438,7 @@ function generateSlug(businessName, userId) {
  * Format Supabase auth errors into user-friendly messages
  */
 export function formatAuthError(error) {
-  return new Error(friendlyAuthError(error));
+  const message = friendlyAuthError(error);
+  if (error instanceof Error && error.message === message) return error;
+  return new Error(message);
 }

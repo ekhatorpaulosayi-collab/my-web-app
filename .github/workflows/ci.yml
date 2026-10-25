@@ -15,6 +15,14 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      # Working tree only. --no-git does not walk old commits (the leaked
+      # database password is still in history and history must not be rewritten).
+      # --redact keeps the secret out of the log if a future commit adds one.
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz" | tar -xz gitleaks
+      - name: Secret scan
+        run: ./gitleaks detect --no-git --source . --redact --config .gitleaks.toml --baseline-path .gitleaks-baseline.json --exit-code 1
       - run: npm run test:unit
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ux

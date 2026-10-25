@@ -22,7 +22,7 @@ VAPID_SUBJECT=mailto:paul@storehouse.ng
 ```bash
 # Migration file already exists at: supabase/migrations/20260329_push_subscriptions.sql
 # Apply it to Supabase:
-psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -f supabase/migrations/20260329_push_subscriptions.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20260329_push_subscriptions.sql
 ```
 
 ### Step 2: Update Service Worker

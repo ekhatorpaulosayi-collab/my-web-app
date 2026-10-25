@@ -10,6 +10,7 @@
  */
 
 import * as Sentry from '@sentry/react';
+import { scrubSentryEvent } from './sentryScrub';
 
 /**
  * Initialize Sentry error monitoring
@@ -94,23 +95,7 @@ export function initializeSentry() {
         return null;
       }
 
-      // Remove sensitive data
-      if (event.request) {
-        delete event.request.cookies;
-
-        // Sanitize headers
-        if (event.request.headers) {
-          delete event.request.headers['Authorization'];
-          delete event.request.headers['Cookie'];
-        }
-      }
-
-      // Remove sensitive context data
-      if (event.contexts?.user) {
-        delete event.contexts.user.ip_address;
-      }
-
-      return event;
+      return scrubSentryEvent(event);
     },
 
     // Customize breadcrumbs
@@ -144,10 +129,9 @@ export function captureError(error: Error, context?: Record<string, any>) {
  * Call this after user logs in
  */
 export function setUserContext(user: { id: string; email?: string; name?: string }) {
+  // Id only. Email must not be sent to Sentry.
   Sentry.setUser({
     id: user.id,
-    email: user.email,
-    username: user.name,
   });
 }
 
