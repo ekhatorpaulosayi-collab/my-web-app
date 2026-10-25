@@ -225,29 +225,18 @@ export const StoreSettings: React.FC = () => {
 
     setSlugError('');
 
+    if (normalized === (store?.store_slug || '')) {
+      setSlugAvailable(true);
+      return;
+    }
+
     try {
-      const { data, error: queryError } = await supabase
-        .from('stores')
-        .select('user_id')
-        .eq('store_slug', normalized)
-        .maybeSingle();
-
-      if (queryError && queryError.code !== 'PGRST116') {
-        throw queryError;
-      }
-
-      let available = !data || data.user_id === user?.uid;
-      if (available && normalized !== store?.store_slug) {
-        const { data: redirect, error: redirectError } = await supabase
-          .from('store_slug_redirects')
-          .select('store_id')
-          .eq('old_slug', normalized)
-          .maybeSingle();
-        if (!redirectError && redirect && redirect.store_id !== store?.id) {
-          available = false;
-        }
-      }
-      setSlugAvailable(available);
+      const { data, error: queryError } = await supabase.rpc('store_slug_is_available', {
+        p_slug: normalized,
+        p_store_id: store?.id || null,
+      });
+      if (queryError) throw queryError;
+      setSlugAvailable(data === true);
     } catch (error) {
       console.error('Error checking slug:', error);
       setSlugAvailable(null);
@@ -326,20 +315,7 @@ export const StoreSettings: React.FC = () => {
         logoUrl = await uploadStoreLogo(logoFile, user.uid, storeProfile?.logoUrl);
       }
 
-      const previousSlug = store?.store_slug || '';
-      if (previousSlug && previousSlug !== normalizedSlug) {
-        const { error: redirectError } = await supabase.rpc('remember_store_slug', {
-          p_store_id: store.id,
-          p_old: previousSlug,
-          p_new: normalizedSlug,
-        });
-        if (redirectError && !/remember_store_slug|schema cache|PGRST202|42883/i.test(`${redirectError.code || ''} ${redirectError.message || ''}`)) {
-          alert(`Could not keep the old store link.\n\n${redirectError.message}`);
-          setLoading(false);
-          return;
-        }
-      }
-
+      // The database trigger records this store's previous slug.
       // Update store profile in Supabase
       const profileData = {
         business_name: businessName.trim(),

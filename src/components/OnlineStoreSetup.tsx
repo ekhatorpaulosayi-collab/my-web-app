@@ -8,6 +8,8 @@ import { NIGERIAN_BANKS, validateAccountNumber } from '../utils/nigerianBanks';
 import { ABOUT_TEMPLATES, isTemplateText, isMostlyTemplate } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
+import { normalizeSlug, validateStoreSlug } from '../utils/storeSlug';
+import { storeHealthFlags } from '../utils/storeHealth';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
 import { PromoCodesManager } from './PromoCodesManager';
@@ -53,6 +55,7 @@ export default function OnlineStoreSetup() {
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [storeSlug, setStoreSlug] = useState('');
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
+  const [slugMessage, setSlugMessage] = useState('');
   const [slugSuggestion, setSugSuggestion] = useState('');
 
   // Setup state
@@ -120,49 +123,57 @@ export default function OnlineStoreSetup() {
     }
   }, [store]);
 
-  // Slug availability check (Supabase)
+  // Slug shape, reserved words, and availability. An error is not "available".
   useEffect(() => {
-    if (!storeSlug || storeSlug.length < 3) {
+    const normalized = normalizeSlug(storeSlug);
+    const saved = store?.store_slug || '';
+    const validationError = validateStoreSlug(normalized, saved);
+    if (!normalized || normalized.length < 3) {
       setSlugStatus('idle');
+      setSlugMessage(validationError || '');
+      return;
+    }
+    if (validationError) {
+      setSlugStatus('taken');
+      setSlugMessage(validationError);
+      return;
+    }
+    if (normalized === saved) {
+      setSlugStatus('available');
+      setSlugMessage('');
       return;
     }
 
-    console.log('[OnlineStoreSetup] Starting slug check for:', storeSlug);
     setSlugStatus('checking');
+    setSlugMessage('');
     const timeoutId = setTimeout(async () => {
       try {
-        console.log('[OnlineStoreSetup] Checking Supabase for slug:', storeSlug);
-        const { data, error } = await supabase
-          .from('stores')
-          .select('user_id')
-          .eq('store_slug', storeSlug)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          throw error;
-        }
-
-        console.log('[OnlineStoreSetup] Slug check result:', data);
-
-        if (!data || data.user_id === currentUser?.uid) {
-          console.log('[OnlineStoreSetup] Slug is available!');
-          setSlugStatus('available');
-        } else {
-          console.log('[OnlineStoreSetup] Slug is taken');
+        const { data, error } = await supabase.rpc('store_slug_is_available', {
+          p_slug: normalized,
+          p_store_id: store?.id || null,
+        });
+        if (error || data !== true) {
           setSlugStatus('taken');
-          const timestamp = Date.now().toString().slice(-4);
-          setSugSuggestion(`${storeSlug}-${timestamp}`);
+          setSlugMessage(error
+            ? 'Could not check that store URL. Try again.'
+            : 'This URL is already taken');
+          if (!error) {
+            const stamp = Date.now().toString().slice(-4);
+            setSugSuggestion(`${normalized.slice(0, 24)}-${stamp}`.slice(0, 30));
+          }
+          return;
         }
+        setSlugStatus('available');
+        setSlugMessage('');
       } catch (error) {
         console.error('[OnlineStoreSetup] Error checking slug:', error);
-        // Default to available to allow user to proceed
-        console.warn('[OnlineStoreSetup] Defaulting to available due to error');
-        setSlugStatus('available');
+        setSlugStatus('taken');
+        setSlugMessage('Could not check that store URL. Try again.');
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [storeSlug, supabaseUser]);
+  }, [storeSlug, store?.store_slug, store?.id]);
 
   // Show loading state while user is being fetched/created
   if (userLoading) {
@@ -246,13 +257,21 @@ export default function OnlineStoreSetup() {
       return;
     }
 
+    const normalizedSlug = normalizeSlug(storeSlug);
+    const validationError = validateStoreSlug(normalizedSlug, store?.store_slug || '');
+    if (validationError || slugStatus !== 'available') {
+      alert(`❌ Store URL Error:\n\n${validationError || slugMessage || 'That store URL is not available.'}`);
+      return;
+    }
+
     setSaveStatus('saving');
 
     // Capture pre-save subdomain so we only fire Vercel provisioning
     // when the value actually changed. Numeric-only slugs save NULL
     // (Phase 4 invariant — see src/utils/reservedSubdomains.ts).
+    // The database records the previous slug. The client does not.
     const previousSubdomain = store?.subdomain ?? null;
-    const nextSubdomain = /^\d+$/.test(storeSlug) ? null : storeSlug;
+    const nextSubdomain = /^\d+$/.test(normalizedSlug) ? null : normalizedSlug;
 
     try {
       console.log('[OnlineStoreSetup] Saving store to Supabase...');
@@ -260,7 +279,7 @@ export default function OnlineStoreSetup() {
       const storeData = {
         business_name: businessName,
         whatsapp_number: whatsappNumber,
-        store_slug: storeSlug,
+        store_slug: normalizedSlug,
         subdomain: nextSubdomain,
         is_public: storeLive,
       };
@@ -532,6 +551,23 @@ export default function OnlineStoreSetup() {
           {storeLive ? 'Live' : 'Hidden'}
         </button>
       </div>
+      {storeHealthFlags({
+        businessName,
+        aboutUs,
+        logoUrl,
+        whatsappNumber,
+        paystackEnabled,
+      }).length > 0 && (
+        <ul style={{ margin: '0 0 16px', paddingLeft: '1.2rem', color: '#334155' }}>
+          {storeHealthFlags({
+            businessName,
+            aboutUs,
+            logoUrl,
+            whatsappNumber,
+            paystackEnabled,
+          }).map((flag) => <li key={flag}>{flag}</li>)}
+        </ul>
+      )}
 
       {/* Success Message */}
       {showSuccessMessage && (
@@ -732,21 +768,6 @@ export default function OnlineStoreSetup() {
             {slugStatus === 'checking' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>⏳</span>
-                <button
-                  type="button"
-                  onClick={() => setSlugStatus('available')}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '12px',
-                    background: '#1d4ed8',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Use Anyway
-                </button>
               </div>
             )}
             {slugStatus === 'available' && <span style={{ color: '#10B981' }}>✅</span>}
@@ -754,19 +775,26 @@ export default function OnlineStoreSetup() {
           </div>
           {slugStatus === 'taken' && (
             <div style={{ marginTop: '8px', fontSize: '13px', color: '#DC2626' }}>
-              Already taken. Try: <button
-                onClick={() => setStoreSlug(slugSuggestion)}
-                style={{
-                  color: '#1d4ed8',
-                  textDecoration: 'underline',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                {slugSuggestion}
-              </button>
+              {slugMessage || 'This URL is already taken'}
+              {slugMessage === 'This URL is already taken' && slugSuggestion ? (
+                <>
+                  {' Try: '}
+                  <button
+                    type="button"
+                    onClick={() => setStoreSlug(slugSuggestion)}
+                    style={{
+                      color: '#1d4ed8',
+                      textDecoration: 'underline',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {slugSuggestion}
+                  </button>
+                </>
+              ) : null}
             </div>
           )}
         </div>
@@ -827,47 +855,13 @@ export default function OnlineStoreSetup() {
                 {!whatsappNumber.trim() && <div style={{ marginBottom: '4px' }}>• WhatsApp number is required</div>}
                 {storeSlug.trim().length < 3 && <div style={{ marginBottom: '4px' }}>• Store URL must be at least 3 characters</div>}
                 {storeSlug.trim().length >= 3 && slugStatus === 'checking' && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ marginRight: '8px', color: '#1d4ed8' }}>• Checking URL availability...</span>
-                    <button
-                      type="button"
-                      onClick={() => setSlugStatus('available')}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: '12px',
-                        background: '#1d4ed8',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                      }}
-                    >
-                      Skip Check
-                    </button>
-                  </div>
+                  <div style={{ marginBottom: '4px', color: '#1d4ed8' }}>• Checking URL availability...</div>
                 )}
-                {storeSlug.trim().length >= 3 && slugStatus === 'taken' && <div style={{ marginBottom: '4px', color: '#DC2626', fontWeight: '600' }}>• This URL is already taken</div>}
+                {storeSlug.trim().length >= 3 && slugStatus === 'taken' && (
+                  <div style={{ marginBottom: '4px', color: '#DC2626', fontWeight: '600' }}>• {slugMessage || 'This URL is already taken'}</div>
+                )}
                 {storeSlug.trim().length >= 3 && slugStatus === 'idle' && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ marginRight: '8px' }}>• Waiting for URL check...</span>
-                    <button
-                      type="button"
-                      onClick={() => setSlugStatus('available')}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: '12px',
-                        background: '#1d4ed8',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                      }}
-                    >
-                      Skip Check
-                    </button>
-                  </div>
+                  <div style={{ marginBottom: '4px' }}>• Waiting for URL check...</div>
                 )}
               </div>
             )}
@@ -1015,15 +1009,22 @@ export default function OnlineStoreSetup() {
                   onClick={async () => {
                     // Save updated main fields (Supabase)
                     if (!store?.id) return;
+                    const normalizedSlug = normalizeSlug(storeSlug);
+                    const validationError = validateStoreSlug(normalizedSlug, store?.store_slug || '');
+                    if (validationError || slugStatus !== 'available') {
+                      alert(`❌ Store URL Error:\n\n${validationError || slugMessage || 'That store URL is not available.'}`);
+                      return;
+                    }
                     setSaveStatus('saving');
                     const previousSubdomain = store?.subdomain ?? null;
-                    const nextSubdomain = /^\d+$/.test(storeSlug) ? null : storeSlug;
+                    const nextSubdomain = /^\d+$/.test(normalizedSlug) ? null : normalizedSlug;
                     try {
                       await updateStore(store.id, {
                         business_name: businessName,
                         whatsapp_number: whatsappNumber,
-                        store_slug: storeSlug,
+                        store_slug: normalizedSlug,
                         subdomain: nextSubdomain,
+                        is_public: storeLive,
                       });
 
                       if (nextSubdomain && nextSubdomain !== previousSubdomain) {
@@ -1056,7 +1057,7 @@ export default function OnlineStoreSetup() {
                       alert(`❌ Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
                     }
                   }}
-                  disabled={saveStatus === 'saving'}
+                  disabled={saveStatus === 'saving' || slugStatus !== 'available'}
                   style={{
                     flex: 1,
                     padding: '12px 20px',

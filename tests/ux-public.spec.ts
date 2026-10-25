@@ -66,10 +66,13 @@ test('preview storefront shows a product, a real price, and readable hours', asy
   await expect(hours).not.toContainText('{');
   await expect(page.getByRole('link', { name: 'Privacy' })).toBeVisible();
   await expect(page.getByRole('button', { name: /shopping cart/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Order this product on WhatsApp' })).toHaveCount(0);
+  await expect(page.getByText('Only 4 left')).toHaveCount(1);
 
   await page.getByRole('heading', { name: 'Ankara' }).click();
   const dialog = page.getByRole('dialog', { name: 'Ankara' });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/Only \d+ left/)).toHaveCount(0);
   await expect(dialog.getByText('Six yards of cotton Ankara.')).toBeVisible();
   await expect(dialog.getByText(/250,000/)).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Share product' }).click();

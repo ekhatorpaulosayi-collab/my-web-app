@@ -491,7 +491,7 @@ Version `2026102517`, name `store_slug_redirects`.
 
 Six live slugs are longer than 30 characters. The settings screen now keeps an existing slug when you save, so those shops are not forced to rename. A new slug is 3–30 characters, is checked against the reserved-word list, and shows Available or Taken before save. Signup builds a slug of at most 20 characters and checks `stores`, not the user id.
 
-`generate_store_slug` used to look at `public.users`. It now looks at `public.stores` and `store_slug_redirects`. When a merchant changes a slug, `remember_store_slug` stores the old one. The storefront and the link-preview middleware follow that row.
+`generate_store_slug` used to look at `public.users`. It now looks at `public.stores` and `store_slug_redirects`. Step 20 removes `remember_store_slug`. Do not call it. Run step 20 in the same session as this file. The storefront follows a redirect only through `resolve_store_redirect`.
 
 Smoke test:
 
@@ -509,6 +509,44 @@ Rollback. This drops the new function. Do not restore the old body that checked 
 DROP FUNCTION IF EXISTS public.remember_store_slug(uuid, text, text);
 DROP FUNCTION IF EXISTS public.generate_store_slug(text);
 DROP TABLE IF EXISTS public.store_slug_redirects;
+```
+
+Do not use that rollback after step 20. It drops the redirect table. Step 20 has its own rollback, and that rollback does not restore `remember_store_slug`.
+
+## Step 20 — slug guard, private-store slug check, public variants
+
+File: `supabase/migrations/20261025_18_slug_guard.sql`
+
+Version `2026102518`, name `slug_guard`.
+
+Run this after step 19. Do not run it against the two live TEST signup rows. This file does not `UPDATE` or `DELETE` those rows. A save that leaves `store_slug` unchanged still works, including a slug longer than 30 characters.
+
+`remember_store_slug` is dropped. Changing a slug records that store's own previous slug in a trigger. An owner cannot register someone else's hidden slug. `generate_store_slug` and `store_slug_is_available` are security definer, so a private store blocks the slug. Reserved words and number-only slugs are rejected. Anon cannot list `store_slug_redirects`. Old links resolve one slug at a time through `resolve_store_redirect`. Shoppers can read variants of a public product on a public store.
+
+If `CREATE UNIQUE INDEX stores_store_slug_uniq` stops, two stores share a `store_slug`. Stop. Do not delete either row, and do not change the TEST signups.
+
+Smoke test:
+
+```sql
+SELECT COUNT(*) AS remember_still_there
+  FROM pg_proc
+ WHERE proname = 'remember_store_slug';
+SELECT public.store_slug_is_available('admin', NULL) AS admin_free;
+SELECT has_table_privilege('anon', 'public.store_slug_redirects', 'SELECT') AS anon_lists_redirects;
+SELECT COUNT(*) AS public_variant_policy
+  FROM pg_policy
+ WHERE polname = 'product_variants_public_read';
+```
+
+`remember_still_there` is 0. `admin_free` is false. `anon_lists_redirects` is false. `public_variant_policy` is 1.
+
+Rollback. This removes the guard. It does not restore `remember_store_slug` and it does not grant `SELECT` on `store_slug_redirects`. `generate_store_slug`, `store_slug_is_available`, and `resolve_store_redirect` stay, so a private store still blocks a slug and an old link still resolves. Run this file again to put the trigger back.
+
+```sql
+DROP TRIGGER IF EXISTS stores_guard_slug ON public.stores;
+DROP FUNCTION IF EXISTS public.stores_guard_slug();
+DROP INDEX IF EXISTS public.stores_store_slug_uniq;
+DROP POLICY IF EXISTS product_variants_public_read ON public.product_variants;
 ```
 
 ## Wildcard shop addresses

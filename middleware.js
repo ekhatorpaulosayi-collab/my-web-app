@@ -7,6 +7,7 @@
  */
 import { buildOgDocument, FALLBACK_IMAGE } from './api/ogHtml.js';
 import { isKnownAppPath } from './src/utils/appPaths.js';
+import { canonicalStoreUrl } from './src/utils/canonicalStoreUrl.js';
 import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './src/utils/reservedSubdomains.ts';
 
 const CRAWLER = /facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot/i;
@@ -21,15 +22,18 @@ function supabaseEnv() {
   return { url: url.replace(/\/$/, ''), key };
 }
 
-async function rest(path) {
+async function rest(path, options = {}) {
   const { url, key } = supabaseEnv();
   if (!url || !key) return null;
   const response = await fetch(`${url}/rest/v1/${path}`, {
+    method: options.method || 'GET',
     headers: {
       apikey: key,
       Authorization: `Bearer ${key}`,
       Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     },
+    body: options.body,
   });
   if (!response.ok) return null;
   return response.json();
@@ -55,10 +59,10 @@ async function loadStore(slug) {
     `stores?store_slug=eq.${encodeURIComponent(slug)}&is_public=eq.true&select=id,user_id,business_name,logo_url,store_slug,about_us&limit=1`,
   );
   if (rows?.[0]) return rows[0];
-  const redirects = await rest(
-    `store_slug_redirects?old_slug=eq.${encodeURIComponent(slug)}&select=store_id&limit=1`,
-  );
-  const storeId = redirects?.[0]?.store_id;
+  const storeId = await rest('rpc/resolve_store_redirect', {
+    method: 'POST',
+    body: JSON.stringify({ p_slug: slug }),
+  });
   if (!storeId) return null;
   const followed = await rest(
     `stores?id=eq.${encodeURIComponent(storeId)}&is_public=eq.true&select=id,user_id,business_name,logo_url,store_slug,about_us&limit=1`,
@@ -124,7 +128,7 @@ export default async function middleware(request) {
     }
     const productId = target.search.get('product');
     const preview = await previewImage(store, productId);
-    const canonical = `https://www.storehouse.ng/store/${store.store_slug}${productId ? `?product=${encodeURIComponent(productId)}` : ''}`;
+    const canonical = canonicalStoreUrl(store.store_slug, productId);
     const title = preview.product
       ? `${preview.product.name} | ${store.business_name}`
       : `${store.business_name} | Online Store`;

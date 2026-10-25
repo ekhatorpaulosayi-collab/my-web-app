@@ -15,6 +15,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { buildOgDocument, FALLBACK_IMAGE } from './ogHtml.js';
+import { canonicalStoreUrl } from '../src/utils/canonicalStoreUrl.js';
 
 // Initialize Supabase client (serverless environment)
 // Note: Vercel automatically exposes VITE_* vars to serverless functions
@@ -82,13 +83,28 @@ export default async function handler(req, res) {
       return res.status(400).send('Missing store slug');
     }
 
-    // Fetch store data
-    const { data: store, error: storeError } = await supabase
+    // Fetch store data. Settlement columns stay off this select.
+    const storeColumns = 'id, user_id, business_name, logo_url, store_slug, about_us';
+    let { data: store, error: storeError } = await supabase
       .from('stores')
-      .select('id, user_id, business_name, logo_url, store_slug, about_us')
+      .select(storeColumns)
       .eq('store_slug', slug)
       .eq('is_public', true)
-      .single();
+      .maybeSingle();
+
+    if (!store) {
+      const { data: storeId } = await supabase.rpc('resolve_store_redirect', { p_slug: slug });
+      if (storeId) {
+        const followed = await supabase
+          .from('stores')
+          .select(storeColumns)
+          .eq('id', storeId)
+          .eq('is_public', true)
+          .maybeSingle();
+        store = followed.data;
+        storeError = followed.error;
+      }
+    }
 
     if (storeError || !store) {
       console.error('Store not found:', storeError);
@@ -98,7 +114,6 @@ export default async function handler(req, res) {
     let metaTitle;
     let metaDescription;
     let metaImage;
-    let metaUrl = `https://www.storehouse.ng/store/${encodeURIComponent(slug)}`;
     let productData;
 
     // If product ID provided, fetch product data
@@ -119,9 +134,10 @@ export default async function handler(req, res) {
         metaImage = product.image_url
           ? getImageKitSocialUrl(product.image_url)
           : (store.logo_url ? getImageKitSocialUrl(store.logo_url) : FALLBACK_IMAGE);
-        metaUrl = `https://www.storehouse.ng/store/${encodeURIComponent(slug)}?product=${encodeURIComponent(productId)}`;
       }
     }
+
+    const metaUrl = canonicalStoreUrl(store.store_slug, productData ? productId : null);
 
     if (!metaTitle) {
       metaTitle = `${store.business_name} | Online Store`;

@@ -10,6 +10,7 @@ export function friendlyAuthError(error) {
   // Already the public sentence. A second format must not turn it into
   // "Something went wrong".
   if (raw === 'Email or password is incorrect') return raw;
+  if (lower.includes('store link')) return raw;
 
   const credentialFailure =
     code === 'invalid_credentials' ||

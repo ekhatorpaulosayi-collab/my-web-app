@@ -218,6 +218,8 @@ export default function AIChatWidget({
   const [showSupport, setShowSupport] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
+  const [chatError, setChatError] = useState<string | null>(null);
+  const failedMessageRef = useRef('');
   const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
   const [shouldPulse, setShouldPulse] = useState(false); // For first-visit animation
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -1178,10 +1180,13 @@ export default function AIChatWidget({
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || loading) return;
+  const handleSendMessage = async (override?: unknown) => {
+    const source = typeof override === 'string' ? override : inputMessage;
+    if (!source.trim() || loading) return;
 
-    const userMessage = inputMessage.trim();
+    const userMessage = source.trim();
+    setChatError(null);
+    failedMessageRef.current = userMessage;
     setInputMessage('');
 
     // ALWAYS add customer message optimistically with local flag
@@ -1500,9 +1505,10 @@ export default function AIChatWidget({
         errorContent = error.message;
       }
 
-      // DO NOT add error message to local state - let it come from polling if saved to DB
-      // This prevents duplicates as the edge function may save errors to database
-      console.log('[AIChatWidget] Error occurred, not adding error message locally to avoid duplicates');
+      // Keep the error out of the message list so a saved row is not shown twice.
+      setChatError(error.isQuotaError
+        ? 'You have used this month’s AI chats. Upgrade to keep going, or try again later.'
+        : 'The assistant did not answer. Check your connection and try again.');
       console.log('[AIChatWidget] Error content would have been:', errorContent.substring(0, 100));
 
       // Auto-escalate after 2 failures (but not for quota errors)
@@ -1827,23 +1833,60 @@ export default function AIChatWidget({
             )()}
 
             {loading && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'flex-start',
-              }}>
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-start',
+                }}
+              >
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: '12px',
                   background: '#f3f4f6',
-                  color: '#6b7280',
+                  color: '#374151',
                   fontSize: '0.9375rem',
                 }}>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                     <span style={{ animation: 'pulse 1.5s infinite' }}>●</span>
                     <span style={{ animation: 'pulse 1.5s infinite 0.2s' }}>●</span>
                     <span style={{ animation: 'pulse 1.5s infinite 0.4s' }}>●</span>
+                    <span style={{ marginLeft: '6px' }}>Typing…</span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {chatError && !loading && (
+              <div
+                role="alert"
+                style={{
+                  marginTop: '8px',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: '#FEF2F2',
+                  color: '#991B1B',
+                  fontSize: '0.9375rem',
+                }}
+              >
+                <p style={{ margin: '0 0 8px' }}>{chatError}</p>
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage(failedMessageRef.current)}
+                  style={{
+                    minHeight: '44px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#111827',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Try again
+                </button>
               </div>
             )}
 

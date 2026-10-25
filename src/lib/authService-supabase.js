@@ -7,7 +7,6 @@ import { supabase } from './supabase';
 import { logError } from '../utils/errorMonitoring';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { friendlyAuthError } from './authErrors';
-import { shortSlugFromName } from '../utils/storeSlug';
 
 /**
  * Sign up a new user with email and password
@@ -88,35 +87,48 @@ export async function signUp(email, password, storeName = null, storeType = null
           console.debug('[Auth] User record created in public.users');
         }
 
-        // Step 2: Create store profile in stores table
-        const generatedSlug = await generateUniqueSlug(defaultStoreName);
-        const storeProfile = {
-          user_id: user.id,
-          business_name: defaultStoreName,
-          store_slug: generatedSlug,
-          // Mirror store_slug onto subdomain so *.storehouse.ng resolves
-          // for new signups. Numeric-only slugs stay NULL — they cannot
-          // safely act as a subdomain label.
-          subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
-          whatsapp_number: user.phone || 'pending', // Required field (never an email — M2)
-          is_public: true, // Live so the link works. Hidden is a setting.
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+        // Step 2: Create store profile in stores table.
+        // A taken or reserved slug is retried. If it still fails, signup
+        // stops with a message the person can see.
+        let storeError = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const generatedSlug = await generateUniqueSlug(defaultStoreName);
+          const storeProfile = {
+            user_id: user.id,
+            business_name: defaultStoreName,
+            store_slug: generatedSlug,
+            // Mirror store_slug onto subdomain so *.storehouse.ng resolves
+            // for new signups. Numeric-only slugs stay NULL — they cannot
+            // safely act as a subdomain label.
+            subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
+            whatsapp_number: user.phone || 'pending', // Required field (never an email — M2)
+            is_public: true, // Live so the link works. Hidden is a setting.
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
 
-        const { data, error: storeError } = await supabase
-          .from('stores')
-          .insert([storeProfile])
-          .select()
-          .single();
+          const inserted = await supabase
+            .from('stores')
+            .insert([storeProfile])
+            .select()
+            .single();
+          storeError = inserted.error;
+          if (!storeError) {
+            console.debug('[Auth] Store profile created');
+            storeData = inserted.data;
+            break;
+          }
+          const retryable = storeError.code === '23505'
+            || storeError.code === '23514'
+            || /invalid_store_slug|duplicate key|store_slug/i.test(`${storeError.message || ''} ${storeError.details || ''}`);
+          if (!retryable) break;
+        }
 
-        if (storeError) {
+        if (storeError || !storeData) {
           console.error('[Auth] Store profile creation error:', storeError);
-          // Auth user created but profile failed - this is a warning, not fatal
-          console.warn('[Auth] User created but store profile failed:', storeError.message);
-        } else {
-          console.debug('[Auth] Store profile created');
-          storeData = data;
+          throw new Error('Your account was created, but the store link could not be saved. Sign in and set your store link, or try signing up again.');
+        }
+        if (storeData) {
 
           // Auto-register the subdomain with Vercel (fire-and-forget).
           // Skipped silently if the session isn't ready yet (email-
@@ -161,7 +173,9 @@ export async function signUp(email, password, storeName = null, storeType = null
         }
       } catch (error) {
         console.error('[Auth] Profile setup error:', error);
-        // Continue anyway - user can complete profile later
+        if (error instanceof Error && /store link/i.test(error.message)) {
+          throw error;
+        }
       }
     }
 
@@ -421,21 +435,17 @@ function mapSupabaseUserToFirebase(supabaseUser) {
 }
 
 /**
- * Short unique store slug from the business name. Checked against stores.
+ * Slug from generate_store_slug. That function sees private stores.
+ * A missing function is a failure, not a free slug.
  */
 async function generateUniqueSlug(businessName) {
-  const base = shortSlugFromName(businessName);
-  for (let i = 0; i < 20; i += 1) {
-    const candidate = i === 0 ? base : `${base.slice(0, 16).replace(/-+$/g, '')}-${i + 1}`;
-    const { data, error } = await supabase
-      .from('stores')
-      .select('id')
-      .eq('store_slug', candidate)
-      .maybeSingle();
-    if (error) break;
-    if (!data) return candidate;
+  const { data, error } = await supabase.rpc('generate_store_slug', {
+    business_name: businessName,
+  });
+  if (error || typeof data !== 'string' || !data) {
+    throw new Error('We could not reserve a store link. Please try again.');
   }
-  return `${base.slice(0, 15).replace(/-+$/g, '')}-${Date.now().toString(36).slice(-4)}`;
+  return data;
 }
 
 /**

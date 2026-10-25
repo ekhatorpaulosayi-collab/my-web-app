@@ -5,24 +5,28 @@
 
 .business-selector-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  top: auto;
+  background: transparent;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  z-index: 9999;
-  overflow-y: auto;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0;
+  z-index: 30;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .business-selector-modal {
   background: white;
   border-radius: 16px;
-  max-width: 600px;
-  width: 100%;
+  max-width: 420px;
+  width: min(420px, 100%);
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  pointer-events: auto;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
