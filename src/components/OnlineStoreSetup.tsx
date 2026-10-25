@@ -357,6 +357,7 @@ export default function OnlineStoreSetup() {
           updateData.logo_url = logoUrl;
           break;
         case 'payment':
+          // updateStore writes these three onto store_bank_details.
           updateData.bank_name = bankName;
           updateData.account_number = accountNumber;
           updateData.account_name = accountName;

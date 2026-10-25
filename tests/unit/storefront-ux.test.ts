@@ -12,6 +12,9 @@ import { canonicalStoreUrl, STORE_SUBDOMAIN_BLOCKLIST } from '../../src/utils/ca
 import { PUBLIC_STORE_COLUMNS } from '../../src/utils/publicStoreColumns.js';
 import { RESERVED_SUBDOMAINS } from '../../src/utils/reservedSubdomains.ts';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
+import { currencyNGN } from '../../src/utils/format.ts';
+import { deliveryFeeKobo, orderTotalKobo } from '../../src/utils/deliveryFee.ts';
+import { existsSync } from 'node:fs';
 
 test('store text is escaped before it is placed in a link preview', () => {
   const html = buildOgDocument({
@@ -158,7 +161,7 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   assert.match(gallery, /supabaseUrl/);
   assert.match(addItem, /item-purchase-price/);
   assert.match(addItem, /aria-required="true"/);
-  assert.match(chat, /env\(safe-area-inset-bottom\)/);
+  assert.match(readFileSync(new URL('../../src/styles/ds.css', import.meta.url), 'utf8'), /env\(safe-area-inset-bottom\)/);
   assert.equal(chat.includes("bottom: '20px'"), false);
   assert.match(deploy, /after step 19b/);
   assert.match(deploy, /Do not use that rollback after step 19b/);
@@ -166,6 +169,41 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   assert.match(guard, /lower\(old_slug\)/);
   assert.equal(guard.includes('account_number'), true);
   assert.equal(/GRANT SELECT \([^)]*account_number/.test(guard), false);
+
+  const copy = readFileSync(new URL('../../supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql', import.meta.url), 'utf8');
+  const bankTable = readFileSync(new URL('../../supabase/migrations/20261025_21_store_bank_details.sql', import.meta.url), 'utf8');
+  const cart = readFileSync(new URL('../../src/components/Cart.tsx', import.meta.url), 'utf8');
+  const staff = readFileSync(new URL('../../src/pages/StaffManagement.tsx', import.meta.url), 'utf8');
+  const affiliates = readFileSync(new URL('../../src/services/affiliateService.ts', import.meta.url), 'utf8');
+  const footerCss = readFileSync(new URL('../../src/App.css', import.meta.url), 'utf8');
+  assert.match(deploy, /Step 21a/);
+  assert.match(deploy, /\*\*Yes\.\*\*/);
+  assert.match(deploy, /\*\*No\.\*\*/);
+  assert.match(copy, /payment_methods/);
+  assert.match(copy, /bank-transfer/);
+  assert.match(bankTable, /store_bank_details/);
+  assert.match(bankTable, /REVOKE SELECT \(bank_name, account_number, account_name\)/);
+  assert.equal(cart.includes('hasLegacyBankDetails'), false);
+  assert.match(cart, /orderTotalKobo/);
+  assert.equal(storefront.includes('Legacy Bank Account'), false);
+  assert.match(staff, /htmlFor="staff-name"/);
+  assert.match(staff, /htmlFor="staff-pin"/);
+  assert.equal(affiliates.includes(".from('stores')"), false);
+  assert.match(footerCss, /@media \(max-width: 1023px\)/);
+  assert.match(footerCss, /position: static/);
+  for (const page of ['test-paystack.html', 'clear-cache.html', 'fix-chat-complete.html', 'reset-to-localhost.html', 'googleXXXXXXXX.html']) {
+    assert.equal(existsSync(new URL(`../../public/${page}`, import.meta.url)), false);
+  }
+  assert.equal(existsSync(new URL('../../public/offline.html', import.meta.url)), true);
+});
+
+test('a naira delivery fee is included in the WhatsApp order total', () => {
+  assert.equal(deliveryFeeKobo('₦1,500'), 150000);
+  assert.equal(deliveryFeeKobo('Free delivery'), 0);
+  const total = orderTotalKobo(250000, '₦1,500');
+  assert.equal(total, 400000);
+  assert.match(currencyNGN(deliveryFeeKobo('₦1,500')), /1,500/);
+  assert.match(currencyNGN(total), /4,000/);
 });
 
 test('unknown paths are not treated as app routes', () => {

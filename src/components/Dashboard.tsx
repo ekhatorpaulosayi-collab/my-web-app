@@ -11,6 +11,7 @@ import { ShareStoreBanner } from './ShareStoreBanner';
 import { PaymentStatusIndicator } from './PaymentStatusIndicator';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
 import { MoreMenu } from './MoreMenu';
+import { BusinessTypePrompt } from './BusinessTypeSelector';
 import { ChannelAnalytics } from './ChannelAnalytics';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { SetupChecklist } from './SetupChecklist';
@@ -232,7 +233,10 @@ export function Dashboard({
     if (items.length < 3) return false;
 
     // Only show if no payment methods are set up
-    const hasBank = !!(store.bank_name && store.account_number);
+    const hasBank = !!(
+      (store.bank_name && store.account_number)
+      || store.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+    );
     const hasOnlinePayments = store.payment_methods?.some((pm: any) => pm.enabled && pm.type !== 'bank') || false;
 
     return !hasBank && !hasOnlinePayments;
@@ -522,6 +526,7 @@ export function Dashboard({
     <div className="dashboard-minimal">
       {/* Date Display */}
       <div className="dashboard-date">{dateString}</div>
+      <BusinessTypePrompt />
 
       {/* Getting Started Checklist - DISABLED to match localhost appearance */}
       {/* <GettingStartedChecklist
@@ -548,7 +553,10 @@ export function Dashboard({
           profileComplete={profileComplete}
           hasItems={items.length > 0}
           hasSales={sales.length > 0}
-          hasPayments={!!(store?.bank_name && store?.account_number)}
+          hasPayments={!!(
+            (store?.bank_name && store?.account_number)
+            || store?.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+          )}
           onProfile={onSetupProfile || onViewSettings || (() => {})}
           onAddItem={onAddItem}
           onRecordSale={onRecordSale}
@@ -563,7 +571,10 @@ export function Dashboard({
       {/* Payment Status Indicator */}
       {store && !shouldShowPaymentNudge && (
         <PaymentStatusIndicator
-          hasBank={!!(store.bank_name && store.account_number)}
+          hasBank={!!(
+            (store.bank_name && store.account_number)
+            || store.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+          )}
           onlinePaymentMethods={store.payment_methods?.filter((pm: any) => pm.enabled && pm.type !== 'bank').length || 0}
           onSetupClick={() => {
             if (onViewSettings) {

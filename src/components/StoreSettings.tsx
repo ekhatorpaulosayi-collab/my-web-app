@@ -15,6 +15,7 @@ import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
 import { validateStoreSlug } from '../utils/storeSlug';
 import { storeHealthFlags } from '../utils/storeHealth';
+import { mergeBankDetails, readStoreBankDetails, writeStoreBankDetails } from '../lib/storeBankDetails.js';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -46,7 +47,8 @@ export const StoreSettings: React.FC = () => {
         console.error('[StoreSettings] Store load error:', error);
         setStore(null);
       } else {
-        setStore(data);
+        const bank = data?.id ? await readStoreBankDetails(supabase, data.id) : null;
+        setStore(mergeBankDetails(data, bank));
       }
     } catch (err) {
       console.error('[StoreSettings] Store load threw:', err);
@@ -328,10 +330,6 @@ export const StoreSettings: React.FC = () => {
         whatsapp_number: whatsappNumber.trim(),
         address: address.trim(),
         is_public: storeLive,
-        // Payment details
-        bank_name: bankName.trim(),
-        account_number: accountNumber.trim(),
-        account_name: accountName.trim(),
         accepted_payment_methods: paymentMethods,
         payment_instructions: paymentInstructions.trim(),
         // Paystack integration
@@ -412,6 +410,26 @@ export const StoreSettings: React.FC = () => {
         id: updatedStore.id,
         business_name: updatedStore.business_name,
       });
+
+      const bankWrite = await writeStoreBankDetails(supabase, store.id, {
+        bank_name: bankName.trim(),
+        account_number: accountNumber.trim(),
+        account_name: accountName.trim(),
+      });
+      if (bankWrite.missing) {
+        const { error: legacyBankError } = await supabase
+          .from('stores')
+          .update({
+            bank_name: bankName.trim(),
+            account_number: accountNumber.trim(),
+            account_name: accountName.trim(),
+          })
+          .eq('id', store.id)
+          .eq('user_id', String(user.uid));
+        if (legacyBankError) throw legacyBankError;
+      } else if (bankWrite.error) {
+        throw bankWrite.error;
+      }
 
       // Mirror business_name to users table so dashboard header survives logout/login
       const { error: userSyncError } = await supabase

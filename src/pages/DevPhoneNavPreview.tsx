@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { Dashboard } from '../components/Dashboard';
 import AIChatWidget from '../components/AIChatWidget';
+import '../App.css';
 
 const noop = () => {};
 
@@ -40,6 +41,9 @@ export function DevPhoneNavPreview({ openMore = false }: { openMore?: boolean })
         onViewSettings={noop}
       />
       <AIChatWidget contextType="onboarding" persistentBubble />
+      <footer className="app-footer powered">
+        <p>⚡ Powered by Storehouse</p>
+      </footer>
     </AppShell>
   );
 }

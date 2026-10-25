@@ -1081,10 +1081,11 @@ function StorefrontContent() {
                         }
                       }}
                       className="btn-add-to-cart"
-                      style={{ flex: '1 1 auto', width: 'auto' }}
+                      aria-label="Add to Cart"
+                      style={{ flex: '1 1 auto', width: 'auto', whiteSpace: 'normal' }}
                     >
-                      <Plus size={18} />
-                      Add to Cart
+                      <Plus size={18} aria-hidden="true" />
+                      <span>Add to Cart</span>
                     </button>
 
                     {/* Share Button - Instagram, WhatsApp, Facebook, TikTok */}
@@ -1113,7 +1114,7 @@ function StorefrontContent() {
       </main>
 
       {/* Payment Methods Section - NEW Multi-Payment Support */}
-      {(store.payment_methods?.filter(m => m.enabled).length || store.bankName || store.accountNumber) && (
+      {((store.payment_methods?.filter(m => m.enabled)?.length) || 0) > 0 && (
         <section style={{
           maxWidth: '1280px',
           margin: '0 auto',
@@ -1340,81 +1341,6 @@ function StorefrontContent() {
                         </div>
                       );
                     })}
-                </div>
-              )}
-
-              {/* Legacy Bank Account (Backward Compatibility) */}
-              {(store.bankName || store.accountNumber) && !store.payment_methods?.length && (
-                <div style={{
-                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                  padding: '1.5rem',
-                  borderRadius: '12px',
-                  marginBottom: '1.5rem',
-                  border: '2px solid #bae6fd'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '1rem'
-                  }}>
-                    <span style={{ fontSize: '1.75rem' }}>🏦</span>
-                    <h3 style={{
-                      fontSize: '1.125rem',
-                      fontWeight: 700,
-                      color: '#0369a1',
-                      margin: 0
-                    }}>
-                      Bank Account
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {store.bankName && (
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Bank Name</span>
-                        <div style={{ color: '#0c4a6e', fontSize: '1rem', fontWeight: 600, marginTop: '0.25rem' }}>{store.bankName}</div>
-                      </div>
-                    )}
-                    {store.accountNumber && (
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Account Number</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
-                          <strong style={{
-                            color: '#0c4a6e',
-                            fontSize: '1.25rem',
-                            fontFamily: 'monospace',
-                            letterSpacing: '2px'
-                          }}>
-                            {store.accountNumber}
-                          </strong>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(store.accountNumber || '');
-                              alert('Account number copied!');
-                            }}
-                            style={{
-                              padding: '8px',
-                              background: 'white',
-                              border: '2px solid #3b82f6',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center'
-                            }}
-                            title="Copy account number"
-                          >
-                            <Copy size={16} color="#3b82f6" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {store.accountName && (
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Account Name</span>
-                        <div style={{ color: '#0c4a6e', fontSize: '1rem', fontWeight: 600, marginTop: '0.25rem' }}>{store.accountName}</div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
 
@@ -2430,7 +2356,7 @@ function StorefrontContent() {
                     transition: 'all 0.2s',
                     boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
                     marginBottom: '12px',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'normal'
                   }}
                   onMouseEnter={(e) => {
                     if (!(selectedProductVariants.length > 0 && !selectedVariant)) {

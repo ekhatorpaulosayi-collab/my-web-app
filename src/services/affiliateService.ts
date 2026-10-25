@@ -126,7 +126,7 @@ export async function createAffiliate(
   // Generate unique code
   const code = await generateAffiliateCode(userId, data.name);
 
-  // Create affiliate record
+  // Affiliate payout columns live on affiliates, not stores or store_bank_details.
   const { data: affiliate, error } = await supabase
     .from('affiliates')
     .insert({

@@ -549,15 +549,54 @@ DROP INDEX IF EXISTS public.stores_store_slug_uniq;
 DROP POLICY IF EXISTS product_variants_public_read ON public.product_variants;
 ```
 
+## Step 21a — copy legacy bank fields into payment_methods
+
+File: `supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql`
+
+Version `2026102520`, name `legacy_bank_to_payment_methods`.
+
+Run this after step 19b and before step 21. Step 21 removes anon's read of `bank_name`, `account_number`, and `account_name`. Checkout shows `payment_methods`. This step copies a legacy bank row into `payment_methods` first.
+
+Yes/no. Run this SELECT on its own. It does not change a row.
+
+```sql
+SELECT s.id, s.store_slug, s.bank_name, s.account_number, s.account_name
+  FROM public.stores AS s
+ WHERE (
+         nullif(btrim(coalesce(s.bank_name, '')), '') IS NOT NULL
+      OR nullif(btrim(coalesce(s.account_number, '')), '') IS NOT NULL
+      OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL
+       )
+   AND (
+         s.payment_methods IS NULL
+      OR jsonb_typeof(s.payment_methods) = 'array'
+       )
+   AND NOT EXISTS (
+         SELECT 1
+           FROM jsonb_array_elements(
+             CASE
+               WHEN jsonb_typeof(s.payment_methods) = 'array' THEN s.payment_methods
+               ELSE '[]'::jsonb
+             END
+           ) AS method
+          WHERE lower(coalesce(method->>'type', '')) IN ('bank', 'bank-transfer', 'bank_transfer')
+       );
+```
+
+- **No.** The SELECT returns no rows. Skip the file. Go to step 21.
+- **Yes.** The SELECT returns rows. Those stores get one bank-transfer method. Run the file. Run the SELECT again. It must return no rows.
+
+A store that already has a bank-transfer method is not in the SELECT and is not changed. Running the file twice changes nothing the second time.
+
 ## Step 21 — hide settlement columns from anon, and check subdomain
 
 File: `supabase/migrations/20261025_19_public_store_columns.sql`
 
 Version `2026102519`, name `public_store_columns`.
 
-Run this after step 19b. Do not run it against the two live TEST signup rows. This file does not `UPDATE` or `DELETE` those rows.
+Run this after step 21a. Do not run it against the two live TEST signup rows. This file does not `UPDATE` or `DELETE` those rows.
 
-Anon can still read a public store, including `payment_methods`, which checkout shows to a customer. Anon cannot read `bank_name`, `account_number`, or `account_name`. The owner is signed in, and that role still has table select, so the dashboard and Store Settings keep those three columns. Do not revoke them from `authenticated`.
+Anon can still read a public store, including `payment_methods`, which checkout shows to a customer. Anon cannot read `bank_name`, `account_number`, or `account_name`. Until step 21b, a signed-in user can still read those three columns on a public store. Step 21b moves them. Do not stop between step 21 and step 21b.
 
 A subdomain is checked only when it changes. An existing subdomain, including `234`, is left as it is. A new subdomain uses the same reserved-word and uniqueness rules as a slug. `resolve_store_redirect` matches an old slug in any letter case.
 
@@ -579,6 +618,41 @@ GRANT SELECT ON TABLE public.stores TO anon;
 ```
 
 Then run `supabase/migrations/20261025_18_slug_guard.sql` again.
+
+## Step 21b — owner-only bank details
+
+File: `supabase/migrations/20261025_21_store_bank_details.sql`
+
+Version `2026102521`, name `store_bank_details`.
+
+Run this immediately after step 21. It copies `bank_name`, `account_number`, and `account_name` into `store_bank_details`, sets those stores columns to null, and revokes them from anon and authenticated. The owner reads and writes `store_bank_details`. Another signed-in user cannot. Anon cannot. Checkout keeps using `payment_methods` from step 21a.
+
+Yes/no. Run this SELECT on its own before the file. It lists stores whose columns will be copied and then cleared.
+
+```sql
+SELECT s.id, s.store_slug, s.bank_name, s.account_number, s.account_name
+  FROM public.stores AS s
+ WHERE nullif(btrim(coalesce(s.bank_name, '')), '') IS NOT NULL
+    OR nullif(btrim(coalesce(s.account_number, '')), '') IS NOT NULL
+    OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL;
+```
+
+- **No.** The SELECT returns no rows. Run the file anyway. It still creates the table, the policies, and the revoke. The copy changes nothing.
+- **Yes.** The SELECT returns rows. Run the file. Those values move to `store_bank_details` and the stores columns become null.
+
+Smoke test, as the database owner (this is privilege and row-security, not a live shopper session):
+
+```sql
+SELECT has_column_privilege('authenticated', 'public.stores', 'account_number', 'SELECT') AS signed_in_reads_column;
+SELECT has_table_privilege('anon', 'public.store_bank_details', 'SELECT') AS anon_reads_bank_table;
+SELECT COUNT(*) AS owner_policies
+  FROM pg_policy
+ WHERE polname LIKE 'store_bank_details_owner_%';
+```
+
+`signed_in_reads_column` is false. `anon_reads_bank_table` is false. `owner_policies` is 3.
+
+Rollback is in the file header. It copies the values back and grants the three columns to authenticated again. It does not drop `store_slug_redirects` and it does not restore `remember_store_slug`. Do not use the step 19 rollback after step 19b.
 
 ## Wildcard shop addresses
 

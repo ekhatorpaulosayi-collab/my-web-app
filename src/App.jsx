@@ -7,7 +7,6 @@ import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign, Camera, X, Share2 
 const TestPayment = lazy(() => import('./pages/TestPayment'));
 import { usePreferences } from './contexts/PreferencesContext.tsx';
 import { useStaff } from './contexts/StaffContext.tsx';
-import { BusinessTypeSelector } from './components/BusinessTypeSelector.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 const DashboardCustomize = lazy(() => import('./components/DashboardCustomize.tsx').then((m) => ({ default: m.DashboardCustomize })));
 const AIChatWidget = lazy(() => import('./components/AIChatWidget.tsx'));
@@ -149,7 +148,7 @@ function App() {
     'My Store';
 
   // Preferences context - dashboard widgets and customization
-  const { isFirstTimeSetup, completeSetup, businessType } = usePreferences();
+  const { businessType } = usePreferences();
 
   // Staff context - track who records sales
   const { currentStaff, canViewReports, currentRole, roleReady } = useStaff();
@@ -7054,12 +7053,6 @@ Low Stock: ${lowStockItems.length}
             </div>
           </div>
         </div>
-      )}
-
-      {/* Business Type Selector - First Time Setup */}
-      {/* Only show if user hasn't selected business type yet (new users or existing users without store_type) */}
-      {isFirstTimeSetup && !businessType && (
-        <BusinessTypeSelector onComplete={completeSetup} />
       )}
 
       {/* Dashboard Customization Modal */}

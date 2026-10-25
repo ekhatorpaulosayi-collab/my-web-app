@@ -302,6 +302,7 @@ export default function AIChatWidget({
       const hasActionSheet = document.querySelector('.action-sheet') !== null;
       const hasCartSidebar = document.querySelector('.cart-sidebar') !== null;
       const hasRecordSale = document.querySelector('.rs-overlay, .rs-modal') !== null;
+      const hasBusinessSheet = document.querySelector('.business-selector-overlay') !== null;
       const hasDialog = document.querySelector('dialog[open], [role="dialog"], .ds-overlay') !== null;
       const flagged = document.body?.dataset?.modalOpen === 'true';
 
@@ -313,7 +314,7 @@ export default function AIChatWidget({
 
       const hasAnyModal = hasEODModal || hasModalOverlay || hasSheetModal ||
                          hasBottomSheet || hasActionSheet || hasCartSidebar || hasEODReportText ||
-                         hasRecordSale || hasDialog || flagged;
+                         hasRecordSale || hasBusinessSheet || hasDialog || flagged;
 
       if (hasAnyModal !== hasModalOpen) {
         console.log('[AIChatWidget] Modal state changed:', hasAnyModal, {
@@ -1537,15 +1538,19 @@ export default function AIChatWidget({
     }, 100);
   };
 
+  const phoneOwnerBubble = !isDesktop && contextType !== 'storefront' && !isOpen;
+
   return (
     <div className="ai-chat-container" style={{
-      position: 'fixed',
-      bottom: isOpen && !isDesktop ? '0' : '20px', // Full bottom on mobile when open
-      right: contextType === 'storefront' && isDesktop ? '120px' : isDesktop ? '20px' : '0', // Full width on mobile
-      left: isOpen && !isDesktop ? '0' : 'auto', // Full width on mobile when open
-      zIndex: 99999, // High z-index to appear above everything
-      pointerEvents: 'none', // Allow clicks to pass through container
-      // Force fixed width container on desktop
+      // Closed owner phone: sit in the page, clear of Record Sale and the tab bar.
+      position: phoneOwnerBubble ? 'relative' : 'fixed',
+      bottom: phoneOwnerBubble ? 'auto' : (isOpen && !isDesktop ? '0' : '20px'),
+      right: phoneOwnerBubble ? 'auto' : (contextType === 'storefront' && isDesktop ? '120px' : isDesktop ? '20px' : '0'),
+      left: phoneOwnerBubble ? 'auto' : (isOpen && !isDesktop ? '0' : 'auto'),
+      zIndex: phoneOwnerBubble ? 1 : 99999,
+      pointerEvents: 'none',
+      margin: phoneOwnerBubble ? '16px 16px 24px' : undefined,
+      width: phoneOwnerBubble ? 'fit-content' : undefined,
       ...(isDesktop ? {
         width: '400px',
         maxWidth: '400px',
@@ -2106,15 +2111,16 @@ export default function AIChatWidget({
       {/* Chat Bubble - Enhanced Visibility for Storefront */}
       {!isOpen && (
         <div className="need-help-fab" style={{
-          position: 'fixed',
-          // Phone: sit above the owner tab bar, on the left, so More stays tappable.
-          // Storefront phone: a small button in the header, clear of the product cards.
+          // Phone owner: in the page flow, so it cannot cover Record Sale,
+          // the shop-type card, or the tab bar. Storefront phone stays a
+          // header button. Desktop stays fixed at the corner.
+          position: !isDesktop && contextType !== 'storefront' ? 'relative' : 'fixed',
           top: !isDesktop && contextType === 'storefront' ? '12px' : 'auto',
-          left: !isDesktop ? '16px' : 'auto',
-          right: !isDesktop ? 'auto' : (contextType === 'storefront' ? '24px' : '24px'),
-          bottom: !isDesktop
-            ? (contextType === 'storefront' ? 'auto' : 'calc(76px + env(safe-area-inset-bottom))')
-            : '24px',
+          left: !isDesktop && contextType === 'storefront' ? '16px' : 'auto',
+          right: isDesktop ? '24px' : 'auto',
+          bottom: isDesktop ? '24px' : 'auto',
+          margin: !isDesktop && contextType !== 'storefront' ? '16px' : undefined,
+          width: !isDesktop && contextType !== 'storefront' ? 'fit-content' : undefined,
           zIndex: 30,
           opacity: hasModalOpen ? 0 : 1,
           visibility: hasModalOpen ? 'hidden' : 'visible',

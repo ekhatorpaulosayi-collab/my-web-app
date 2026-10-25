@@ -211,3 +211,44 @@ export function BusinessTypeSelector({ onComplete }: BusinessTypeSelectorProps) 
     </div>
   );
 }
+
+const PROMPT_KEY = 'storehouse:business-type-prompt:dismissed';
+
+/** In-flow card. The full sheet opens only after Choose. */
+export function BusinessTypePrompt() {
+  const { isFirstTimeSetup, businessType, completeSetup } = usePreferences();
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(PROMPT_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [open, setOpen] = useState(false);
+
+  if (!isFirstTimeSetup || businessType) return null;
+  if (open) return <BusinessTypeSelector onComplete={completeSetup} />;
+  if (dismissed) return null;
+
+  return (
+    <section className="business-type-prompt" aria-label="Shop type">
+      <p>What kind of shop is this? Pick a type when you are ready.</p>
+      <div className="business-type-prompt-actions">
+        <button type="button" onClick={() => setOpen(true)}>Choose shop type</button>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              localStorage.setItem(PROMPT_KEY, 'true');
+            } catch {
+              /* private mode */
+            }
+            setDismissed(true);
+          }}
+        >
+          Not now
+        </button>
+      </div>
+    </section>
+  );
+}

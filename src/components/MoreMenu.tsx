@@ -361,6 +361,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
               </div>
             </div>
           ))}
+          <p className="more-menu-powered">Powered by Storehouse</p>
         </div>
       </div>
     </dialog>

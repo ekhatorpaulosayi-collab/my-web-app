@@ -129,6 +129,7 @@ export default function SubaccountWizard() {
           body: {
             store_id: storeId,
             bank_code: bank.code,
+            bank_name: bank.name,
             account_number: accountNumber,
           },
         });

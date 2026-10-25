@@ -121,7 +121,7 @@ serve(async (req) => {
   } catch {
     return jsonResponse({ error: 'invalid_json' }, 400);
   }
-  const { bank_code, account_number, store_id } = body || {};
+  const { bank_code, account_number, store_id, bank_name } = body || {};
   if (!bank_code || !account_number || !store_id) {
     return jsonResponse({ error: 'missing_fields' }, 400);
   }
@@ -341,6 +341,29 @@ serve(async (req) => {
     return jsonResponse({ error: 'busy', message: 'Bank lookup is busy. Please try again in a moment.' }, 503);
   }
 
+  const settlementName = typeof bank_name === 'string' ? bank_name.trim() : '';
+  const { error: detailsError } = await admin
+    .from('store_bank_details')
+    .upsert(
+      {
+        store_id,
+        bank_name: settlementName || null,
+        account_number,
+        account_name: accountName,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'store_id' },
+    );
+  if (detailsError) {
+    console.error('store_bank_details_upsert_failed', {
+      store_id,
+      user_id: user.id,
+      bank_code,
+      account_number_last4: last4,
+      error: detailsError.message,
+    });
+  }
+
   console.log('bank_account_resolve', {
     store_id,
     user_id: user.id,
@@ -348,6 +371,7 @@ serve(async (req) => {
     account_number_last4: last4,
     mock: false,
     persisted: true,
+    store_bank_details: !detailsError,
   });
 
   return jsonResponse({

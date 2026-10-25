@@ -3,6 +3,44 @@
  * Mobile-first design optimized for Nigerian Android phones
  */
 
+.business-type-prompt {
+  margin: 0 0 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.business-type-prompt p {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.business-type-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.business-type-prompt button {
+  min-height: 48px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.business-type-prompt-actions button:first-child {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
 .business-selector-overlay {
   position: fixed;
   left: 16px;

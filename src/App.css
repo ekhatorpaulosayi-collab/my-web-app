@@ -3882,6 +3882,17 @@ body {
   font-weight: 500;
 }
 
+@media (max-width: 1023px) {
+  .app-footer {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    z-index: auto;
+    margin: 16px 16px 8px;
+  }
+}
+
 @media (max-width: 768px) {
   .app-footer {
     padding: 10px 16px;

@@ -128,11 +128,58 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   expect(dash.tab && dash.help && intersects(dash.tab, dash.help)).toBe(false);
   expect(Math.min(...dash.heights)).toBeGreaterThanOrEqual(48);
 
+  const sale = page.getByRole('button', { name: '💰 Record Sale' });
+  await expect(sale).toBeVisible();
+  const prompt = page.locator('.business-type-prompt');
+  await expect(prompt).toBeVisible();
+  const footer = page.locator('footer.app-footer');
+  await expect(footer).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const rect = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const help = document.querySelector('.need-help-fab');
+    const saleEl = Array.from(document.querySelectorAll('button')).find((el) => (el.textContent || '').includes('Record Sale'));
+    const card = document.querySelector('.business-type-prompt');
+    const foot = document.querySelector('footer.app-footer');
+    const tab = document.querySelector('.app-shell-tabs');
+    const footStyle = foot ? getComputedStyle(foot) : null;
+    return {
+      help: rect(help),
+      sale: rect(saleEl || null),
+      card: rect(card),
+      foot: rect(foot),
+      tab: rect(tab),
+      footPosition: footStyle ? footStyle.position : '',
+    };
+  });
+  expect(layout.footPosition).toBe('static');
+  expect(intersects(layout.help, layout.sale)).toBe(false);
+  expect(intersects(layout.help, layout.card)).toBe(false);
+  expect(intersects(layout.help, layout.tab)).toBe(false);
+  expect(intersects(layout.foot, layout.tab)).toBe(false);
+  await page.evaluate(() => {
+    const foot = document.querySelector('footer.app-footer');
+    const tab = document.querySelector('.app-shell-tabs');
+    if (!foot || !tab) return;
+    const tabH = tab.getBoundingClientRect().height;
+    const footH = foot.getBoundingClientRect().height;
+    const top = foot.getBoundingClientRect().top + window.scrollY - (window.innerHeight - tabH - footH - 12);
+    window.scrollTo(0, Math.max(0, top));
+  });
+  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-dashboard.png' });
+
   await page.goto('/dev/ux-preview/more', { waitUntil: 'domcontentloaded' });
   const money = page.getByRole('button', { name: /Money Book/ });
   await expect(money).toBeVisible();
   const moneyBox = await money.boundingBox();
   expect(moneyBox?.height ?? 0).toBeGreaterThanOrEqual(48);
+  const moreFooter = page.locator('.more-menu-powered');
+  await moreFooter.scrollIntoViewIfNeeded();
+  await expect(moreFooter).toBeVisible();
+  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-more.png' });
   await money.click();
 
   await page.goto('/store/preview', { waitUntil: 'domcontentloaded' });
@@ -153,4 +200,16 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
     });
   });
   expect(covered).toBe(false);
+
+  const add = page.getByRole('button', { name: 'Add to Cart' }).first();
+  await expect(add).toBeVisible();
+  const clipped = await add.evaluate((el) => el.scrollWidth > el.clientWidth + 2);
+  expect(clipped).toBe(false);
+  await page.locator('.storefront-footer').scrollIntoViewIfNeeded();
+  await expect(page.locator('.storefront-footer')).toContainText('Storehouse');
+  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-storefront.png' });
+  await page.getByRole('button', { name: /shopping cart/i }).click();
+  await expect(page.locator('.cart-powered')).toBeVisible();
+  await expect(page.locator('.cart-powered')).toContainText('Powered by Storehouse');
+  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-cart.png' });
 });

@@ -92,6 +92,23 @@ VALUES (
   'OldShop',
   true
 );
+
+-- Already has a bank-transfer method. Step 21a must not add a second one.
+INSERT INTO public.stores (
+  id, user_id, business_name, store_slug, is_public,
+  bank_name, account_number, account_name, payment_methods
+)
+VALUES (
+  '66666666-6666-6666-6666-666666666666',
+  'owner-already',
+  'Already',
+  'already-bank',
+  true,
+  'GTBank',
+  '1111111111',
+  'Already Owner',
+  '[{"id":"keep-me","type":"bank","enabled":true,"account_number":"1111111111","account_name":"Already Owner","bank_name":"GTBank"}]'::jsonb
+);
 SQL
 
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_16_stores_public_read.sql"
@@ -358,6 +375,144 @@ BEGIN
     RAISE EXCEPTION 'anon saw % variants', seen;
   END IF;
   EXECUTE 'RESET ROLE';
+END $$;
+SQL
+
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql"
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql"
+
+"${PSQL[@]}" -d "$DB" <<'SQL'
+DO $$
+DECLARE
+  bank_methods integer;
+  dry_run integer;
+BEGIN
+  SELECT COUNT(*) INTO bank_methods
+    FROM public.stores AS s,
+         jsonb_array_elements(s.payment_methods) AS method
+   WHERE s.id = '11111111-1111-1111-1111-111111111111'
+     AND lower(coalesce(method->>'type', '')) = 'bank';
+  IF bank_methods IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'legacy bank copy count is %', bank_methods;
+  END IF;
+
+  SELECT COUNT(*) INTO bank_methods
+    FROM public.stores AS s,
+         jsonb_array_elements(s.payment_methods) AS method
+   WHERE s.id = '66666666-6666-6666-6666-666666666666'
+     AND lower(coalesce(method->>'type', '')) = 'bank';
+  IF bank_methods IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'existing bank method was duplicated (% )', bank_methods;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.stores
+     WHERE id = '11111111-1111-1111-1111-111111111111'
+       AND payment_methods::text LIKE '%₦%' IS NOT TRUE
+       AND payment_methods::text LIKE '%0123456789%'
+  ) THEN
+    RAISE EXCEPTION 'copied account number missing';
+  END IF;
+
+  SELECT COUNT(*) INTO dry_run
+    FROM public.stores AS s
+   WHERE (
+           nullif(btrim(coalesce(s.bank_name, '')), '') IS NOT NULL
+        OR nullif(btrim(coalesce(s.account_number, '')), '') IS NOT NULL
+        OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL
+         )
+     AND (
+           s.payment_methods IS NULL
+        OR jsonb_typeof(s.payment_methods) = 'array'
+         )
+     AND NOT EXISTS (
+           SELECT 1
+             FROM jsonb_array_elements(s.payment_methods) AS method
+            WHERE lower(coalesce(method->>'type', '')) IN ('bank', 'bank-transfer', 'bank_transfer')
+         );
+  IF dry_run IS DISTINCT FROM 0 THEN
+    RAISE EXCEPTION 'dry run still lists % stores', dry_run;
+  END IF;
+END $$;
+SQL
+
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_21_store_bank_details.sql"
+
+"${PSQL[@]}" -d "$DB" <<'SQL'
+DO $$
+DECLARE
+  seen integer;
+  acct text;
+BEGIN
+  IF has_column_privilege('authenticated', 'public.stores', 'account_number', 'SELECT') THEN
+    RAISE EXCEPTION 'signed-in user can still read stores.account_number';
+  END IF;
+  IF has_column_privilege('anon', 'public.stores', 'account_number', 'SELECT') THEN
+    RAISE EXCEPTION 'anon can read stores.account_number';
+  END IF;
+  IF NOT has_column_privilege('anon', 'public.stores', 'payment_methods', 'SELECT') THEN
+    RAISE EXCEPTION 'anon lost payment_methods';
+  END IF;
+  IF has_table_privilege('anon', 'public.store_bank_details', 'SELECT') THEN
+    RAISE EXCEPTION 'anon can read store_bank_details';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.stores
+     WHERE id = '11111111-1111-1111-1111-111111111111'
+       AND account_number IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'stores.account_number was not cleared';
+  END IF;
+
+  SELECT account_number INTO acct
+    FROM public.store_bank_details
+   WHERE store_id = '11111111-1111-1111-1111-111111111111';
+  IF acct IS DISTINCT FROM '0123456789' THEN
+    RAISE EXCEPTION 'owner table missing account, got %', acct;
+  END IF;
+
+  EXECUTE 'SET ROLE anon';
+  BEGIN
+    PERFORM 1 FROM public.store_bank_details;
+    RAISE EXCEPTION 'anon read store_bank_details';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+  EXECUTE 'RESET ROLE';
+
+  EXECUTE 'SET ROLE authenticated';
+  SELECT COUNT(*) INTO seen FROM public.store_bank_details;
+  IF seen IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'owner saw % bank rows', seen;
+  END IF;
+  SELECT account_number INTO acct
+    FROM public.store_bank_details
+   WHERE store_id = '11111111-1111-1111-1111-111111111111';
+  IF acct IS DISTINCT FROM '0123456789' THEN
+    RAISE EXCEPTION 'owner read failed, got %', acct;
+  END IF;
+  BEGIN
+    PERFORM account_number FROM public.stores;
+    RAISE EXCEPTION 'authenticated read stores.account_number';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+  EXECUTE 'RESET ROLE';
+
+  CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+  LANGUAGE sql AS $uid$ SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $uid$;
+
+  EXECUTE 'SET ROLE authenticated';
+  SELECT COUNT(*) INTO seen FROM public.store_bank_details;
+  IF seen IS DISTINCT FROM 0 THEN
+    RAISE EXCEPTION 'other user saw % bank rows', seen;
+  END IF;
+  EXECUTE 'RESET ROLE';
+
+  CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+  LANGUAGE sql AS $uid$ SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid $uid$;
 END $$;
 
 -- Step 20 rollback must not bring the client function back.

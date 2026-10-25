@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import { PUBLIC_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { mergeBankDetails, readStoreBankDetails, splitBankDetails, writeStoreBankDetails } from './storeBankDetails.js';
 
 // =====================================================
 // CACHING LAYER
@@ -200,8 +201,10 @@ export function useStore(userId) {
         throw fetchError;
       }
 
-      cache.set(cacheKey, data);
-      setStore(data);
+      const bank = data?.id ? await readStoreBankDetails(supabase, data.id) : null;
+      const withBank = mergeBankDetails(data, bank);
+      cache.set(cacheKey, withBank);
+      setStore(withBank);
       setError(null);
     } catch (err) {
       console.error('[Supabase] Store fetch error:', err);
@@ -298,14 +301,32 @@ export function useStoreActions(userId) {
 
       console.log('[Supabase] Updating store:', { storeId, userId, updates });
 
-      const { data, error: updateError } = await supabase
-        .from('stores')
-        .update(updates)
-        .eq('id', storeId)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
+      const { bank, rest } = splitBankDetails(updates);
+      let data = null;
+      if (Object.keys(rest).length > 0) {
+        const { data: updated, error: updateError } = await supabase
+          .from('stores')
+          .update(rest)
+          .eq('id', storeId)
+          .select()
+          .single();
+        if (updateError) throw updateError;
+        data = updated;
+      }
+      if (Object.keys(bank).length > 0) {
+        const written = await writeStoreBankDetails(supabase, storeId, bank);
+        if (written.missing) {
+          const { error: legacyError } = await supabase
+            .from('stores')
+            .update(bank)
+            .eq('id', storeId);
+          if (legacyError) throw legacyError;
+        } else if (written.error) {
+          throw written.error;
+        } else {
+          data = mergeBankDetails(data || { id: storeId }, bank);
+        }
+      }
 
       // Invalidate cache
       cache.invalidate(`store:${userId}`);

@@ -8,6 +8,7 @@ import { X, ShoppingCart, Plus, Minus, Trash2, Phone, CreditCard, Tag, Copy, Che
 import PaystackPop from '@paystack/inline-js';
 import { useCart } from '../contexts/CartContext';
 import { currencyNGN, currencyNGNExact } from '../utils/format';
+import { deliveryFeeKobo, orderTotalKobo } from '../utils/deliveryFee';
 import type { StoreProfile, PaymentMethod } from '../types';
 import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
 import { supabase } from '../lib/supabase';
@@ -98,27 +99,8 @@ export function Cart({ store }: CartProps) {
   // buttons for the same store.
   const showLegacyPaystack = paystackEnabled && !subaccountCardEnabled;
 
-  // Get available payment methods (multi-payment + legacy bank details)
+  // Checkout shows payment_methods only. Legacy stores columns are owner-only.
   const availablePaymentMethods = store.payment_methods?.filter(m => m.enabled) || [];
-
-  // ALWAYS add legacy bank details if they exist (regardless of modern payment methods)
-  const hasLegacyBankDetails = store.bankName && store.accountNumber;
-  if (hasLegacyBankDetails) {
-    // Check if legacy bank not already in array
-    const hasLegacyInArray = availablePaymentMethods.some(m => m.id === 'legacy-bank');
-    if (!hasLegacyInArray) {
-      availablePaymentMethods.push({
-        id: 'legacy-bank',
-        type: 'bank',
-        enabled: true,
-        label: store.bankName || 'Bank Transfer',
-        account_name: store.accountName || store.businessName,
-        account_number: store.accountNumber || '',
-        bank_name: store.bankName || '',
-        created_at: new Date().toISOString()
-      });
-    }
-  }
 
   // Calculate discount and final total
   const discount = appliedPromo
@@ -127,6 +109,8 @@ export function Cart({ store }: CartProps) {
       : appliedPromo.discount_value * 100 // Convert NGN to kobo
     : 0;
   const finalTotal = Math.max(0, totalPrice - discount);
+  const deliveryKobo = deliveryFeeKobo(store.deliveryFee);
+  const payableTotal = orderTotalKobo(finalTotal, store.deliveryFee);
 
   // Legacy paystackEnabled (own-key) path still uses v1 inline.js loaded
   // dynamically via this script tag — see handlePaystackPayment.
@@ -701,7 +685,7 @@ export function Cart({ store }: CartProps) {
           },
           subtotal: totalPrice,
           discount: discount,
-          finalTotal: finalTotal,
+          finalTotal: payableTotal,
           paymentMethod: 'whatsapp',
           paymentReference: undefined,
           promoCode: appliedPromo?.code,
@@ -749,9 +733,9 @@ export function Cart({ store }: CartProps) {
       `\n\n📦 *Order Details:*${orderItems}\n\n` +
       `💰 *Subtotal: ${currencyNGN(totalPrice)}*\n` +
       (appliedPromo ? `🎁 *Discount (${appliedPromo.code}): -${currencyNGN(discount)}*\n` : '') +
-      (store.deliveryFee ? `🚚 *Delivery: ${store.deliveryFee}*\n` : '') +
+      (deliveryKobo > 0 ? `🚚 *Delivery: ${currencyNGN(deliveryKobo)}*\n` : '') +
       (store.deliveryTime ? `⏱ *Estimate: ${store.deliveryTime}*\n` : '') +
-      `💵 *Total: ${currencyNGN(finalTotal)}*` +
+      `💵 *Total: ${currencyNGN(payableTotal)}*` +
       paymentInfo +
       `\n\n🔗 ${storeLink}`;
 
@@ -833,6 +817,7 @@ export function Cart({ store }: CartProps) {
             ×
           </button>
         </div>
+        <p className="cart-powered">Powered by Storehouse</p>
 
         {/* Cart Content */}
         {items.length === 0 ? (
@@ -992,15 +977,27 @@ export function Cart({ store }: CartProps) {
                       <span>Discount ({appliedPromo.code}):</span>
                       <span>-{currencyNGN(discount)}</span>
                     </div>
+                    {deliveryKobo > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', color: '#374151' }}>
+                        <span>Delivery:</span>
+                        <span>{currencyNGN(deliveryKobo)}</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 700, paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
                       <span>Total:</span>
-                      <span>{currencyNGN(finalTotal)}</span>
+                      <span>{currencyNGN(payableTotal)}</span>
                     </div>
                   </>
                 ) : (
                   <>
+                    {deliveryKobo > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '8px', fontSize: '14px', color: '#374151' }}>
+                        <span>Delivery:</span>
+                        <span>{currencyNGN(deliveryKobo)}</span>
+                      </div>
+                    )}
                     <span>Total:</span>
-                    <span className="cart-total-price">{currencyNGN(totalPrice)}</span>
+                    <span className="cart-total-price">{currencyNGN(payableTotal)}</span>
                   </>
                 )}
               </div>

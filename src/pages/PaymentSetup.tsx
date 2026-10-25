@@ -57,6 +57,7 @@ export default function PaymentSetup() {
 
   const [status, setStatus] = useState<SubaccountStatus>({ kind: 'loading' });
   const [kycStatus, setKycStatus] = useState<KycStatus>({ kind: 'loading' });
+  const [ownerBankLine, setOwnerBankLine] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +94,16 @@ export default function PaymentSetup() {
           setStatus({ kind: 'not_started' });
           setKycStatus({ kind: 'not_started' });
           return;
+        }
+
+        const { data: ownerBank, error: ownerBankErr } = await supabase
+          .from('store_bank_details')
+          .select('bank_name, account_number')
+          .eq('store_id', store.id)
+          .maybeSingle();
+        if (!cancelled && !ownerBankErr && ownerBank?.account_number) {
+          const last4 = String(ownerBank.account_number).slice(-4);
+          setOwnerBankLine(`${ownerBank.bank_name || 'Bank'} ····${last4}`);
         }
 
         // Card 1: paystack_subaccounts.
@@ -242,7 +253,7 @@ export default function PaymentSetup() {
           <PaymentCard
             icon="💳"
             title={t.card.bank.title}
-            subtitle={t.card.bank.subtitle}
+            subtitle={ownerBankLine ? `${t.card.bank.subtitle} Saved transfer account: ${ownerBankLine}.` : t.card.bank.subtitle}
             cta={t.card.bank.cta}
             disabled={false}
             onClick={() => navigate('/settings/payments/bank-setup')}

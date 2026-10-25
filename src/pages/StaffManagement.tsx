@@ -554,10 +554,11 @@ function AddStaffModal({
         <form onSubmit={onSubmit}>
           <div style={{ padding: '24px' }}>
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-name" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Name *
               </label>
               <input
+                id="staff-name"
                 type="text"
                 required
                 value={formData.name}
@@ -573,10 +574,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-phone" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Phone
               </label>
               <input
+                id="staff-phone"
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => onChange({ ...formData, phone: e.target.value })}
@@ -591,10 +593,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-email" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Email
               </label>
               <input
+                id="staff-email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => onChange({ ...formData, email: e.target.value })}
@@ -609,10 +612,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-pin" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 PIN Code (4-6 digits) *
               </label>
               <input
+                id="staff-pin"
                 type="text"
                 required
                 pattern="[0-9]{4,6}"
@@ -632,10 +636,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-role" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Role *
               </label>
               <select
+                id="staff-role"
                 value={formData.role}
                 onChange={(e) => onChange({ ...formData, role: e.target.value })}
                 style={{
@@ -742,10 +747,11 @@ function ResetPinModal({
 
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+            <label htmlFor="staff-new-pin" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
               New PIN (4-6 digits)
             </label>
             <input
+              id="staff-new-pin"
               type="text"
               required
               pattern="[0-9]{4,6}"

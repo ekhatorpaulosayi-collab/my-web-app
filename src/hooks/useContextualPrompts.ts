@@ -8,8 +8,6 @@ import {
   type UsageStats,
   type PromptSettings,
 } from '../utils/contextualPrompts';
-import type { StoreProfile } from '../types';
-
 /**
  * Hook to manage contextual prompts
  *
@@ -114,7 +112,7 @@ async function loadPromptSettings(userId: string): Promise<PromptSettings> {
   try {
     const { data: storeData, error } = await supabase
       .from('stores')
-      .select('*')
+      .select('id, delivery_areas, business_hours, days_of_operation, logo_url')
       .eq('user_id', userId)
       .single();
 
@@ -128,13 +126,17 @@ async function loadPromptSettings(userId: string): Promise<PromptSettings> {
       };
     }
 
-    const profile = storeData as StoreProfile;
+    const { data: bank } = await supabase
+      .from('store_bank_details')
+      .select('bank_name, account_number')
+      .eq('store_id', storeData.id)
+      .maybeSingle();
 
     return {
-      deliveryInfo: !!(profile.deliveryAreas && profile.deliveryAreas.length > 0),
-      bankDetails: !!(profile.bankName && profile.accountNumber),
-      businessHours: !!(profile.businessHours || (profile.daysOfOperation && profile.daysOfOperation.length > 0)),
-      logo: !!profile.logoUrl,
+      deliveryInfo: Array.isArray(storeData.delivery_areas) && storeData.delivery_areas.length > 0,
+      bankDetails: !!(bank?.bank_name && bank?.account_number),
+      businessHours: !!(storeData.business_hours || (Array.isArray(storeData.days_of_operation) && storeData.days_of_operation.length > 0)),
+      logo: !!storeData.logo_url,
     };
   } catch (error) {
     console.error('[Prompts] Error loading prompt settings:', error);

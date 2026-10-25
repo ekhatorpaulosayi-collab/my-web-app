@@ -26,6 +26,14 @@ export interface DashboardPreferences {
   businessType?: string;
 }
 
+export interface StoreBankDetails {
+  store_id: string;
+  bank_name?: string | null;
+  account_number?: string | null;
+  account_name?: string | null;
+  updated_at?: string;
+}
+
 export interface StoreProfile {
   id?: string;
   user_id?: string;
@@ -47,7 +55,8 @@ export interface StoreProfile {
   domainVerificationToken?: string;
   customDomainAddedAt?: string;
   customDomainVerifiedAt?: string;
-  // Payment Details
+  // Payment details. Owner-only rows live in store_bank_details.
+  // These names are the client shape after that table is merged in.
   bankName?: string;
   accountNumber?: string;
   accountName?: string;

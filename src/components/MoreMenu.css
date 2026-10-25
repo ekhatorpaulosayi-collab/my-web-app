@@ -2,6 +2,14 @@
  * More Menu Premium Fintech Styles
  */
 
+.more-menu-powered {
+  margin: 0;
+  padding: 12px 16px 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #475569;
+}
+
 .more-menu {
   position: fixed;
   top: 50%;
