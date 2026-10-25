@@ -418,7 +418,7 @@ Version `2026102515`, name `whatsapp_report_cron_vault`.
 
 The live job `send-daily-whatsapp-reports` calls `send-daily-reports` with the old service-role key written into the schedule. This file keeps that job's schedule and replaces the command. The new command reads two Vault secrets when the job runs. It does not copy the secret into `cron.job`.
 
-This file does not change `hourly-whatsapp-reports`.
+This file does not change `hourly-whatsapp-reports`. The daily command calls `net.http_post`, which needs `pg_net`. Step 24 installs that extension and removes the duplicate hourly job. Run step 24 as well.
 
 Before the file, create the secrets yourself in the SQL editor. Do not paste the values into this file, a ticket, or a screenshot.
 
@@ -693,6 +693,39 @@ SELECT column_name
 ```
 
 One row means the column is there. Zero rows means this file adds it.
+
+## Step 24 — install pg_net and remove the hourly report job
+
+File: `supabase/migrations/20261025_24_whatsapp_cron_pg_net.sql`
+
+Version `2026102524`, name `whatsapp_cron_pg_net`.
+
+Both WhatsApp report jobs call `net.http_post`. On a database without `pg_net`, that call fails and the job never sends. This file installs `pg_net` if it is missing, then removes `hourly-whatsapp-reports`. That hourly job repeats the daily job. The daily job `send-daily-whatsapp-reports` stays. Step 17 is what points the daily job at Vault.
+
+Do not run this file from the app. Run it yourself after you have read it. It does not print secrets.
+
+```sql
+SELECT extname FROM pg_extension WHERE extname = 'pg_net';
+SELECT jobname FROM cron.job WHERE jobname IN ('hourly-whatsapp-reports', 'send-daily-whatsapp-reports');
+```
+
+After the file, `pg_net` is one row and `hourly-whatsapp-reports` is gone. `send-daily-whatsapp-reports` is still there.
+
+Undo is not a recreate. The hourly job was a duplicate and it was failing. Do not schedule it again. Do not `DROP EXTENSION pg_net`. Other jobs may use it.
+
+## Turn off the live WhatsApp webhook
+
+Do not deploy `whatsapp-webhook`. The copy in this pull request is not live until someone deploys it, and it should not be deployed.
+
+The function that is already live has no signature check. To turn it off, this is the one command:
+
+```
+supabase functions delete whatsapp-webhook --project-ref yzlniqwzqlsftxrtapdl
+```
+
+Approve that command before running it. This pull request does not run it.
+
+If that function is ever deployed again, the deploy must use `--no-verify-jwt`, and `WHATSAPP_APP_SECRET` must be set first. Read `verify_jwt` back after the deploy. A missing secret makes the function reject every call. `WHATSAPP_WEBHOOK_DISABLED=true` also makes it answer 404 before it reads a message.
 
 ## Wildcard shop addresses
 

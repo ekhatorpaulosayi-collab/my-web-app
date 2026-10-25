@@ -15,7 +15,11 @@ import { RESERVED_SUBDOMAINS } from '../../src/utils/reservedSubdomains.ts';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
 import { currencyNGN } from '../../src/utils/format.ts';
 import { deliveryFeeKobo, orderTotalKobo } from '../../src/utils/deliveryFee.ts';
-import { emptyNumberAsNull } from '../../src/utils/emptyNumber.js';
+import { emptyNumberAsNull, parseAmountField } from '../../src/utils/emptyNumber.js';
+import { normalizeNgWhatsApp, isValidStoreWhatsApp } from '../../src/utils/ngPhone.js';
+import { normalizeSocialUrl } from '../../src/utils/socialLinks.js';
+import { CRAWLER_UA_PATTERN } from '../../src/utils/crawlerUa.js';
+import { formatWhatsAppNumber } from '../../src/utils/phone.ts';
 import { existsSync } from 'node:fs';
 
 test('store text is escaped before it is placed in a link preview', () => {
@@ -58,7 +62,7 @@ test('existing long slugs are kept and new reserved slugs are rejected', () => {
 
 test('link previews use the shop subdomain and the public select is narrow', () => {
   assert.equal(canonicalStoreUrl('osayi'), 'https://osayi.storehouse.ng');
-  assert.equal(canonicalStoreUrl('osayi', 'ankara'), 'https://osayi.storehouse.ng?product=ankara');
+  assert.equal(canonicalStoreUrl('osayi', 'ankara'), 'https://osayi.storehouse.ng/?product=ankara');
   assert.equal(canonicalStoreUrl('234'), 'https://www.storehouse.ng/store/234');
   assert.equal(canonicalStoreUrl('admin'), 'https://www.storehouse.ng/store/admin');
   for (const label of RESERVED_SUBDOMAINS) {
@@ -263,10 +267,16 @@ test('a blank free-delivery minimum is saved as null', () => {
   assert.equal(emptyNumberAsNull('₦'), null);
   assert.equal(emptyNumberAsNull('₦50,000'), 50000);
   assert.equal(emptyNumberAsNull(50000), 50000);
-  assert.equal(emptyNumberAsNull('Free over ₦10,000'), 'Free over ₦10,000');
+  assert.equal(emptyNumberAsNull('5k'), 5000);
+  assert.equal(emptyNumberAsNull('5K'), 5000);
+  assert.equal(emptyNumberAsNull('1,500.50'), 1500.5);
+  assert.equal(parseAmountField('Free over ₦10,000').error, 'Enter an amount like 1500 or 5k, or leave it blank.');
+  assert.throws(() => emptyNumberAsNull('Free over ₦10,000'), /1500 or 5k/);
   const online = readFileSync(new URL('../../src/components/OnlineStoreSetup.tsx', import.meta.url), 'utf8');
   const settings = readFileSync(new URL('../../src/components/StoreSettings.tsx', import.meta.url), 'utf8');
+  assert.match(online, /delivery_fee = emptyNumberAsNull\(deliveryFee\)/);
   assert.match(online, /minimum_order = emptyNumberAsNull\(minimumOrder\)/);
+  assert.match(settings, /delivery_fee: emptyNumberAsNull\(deliveryFee\)/);
   assert.match(settings, /minimum_order: emptyNumberAsNull\(minimumOrder\)/);
   const prefs = readFileSync(new URL('../../src/contexts/PreferencesContext.tsx', import.meta.url), 'utf8');
   assert.match(prefs, /onAuthStateChange/);
@@ -304,4 +314,53 @@ test('store health flags the problems a merchant should see before going live', 
   assert.ok(flags.some((flag) => /Nigerian/i.test(flag)));
   assert.ok(flags.some((flag) => /cash/i.test(flag)));
   assert.ok(flags.some((flag) => /test amount/i.test(flag)));
+});
+
+test('preview links, phones, and social handles stay usable', () => {
+  assert.equal(canonicalStoreUrl('234', 'ankara'), 'https://www.storehouse.ng/store/234/?product=ankara');
+  assert.equal(normalizeNgWhatsApp('+234 08031234567'), '+2348031234567');
+  assert.equal(formatWhatsAppNumber('+234 08031234567'), '2348031234567');
+  assert.equal(isValidStoreWhatsApp('pending'), false);
+  assert.equal(isValidStoreWhatsApp('owner@store.test'), false);
+  assert.equal(isValidStoreWhatsApp('08031234567'), true);
+  assert.equal(normalizeSocialUrl('instagram', '@previewfabrics'), 'https://www.instagram.com/previewfabrics');
+  assert.equal(normalizeSocialUrl('instagram', 'instagram.com/previewfabrics'), 'https://www.instagram.com/previewfabrics');
+  assert.equal(normalizeSocialUrl('x', '@storehouse'), 'https://x.com/storehouse');
+  assert.equal(normalizeSocialUrl('tiktok', 'not a handle'), '');
+  const preview = buildOgDocument({
+    title: 'Ankara',
+    description: '₦2,500 — Six yards of cotton Ankara.',
+    image: 'https://www.storehouse.ng/og-image.png',
+    url: 'https://osayi.storehouse.ng/?product=ankara',
+    siteName: 'Preview Fabrics',
+    priceNaira: 2500,
+    inStock: true,
+  });
+  assert.match(preview, /₦2,500 — Six yards/);
+  assert.match(preview, /product:price:amount/);
+  const png = readFileSync(new URL('../../public/og-image.png', import.meta.url));
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(png.readUInt32BE(16), 1200);
+  assert.equal(png.readUInt32BE(20), 630);
+  assert.equal(existsSync(new URL('../../api/whatsapp/index.js', import.meta.url)), false);
+  const webhook = readFileSync(new URL('../../supabase/functions/whatsapp-webhook/index.ts', import.meta.url), 'utf8');
+  assert.match(webhook, /WHATSAPP_APP_SECRET/);
+  assert.match(webhook, /x-hub-signature-256/);
+  assert.match(webhook, /allowSender/);
+  assert.equal(webhook.includes('Webhook received'), false);
+  assert.equal(webhook.includes('business_phone.eq.${'), false);
+  const vercel = readFileSync(new URL('../../vercel.json', import.meta.url), 'utf8');
+  for (const token of ['Instagram', 'meta-externalagent', 'Facebot', 'facebookcatalog']) {
+    assert.match(vercel, new RegExp(token));
+    assert.match(CRAWLER_UA_PATTERN, new RegExp(token));
+  }
+  const share = readFileSync(new URL('../../src/utils/socialShare.ts', import.meta.url), 'utf8');
+  assert.match(share, /sharer\/sharer\.php\?u=/);
+  assert.equal(share.includes('quote='), false);
+  assert.match(share, /x\.com\/intent\/tweet/);
+  const auth = readFileSync(new URL('../../src/lib/authService-supabase.js', import.meta.url), 'utf8');
+  assert.equal(auth.includes("'pending'"), false);
+  const cron = readFileSync(new URL('../../supabase/migrations/20261025_24_whatsapp_cron_pg_net.sql', import.meta.url), 'utf8');
+  assert.match(cron, /CREATE EXTENSION IF NOT EXISTS pg_net/);
+  assert.match(cron, /hourly-whatsapp-reports/);
 });

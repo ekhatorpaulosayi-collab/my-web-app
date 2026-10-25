@@ -13,11 +13,29 @@ import { storeHealthFlags } from '../utils/storeHealth';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
 import { emptyNumberAsNull } from '../utils/emptyNumber.js';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
+import { socialUrlForSave } from '../utils/socialLinks.js';
 import { PromoCodesManager } from './PromoCodesManager';
 import { TabNav, STORE_TABS, type TabId } from './OnlineStore/TabNav';
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+function socialField(kind: 'instagram' | 'facebook' | 'tiktok' | 'x', value: string) {
+  return socialUrlForSave(kind, value);
+}
+
+function whatsappForSave(value: string) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+  }
+  const phone = normalizeNgWhatsApp(raw);
+  if (!phone) {
+    throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+  }
+  return phone;
+}
 
 interface StoreProfile {
   businessName: string;
@@ -80,6 +98,9 @@ export default function OnlineStoreSetup() {
   const [aboutUs, setAboutUs] = useState('');
   const [instagramUrl, setInstagramUrl] = useState('');
   const [facebookUrl, setFacebookUrl] = useState('');
+  const [tiktokUrl, setTiktokUrl] = useState('');
+  const [twitterUrl, setTwitterUrl] = useState('');
+  const [showMoreSocial, setShowMoreSocial] = useState(false);
 
   // Paystack fields
   const [paystackEnabled, setPaystackEnabled] = useState(false);
@@ -114,6 +135,8 @@ export default function OnlineStoreSetup() {
     setAboutUs(store.about_us || '');
     setInstagramUrl(store.instagram_url || '');
     setFacebookUrl(store.facebook_url || '');
+    setTiktokUrl(store.tiktok_url || '');
+    setTwitterUrl(store.twitter_url || '');
     setPaystackEnabled(store.paystack_enabled || false);
     setPaystackPublicKey(store.paystack_public_key || '');
     setPaystackTestMode(store.paystack_test_mode !== false);
@@ -280,7 +303,7 @@ export default function OnlineStoreSetup() {
 
       const storeData = {
         business_name: businessName,
-        whatsapp_number: whatsappNumber,
+        whatsapp_number: whatsappForSave(whatsappNumber),
         store_slug: normalizedSlug,
         subdomain: nextSubdomain,
         is_public: storeLive,
@@ -369,7 +392,7 @@ export default function OnlineStoreSetup() {
           break;
         case 'delivery':
           updateData.delivery_areas = deliveryAreas;
-          updateData.delivery_fee = deliveryFee;
+          updateData.delivery_fee = emptyNumberAsNull(deliveryFee);
           updateData.minimum_order = emptyNumberAsNull(minimumOrder);
           break;
         case 'hours':
@@ -391,8 +414,10 @@ export default function OnlineStoreSetup() {
           updateData.about_us = aboutUs;
           break;
         case 'social':
-          updateData.instagram_url = instagramUrl;
-          updateData.facebook_url = facebookUrl;
+          updateData.instagram_url = socialField('instagram', instagramUrl);
+          updateData.facebook_url = socialField('facebook', facebookUrl);
+          updateData.tiktok_url = socialField('tiktok', tiktokUrl);
+          updateData.twitter_url = socialField('x', twitterUrl);
           break;
       }
 
@@ -1024,7 +1049,7 @@ export default function OnlineStoreSetup() {
                     try {
                       await updateStore(store.id, {
                         business_name: businessName,
-                        whatsapp_number: whatsappNumber,
+                        whatsapp_number: whatsappForSave(whatsappNumber),
                         store_slug: normalizedSlug,
                         subdomain: nextSubdomain,
                         is_public: storeLive,
@@ -1894,7 +1919,7 @@ export default function OnlineStoreSetup() {
                 icon="📱"
                 title="Social Media"
                 description="Connect your social profiles"
-                completed={!!instagramUrl || !!facebookUrl}
+                completed={!!instagramUrl || !!facebookUrl || !!tiktokUrl || !!twitterUrl}
                 isOpen={openSection === 'social'}
                 onToggle={() => toggleSection('social')}
               >
@@ -1955,6 +1980,68 @@ export default function OnlineStoreSetup() {
                   }}
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => setShowMoreSocial((open) => !open)}
+                aria-expanded={showMoreSocial}
+                style={{
+                  display: 'block',
+                  marginBottom: '16px',
+                  padding: 0,
+                  background: 'none',
+                  border: 'none',
+                  color: '#1d4ed8',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {showMoreSocial ? 'Hide TikTok and X' : 'More'}
+              </button>
+              {showMoreSocial && (
+                <>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                      TikTok
+                    </label>
+                    <input
+                      type="text"
+                      value={tiktokUrl}
+                      onChange={(e) => setTiktokUrl(e.target.value)}
+                      placeholder="@yourbusiness"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '8px',
+                        backgroundColor: 'white',
+                        color: '#1F2937',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                      X
+                    </label>
+                    <input
+                      type="text"
+                      value={twitterUrl}
+                      onChange={(e) => setTwitterUrl(e.target.value)}
+                      placeholder="@yourbusiness"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '8px',
+                        backgroundColor: 'white',
+                        color: '#1F2937',
+                      }}
+                    />
+                  </div>
+                </>
+              )}
               <button
                 onClick={() => handleSaveSection('social')}
                 style={{

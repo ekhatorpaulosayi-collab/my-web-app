@@ -17,6 +17,7 @@ import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
 import { formatWhatsAppNumber } from '../utils/phone';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
+import { ShareButton } from './ProductShareMenu';
 import '../styles/cart.css';
 
 // Build-time gate for the platform-split (subaccount) card flow. When
@@ -781,6 +782,21 @@ export function Cart({ store }: CartProps) {
             <ShoppingCart size={24} />
             <h2>Your Cart</h2>
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
+            {itemCount > 0 && (
+              <ShareButton
+                product={{
+                  id: 'cart',
+                  name: `${store.businessName} cart`,
+                  price: totalPrice / 100,
+                  description: items.map((item) => `${item.name} × ${item.quantity}`).join(', '),
+                }}
+                variant="text"
+                shareKind="cart"
+                storeUrl={buildStorefrontUrl({ subdomain: store.subdomain, storeSlug: store.storeSlug })}
+                storeName={store.businessName}
+                whatsappNumber={store.whatsappNumber}
+              />
+            )}
           </div>
           <button
             onClick={closeCart}

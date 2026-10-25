@@ -9,8 +9,11 @@
 export function formatPhoneForWhatsApp(phone: string): string {
   console.log('[formatPhoneForWhatsApp] Input:', phone);
 
-  // Remove all non-digit characters
-  const digits = phone.replace(/\D/g, '');
+  // Remove all non-digit characters. "+234 0803…" keeps a trunk zero.
+  let digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('2340') && digits.length === 14) {
+    digits = `234${digits.slice(4)}`;
+  }
   console.log('[formatPhoneForWhatsApp] Digits only:', digits);
 
   // If starts with 0 and is 11 digits, it's a Nigerian local format
@@ -117,6 +120,10 @@ export function isValidNigerianPhone(phone: string): boolean {
   }
 
   if (digits.length === 13 && digits.startsWith('234')) {
+    return true;
+  }
+
+  if (digits.startsWith('2340') && digits.length === 14) {
     return true;
   }
 

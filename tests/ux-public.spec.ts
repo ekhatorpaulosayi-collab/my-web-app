@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
+import { buildOgDocument } from '../api/ogHtml.js';
 
 const artifactDir = process.env.UX_ARTIFACT_DIR || `${process.cwd()}/artifacts/ux-after`;
 
@@ -89,6 +90,40 @@ test('preview storefront shows a product, a real price, and readable hours', asy
   const serious = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
   const summary = serious.map((v) => `${v.id} (${v.nodes.length})`).join(', ');
   expect(serious, summary || 'no serious axe violations').toEqual([]);
+});
+
+test('phone share menu shows full labels and the store preview card', async ({ page }) => {
+  const width = page.viewportSize()?.width ?? 0;
+  test.skip(width > 500, 'phone layout');
+  await mkdir(artifactDir, { recursive: true });
+
+  await page.goto('/store/preview', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: 'Ankara' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Ankara' });
+  await dialog.getByRole('button', { name: 'Share product' }).click();
+  const menu = page.getByRole('dialog', { name: 'Share Product' });
+  await expect(menu.getByText('Send to Contacts')).toBeVisible();
+  await expect(menu.getByText('Post on X')).toBeVisible();
+  const content = await menu.locator('.share-menu-content').boundingBox();
+  const label = await menu.getByText('Send to Contacts').boundingBox();
+  expect(content && label).toBeTruthy();
+  expect(label.x).toBeGreaterThanOrEqual(content.x);
+  expect(label.x + label.width).toBeLessThanOrEqual(content.x + content.width + 1);
+  await page.screenshot({ path: `${artifactDir}/retest17-phone-share-menu.png` });
+
+  const html = buildOgDocument({
+    title: 'Ankara | Preview Fabrics',
+    description: '₦2,500 — Six yards of cotton Ankara.',
+    image: '/og-image.png',
+    url: 'https://preview.storehouse.ng/?product=preview-ankara',
+    siteName: 'Preview Fabrics',
+    priceNaira: 2500,
+    inStock: true,
+  });
+  await page.setContent(html, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Ankara | Preview Fabrics' })).toBeVisible();
+  await expect(page.getByText('₦2,500 — Six yards of cotton Ankara.')).toBeVisible();
+  await page.screenshot({ path: `${artifactDir}/retest17-phone-preview-card.png` });
 });
 
 test('phone tab bar stays clear of help and uses 48px targets', async ({ page }) => {

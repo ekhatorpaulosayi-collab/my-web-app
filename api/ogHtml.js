@@ -2,6 +2,17 @@ import { escapeHtml, safeHttpUrl } from '../src/utils/htmlEscape.js';
 
 const FALLBACK_IMAGE = 'https://www.storehouse.ng/og-image.png';
 
+export function productPreviewDescription({ priceKobo, description, name }) {
+  const naira = Number(priceKobo) / 100;
+  const price = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(naira) ? naira : 0);
+  const detail = String(description || name || '').trim();
+  return `${price} — ${detail}`.slice(0, 155);
+}
+
 export function buildOgDocument({
   title,
   description,
@@ -43,8 +54,16 @@ export function buildOgDocument({
   <meta name="twitter:image" content="${safeImage}" />
   ${productMeta}
 </head>
-<body>
-  <p><a href="${safeUrl}">${safeTitle}</a></p>
+<body style="margin:0;background:#f8fafc;font-family:Georgia,serif;color:#0f172a;">
+  <article style="max-width:420px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+    <img src="${safeImage}" alt="" width="1200" height="630" style="display:block;width:100%;height:auto;background:#0b6b3a;" />
+    <div style="padding:16px 18px 20px;">
+      <p style="margin:0 0 6px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#0b6b3a;">${safeSite}</p>
+      <h1 style="margin:0 0 8px;font-size:22px;line-height:1.3;">${safeTitle}</h1>
+      <p style="margin:0;font-size:16px;line-height:1.45;">${safeDescription}</p>
+    </div>
+  </article>
+  <p style="text-align:center;"><a href="${safeUrl}">${safeTitle}</a></p>
 </body>
 </html>`;
 }

@@ -6,21 +6,85 @@ const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = (Deno.env.get('EDGE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
 
-serve(async (req) => {
-  try {
-    // Initialize Supabase client with service role (bypasses RLS)
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+// Per isolate. A second instance does not share this count.
+const recentHits = new Map<string, number[]>();
 
-    // Parse incoming WhatsApp webhook
-    const body = await req.json();
-    console.log('Webhook received:', JSON.stringify(body));
+function json(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    headers: { 'Content-Type': 'application/json' },
+    status,
+  });
+}
+
+function digitsOnly(value: unknown) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function timingSafeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
+}
+
+async function signatureMatches(raw: string, header: string | null) {
+  const secret = Deno.env.get('WHATSAPP_APP_SECRET') || '';
+  if (!secret || !header) return false;
+  const provided = header.trim().replace(/^sha256=/i, '').toLowerCase();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signed = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(raw));
+  const expected = Array.from(new Uint8Array(signed)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return timingSafeEqual(expected, provided);
+}
+
+function allowSender(phone: string) {
+  const now = Date.now();
+  const recent = (recentHits.get(phone) || []).filter((at) => now - at < 60_000);
+  if (recent.length >= 8) {
+    recentHits.set(phone, recent);
+    return false;
+  }
+  recent.push(now);
+  recentHits.set(phone, recent);
+  return true;
+}
+
+function safeKeywords(message: string) {
+  return extractProductKeywords(message).filter((word) => /^[a-z0-9]+$/.test(word));
+}
+
+serve(async (req) => {
+  if (Deno.env.get('WHATSAPP_WEBHOOK_DISABLED') === 'true') {
+    return json({ status: 'disabled' }, 404);
+  }
+
+  try {
+    const raw = await req.text();
+    if (!(await signatureMatches(raw, req.headers.get('x-hub-signature-256')))) {
+      return json({ status: 'unauthorized' }, 401);
+    }
+
+    let body: any;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return json({ status: 'bad_request' }, 400);
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Handle 360dialog format
     if (body.messages && body.messages.length > 0) {
       const message = body.messages[0];
-      const customerPhone = message.from; // Customer's WhatsApp number
+      const customerPhone = digitsOnly(message.from);
       const customerMessage = message.text?.body || '';
-      const shopWhatsAppNumber = body.contacts?.[0]?.wa_id; // Shop's WhatsApp number
+      const shopDigits = digitsOnly(body.contacts?.[0]?.wa_id);
 
       // If no message text, ignore (could be image, voice, etc.)
       if (!customerMessage) {
@@ -30,16 +94,25 @@ serve(async (req) => {
         });
       }
 
-      // Find which shop owner has this WhatsApp number
-      const { data: settings, error: settingsError } = await supabase
-        .from('whatsapp_settings')
-        .select('user_id, business_phone, greeting_message, out_of_stock_message, is_enabled')
-        .or(`business_phone.eq.${shopWhatsAppNumber},twilio_whatsapp_number.eq.whatsapp:+${shopWhatsAppNumber}`)
-        .eq('is_enabled', true)
-        .single();
+      if (!customerPhone || !allowSender(customerPhone)) {
+        return json({ status: 'rate_limited' }, 429);
+      }
+
+      const shopSelect = 'user_id, business_phone, greeting_message, out_of_stock_message, is_enabled, twilio_account_sid, twilio_auth_token, twilio_whatsapp_number';
+      let settingsResult = shopDigits
+        ? await supabase.from('whatsapp_settings').select(shopSelect).eq('business_phone', shopDigits).eq('is_enabled', true).maybeSingle()
+        : { data: null, error: null };
+      if (!settingsResult.data && shopDigits) {
+        settingsResult = await supabase.from('whatsapp_settings').select(shopSelect).eq('business_phone', `+${shopDigits}`).eq('is_enabled', true).maybeSingle();
+      }
+      if (!settingsResult.data && shopDigits) {
+        settingsResult = await supabase.from('whatsapp_settings').select(shopSelect).eq('twilio_whatsapp_number', `whatsapp:+${shopDigits}`).eq('is_enabled', true).maybeSingle();
+      }
+      const settings = settingsResult.data;
+      const settingsError = settingsResult.error;
 
       if (settingsError || !settings) {
-        console.error('Shop not found for number:', shopWhatsAppNumber);
+        console.error('Shop not found for number ending', shopDigits.slice(-4));
         return new Response(JSON.stringify({ status: 'error', message: 'Shop not found' }), {
           headers: { 'Content-Type': 'application/json' },
           status: 404,
@@ -56,7 +129,7 @@ serve(async (req) => {
       if (!canChat) {
         // Send quota exceeded message
         await sendWhatsAppMessage(
-          shopWhatsAppNumber,
+          shopDigits,
           customerPhone,
           "⚠️ This business has reached their monthly chat limit. Please contact them directly at their shop.",
           settings
@@ -67,16 +140,19 @@ serve(async (req) => {
         });
       }
 
-      // Search shop's products based on customer message
-      const productNames = extractProductKeywords(customerMessage);
-      const { data: products } = await supabase
-        .from('products')
-        .select('id, name, price, quantity, category')
-        .eq('user_id', userId)
-        .or(productNames.map(name => `name.ilike.%${name}%`).join(','))
-        .limit(5);
+      const productNames = safeKeywords(customerMessage);
+      let products: any[] = [];
+      if (productNames.length > 0) {
+        const { data } = await supabase
+          .from('products')
+          .select('id, name, price, quantity, category')
+          .eq('user_id', userId)
+          .or(productNames.map((name) => `name.ilike.%${name}%`).join(','))
+          .limit(5);
+        products = data || [];
+      }
 
-      console.log('Found products:', products?.length || 0);
+      console.log('Found products:', products.length);
 
       // Generate AI response using Claude
       const startTime = Date.now();
@@ -89,7 +165,7 @@ serve(async (req) => {
       const responseTime = Date.now() - startTime;
 
       // Send response via WhatsApp
-      await sendWhatsAppMessage(shopWhatsAppNumber, customerPhone, aiResponse, settings);
+      await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
 
       // Log the chat
       await supabase.from('whatsapp_chats').insert({
@@ -114,8 +190,8 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Webhook error:', error);
-    return new Response(JSON.stringify({ status: 'error', message: error.message }), {
+    console.error('Webhook error', error instanceof Error ? error.name : 'Error');
+    return new Response(JSON.stringify({ status: 'error' }), {
       headers: { 'Content-Type': 'application/json' },
       status: 500,
     });

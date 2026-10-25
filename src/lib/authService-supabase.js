@@ -8,12 +8,13 @@ import { logError } from '../utils/errorMonitoring';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { friendlyAuthError } from './authErrors';
 import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
 
 /**
  * Sign up a new user with email and password
  * Creates user profile in stores table
  */
-export async function signUp(email, password, storeName = null, storeType = null) {
+export async function signUp(email, password, storeName = null, storeType = null, phone = null) {
   try {
     console.debug('[Auth] Signing up user:', email);
 
@@ -23,6 +24,10 @@ export async function signUp(email, password, storeName = null, storeType = null
     const defaultStoreType = storeType || 'general';
 
     console.debug('[Auth] Using store name:', defaultStoreName, 'type:', defaultStoreType);
+    const whatsapp = normalizeNgWhatsApp(phone);
+    if (!whatsapp) {
+      throw new Error('Enter a valid WhatsApp number, for example 0803 123 4567.');
+    }
 
     // Create user in Supabase Auth
     const { data, error } = await supabase.auth.signUp({
@@ -62,7 +67,7 @@ export async function signUp(email, password, storeName = null, storeType = null
         const userRecord = {
           id: user.id, // Use same ID as auth.users
           email: user.email,
-          phone_number: user.phone && !String(user.phone).includes('@') ? user.phone : user.email,
+          phone_number: whatsapp,
           business_name: defaultStoreName,
           // store_type: defaultStoreType, // Column doesn't exist
           device_type: 'web',
@@ -102,7 +107,7 @@ export async function signUp(email, password, storeName = null, storeType = null
             // for new signups. Numeric-only slugs stay NULL — they cannot
             // safely act as a subdomain label.
             subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
-            whatsapp_number: user.phone && !String(user.phone).includes('@') ? user.phone : 'pending',
+            whatsapp_number: whatsapp,
             is_public: true, // Live so the link works. Hidden is a setting.
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),

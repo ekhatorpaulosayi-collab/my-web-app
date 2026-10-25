@@ -26,10 +26,15 @@ export function isLegalStoreSubdomain(slug) {
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label);
 }
 
+export function withProductQuery(baseUrl, productId) {
+  const base = String(baseUrl || '').replace(/\/$/, '');
+  if (!productId) return base;
+  return `${base}/?product=${encodeURIComponent(productId)}`;
+}
+
 export function canonicalStoreUrl(slug, productId) {
-  const product = productId ? `?product=${encodeURIComponent(productId)}` : '';
   if (isLegalStoreSubdomain(slug)) {
-    return `https://${String(slug).toLowerCase()}.storehouse.ng${product}`;
+    return withProductQuery(`https://${String(slug).toLowerCase()}.storehouse.ng`, productId);
   }
-  return `https://www.storehouse.ng/store/${encodeURIComponent(slug || '')}${product}`;
+  return withProductQuery(`https://www.storehouse.ng/store/${encodeURIComponent(slug || '')}`, productId);
 }

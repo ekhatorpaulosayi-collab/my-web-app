@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 // MIGRATION: Using Supabase auth
 import { signUp } from '../lib/authService-supabase';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
 import { checkSignupRateLimit, recordSignupAttempt, getRateLimitMessage } from '../utils/rateLimiter';
 import '../styles/Auth.css';
 
@@ -10,6 +11,7 @@ export default function Signup() {
   const [formData, setFormData] = useState({
     storeName: '',
     email: '',
+    phone: '',
     password: ''
   });
   const [error, setError] = useState('');
@@ -39,6 +41,7 @@ export default function Signup() {
     const storeName = formData.storeName.trim();
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
+    const phone = normalizeNgWhatsApp(formData.phone);
 
     // Validation
     if (storeName.length < 2) {
@@ -48,6 +51,11 @@ export default function Signup() {
 
     if (!email) {
       setError('Please enter your email');
+      return;
+    }
+
+    if (!phone) {
+      setError('Enter a valid WhatsApp number, for example 0803 123 4567.');
       return;
     }
 
@@ -75,7 +83,7 @@ export default function Signup() {
       console.debug('[Signup] Attempting signup:', email);
       console.debug('[Signup] Rate limit remaining:', rateLimit.remaining - 1);
 
-      const result = await signUp(email, password, storeName);
+      const result = await signUp(email, password, storeName, null, phone);
 
       // Record successful signup attempt for rate limiting
       recordSignupAttempt(email);
@@ -244,6 +252,26 @@ export default function Signup() {
               disabled={loading}
               autoFocus
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="phone" className="form-label">
+              WhatsApp number *
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              value={formData.phone}
+              onChange={handleChange}
+              className="form-input"
+              placeholder="0803 123 4567"
+              required
+              disabled={loading}
+            />
+            <p className="form-hint">Customers use this to message the store</p>
           </div>
 
           <div className="form-group">

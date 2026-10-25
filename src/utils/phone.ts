@@ -5,6 +5,8 @@
  * Provides auto-formatting and validation
  */
 
+import { normalizeNgWhatsApp } from './ngPhone.js';
+
 /**
  * Normalize a Nigerian phone number to E.164 format
  *
@@ -19,12 +21,15 @@
 export function normalizeNGPhone(input: string): string | null {
   if (!input) return null;
 
+  const nigerian = normalizeNgWhatsApp(input);
+  if (nigerian) return nigerian;
+
   // Extract only digits
   const digits = input.replace(/\D/g, "");
 
-  // Already starts with 234 (country code)
+  // Already starts with 234 (country code) but is not a 10-digit line
   if (digits.startsWith("234")) {
-    return `+${digits}`;
+    return null;
   }
 
   // Starts with 0 and has 11 digits (e.g., 08012345678)
@@ -115,6 +120,9 @@ export function formatWhatsAppNumber(input: string): string {
   let cleaned = input.trim();
   const hasPlus = cleaned.startsWith('+');
   cleaned = cleaned.replace(/\D/g, '');
+  if (cleaned.startsWith('2340') && cleaned.length === 14) {
+    cleaned = `234${cleaned.slice(4)}`;
+  }
 
   // If number already has country code (starts with + or is long enough)
   if (hasPlus || cleaned.length > 11) {
@@ -183,9 +191,12 @@ export function validateNGPhone(input: string): { valid: boolean; message: strin
     }
   }
 
-  // International format (starts with 234)
+  // International format (starts with 234). "+234 0803…" is 14 digits.
   if (digits.startsWith('234')) {
-    if (digits.length === 13) {
+    const normalized = digits.startsWith('2340') && digits.length === 14
+      ? `234${digits.slice(4)}`
+      : digits;
+    if (normalized.length === 13) {
       return { valid: true, message: '✓ Valid' };
     } else if (digits.length > 13) {
       return { valid: false, message: `Remove ${digits.length - 13} digit${digits.length - 13 > 1 ? 's' : ''}` };

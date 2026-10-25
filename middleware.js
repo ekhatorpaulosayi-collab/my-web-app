@@ -5,11 +5,12 @@
  * /store/:slug, with or without a trailing slash. They do not run JS.
  * Any other path the SPA does not render is a real 404.
  */
-import { buildOgDocument, FALLBACK_IMAGE } from './api/ogHtml.js';
+import { buildOgDocument, FALLBACK_IMAGE, productPreviewDescription } from './api/ogHtml.js';
 import { isKnownAppPath } from './src/utils/appPaths.js';
 import { canonicalStoreUrl, RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './src/utils/canonicalStoreUrl.js';
+import { CRAWLER_UA } from './src/utils/crawlerUa.js';
 
-const CRAWLER = /facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot/i;
+const CRAWLER = CRAWLER_UA;
 
 export const config = {
   runtime: 'nodejs',
@@ -70,18 +71,26 @@ async function loadStore(slug) {
   return followed?.[0] || null;
 }
 
+function usableImage(url) {
+  const text = typeof url === 'string' ? url.trim() : '';
+  return text || '';
+}
+
 async function previewImage(store, productId) {
+  const logo = usableImage(store.logo_url);
   if (productId) {
     const products = await rest(
       `products?id=eq.${encodeURIComponent(productId)}&user_id=eq.${encodeURIComponent(store.user_id)}&is_public=eq.true&select=name,description,selling_price,image_url,quantity&limit=1`,
     );
-    if (products?.[0]) return { product: products[0], image: products[0].image_url || store.logo_url };
+    if (products?.[0]) {
+      return { product: products[0], image: usableImage(products[0].image_url) || logo || FALLBACK_IMAGE };
+    }
   }
-  if (store.logo_url) return { product: null, image: store.logo_url };
+  if (logo) return { product: null, image: logo };
   const products = await rest(
     `products?user_id=eq.${encodeURIComponent(store.user_id)}&is_public=eq.true&image_url=not.is.null&select=image_url&order=name.asc&limit=1`,
   );
-  return { product: null, image: products?.[0]?.image_url || FALLBACK_IMAGE };
+  return { product: null, image: usableImage(products?.[0]?.image_url) || FALLBACK_IMAGE };
 }
 
 function htmlResponse(html, status) {
@@ -132,9 +141,13 @@ export default async function middleware(request) {
     const title = preview.product
       ? `${preview.product.name} | ${store.business_name}`
       : `${store.business_name} | Online Store`;
-    const description = preview.product?.description
-      || store.about_us
-      || `Shop at ${store.business_name}`;
+    const description = preview.product
+      ? productPreviewDescription({
+        priceKobo: preview.product.selling_price,
+        description: preview.product.description,
+        name: preview.product.name,
+      })
+      : (store.about_us || `Shop at ${store.business_name}`);
     return htmlResponse(buildOgDocument({
       title,
       description,

@@ -429,10 +429,9 @@ export async function shareToFacebook(product: ProductShareData): Promise<{
       }
     }
 
-    // Desktop or mobile fallback: use Facebook sharer URL
+    // Desktop or mobile fallback: Facebook's current share URL.
     if (productUrl) {
-      // Build Facebook sharer URL with both URL and quote parameters
-      const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}&quote=${encodeURIComponent(shareText)}`;
+      const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`;
 
       // Open in new tab (simpler and more reliable than popup)
       window.open(shareUrl, '_blank');
@@ -466,6 +465,27 @@ export async function shareToFacebook(product: ProductShareData): Promise<{
       message: '❌ Failed to prepare Facebook share'
     };
   }
+}
+
+/**
+ * Share to X. The intent URL is the current composer.
+ */
+export function shareToX(product: ProductShareData): {
+  success: boolean;
+  message: string;
+  url?: string;
+} {
+  const text = product.price > 0
+    ? `${product.name} — ${formatNGN(product.price)}`
+    : product.name;
+  const target = product.storeUrl || '';
+  const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}${target ? `&url=${encodeURIComponent(target)}` : ''}`;
+  window.open(shareUrl, '_blank', 'noopener,noreferrer');
+  return {
+    success: true,
+    message: 'Opening X…',
+    url: shareUrl,
+  };
 }
 
 /**

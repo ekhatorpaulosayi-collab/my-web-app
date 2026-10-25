@@ -8,7 +8,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check, Heart } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
-import { formatWhatsAppNumber } from '../utils/phone';
+import { isValidStoreWhatsApp, whatsappDigits } from '../utils/ngPhone.js';
+import { normalizeSocialUrl } from '../utils/socialLinks.js';
+import { withProductQuery } from '../utils/canonicalStoreUrl.js';
 import type { StoreProfile, PaymentMethod } from '../types';
 import type { ProductVariant } from '../types/variants';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -525,12 +527,11 @@ function StorefrontContent() {
 
   // WhatsApp contact
   const handleWhatsAppContact = () => {
-    if (!store?.whatsappNumber) {
-      alert('WhatsApp number not available');
+    const phone = whatsappDigits(store?.whatsappNumber);
+    if (!phone) {
       return;
     }
 
-    const phone = formatWhatsAppNumber(store.whatsappNumber);
 
     const message = `Hi ${store.businessName}, I'm interested in your products!`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -549,12 +550,14 @@ function StorefrontContent() {
       : `${store.businessName} | Online Store`;
 
     const metaDescription = selectedProduct
-      ? (selectedProduct.description || `${selectedProduct.name} available at ${store.businessName}`).slice(0, 155)
+      ? `${currencyNGN(selectedProduct.selling_price)} — ${selectedProduct.description || selectedProduct.name}`.slice(0, 155)
       : (store.description || `Shop quality products at ${store.businessName}`).slice(0, 155);
 
-    const metaImage = selectedProduct?.image_url
-      ? ImagePresets.productDetail(selectedProduct.image_url)
-      : (store.logoUrl ? ImagePresets.storeLogo(store.logoUrl) : 'https://www.storehouse.ng/og-image.png');
+    const productImage = String(selectedProduct?.image_url || '').trim();
+    const logoImage = String(store.logoUrl || '').trim();
+    const metaImage = productImage
+      ? ImagePresets.productDetail(productImage)
+      : (logoImage ? ImagePresets.storeLogo(logoImage) : 'https://www.storehouse.ng/og-image.png');
 
     // Update document title
     document.title = metaTitle;
@@ -756,7 +759,7 @@ function StorefrontContent() {
                 <span>{store.address}</span>
               </div>
             )}
-            {store.whatsappNumber && (
+            {isValidStoreWhatsApp(store.whatsappNumber) && (
               <button
                 onClick={handleWhatsAppContact}
                 className="btn-whatsapp"
@@ -765,6 +768,20 @@ function StorefrontContent() {
                 Contact on WhatsApp
               </button>
             )}
+            <ShareButton
+              product={{
+                id: store.storeSlug || 'store',
+                name: store.businessName,
+                price: 0,
+                description: store.aboutUs,
+              }}
+              variant="text"
+              shareKind="store"
+              className="storefront-share-store"
+              storeUrl={buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}
+              storeName={store.businessName}
+              whatsappNumber={store.whatsappNumber}
+            />
           </div>
         </div>
       </header>
@@ -1100,7 +1117,7 @@ function StorefrontContent() {
                         }}
                         variant="icon"
                         className="storefront-share-button"
-                        storeUrl={`${buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}?product=${product.id}`}
+                        storeUrl={withProductQuery(buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug }), product.id)}
                         storeName={store?.businessName}
                         whatsappNumber={store?.whatsappNumber}
                       />
@@ -1574,7 +1591,7 @@ function StorefrontContent() {
       )}
 
       {/* Social Media Section */}
-      {(store.instagramUrl || store.facebookUrl || store.tiktokUrl || store.twitterUrl) && (
+      {(normalizeSocialUrl('instagram', store.instagramUrl) || normalizeSocialUrl('facebook', store.facebookUrl) || normalizeSocialUrl('tiktok', store.tiktokUrl) || normalizeSocialUrl('x', store.twitterUrl)) && (
         <section style={{
           maxWidth: '1280px',
           margin: '0 auto',
@@ -1633,9 +1650,9 @@ function StorefrontContent() {
             <div style={{ paddingTop: '1rem' }}>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
-            {store.instagramUrl && (
+            {normalizeSocialUrl('instagram', store.instagramUrl) && (
               <a
-                href={store.instagramUrl.startsWith('http') ? store.instagramUrl : `https://instagram.com/${store.instagramUrl.replace('@', '')}`}
+                href={normalizeSocialUrl('instagram', store.instagramUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1670,9 +1687,9 @@ function StorefrontContent() {
               </a>
             )}
 
-            {store.facebookUrl && (
+            {normalizeSocialUrl('facebook', store.facebookUrl) && (
               <a
-                href={store.facebookUrl.startsWith('http') ? store.facebookUrl : `https://facebook.com/${store.facebookUrl}`}
+                href={normalizeSocialUrl('facebook', store.facebookUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1707,9 +1724,9 @@ function StorefrontContent() {
               </a>
             )}
 
-            {store.tiktokUrl && (
+            {normalizeSocialUrl('tiktok', store.tiktokUrl) && (
               <a
-                href={store.tiktokUrl.startsWith('http') ? store.tiktokUrl : `https://tiktok.com/@${store.tiktokUrl.replace('@', '')}`}
+                href={normalizeSocialUrl('tiktok', store.tiktokUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1744,9 +1761,9 @@ function StorefrontContent() {
               </a>
             )}
 
-            {store.twitterUrl && (
+            {normalizeSocialUrl('x', store.twitterUrl) && (
               <a
-                href={store.twitterUrl.startsWith('http') ? store.twitterUrl : `https://twitter.com/${store.twitterUrl.replace('@', '')}`}
+                href={normalizeSocialUrl('x', store.twitterUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1943,10 +1960,10 @@ function StorefrontContent() {
           {store.deliveryTime && <a href="#store-delivery">Delivery: {store.deliveryTime}{store.deliveryFee ? ` · ${store.deliveryFee}` : ''}</a>}
           {store.returnPolicy && <a href="#store-returns">Returns</a>}
           <Link to="/privacy">Privacy</Link>
-          {store.instagramUrl && <a href={store.instagramUrl} rel="noopener noreferrer">Instagram</a>}
-          {store.facebookUrl && <a href={store.facebookUrl} rel="noopener noreferrer">Facebook</a>}
-          {store.tiktokUrl && <a href={store.tiktokUrl} rel="noopener noreferrer">TikTok</a>}
-          {store.twitterUrl && <a href={store.twitterUrl} rel="noopener noreferrer">X</a>}
+          {normalizeSocialUrl('instagram', store.instagramUrl) && <a href={normalizeSocialUrl('instagram', store.instagramUrl)} target="_blank" rel="noopener noreferrer">Instagram</a>}
+          {normalizeSocialUrl('facebook', store.facebookUrl) && <a href={normalizeSocialUrl('facebook', store.facebookUrl)} target="_blank" rel="noopener noreferrer">Facebook</a>}
+          {normalizeSocialUrl('tiktok', store.tiktokUrl) && <a href={normalizeSocialUrl('tiktok', store.tiktokUrl)} target="_blank" rel="noopener noreferrer">TikTok</a>}
+          {normalizeSocialUrl('x', store.twitterUrl) && <a href={normalizeSocialUrl('x', store.twitterUrl)} target="_blank" rel="noopener noreferrer">X</a>}
         </nav>
       </footer>
 
@@ -2377,12 +2394,12 @@ function StorefrontContent() {
               )}
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-              {store?.whatsappNumber && selectedProduct.quantity > 0 && (
+              {isValidStoreWhatsApp(store?.whatsappNumber) && selectedProduct.quantity > 0 && (
                 <button
                   type="button"
                   aria-label="Order this product on WhatsApp"
                   onClick={() => {
-                    const phone = formatWhatsAppNumber(store.whatsappNumber!);
+                    const phone = whatsappDigits(store.whatsappNumber);
                     const variantInfo = selectedVariant ? ` - ${selectedVariant.variant_name}` : '';
                     const price = selectedVariant?.price_override || selectedProduct.selling_price;
                     const message = `Hi, I'm interested in ordering *${selectedProduct.name}${variantInfo}* (${currencyNGN(price)})`;
@@ -2416,7 +2433,7 @@ function StorefrontContent() {
                   }}
                   variant="icon"
                   className="storefront-share-button-modal"
-                  storeUrl={`${buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}?product=${selectedProduct.id}`}
+                  storeUrl={withProductQuery(buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug }), selectedProduct.id)}
                   storeName={store?.businessName}
                   whatsappNumber={store?.whatsappNumber}
                 />

@@ -14,7 +14,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { buildOgDocument, FALLBACK_IMAGE } from './ogHtml.js';
+import { buildOgDocument, FALLBACK_IMAGE, productPreviewDescription } from './ogHtml.js';
 import { canonicalStoreUrl } from '../src/utils/canonicalStoreUrl.js';
 
 // Initialize Supabase client (serverless environment)
@@ -129,11 +129,16 @@ export default async function handler(req, res) {
       if (!productError && product) {
         productData = product;
         metaTitle = `${product.name} - ${formatNGN(product.selling_price)} | ${store.business_name}`;
-        metaDescription = (product.description || `${product.name} available at ${store.business_name}`)
-          .slice(0, 155);
-        metaImage = product.image_url
-          ? getImageKitSocialUrl(product.image_url)
-          : (store.logo_url ? getImageKitSocialUrl(store.logo_url) : FALLBACK_IMAGE);
+        metaDescription = productPreviewDescription({
+          priceKobo: product.selling_price,
+          description: product.description,
+          name: product.name,
+        });
+        const productImage = typeof product.image_url === 'string' ? product.image_url.trim() : '';
+        const logoImage = typeof store.logo_url === 'string' ? store.logo_url.trim() : '';
+        metaImage = productImage
+          ? getImageKitSocialUrl(productImage)
+          : (logoImage ? getImageKitSocialUrl(logoImage) : FALLBACK_IMAGE);
       }
     }
 
@@ -143,8 +148,9 @@ export default async function handler(req, res) {
       metaTitle = `${store.business_name} | Online Store`;
       metaDescription = (store.about_us || `Shop quality products at ${store.business_name}`)
         .slice(0, 155);
-      if (store.logo_url) {
-        metaImage = getImageKitSocialUrl(store.logo_url);
+      const logoImage = typeof store.logo_url === 'string' ? store.logo_url.trim() : '';
+      if (logoImage) {
+        metaImage = getImageKitSocialUrl(logoImage);
       } else {
         const { data: firstProduct } = await supabase
           .from('products')

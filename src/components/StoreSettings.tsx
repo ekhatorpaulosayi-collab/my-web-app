@@ -18,6 +18,8 @@ import { storeHealthFlags } from '../utils/storeHealth';
 import { mergeBankDetails, readStoreBankDetails, writeStoreBankDetails } from '../lib/storeBankDetails.js';
 import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 import { emptyNumberAsNull } from '../utils/emptyNumber.js';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
+import { socialUrlForSave } from '../utils/socialLinks.js';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -329,7 +331,13 @@ export const StoreSettings: React.FC = () => {
         // never resolves as a storefront.
         subdomain: /^\d+$/.test(normalizedSlug) ? null : normalizedSlug,
         logo_url: logoUrl || '',
-        whatsapp_number: whatsappNumber.trim(),
+        whatsapp_number: (() => {
+          const raw = whatsappNumber.trim();
+          if (!raw) throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+          const phone = normalizeNgWhatsApp(raw);
+          if (!phone) throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+          return phone;
+        })(),
         address: address.trim(),
         is_public: storeLive,
         accepted_payment_methods: paymentMethods,
@@ -340,17 +348,17 @@ export const StoreSettings: React.FC = () => {
         paystack_test_mode: paystackTestMode,
         // Delivery information
         delivery_areas: deliveryAreas,
-        delivery_fee: deliveryFee.trim(),
+        delivery_fee: emptyNumberAsNull(deliveryFee),
         delivery_time: deliveryTime.trim(),
         minimum_order: emptyNumberAsNull(minimumOrder),
         // Business hours
         business_hours: businessHours.trim(),
         days_of_operation: daysOfOperation,
         // Social media
-        instagram_url: instagramUrl.trim(),
-        facebook_url: facebookUrl.trim(),
-        tiktok_url: normalizeTikTokUrl(tiktokUrl), // Normalize to full URL format
-        twitter_url: twitterUrl.trim(),
+        instagram_url: socialUrlForSave('instagram', instagramUrl),
+        facebook_url: socialUrlForSave('facebook', facebookUrl),
+        tiktok_url: socialUrlForSave('tiktok', tiktokUrl),
+        twitter_url: socialUrlForSave('x', twitterUrl),
         // About & Policies
         about_us: aboutUs.trim(),
         return_policy: returnPolicy.trim(),

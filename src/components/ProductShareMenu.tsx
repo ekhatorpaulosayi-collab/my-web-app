@@ -4,8 +4,10 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Share2, X } from 'lucide-react';
-import { shareToInstagram, shareToWhatsApp, shareToWhatsAppStatus, shareToFacebook, shareToTikTok, type ProductShareData } from '../utils/socialShare';
+import { shareToInstagram, shareToWhatsApp, shareToWhatsAppStatus, shareToFacebook, shareToTikTok, shareToX, type ProductShareData } from '../utils/socialShare';
+import { withProductQuery } from '../utils/canonicalStoreUrl.js';
 import { useBusinessProfile } from '../contexts/BusinessProfile';
 import { ShareInstructionsModal } from './ShareInstructionsModal';
 import './ProductShareMenu.css';
@@ -22,6 +24,7 @@ interface ProductShareMenuProps {
   storeUrl?: string; // Optional: override store URL (for public storefront pages)
   storeName?: string; // Optional: override store name (for public storefront pages)
   whatsappNumber?: string; // Optional: override WhatsApp number (for public storefront pages)
+  shareKind?: 'product' | 'store' | 'cart';
 }
 
 export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
@@ -29,7 +32,8 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
   onClose,
   storeUrl,
   storeName,
-  whatsappNumber
+  whatsappNumber,
+  shareKind = 'product',
 }) => {
   const [message, setMessage] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -75,7 +79,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
     setTimeout(() => setMessage(''), duration);
   };
 
-  const handleShare = async (platform: 'instagram' | 'whatsapp' | 'whatsapp-status' | 'facebook' | 'tiktok') => {
+  const handleShare = async (platform: 'instagram' | 'whatsapp' | 'whatsapp-status' | 'facebook' | 'tiktok' | 'x') => {
     if (isSharing) return;
 
     setIsSharing(true);
@@ -106,9 +110,8 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
       storeBaseUrl = profile.storeUrl;
     }
 
-    // Generate product-specific URL
     const productUrl = storeBaseUrl
-      ? `${storeBaseUrl}?product=${product.id}`
+      ? (shareKind === 'product' ? withProductQuery(storeBaseUrl, String(product.id)) : storeBaseUrl.replace(/\/$/, ''))
       : undefined;
 
     // Prepare share data with prop overrides
@@ -139,6 +142,9 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
           break;
         case 'facebook':
           result = await shareToFacebook(shareData);
+          break;
+        case 'x':
+          result = shareToX(shareData);
           break;
         case 'tiktok':
           result = shareToTikTok(shareData);
@@ -172,7 +178,9 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
     }
   };
 
-  return (
+  const title = shareKind === 'store' ? 'Share store' : shareKind === 'cart' ? 'Share cart' : 'Share Product';
+
+  const menu = (
     <div
       className="share-menu-overlay"
       role="dialog"
@@ -188,7 +196,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
       {!showInstructionsModal && (
         <div ref={menuRef} className="share-menu-content" role="document">
           <div className="share-menu-header">
-            <h3 id="share-menu-title">Share Product</h3>
+            <h3 id="share-menu-title">{title}</h3>
             <button
               onClick={onClose}
               className="share-menu-close"
@@ -205,7 +213,9 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
           )}
           <div className="share-menu-product-info">
             <div className="share-menu-product-name">{product.name}</div>
-            <div className="share-menu-product-price">₦{product.price.toLocaleString()}</div>
+            {shareKind !== 'store' && (
+              <div className="share-menu-product-price">₦{product.price.toLocaleString()}</div>
+            )}
           </div>
         </div>
 
@@ -237,6 +247,20 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
             <div className="share-option-info">
               <div className="share-option-name">Instagram</div>
               <div className="share-option-desc">Stories & Posts</div>
+            </div>
+          </button>
+
+          <button
+            className="share-option x"
+            onClick={() => handleShare('x')}
+            disabled={isSharing}
+            type="button"
+            aria-label="Share on X"
+          >
+            <div className="share-option-icon" role="img" aria-label="X">𝕏</div>
+            <div className="share-option-info">
+              <div className="share-option-name">X</div>
+              <div className="share-option-desc">Post on X</div>
             </div>
           </button>
 
@@ -297,6 +321,9 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
       )}
     </div>
   );
+
+  if (typeof document === 'undefined') return menu;
+  return createPortal(menu, document.body);
 };
 
 /**
@@ -315,6 +342,7 @@ interface ShareButtonProps {
   storeUrl?: string; // Optional: override store URL (for public storefront pages)
   storeName?: string; // Optional: override store name (for public storefront pages)
   whatsappNumber?: string; // Optional: override WhatsApp number (for public storefront pages)
+  shareKind?: 'product' | 'store' | 'cart';
 }
 
 export const ShareButton: React.FC<ShareButtonProps> = ({
@@ -323,7 +351,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   className = '',
   storeUrl,
   storeName,
-  whatsappNumber
+  whatsappNumber,
+  shareKind = 'product',
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -337,11 +366,11 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
       <button
         onClick={handleClick}
         className={`share-button share-button-${variant} ${className}`}
-        aria-label="Share product"
+        aria-label={shareKind === 'store' ? 'Share store' : shareKind === 'cart' ? 'Share cart' : 'Share product'}
         title="Share to social media"
       >
         <Share2 size={variant === 'icon' ? 18 : 16} />
-        {variant === 'text' && <span>Share</span>}
+        {variant === 'text' && <span>{shareKind === 'store' ? 'Share store' : shareKind === 'cart' ? 'Share cart' : 'Share'}</span>}
         {variant === 'full' && <span>Share to Social Media</span>}
       </button>
 
@@ -352,6 +381,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
           storeUrl={storeUrl}
           storeName={storeName}
           whatsappNumber={whatsappNumber}
+          shareKind={shareKind}
         />
       )}
     </>
