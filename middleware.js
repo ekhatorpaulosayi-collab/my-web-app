@@ -7,12 +7,12 @@
  */
 import { buildOgDocument, FALLBACK_IMAGE } from './api/ogHtml.js';
 import { isKnownAppPath } from './src/utils/appPaths.js';
-import { canonicalStoreUrl } from './src/utils/canonicalStoreUrl.js';
-import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './src/utils/reservedSubdomains.ts';
+import { canonicalStoreUrl, RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './src/utils/canonicalStoreUrl.js';
 
 const CRAWLER = /facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot/i;
 
 export const config = {
+  runtime: 'nodejs',
   matcher: ['/((?!assets/|api/|.*\\..*).*)'],
 };
 

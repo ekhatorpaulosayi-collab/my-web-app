@@ -3,7 +3,7 @@
  * Reserved and number-only labels stay on the path URL.
  * The block list matches src/utils/reservedSubdomains.ts.
  */
-const NUMERIC_ONLY_LABEL = /^\d+$/;
+export const NUMERIC_ONLY_LABEL = /^\d+$/;
 
 export const STORE_SUBDOMAIN_BLOCKLIST = [
   'www', 'admin', 'api', 'app', 'dashboard', 'mail', 'ftp', 'accounts',
@@ -17,7 +17,8 @@ export const STORE_SUBDOMAIN_BLOCKLIST = [
   '234',
 ];
 
-const BLOCKED = new Set(STORE_SUBDOMAIN_BLOCKLIST);
+export const RESERVED_SUBDOMAINS = new Set(STORE_SUBDOMAIN_BLOCKLIST);
+const BLOCKED = RESERVED_SUBDOMAINS;
 
 export function isLegalStoreSubdomain(slug) {
   const label = String(slug || '').toLowerCase();
