@@ -2,6 +2,7 @@
 // Money stored as integer kobo (1 Naira = 100 kobo)
 
 import { formatNaira } from '../utils/money.ts';
+import { businessDayKey } from '../utils/businessDate.ts';
 
 const DB_NAME = 'storehouse';
 const DB_VERSION = 5; // v5: Backfill sales with isCredit + paymentMethod for accurate EOD reports
@@ -901,7 +902,7 @@ export async function getDB() {
 // Calculate overdue credits (updates status)
 export async function updateOverdueCredits() {
   const db = await initDB();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(['credits'], 'readwrite');
@@ -948,12 +949,9 @@ export function toKobo(value) {
   return Math.round(naira * 100);
 }
 
-// Get local day key (YYYY-MM-DD in local timezone, not UTC)
+// Business day in Africa/Lagos, not the device zone and not UTC.
 export function localDayKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return businessDayKey(date instanceof Date ? date : new Date(date));
 }
 
 // Get ISO date string for today + N days (local timezone)

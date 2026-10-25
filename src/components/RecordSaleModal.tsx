@@ -1352,7 +1352,7 @@ Powered by Storehouse
                         className="rs-input"
                         value={dueDate}
                         onChange={e => setDueDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={new Date().toLocaleDateString('en-CA')}
                         required
                       />
                       {dueDate && (

@@ -23,10 +23,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onRemove,
   onClose
 }) => {
+  // M7: stockAvailable can be undefined/0 for untracked items -> Math.min gave NaN/0
+  const stockCap = (item: { stockAvailable?: number }) =>
+    Number.isFinite(item.stockAvailable) && (item.stockAvailable as number) > 0
+      ? (item.stockAvailable as number)
+      : Infinity;
+
   const handleQtyChange = (id: string, delta: number) => {
     const item = items.find((i) => i.id === id);
     if (!item) return;
-    const newQty = Math.max(1, Math.min(item.stockAvailable, item.quantity + delta));
+    const newQty = Math.max(1, Math.min(stockCap(item), item.quantity + delta));
     onChangeQty(id, newQty);
   };
 
@@ -75,11 +81,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       className="qty-input"
                       value={item.quantity}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value) || 1;
-                        onChangeQty(item.id, Math.max(1, Math.min(item.stockAvailable, val)));
+                        const val = parseInt(e.target.value, 10) || 1;
+                        onChangeQty(item.id, Math.max(1, Math.min(stockCap(item), val)));
                       }}
                       min="1"
-                      max={item.stockAvailable}
+                      max={stockCap(item) === Infinity ? undefined : item.stockAvailable}
                       aria-label="Quantity"
                     />
                     <button

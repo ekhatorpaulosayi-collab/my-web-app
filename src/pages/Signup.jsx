@@ -51,8 +51,8 @@ export default function Signup() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
 
@@ -93,8 +93,8 @@ export default function Signup() {
         setError('This email is already registered. Want to log in instead?');
       } else if (err.message?.includes('Invalid email')) {
         setError('Please enter a valid email address');
-      } else if (err.message?.includes('6 characters')) {
-        setError('Password should be at least 6 characters');
+      } else if (err.message?.includes("characters")) {
+        setError('Password must be at least 8 characters');
       } else {
         setError(err.message || 'Failed to create account. Please try again.');
       }
@@ -237,7 +237,7 @@ export default function Signup() {
                 className="form-input"
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={8}
                 disabled={loading}
                 style={{ paddingRight: '45px' }}
               />
@@ -265,7 +265,7 @@ export default function Signup() {
                 {showPassword ? '👁️' : '👁️‍🗨️'}
               </button>
             </div>
-            <p className="form-hint">Minimum 6 characters</p>
+            <p className="form-hint">Minimum 8 characters</p>
           </div>
 
           <button

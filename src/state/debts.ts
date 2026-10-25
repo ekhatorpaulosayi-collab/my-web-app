@@ -326,7 +326,7 @@ export function createDebtWithInstallments(
 export function updateInstallmentStatuses(debt: Debt): Debt {
   if (!debt.installmentPlan) return debt;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
 
   debt.installmentPlan.schedule = debt.installmentPlan.schedule.map(inst => {
     if (inst.status === 'paid') return inst; // Don't change paid status

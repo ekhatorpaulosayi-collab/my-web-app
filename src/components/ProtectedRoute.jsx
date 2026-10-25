@@ -1,13 +1,15 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useStaff } from '../contexts/StaffContext';
 
 /**
  * Protected Route Component
  * Redirects to /login if user is not authenticated
  * Shows loading spinner while checking auth state
  */
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, ownerOnly = false, devOnly = false }) {
   const { currentUser, loading } = useAuth();
+  const { isStaffMode } = useStaff();
 
   console.warn('🔐 [ProtectedRoute] Checking auth:', {
     hasUser: !!currentUser,
@@ -56,6 +58,16 @@ export default function ProtectedRoute({ children }) {
   if (!currentUser) {
     console.warn('🔐 [ProtectedRoute] User NOT authenticated, redirecting to /login');
     return <Navigate to="/login" replace />;
+  }
+
+  // M17: debug/test pages are only reachable in local development builds
+  if (devOnly && !import.meta.env.DEV) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // H1: staff (cashier/manager) sessions can't open owner-only pages by URL
+  if (ownerOnly && isStaffMode) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // User is authenticated, render children

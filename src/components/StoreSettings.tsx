@@ -141,7 +141,8 @@ export const StoreSettings: React.FC = () => {
     const data: any = {
       storeSlug: store.store_slug,
       businessName: store.business_name,
-      whatsappNumber: store.whatsapp_number,
+      // M2: legacy rows stored the email or 'pending' here; don't prefill those
+      whatsappNumber: store.whatsapp_number && !String(store.whatsapp_number).includes('@') && store.whatsapp_number !== 'pending' ? store.whatsapp_number : '',
       address: store.address,
       logoUrl: store.logo_url,
       subdomain: store.subdomain,

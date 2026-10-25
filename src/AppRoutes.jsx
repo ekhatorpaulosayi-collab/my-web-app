@@ -61,6 +61,13 @@ const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
  *   - storehouse.ng, www.storehouse.ng, localhost,
  *     *.vercel.app, reserved/numeric subdomains              → LandingPage
  */
+// M12: unknown URLs used to dump signed-in owners on the marketing page.
+function CatchAllRoute() {
+  const { currentUser, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={currentUser ? '/dashboard' : '/'} replace />;
+}
+
 function RootRoute() {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
@@ -193,7 +200,7 @@ export default function AppRoutes() {
         <Route
           path="/settings"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <Settings />
             </ProtectedRoute>
           }
@@ -204,7 +211,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <PaymentSetup />
             </ProtectedRoute>
           }
@@ -216,7 +223,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments/bank-setup"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <SubaccountWizard />
             </ProtectedRoute>
           }
@@ -229,7 +236,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments/identity-verification"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <KycWizard />
             </ProtectedRoute>
           }
@@ -241,7 +248,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments/identity-verification/edit"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <KycEditForm />
             </ProtectedRoute>
           }
@@ -271,7 +278,7 @@ export default function AppRoutes() {
         <Route
           path="/debug/agent-takeover"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <AgentTakeoverDebugger />
             </ProtectedRoute>
           }
@@ -281,7 +288,7 @@ export default function AppRoutes() {
         <Route
           path="/staff"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <StaffManagement />
             </ProtectedRoute>
           }
@@ -291,7 +298,7 @@ export default function AppRoutes() {
         <Route
           path="/referrals"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <ReferralDashboard />
             </ProtectedRoute>
           }
@@ -301,7 +308,7 @@ export default function AppRoutes() {
         <Route
           path="/upgrade"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <SubscriptionUpgrade />
             </ProtectedRoute>
           }
@@ -321,7 +328,7 @@ export default function AppRoutes() {
         <Route
           path="/affiliate/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <AffiliateDashboard />
             </ProtectedRoute>
           }
@@ -331,7 +338,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/affiliates"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <AffiliateAdmin />
             </ProtectedRoute>
           }
@@ -341,7 +348,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/monitoring"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <ErrorMonitoringDashboard />
             </ProtectedRoute>
           }
@@ -351,7 +358,7 @@ export default function AppRoutes() {
         <Route
           path="/sentry-test"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <SentryTest />
             </ProtectedRoute>
           }
@@ -361,7 +368,7 @@ export default function AppRoutes() {
         <Route
           path="/whatsapp-ai"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <WhatsAppAI />
             </ProtectedRoute>
           }
@@ -381,7 +388,7 @@ export default function AppRoutes() {
         <Route
           path="/debug-center"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <DebugCenter />
             </ProtectedRoute>
           }
@@ -441,7 +448,7 @@ export default function AppRoutes() {
         <Route
           path="/image-test"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <ImageTest />
             </ProtectedRoute>
           }
@@ -450,7 +457,7 @@ export default function AppRoutes() {
         <Route
           path="/direct-test"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <DirectImageTest />
             </ProtectedRoute>
           }
@@ -459,7 +466,7 @@ export default function AppRoutes() {
         <Route
           path="/all-variants"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <AllVariantsTest />
             </ProtectedRoute>
           }
@@ -469,14 +476,14 @@ export default function AppRoutes() {
         <Route
           path="/test-variants"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <TestVariants />
             </ProtectedRoute>
           }
         />
 
         {/* Dev preview route for Sale Modal V2 - Public for testing */}
-        <Route path="/dev/sale-modal" element={<DevSaleModal />} />
+        {import.meta.env.DEV && <Route path="/dev/sale-modal" element={<DevSaleModal />} />}
 
         {/* Store Setup - Clean minimal design for quick store creation */}
         <Route path="/store-setup" element={<StoreSetup />} />
@@ -498,7 +505,7 @@ export default function AppRoutes() {
         <Route
           path="/online-store"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <OnlineStoreSetup />
             </ProtectedRoute>
           }
@@ -552,7 +559,7 @@ export default function AppRoutes() {
         <Route path="/a/:shareCode" element={<ContributionPublicView />} />
 
         {/* Catch-all - redirect to landing page */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<CatchAllRoute />} />
       </Routes>
     </Suspense>
   );

@@ -219,7 +219,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
   const [editedFrequency, setEditedFrequency] = useState(group.frequency);
   const [editedCollectionDay, setEditedCollectionDay] = useState(group.collectionDay || '');
   const [editedCycleStartDate, setEditedCycleStartDate] = useState(
-    group.cycle_start_date || group.created_at || new Date().toISOString().split('T')[0]
+    group.cycle_start_date || group.created_at || new Date().toLocaleDateString('en-CA')
   );
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);

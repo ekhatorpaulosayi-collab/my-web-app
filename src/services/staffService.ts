@@ -65,7 +65,7 @@ export async function createStaffMember(
       store_owner_uid: ownerUid,
       name: data.name,
       phone: data.phone,
-      email: data.email,
+      email: data.email?.trim() ? data.email.trim() : null, // M4: '' collided with UNIQUE(owner,email)
       pin: hashedPin,
       role: data.role,
       is_active: true

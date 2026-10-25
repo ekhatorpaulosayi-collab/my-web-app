@@ -599,12 +599,40 @@ async function logAbuseAttempt(
   }
 }
 
+// CORS: only our own web origins may call this function from a browser (C1).
+const ALLOWED_ORIGINS = new Set([
+  'https://www.storehouse.ng',
+  'https://storehouse.ng',
+  ...((Deno.env.get('AI_CHAT_EXTRA_ORIGINS') || '').split(',').map((o) => o.trim()).filter(Boolean)),
+]);
+let currentOrigin = 'https://www.storehouse.ng';
+function corsOrigin(origin: string | null): string {
+  if (origin && (ALLOWED_ORIGINS.has(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^https:\/\/[a-z0-9-]+\.storehouse\.ng$/.test(origin))) return origin;
+  return 'https://www.storehouse.ng';
+}
+// Client IP: prefer headers set by the platform edge, not the client-controlled
+// left-most x-forwarded-for entry.
+function getClientIp(req: Request): string {
+  const cf = req.headers.get('cf-connecting-ip');
+  if (cf) return cf.trim();
+  const real = req.headers.get('x-real-ip');
+  if (real) return real.trim();
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) {
+    const parts = xff.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return 'unknown';
+}
+
 serve(async (req) => {
   // Handle CORS
+  currentOrigin = corsOrigin(req.headers.get('origin'));
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': currentOrigin,
+        'Vary': 'Origin',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
@@ -621,7 +649,7 @@ serve(async (req) => {
     console.log('[ai-chat] Auth header present:', !!authHeader, 'Token length:', token?.length || 0);
 
     let userId: string | null = null;
-    let ipAddress = req.headers.get('x-forwarded-for') || 'unknown';
+    let ipAddress = getClientIp(req);
 
     if (token) {
       const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -762,7 +790,7 @@ serve(async (req) => {
         );
 
         return jsonResponse({
-          response: `🎉 **You've used your 7 free AI chats for today!**\n\nYou're clearly interested in Storehouse - that's awesome!\n\n---\n\n## Ready to unlock unlimited help?\n\n**✨ Create your FREE account** (no credit card needed):\n**[Start Free - Setup in 3 Minutes →](https://www.storehouse.ng/signup)**\n\n**📧 Still have questions?**\nEmail us: **support@storehouse.ng**\nWe respond within 2 hours!\n\n**💬 Prefer to chat?**\nWhatsApp: **+234-XXX-XXX-XXXX**\n\nYour limit resets in 24 hours!`,
+          response: `🎉 **You've used your 7 free AI chats for today!**\n\nYou're clearly interested in Storehouse - that's awesome!\n\n---\n\n## Ready to unlock unlimited help?\n\n**✨ Create your FREE account** (no credit card needed):\n**[Start Free - Setup in 3 Minutes →](https://www.storehouse.ng/signup)**\n\n**📧 Still have questions?**\nEmail us: **support@storehouse.ng**\nWe respond within 2 hours!\n\nYour limit resets in 24 hours!`,
           limited: true,
           count: rateLimit.count,
         });
@@ -806,7 +834,20 @@ serve(async (req) => {
       });
     }
 
-    // Rate limiting - TEMPORARY DISABLED until check_rate_limit function is created
+    // C1: every unauthenticated request is rate limited, whatever userType/contextType
+    // the client claims (the 7/day landing limit above only ran for userType==='visitor').
+    if (!userId && userType !== 'visitor') {
+      const anonLimit = Number(Deno.env.get('AI_CHAT_ANON_DAILY_LIMIT') || '40');
+      const anonRate = await checkAndIncrementRateLimit(supabase, `anon:${ipAddress}`, anonLimit);
+      if (!anonRate.allowed) {
+        return jsonResponse({
+          error: 'Too many messages today. Please try again tomorrow.',
+          limited: true,
+        }, 429);
+      }
+    }
+
+    // (old) Rate limiting - TEMPORARY DISABLED until check_rate_limit function is created
     // UNLIMITED for authenticated users (business owners)
     // Only apply rate limiting to unauthenticated users (shoppers/visitors)
     /* if (!userId) {
@@ -1166,12 +1207,12 @@ function getEscalation(state: ConversationState): string | null {
 
   // PATH 3: SKEPTICISM → Human Contact
   if (skeptical >= 6 && messageCount >= 4) {
-    return `\n\n---\n\n🤝 **Talk to a real person?**\n\n**Real proof:**\n✅ 5,000+ Nigerian businesses use Storehouse\n✅ 99.9% uptime (bank-level infrastructure)\n✅ You own your data (export anytime)\n\n**Contact us:**\n📞 Book call: calendly.com/storehouse\n💬 WhatsApp: +234-XXX-XXX-XXXX\n📧 Email: hello@storehouse.ng\n\n**Or test risk-free:**\n**[Start Free →](https://www.storehouse.ng/signup)**`;
+    return `\n\n---\n\n🤝 **Talk to a real person?**\n\n**Real proof:**\n✅ 99.9% uptime (bank-level infrastructure)\n✅ You own your data (export anytime)\n\n**Contact us:**\n📧 Email: hello@storehouse.ng\n\n**Or test risk-free:**\n**[Start Free →](https://www.storehouse.ng/signup)**`;
   }
 
   // PATH 4: LOST/CONFUSED
   if (messageCount >= 8 && averageConfidence < 0.6) {
-    return `\n\n---\n\n🧭 **Let me help you find what you need!**\n\n**Most popular:**\n📺 [Watch 3-Min Demo](https://youtube.com/storehouse)\n💬 [Chat with Founder](https://wa.me/234XXXXXXXXX)\n🚀 [Just Try It Free](https://www.storehouse.ng/signup)\n\n**What sounds best?**`;
+    return `\n\n---\n\n🧭 **Let me help you find what you need!**\n\n**Most popular:**\n🚀 [Just Try It Free](https://www.storehouse.ng/signup)\n\n**What sounds best?**`;
   }
 
   return null;
@@ -3292,7 +3333,8 @@ function jsonResponse(data: any, status: number = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': currentOrigin,
+      'Vary': 'Origin',
     },
   });
 }

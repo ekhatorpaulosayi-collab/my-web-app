@@ -85,10 +85,11 @@ export function exportInventoryCSV(items: any[]) {
     id: item.id || '',
     name: item.name || '',
     category: item.category || '',
-    price: item.price || 0,
-    cost: item.cost || 0,
-    quantity: item.quantity || 0,
-    reorder_level: item.reorder_level || 0,
+    // H8: Supabase products store prices in KOBO as selling_price / cost_price
+    price: ((item.selling_price ?? item.sellKobo ?? 0) / 100) || item.price || 0,
+    cost: ((item.cost_price ?? item.purchaseKobo ?? 0) / 100) || item.cost || 0,
+    quantity: item.quantity ?? item.qty ?? 0,
+    reorder_level: item.low_stock_threshold ?? item.reorderLevel ?? item.reorder_level ?? 0,
     sku: item.sku || '',
     barcode: item.barcode || '',
     description: item.description || '',
@@ -100,7 +101,7 @@ export function exportInventoryCSV(items: any[]) {
   // Add helpful comment at the top of the CSV
   const helpText = '# INVENTORY DATA - This file contains all your products with prices, quantities, and details. Open in Excel or Google Sheets.\n';
   const csv = helpText + arrayToCSV(processedItems, headers);
-  const timestamp = new Date().toISOString().split('T')[0];
+  const timestamp = new Date().toLocaleDateString('en-CA');
   downloadCSV(csv, `inventory_${timestamp}.csv`);
 }
 
@@ -121,19 +122,20 @@ export function exportSalesCSV(sales: any[]) {
 
   const processedSales = sales.map(sale => ({
     id: sale.id || '',
-    timestamp: sale.timestamp || '',
+    // H8: map the fields App.jsx actually puts on sale objects
+    timestamp: sale.createdAt ? new Date(sale.createdAt).toLocaleString('en-NG') : (sale.timestamp || sale.date || ''),
     customer_name: sale.customerName || sale.customer_name || '',
-    customer_phone: sale.customerPhone || sale.customer_phone || '',
-    total_amount: sale.totalAmount || sale.total || 0,
-    payment_method: sale.paymentMethod || sale.payment_method || '',
-    items_sold: JSON.stringify(sale.items || []),
-    notes: sale.notes || ''
+    customer_phone: sale.customerPhone || sale.phone || sale.customer_phone || '',
+    total_amount: sale.sellKobo != null ? ((sale.sellKobo || 0) * (sale.qty || 1)) / 100 : (sale.totalAmount || sale.total || 0),
+    payment_method: sale.paymentMethod || sale.payment || sale.payment_method || '',
+    items_sold: sale.items ? JSON.stringify(sale.items) : (sale.itemName ? `${sale.qty || 1} x ${sale.itemName}` : ''),
+    notes: sale.notes || sale.note || ''
   }));
 
   // Add helpful comment at the top of the CSV
   const helpText = '# SALES RECORDS - This file contains all your sales transactions with customer info and payment details. Use for accounting and analysis.\n';
   const csv = helpText + arrayToCSV(processedSales, headers);
-  const timestamp = new Date().toISOString().split('T')[0];
+  const timestamp = new Date().toLocaleDateString('en-CA');
   downloadCSV(csv, `sales_${timestamp}.csv`);
 }
 
@@ -168,7 +170,7 @@ export function exportCustomersCSV(customers: any[]) {
   // Add helpful comment at the top of the CSV
   const helpText = '# CUSTOMER LIST - This file contains your customers with contact info and purchase history. Great for marketing and customer analysis.\n';
   const csv = helpText + arrayToCSV(processedCustomers, headers);
-  const timestamp = new Date().toISOString().split('T')[0];
+  const timestamp = new Date().toLocaleDateString('en-CA');
   downloadCSV(csv, `customers_${timestamp}.csv`);
 }
 

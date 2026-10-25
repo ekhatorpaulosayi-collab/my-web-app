@@ -66,7 +66,8 @@ echo ""
 echo "3. Checking polling implementation..."
 echo "------------------------------------"
 TIMESTAMP_GUARD=$(grep -c "if.*!lastMessageTimestamp" src/components/AIChatWidget.tsx 2>/dev/null)
-TIMESTAMP_CURSOR=$(grep -c "gt.*created_at.*lastMessageTimestamp" src/components/AIChatWidget.tsx 2>/dev/null)
+# Cursor is either the old PostgREST filter or visitor_get_messages p_after (B3).
+TIMESTAMP_CURSOR=$(grep -Ec "gt.*created_at.*lastMessageTimestamp|p_after: lastMessageTimestamp" src/components/AIChatWidget.tsx 2>/dev/null)
 
 check $([ "$TIMESTAMP_GUARD" -gt 0 ] && echo 0 || echo 1) "Polling has timestamp guard" true
 check $([ "$TIMESTAMP_CURSOR" -gt 0 ] && echo 0 || echo 1) "Polling uses timestamp cursor" true

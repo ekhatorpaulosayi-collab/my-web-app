@@ -1031,7 +1031,7 @@ function App() {
         // Convert Supabase format to app format
         const allSales = supabaseSales.map(sale => {
           // Convert sale_date (YYYY-MM-DD) to timestamp for today's sales filtering
-          const saleTimestamp = sale.sale_date ? new Date(sale.sale_date).getTime() : Date.now();
+          const saleTimestamp = sale.created_at ? new Date(sale.created_at).getTime() : sale.sale_date ? new Date(`${sale.sale_date}T${sale.sale_time || '12:00:00'}`).getTime() : Date.now(); // H5: real time, local tz
 
           return {
             id: sale.id,
@@ -1136,7 +1136,7 @@ function App() {
         // Set the sales data
         console.log('[App] 🎯 Setting sales state with', salesToShow.length, 'sales');
         console.log('[App] 📊 Sales data preview:', salesToShow.slice(0, 3)); // Show first 3 sales
-        console.log('[App] 📅 Today\'s date:', new Date().toISOString().split('T')[0]);
+        console.log('[App] 📅 Today\'s date:', new Date().toLocaleDateString('en-CA'));
         console.log('[App] 📅 Sales dates:', [...new Set(salesToShow.map(s => s.dayKey))].sort());
         setSales(salesToShow);
         console.log('[App] ✅ Sales state updated successfully');
@@ -1154,7 +1154,7 @@ function App() {
             const refreshedSales = await getSupabaseSales(currentUser.uid);
             const mappedSales = refreshedSales.map(sale => {
               // Convert sale_date (YYYY-MM-DD) to timestamp for today's sales filtering
-              const saleTimestamp = sale.sale_date ? new Date(sale.sale_date).getTime() : Date.now();
+              const saleTimestamp = sale.created_at ? new Date(sale.created_at).getTime() : sale.sale_date ? new Date(`${sale.sale_date}T${sale.sale_time || '12:00:00'}`).getTime() : Date.now(); // H5: real time, local tz
 
               return {
                 id: sale.id,
@@ -3211,7 +3211,7 @@ Thank you for your business! 🙏
           payment_status: formData.isCreditSale ? 'pending' : 'paid',
           amount_paid: formData.isCreditSale ? 0 : (qty * sellKobo),
           amount_due: formData.isCreditSale ? (qty * sellKobo) : 0,
-          sale_date: new Date().toISOString().split('T')[0],
+          sale_date: new Date().toLocaleDateString('en-CA'),
           sale_time: new Date().toTimeString().split(' ')[0],
           notes: formData.note || null
         };
@@ -3314,7 +3314,7 @@ Thank you for your business! 🙏
           amount_paid: formData.isCreditSale ? 0 : totalKobo / 100, // FIX: Convert kobo to naira
           amount_due: formData.isCreditSale ? totalKobo / 100 : 0, // FIX: Convert kobo to naira
           notes: formData.note?.trim() || null,
-          sale_date: new Date().toISOString().split('T')[0],
+          sale_date: new Date().toLocaleDateString('en-CA'),
           sale_time: new Date().toTimeString().split(' ')[0],
           sales_channel: formData.salesChannel || 'in-store',
           recorded_by_staff_id: currentStaff?.id || null,
@@ -3667,7 +3667,8 @@ Thank you for your business! 🙏
 
     // Find top selling item
     const todaySales = sales.filter(sale => {
-      const saleDate = new Date(sale.timestamp).toDateString();
+      // M8: mapped sales carry createdAt (ms) / dayKey, not timestamp
+      const saleDate = new Date(sale.createdAt ?? sale.timestamp).toDateString();
       return saleDate === today.toDateString();
     });
 
@@ -3679,7 +3680,9 @@ Thank you for your business! 🙏
       itemSales[sale.itemName].qty += sale.qty;
       const item = items.find(i => i.name === sale.itemName);
       if (item) {
-        itemSales[sale.itemName].profit += (sale.sellPrice - item.purchasePrice) * sale.qty;
+        const sellKobo = sale.sellKobo ?? 0;
+        const costKobo = item.purchaseKobo ?? item.cost_price ?? 0;
+        itemSales[sale.itemName].profit += Math.round(((sellKobo - costKobo) * (sale.qty || 0)) / 100);
       }
     });
 
@@ -3691,7 +3694,7 @@ Thank you for your business! 🙏
     if (format === 'readable') {
       return `📊 Storehouse Daily Report
 📅 ${dateStr} | 🏪 ${settings.businessName || 'My Business'}
-💰 Sales: ₦${todayStats.total.toLocaleString()} | ✨ Profit: ₦${todayStats.profit.toLocaleString()} (${((todayStats.profit/todayStats.total)*100).toFixed(1)}%)
+💰 Sales: ₦${todayStats.total.toLocaleString()} | ✨ Profit: ₦${todayStats.profit.toLocaleString()} (${todayStats.total ? ((todayStats.profit/todayStats.total)*100).toFixed(1) : '0.0'}%)
 💵 Cash: ₦${todayStats.cash.toLocaleString()} | 📝 Credit: ₦${todayStats.credit.toLocaleString()}
 📦 Transactions: ${todayStats.transactions}
 🏆 Top: ${topItemName} - ${topItemQty} units (₦${topItemProfit.toLocaleString()} profit)
@@ -3836,7 +3839,7 @@ Low Stock: ${lowStockItems.length}
       try {
         const refreshed = await getSupabaseSales(currentUser.uid);
         const mapped = refreshed.map(sale => {
-          const saleTimestamp = sale.sale_date ? new Date(sale.sale_date).getTime() : Date.now();
+          const saleTimestamp = sale.created_at ? new Date(sale.created_at).getTime() : sale.sale_date ? new Date(`${sale.sale_date}T${sale.sale_time || '12:00:00'}`).getTime() : Date.now(); // H5: real time, local tz
           return {
             id: sale.id,
             date: sale.sale_date,
@@ -3935,7 +3938,7 @@ Low Stock: ${lowStockItems.length}
     const itemsUrl = URL.createObjectURL(itemsBlob);
     const itemsLink = document.createElement('a');
     itemsLink.href = itemsUrl;
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const dateStr = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
     itemsLink.download = `items_${dateStr}.csv`;
     itemsLink.click();
     URL.revokeObjectURL(itemsUrl);
@@ -4194,7 +4197,7 @@ Low Stock: ${lowStockItems.length}
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `sales-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `sales-${new Date().toLocaleDateString('en-CA')}.csv`;
     link.click();
     URL.revokeObjectURL(url);
     displayToast('CSV exported successfully');
@@ -6613,6 +6616,7 @@ Low Stock: ${lowStockItems.length}
       <MoneyPage
         isOpen={showMoneyPage}
         onClose={() => setShowMoneyPage(false)}
+        items={items}
       />
 
       {/* EOD Report Modal */}

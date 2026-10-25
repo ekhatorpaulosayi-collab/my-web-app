@@ -97,7 +97,7 @@ export async function createSale(sale: Sale, userId?: string): Promise<Sale | nu
       amount_paid: sale.amount_paid || sale.final_amount || sale.total_amount,
       amount_due: sale.amount_due || 0,
       notes: sale.notes || null,
-      sale_date: sale.sale_date || new Date().toISOString().split('T')[0],
+      sale_date: sale.sale_date || new Date().toLocaleDateString('en-CA'),
       sale_time: sale.sale_time || new Date().toTimeString().split(' ')[0],
       // OFF-01 idempotency key. Populated ONLY by the offline/manual paths.
       // Every other caller passes nothing => NULL => behaves exactly as before.
@@ -334,7 +334,7 @@ export async function getSalesByDateRange(
  * Get today's sales
  */
 export async function getTodaySales(userId: string): Promise<Sale[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   return getSalesByDateRange(userId, today, today);
 }
 

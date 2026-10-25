@@ -24,7 +24,8 @@ ON ai_chat_messages(store_id)
 WHERE store_id IS NOT NULL;
 
 -- 4. Create view for store owners to see their chats
-CREATE OR REPLACE VIEW store_conversations AS
+CREATE OR REPLACE VIEW store_conversations
+WITH (security_invoker = true) AS
 SELECT
   c.id,
   c.store_id,

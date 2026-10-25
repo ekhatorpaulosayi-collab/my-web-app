@@ -319,7 +319,7 @@ export function PromoCodesManager({ userId }: PromoCodesManagerProps) {
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                min={new Date().toLocaleDateString('en-CA')}
                 style={{
                   width: '100%',
                   padding: '10px 12px',

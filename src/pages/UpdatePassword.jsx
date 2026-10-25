@@ -26,8 +26,8 @@ export default function UpdatePassword() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
 
@@ -114,7 +114,7 @@ export default function UpdatePassword() {
               </button>
             </div>
             <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-              At least 6 characters
+              At least 8 characters
             </small>
           </div>
 

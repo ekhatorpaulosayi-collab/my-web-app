@@ -811,11 +811,12 @@ export default function AIChatWidget({
     const initializeConversation = async () => {
       try {
         // Get initial conversation state
-        const { data: convData, error: convError } = await supabase
-          .from('ai_chat_conversations')
-          .select('id, takeover_status, is_agent_active, chat_status')
-          .eq('id', conversationId)
-          .single();
+        const sessionId = sessionStorage.getItem('chat_session_id');
+        const { data: convRows, error: convError } = await supabase.rpc('visitor_get_conversation', {
+          p_conversation_id: conversationId,
+          p_session_id: sessionId,
+        });
+        const convData = Array.isArray(convRows) ? convRows[0] : convRows;
 
         if (convError) {
           console.error('[AIChatWidget] Error fetching conversation:', convError);
@@ -880,16 +881,12 @@ export default function AIChatWidget({
 
         // Poll for new messages (only those newer than last known)
         console.log('[AIChatWidget] Polling for messages after:', lastMessageTimestampRef.current);
-        const { data: newMessages, error: msgError } = await supabase
-          .from('ai_chat_messages')
-          .select('*, detected_language, translated_text')
-          .eq('conversation_id', conversationId)
-          // INCLUSIVE boundary: replies saved at the SAME microsecond as the cursor
-          // row would be excluded by .gt() and silently never render (proven
-          // user→assistant created_at ties). .gte() re-includes the boundary row;
-          // the id-based dedup in the merge below drops the re-fetched duplicate.
-          .gte('created_at', lastMessageTimestampRef.current)
-          .order('created_at', { ascending: true });
+        const sessionId = sessionStorage.getItem('chat_session_id');
+        const { data: newMessages, error: msgError } = await supabase.rpc('visitor_get_messages', {
+          p_conversation_id: conversationId,
+          p_session_id: sessionId,
+          p_after: lastMessageTimestampRef.current,
+        });
 
         // Debug: Log raw Supabase response
         console.log('[RAW-POLL-DATA]', JSON.stringify(newMessages?.[0]));
@@ -902,11 +899,11 @@ export default function AIChatWidget({
         if (!msgError && (!newMessages || newMessages.length === 0)) {
 
           console.log('[AIChatWidget] Fallback: Fetching all messages after 3 polls with no results');
-          const { data: allMessages, error: fallbackError } = await supabase
-            .from('ai_chat_messages')
-            .select('*, detected_language, translated_text')
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true });
+          const { data: allMessages, error: fallbackError } = await supabase.rpc('visitor_get_messages', {
+            p_conversation_id: conversationId,
+            p_session_id: sessionStorage.getItem('chat_session_id'),
+            p_after: null,
+          });
 
           // Debug: Log raw Supabase response from fallback query
           console.log('[RAW-FALLBACK-DATA]', JSON.stringify(allMessages?.[0]));
@@ -1001,11 +998,11 @@ export default function AIChatWidget({
         }
 
         // Poll for conversation status changes
-        const { data: convData, error: convError } = await supabase
-          .from('ai_chat_conversations')
-          .select('is_agent_active, takeover_status, chat_status')
-          .eq('id', conversationId)
-          .single();
+        const { data: statusRows, error: convError } = await supabase.rpc('visitor_get_conversation', {
+          p_conversation_id: conversationId,
+          p_session_id: sessionStorage.getItem('chat_session_id'),
+        });
+        const convData = Array.isArray(statusRows) ? statusRows[0] : statusRows;
 
         if (!convError && convData) {
           // Check for status changes
@@ -1101,12 +1098,12 @@ export default function AIChatWidget({
       console.log('🚨 [CHAT-DEBUG-9] Setting is_agent_active to false');
       console.log('🚨 [CHAT-DEBUG-10] About to update conversation with data:', updateData);
 
-      const { error: updateError } = await supabase
-        .from('ai_chat_conversations')
-        .update(updateData)
-        .eq('id', conversationId);
+      const { data: requested, error: updateError } = await supabase.rpc('visitor_request_owner', {
+        p_conversation_id: conversationId,
+        p_session_id: sessionId,
+      });
 
-      if (updateError) {
+      if (updateError || requested !== true) {
         console.error('🚨 [CHAT-DEBUG-11] Error requesting agent:', updateError);
         return;
       }
@@ -1169,21 +1166,8 @@ export default function AIChatWidget({
       // Update local takeover status to trigger timer
       setTakeoverStatus('requested');
 
-      // Insert system message to database for tracking
-      const { error: msgError } = await supabase
-        .from('ai_chat_messages')
-        .insert({
-          conversation_id: conversationId,
-          role: 'system',
-          content: 'Customer requested to speak with store owner',
-          is_agent_message: false,
-          sender_type: 'customer'
-        });
-
-      if (msgError) {
-        console.error('[AIChatWidget] Error inserting system message:', msgError);
-      }
-
+      // visitor_request_owner inserts the system message. A second insert
+      // would duplicate it and fails once the open policies are dropped.
       console.log('[AIChatWidget] Human agent requested successfully');
     } catch (error) {
       console.error('[AIChatWidget] Error in requestHumanAgent:', error);
@@ -1281,7 +1265,7 @@ export default function AIChatWidget({
       // Generate or get sessionId for tracking conversations
       let sessionId = sessionStorage.getItem('chat_session_id');
       if (!sessionId) {
-        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        sessionId = crypto.randomUUID();
         sessionStorage.setItem('chat_session_id', sessionId);
       }
 
@@ -1411,11 +1395,11 @@ export default function AIChatWidget({
           // Fallback: fetch conversation ID from session
           const sessionId = sessionStorage.getItem('chat_session_id');
           if (sessionId) {
-            const { data: convData } = await supabase
-              .from('ai_chat_conversations')
-              .select('id')
-              .eq('session_id', sessionId)
-              .single();
+            const { data: foundRows } = await supabase.rpc('visitor_get_conversation', {
+              p_conversation_id: null,
+              p_session_id: sessionId,
+            });
+            const convData = Array.isArray(foundRows) ? foundRows[0] : foundRows;
 
             if (convData) {
               console.log('[AIChatWidget] Found conversation ID from session:', convData.id);
@@ -1431,8 +1415,7 @@ export default function AIChatWidget({
       // Track storefront conversations for visibility
       if (contextType === 'storefront' && storeSlug) {
         console.log('[AIChatWidget] Tracking storefront conversation...');
-        const sessionId = sessionStorage.getItem('chat_session_id') ||
-                         `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const sessionId = sessionStorage.getItem('chat_session_id') || crypto.randomUUID();
         sessionStorage.setItem('chat_session_id', sessionId);
 
         trackStorefrontChat({

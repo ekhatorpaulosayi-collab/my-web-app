@@ -463,7 +463,7 @@ export function CreateDebtModal({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={new Date().toLocaleDateString('en-CA')}
                     style={{
                       width: '100%',
                       padding: '10px',

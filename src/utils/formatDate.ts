@@ -45,7 +45,7 @@ export function formatLongDate(
  * Get ISO date string (YYYY-MM-DD) for datetime attribute
  */
 export function getISODateString(date: Date = new Date()): string {
-  return date.toISOString().split('T')[0];
+  return date.toLocaleDateString('en-CA'); // local date, not UTC (H5)
 }
 
 /**

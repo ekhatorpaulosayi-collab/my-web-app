@@ -391,7 +391,7 @@ export async function getUserMilestone(userUid: string): Promise<ReferralMilesto
     .from('referral_milestones')
     .select('*')
     .eq('user_uid', userUid)
-    .single();
+    .maybeSingle() // L1: no row is normal -> avoid 406;
 
   if (error || !data) {
     return null;

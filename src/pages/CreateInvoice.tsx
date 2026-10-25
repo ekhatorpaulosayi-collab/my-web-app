@@ -29,7 +29,7 @@ export default function CreateInvoice() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>('NET_15');
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [issueDate, setIssueDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [termsConditions, setTermsConditions] = useState('Payment is due within the agreed terms. Late payments may incur additional charges.');

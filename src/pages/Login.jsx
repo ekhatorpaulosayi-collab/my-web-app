@@ -81,6 +81,8 @@ export default function Login() {
       });
 
       // User-friendly error messages
+      // M5: Supabase errors have no Firebase-style codes; authService already maps
+      // them to friendly text (err.message), so only the legacy codes are handled here.
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Incorrect password. Forgot your password?');
       } else if (err.code === 'auth/user-not-found') {

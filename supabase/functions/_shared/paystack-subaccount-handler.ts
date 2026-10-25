@@ -46,6 +46,19 @@ export async function handleSubaccountEvent(
       console.error('record_successful_payment failed', { reference, error: rpcError.message });
       return { ok: false, status: 500, body: { error: 'rpc_failed', detail: rpcError.message } };
     }
+    // B6: stock + server-computed promo. Idempotent. Missing until Paul runs
+    // 20261025_06 — that case must not 500 the webhook (payment already recorded).
+    const { error: inventoryError } = await admin.rpc('apply_storefront_inventory', {
+      p_reference: reference,
+    });
+    if (inventoryError) {
+      const missing = /apply_storefront_inventory|PGRST202|42883/i.test(inventoryError.message || '');
+      if (!missing) {
+        console.error('apply_storefront_inventory failed', { reference, error: inventoryError.message });
+        return { ok: false, status: 500, body: { error: 'inventory_failed' } };
+      }
+      console.warn('apply_storefront_inventory not installed yet', { reference });
+    }
     console.log('webhook_processed', { eventType, reference, result: rpcResult });
     return { ok: true, status: 200, body: { ok: true, ...(rpcResult || {}) } };
   }

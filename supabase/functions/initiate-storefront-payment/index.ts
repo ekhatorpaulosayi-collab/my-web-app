@@ -318,6 +318,15 @@ serve(async (req) => {
       customer_email,
       customer_phone,
       customer_name: customer_name || null,
+      // B6: webhook apply_storefront_inventory reads this. Promo is not
+      // included — this charge is the full subtotal, so a discount row would lie.
+      notes: JSON.stringify({
+        inventory: items.map((it: { product_id?: string; variant_id?: string; quantity: number }) => ({
+          product_id: it.product_id || null,
+          variant_id: it.variant_id || null,
+          quantity: it.quantity,
+        })),
+      }),
       total_amount_kobo: customerTotalKobo,
       paystack_reference: reference,
       order_type: 'storefront',

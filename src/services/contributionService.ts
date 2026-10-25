@@ -85,7 +85,7 @@ function pickCurrentRecipient<T extends { id: string; payout_position: number }>
 function generateShareCode(): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   let code = '';
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 10; i++) {
     code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
@@ -636,7 +636,13 @@ export async function recordPayout(
       .select()
       .single();
 
-    if (error) return { data: payout, error };
+    if (error) {
+      // 23505 = unique violation from contribution_payouts_one_per_member (DB-level guard)
+      if ((error as any).code === '23505') {
+        return { data: null, error: { message: 'This member has already collected in this group.' } };
+      }
+      return { data: payout, error };
+    }
 
     // Recording a payout IS the advance (Stage 2): keep current_cycle consistent as a
     // derived counter (= number of payouts made so far) and mark the group completed
@@ -791,67 +797,29 @@ export async function disableSharing(groupId: string) {
 
 export async function getGroupByShareCode(shareCode: string) {
   try {
-    // Get group details
-    const { data: group, error: groupError } = await supabase
-      .from('contribution_groups')
-      .select('*')
-      .eq('share_code', shareCode)
-      .eq('share_enabled', true)
-      .single();
+    // Public access goes through a SECURITY DEFINER RPC so anonymous visitors can
+    // only fetch ONE group by its share code (no table listing; phones masked).
+    const { data: res, error } = await supabase.rpc('get_shared_group', {
+      p_share_code: shareCode,
+    });
+    if (error) return { data: null, error };
+    if (!res || !res.group) return { data: null, error: 'Group not found' };
 
-    if (groupError || !group) return { data: null, error: groupError || 'Group not found' };
+    const group = res.group;
+    const members = res.members || [];
+    const payments = res.payments || [];
+    const payouts = res.payouts || [];
 
-    // Get all members
-    const { data: members, error: membersError } = await supabase
-      .from('contribution_members')
-      .select('*')
-      .eq('group_id', group.id)
-      .order('payout_position', { ascending: true });
-
-    if (membersError) return { data: null, error: membersError };
-
-    // Get all payments
-    const { data: payments, error: paymentsError } = await supabase
-      .from('contribution_payments')
-      .select(`
-        *,
-        contribution_members!inner(name)
-      `)
-      .eq('group_id', group.id)
-      .order('cycle_number', { ascending: false })
-      .order('paid_at', { ascending: false });
-
-    if (paymentsError) return { data: null, error: paymentsError };
-
-    // Get all payouts
-    const { data: payouts, error: payoutsError } = await supabase
-      .from('contribution_payouts')
-      .select(`
-        *,
-        contribution_members!inner(name)
-      `)
-      .eq('group_id', group.id)
-      .order('cycle_number', { ascending: false });
-
-    if (payoutsError) return { data: null, error: payoutsError };
-
-    // Annotate members with current cycle payment status
-    const currentPayments = payments?.filter(p => p.cycle_number === group.current_cycle) || [];
-    const paidMemberIds = new Set(currentPayments.map(p => p.member_id));
-
-    const annotatedMembers = members?.map(member => ({
+    const currentPayments = payments.filter((p: any) => p.cycle_number === group.current_cycle);
+    const paidMemberIds = new Set(currentPayments.map((p: any) => p.member_id));
+    const annotatedMembers = members.map((member: any) => ({
       ...member,
-      hasPaid: paidMemberIds.has(member.id)
-    })) || [];
+      hasPaid: paidMemberIds.has(member.id),
+    }));
 
     return {
-      data: {
-        ...group,
-        members: annotatedMembers,
-        payments: payments || [],
-        payouts: payouts || []
-      },
-      error: null
+      data: { ...group, members: annotatedMembers, payments, payouts },
+      error: null,
     };
   } catch (error) {
     return { data: null, error };

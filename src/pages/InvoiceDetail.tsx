@@ -28,7 +28,6 @@ import {
   deleteInvoice,
   sendInvoice,
   recordPayment,
-  generatePaystackLink,
   formatCurrency,
   generateInvoiceWhatsAppMessage,
   InvoiceStatus,

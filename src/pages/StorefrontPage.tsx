@@ -124,7 +124,7 @@ function StorefrontContent() {
             .eq('custom_domain', hostname)
             .eq('custom_domain_verified', true)
             .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
           storeData = result.data;
           storeError = result.error;
@@ -145,7 +145,7 @@ function StorefrontContent() {
             .select('*')
             .eq('subdomain', subdomainLabel)
             .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
           storeData = result.data;
           storeError = result.error;
@@ -159,7 +159,7 @@ function StorefrontContent() {
             .select('*')
             .eq('store_slug', slug)
             .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
           storeData = result.data;
           storeError = result.error;

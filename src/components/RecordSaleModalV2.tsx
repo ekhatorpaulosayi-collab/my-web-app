@@ -993,7 +993,7 @@ export default function RecordSaleModalV2({
                       className="combobox-input"
                       value={dueDate}
                       onChange={e => setDueDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={new Date().toLocaleDateString('en-CA')}
                       required
                     />
                   </div>
@@ -1120,7 +1120,7 @@ export default function RecordSaleModalV2({
                 cursor: cart.length > 0 && !isProcessing && !collectingPayment ? 'pointer' : 'not-allowed'
               }}
             >
-              {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cart.length})`}
+              {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cartTotals.itemCount} item${cartTotals.itemCount === 1 ? '' : 's'})`}
             </button>
             <button
               type="button"

@@ -4,16 +4,21 @@ import { getItems } from '../db/idb';
 import TaxPanel from '../components/TaxPanel';
 import '../styles/MoneyPage.css';
 
-export default function MoneyPage({ isOpen, onClose }) {
+export default function MoneyPage({ isOpen, onClose, items: itemsProp }) {
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Load items when page opens
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    // H7: use the products App already loaded from Supabase; IndexedDB is
+    // empty for Supabase-era accounts, so only fall back to it when no prop.
+    if (Array.isArray(itemsProp) && itemsProp.length > 0) {
+      setItems(itemsProp);
+    } else {
       loadItems();
     }
-  }, [isOpen]);
+  }, [isOpen, itemsProp]);
 
   const loadItems = async () => {
     try {

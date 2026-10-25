@@ -96,7 +96,7 @@ export async function signUp(email, password, storeName = null, storeType = null
           // for new signups. Numeric-only slugs stay NULL — they cannot
           // safely act as a subdomain label.
           subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
-          whatsapp_number: user.phone || user.email || 'pending', // Required field
+          whatsapp_number: user.phone || 'pending', // Required field (never an email — M2)
           is_public: false, // Default to private
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -445,11 +445,20 @@ function formatAuthError(error) {
     'Password should be at least 6 characters': 'Password must be at least 6 characters long.',
     'User not found': 'No account found with this email.',
     'Network request failed': 'Network error. Please check your connection.',
+    // M5 / H9: messages Supabase actually returns that used to reach users raw
+    'Failed to fetch': 'Network error. Please check your connection and try again.',
+    'rate limit': 'Too many attempts. Please wait a few minutes and try again.',
+    'For security purposes, you can only request this after': 'Please wait a minute before trying again.',
+    'Password should contain': 'Password is too weak. Use at least 8 characters with letters and numbers.',
+    'Password should be at least': 'Password must be at least 8 characters long.',
+    'weak_password': 'Password is too weak. Use at least 8 characters with letters and numbers.',
+    'Signups not allowed': 'Sign-ups are temporarily closed. Please contact support@storehouse.ng.',
+    'Database error saving new user': 'We could not create your account right now. Please try again in a minute.',
   };
 
   // Check if error message contains any of our known errors
   const message = Object.keys(errorMessages).find(key =>
-    error.message?.includes(key)
+    error.message?.toLowerCase().includes(key.toLowerCase()) || error.code === key
   );
 
   const friendlyMessage = message ? errorMessages[message] : (error.message || 'An error occurred. Please try again.');

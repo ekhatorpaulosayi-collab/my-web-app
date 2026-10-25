@@ -313,6 +313,7 @@ export function Cart({ store }: CartProps) {
                 paymentMethod: 'paystack',
                 paymentReference: response.reference,
                 promoCode: appliedPromo?.code,
+                promoCodeId: appliedPromo?.id,
               });
 
               if (orderResult.success) {
@@ -327,29 +328,8 @@ export function Cart({ store }: CartProps) {
             }
           }
 
-          // Track promo code usage if applied
-          if (appliedPromo) {
-            try {
-              // Record usage in promo_code_usage table
-              await supabase.from('promo_code_usage').insert([{
-                promo_code_id: appliedPromo.id,
-                order_total: totalPrice,
-                discount_amount: discount,
-                final_total: finalTotal,
-                customer_name: customerName,
-                customer_phone: customerPhone,
-              }]);
-
-              // Increment used_count in promo_codes table
-              await supabase
-                .from('promo_codes')
-                .update({ used_count: appliedPromo.used_count + 1 })
-                .eq('id', appliedPromo.id);
-            } catch (error) {
-              console.error('Error tracking promo usage:', error);
-              // Don't fail the checkout if tracking fails
-            }
-          }
+          // Promo usage is recorded by complete-storefront-order after Paystack
+          // verifies the reference (B6). The browser insert was open to anyone.
 
           // Send order confirmation via WhatsApp if number is available
           if (store.whatsappNumber) {
@@ -506,6 +486,7 @@ export function Cart({ store }: CartProps) {
     // product UUID is the cart item id (see StorefrontPage addItem).
     const f3Items = items.map((it) => ({
       product_id: it.id,
+      variant_id: it.variantId || null,
       product_name: it.variantName ? `${it.name} (${it.variantName})` : it.name,
       quantity: it.quantity,
       unit_price_kobo: it.price,

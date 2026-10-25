@@ -449,72 +449,9 @@ export async function getInvoicePayments(
   }
 }
 
-/**
- * Generate Paystack payment link for an invoice
- */
-export async function generatePaystackLink(
-  invoiceId: string,
-  userId: string,
-  paystackSecretKey: string
-): Promise<{ success: boolean; paymentLink?: string; error?: string }> {
-  try {
-    // Get invoice
-    const { data: invoice, error: invoiceError } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('id', invoiceId)
-      .eq('user_id', userId)
-      .single();
-
-    if (invoiceError) throw invoiceError;
-
-    // Generate unique reference
-    const reference = `INV-${invoice.invoice_number}-${Date.now()}`;
-
-    // Call Paystack API to create payment link
-    const response = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: invoice.customer_email,
-        amount: invoice.balance_due_kobo / 100, // Convert kobo to naira for Paystack
-        reference: reference,
-        metadata: {
-          invoice_id: invoiceId,
-          invoice_number: invoice.invoice_number,
-          customer_name: invoice.customer_name,
-        },
-        callback_url: `${window.location.origin}/invoices/${invoiceId}/payment-success`,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!data.status) {
-      throw new Error(data.message || 'Failed to create payment link');
-    }
-
-    // Update invoice with payment link
-    await supabase
-      .from('invoices')
-      .update({
-        payment_link: data.data.authorization_url,
-        paystack_reference: reference,
-      })
-      .eq('id', invoiceId);
-
-    return {
-      success: true,
-      paymentLink: data.data.authorization_url,
-    };
-  } catch (error: any) {
-    console.error('[generatePaystackLink] Error:', error);
-    return { success: false, error: error.message };
-  }
-}
+// L8: removed generatePaystackLink(): it called Paystack from the browser with a
+// SECRET key argument (secret keys must never reach the client) and had no callers.
+// Invoice payment links should be created by a server-side edge function.
 
 // ============================================
 // STATUS MANAGEMENT

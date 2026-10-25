@@ -267,22 +267,16 @@ export async function recordAffiliateSignup(
   const affiliate = await getAffiliateByCode(affiliateCode);
   if (!affiliate) return;
 
-  // Increment signup count
-  await supabase.rpc('increment_affiliate_signup', {
-    p_affiliate_id: affiliate.id,
+  // B1/B8: the click update and signup counter run in affiliate-ledger.
+  // There is no browser fallback — section 3 of migration 04 revokes the RPC
+  // and there is no UPDATE policy on affiliate_clicks.
+  const { error } = await supabase.functions.invoke('affiliate-ledger', {
+    body: { action: 'mark_signup', affiliate_code: affiliateCode },
   });
-
-  // Mark click as converted
-  await supabase
-    .from('affiliate_clicks')
-    .update({
-      converted: true,
-      customer_id: customerId,
-    })
-    .eq('affiliate_code', affiliateCode)
-    .eq('converted', false)
-    .order('clicked_at', { ascending: false })
-    .limit(1);
+  if (error) {
+    console.error('[AffiliateService] Signup attribution failed:', error);
+    throw new Error('Could not record the referral signup');
+  }
 
   console.log('[AffiliateService] ✅ Signup recorded:', affiliateCode);
 }
@@ -303,85 +297,37 @@ export async function recordAffiliateSale(
   },
   affiliateCode: string
 ): Promise<void> {
-  const affiliate = await getAffiliateByCode(affiliateCode);
-  if (!affiliate) {
-    console.warn('[AffiliateService] Invalid affiliate code:', affiliateCode);
-    return;
-  }
-
-  // Calculate 30% commission
-  const commissionKobo = Math.floor(subscriptionData.amountKobo * 0.30);
-
-  // Create sale record
-  const { data: sale, error } = await supabase
-    .from('affiliate_sales')
-    .insert({
-      affiliate_id: affiliate.id,
-      customer_id: customerId,
-      customer_email: customerData.email,
-      customer_name: customerData.name,
-      subscription_id: subscriptionData.id,
+  // Commission is computed on the server from the verified Paystack amount.
+  const { error } = await supabase.functions.invoke('affiliate-ledger', {
+    body: {
+      action: 'record_sale',
+      reference: subscriptionData.id,
+      affiliate_code: affiliateCode,
       plan_name: subscriptionData.planName,
-      sale_amount_kobo: subscriptionData.amountKobo,
-      commission_amount_kobo: commissionKobo,
-      status: 'pending', // Will be confirmed after 7 days
-    })
-    .select()
-    .single();
+      customer_name: customerData.name,
+    },
+  });
 
   if (error) {
     console.error('[AffiliateService] Error recording sale:', error);
-    return;
+    throw new Error('Could not record the affiliate sale');
   }
 
-  // Update affiliate stats
-  await supabase.rpc('increment_affiliate_conversion', {
-    p_affiliate_id: affiliate.id,
-    p_commission_kobo: commissionKobo,
-  });
-
-  console.log('[AffiliateService] ✅ Sale recorded:', {
-    affiliate: affiliateCode,
-    commission: `₦${commissionKobo / 100}`,
-  });
-
-  // Check if payouts just got unlocked (2 conversions reached)
-  const updatedAffiliate = await getAffiliateByCode(affiliateCode);
-  if (updatedAffiliate && updatedAffiliate.payoutsUnlocked && affiliate.totalConversions === 1) {
-    console.log('[AffiliateService] 🎉 Payouts unlocked for:', affiliateCode);
-    // TODO: Send email notification
-  }
+  console.log('[AffiliateService] ✅ Sale recorded via affiliate-ledger:', affiliateCode);
 }
 
 /**
  * Handle refund (cancel commission if within 7 days)
  */
 export async function handleAffiliateRefund(subscriptionId: string): Promise<void> {
-  // Find sale
-  const { data: sale } = await supabase
-    .from('affiliate_sales')
-    .select('*')
-    .eq('subscription_id', subscriptionId)
-    .maybeSingle();
-
-  if (!sale) return;
-
-  // Only cancel if still pending (not confirmed yet)
-  if (sale.status === 'pending') {
-    // Mark as refunded
-    await supabase
-      .from('affiliate_sales')
-      .update({ status: 'refunded' })
-      .eq('id', sale.id);
-
-    // Deduct from affiliate earnings
-    await supabase.rpc('deduct_affiliate_earnings', {
-      p_affiliate_id: sale.affiliate_id,
-      p_amount_kobo: sale.commission_amount_kobo,
-    });
-
-    console.log('[AffiliateService] ⚠️ Sale refunded, commission cancelled');
+  const { error } = await supabase.functions.invoke('affiliate-ledger', {
+    body: { action: 'refund', reference: subscriptionId },
+  });
+  if (error) {
+    console.error('[AffiliateService] Refund failed:', error);
+    throw new Error('Could not cancel the affiliate commission');
   }
+  console.log('[AffiliateService] ⚠️ Refund sent to affiliate-ledger');
 }
 
 // ============================================

@@ -122,9 +122,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
               // Create WhatsApp share message
               const message = `🏪 *${storeName}*\n\n` +
                 `🛍️ Browse all my products!\n\n` +
-                `✨ Easy ordering via WhatsApp\n` +
-                `💳 Pay with card or bank transfer\n` +
-                `📦 Fast delivery across Nigeria\n\n` +
+                `✨ Easy ordering via WhatsApp\n\n` +
                 `👉 Visit store: ${storeUrl}\n\n` +
                 `🔥 Start shopping now!`;
 
@@ -267,18 +265,20 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           icon: LogOut,
           label: 'Exit Staff Mode',
           description: `Logged in as ${currentStaff?.name}`,
-          action: () => {
-            exitStaffMode();
-            alert('Exited staff mode');
+          action: async () => {
+            const pw = window.prompt('Owner password required to exit staff mode');
+            if (pw === null) return;
+            const res = await exitStaffMode(pw);
+            alert(res.ok ? 'Exited staff mode' : res.error);
           }
         }] : []),
         {
           icon: HelpCircle,
           label: 'Getting Started Guide',
-          description: 'Show setup checklist',
-          action: () => {
-            window.dispatchEvent(new Event('show-getting-started'));
-          }
+          description: 'Set up your online store step by step',
+          // M3: the 'show-getting-started' event had no listener (checklist is
+          // commented out in Dashboard.tsx), so the button did nothing.
+          action: () => navigate('/online-store')
         }
       ]
     }

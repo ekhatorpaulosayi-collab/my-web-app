@@ -92,7 +92,8 @@ export const ChannelAnalytics: React.FC<ChannelAnalyticsProps> = ({ onClose }) =
 
       filteredSales.forEach(sale => {
         const channel = sale.salesChannel || 'in-store';
-        const revenue = Math.round(sale.sellKobo / 100);
+        // H6: sellKobo is the UNIT price; revenue = unit price x quantity
+        const revenue = Math.round(((sale.sellKobo || 0) * (sale.qty || 1)) / 100);
 
         if (!channelGroups[channel]) {
           channelGroups[channel] = { count: 0, revenue: 0 };

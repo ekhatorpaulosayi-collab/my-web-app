@@ -649,8 +649,11 @@ export function Dashboard({
             </div>
           </div>
           <button
-            onClick={() => {
-              exitStaffMode();
+            onClick={async () => {
+              const pw = window.prompt('Owner password required to exit staff mode');
+              if (pw === null) return;
+              const res = await exitStaffMode(pw);
+              if (!res.ok) { alert(res.error); return; }
               window.location.reload();
             }}
             style={{
@@ -1358,7 +1361,13 @@ export function Dashboard({
           onViewSettings={onViewSettings}
           onShowOnlineStore={() => {
             setShowMoreMenu(false);
-            setShowShareBanner(true);
+            // C3: a private/unfinished store can't be shared yet — send the owner
+            // to the setup flow (where "Make store public" lives) instead.
+            if ((store as any)?.is_public) {
+              setShowShareBanner(true);
+            } else {
+              navigate('/online-store');
+            }
           }}
           onSendDailySummary={onSendDailySummary}
           onExportData={onExportData}
