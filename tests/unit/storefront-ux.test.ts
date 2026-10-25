@@ -19,6 +19,7 @@ import { emptyNumberAsNull, parseAmountField } from '../../src/utils/emptyNumber
 import { normalizeNgWhatsApp, isValidStoreWhatsApp } from '../../src/utils/ngPhone.js';
 import { normalizeSocialUrl } from '../../src/utils/socialLinks.js';
 import { CRAWLER_UA, CRAWLER_UA_PATTERN } from '../../src/utils/crawlerUa.js';
+import { twilioPublicUrl } from '../../supabase/functions/_shared/twilioPublicUrl.ts';
 import { formatWhatsAppNumber } from '../../src/utils/phone.ts';
 import { existsSync } from 'node:fs';
 
@@ -355,6 +356,11 @@ test('preview links, phones, and social handles stay usable', () => {
   assert.match(webhook, /X-Twilio-Signature/);
   assert.match(webhook, /twilio_auth_token/);
   assert.match(webhook, /per server instance/);
+  assert.match(webhook, /WHATSAPP_WEBHOOK_PUBLIC_URL/);
+  assert.match(webhook, /x-forwarded-host/);
+  assert.match(webhook, /provider_message_id/);
+  assert.match(webhook, /whatsapp_seen_messages/);
+  assert.equal(webhook.includes('twilioSignatureMatches(req.url'), false);
   assert.equal(webhook.includes('x-hub-signature-256'), false);
   assert.equal(webhook.includes('WHATSAPP_APP_SECRET'), false);
   assert.match(webhook, /allowSender/);
@@ -380,4 +386,31 @@ test('preview links, phones, and social handles stay usable', () => {
   const cron = readFileSync(new URL('../../supabase/migrations/20261025_24_whatsapp_cron_pg_net.sql', import.meta.url), 'utf8');
   assert.match(cron, /CREATE EXTENSION IF NOT EXISTS pg_net/);
   assert.match(cron, /hourly-whatsapp-reports/);
+  const seen = readFileSync(new URL('../../supabase/migrations/20261025_25_whatsapp_seen_messages.sql', import.meta.url), 'utf8');
+  assert.match(seen, /whatsapp_seen_messages/);
+  assert.match(seen, /timestamptz/);
+  assert.equal(twilioPublicUrl({
+    configured: 'https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/whatsapp-webhook',
+    forwardedHost: 'internal',
+    forwardedProto: 'http',
+    forwardedUri: '',
+    path: '/whatsapp-webhook',
+    search: '?foo=1',
+  }), 'https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/whatsapp-webhook?foo=1');
+  assert.equal(twilioPublicUrl({
+    configured: '',
+    forwardedHost: 'abc.supabase.co, proxy',
+    forwardedProto: 'https, http',
+    forwardedUri: '/functions/v1/whatsapp-webhook',
+    path: '/whatsapp-webhook',
+    search: '',
+  }), 'https://abc.supabase.co/functions/v1/whatsapp-webhook');
+  assert.equal(twilioPublicUrl({
+    configured: '',
+    forwardedHost: '',
+    forwardedProto: '',
+    forwardedUri: '',
+    path: '/whatsapp-webhook',
+    search: '',
+  }), null);
 });

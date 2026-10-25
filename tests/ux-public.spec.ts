@@ -126,6 +126,32 @@ test('phone share menu shows full labels and the store preview card', async ({ p
   await page.screenshot({ path: `${artifactDir}/retest17-phone-preview-card.png` });
 });
 
+test('phone added-to-cart toast stays off the name field', async ({ page }) => {
+  const width = page.viewportSize()?.width ?? 0;
+  test.skip(width > 500, 'phone layout');
+  await page.route('**/product_variants*', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: '[]',
+  }));
+  await page.goto('/store/preview', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Add to Cart' }).first().click();
+  const toast = page.locator('.add-to-cart-toast.show');
+  await expect(toast).toBeVisible();
+  await expect(toast).toHaveText(/Added to cart/);
+  await page.getByRole('button', { name: 'Proceed to Checkout' }).click();
+  const name = page.getByPlaceholder('Your name *');
+  await name.scrollIntoViewIfNeeded();
+  await expect(name).toBeVisible();
+  const toastBox = await toast.boundingBox();
+  const nameBox = await name.boundingBox();
+  expect(toastBox && nameBox).toBeTruthy();
+  const overlaps = toastBox.y < nameBox.y + nameBox.height && toastBox.y + toastBox.height > nameBox.y
+    && toastBox.x < nameBox.x + nameBox.width && toastBox.x + toastBox.width > nameBox.x;
+  expect(overlaps).toBe(false);
+  expect(toastBox.y).toBeLessThan(80);
+});
+
 test('phone tab bar stays clear of help and uses 48px targets', async ({ page }) => {
   const width = page.viewportSize()?.width ?? 0;
   test.skip(width > 500, 'phone layout');

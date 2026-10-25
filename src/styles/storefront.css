@@ -987,3 +987,20 @@
     max-width: calc(100% - 32px);
   }
 }
+
+/* A phone cart keeps the name field in the lower half. The toast sits at the top. */
+@media (max-width: 480px) {
+  .add-to-cart-toast {
+    top: 12px;
+    bottom: auto;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.2;
+    max-width: calc(100% - 24px);
+    transform: translateX(-50%) translateY(-24px);
+  }
+
+  .add-to-cart-toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+}
