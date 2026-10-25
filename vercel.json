@@ -12,6 +12,17 @@
       "destination": "/api/og-meta?slug=:slug"
     },
     {
+      "source": "/store/:slug/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|googlebot|bingbot|Discordbot).*"
+        }
+      ],
+      "destination": "/api/og-meta?slug=:slug"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

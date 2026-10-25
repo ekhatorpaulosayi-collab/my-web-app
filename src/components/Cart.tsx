@@ -15,6 +15,7 @@ import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
 import { formatWhatsAppNumber } from '../utils/phone';
+import { buildStorefrontUrl } from '../utils/storefrontUrl';
 import '../styles/cart.css';
 
 // Build-time gate for the platform-split (subaccount) card flow. When
@@ -75,6 +76,8 @@ export function Cart({ store }: CartProps) {
   // Order confirmation state
   const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
   const [orderConfirmationData, setOrderConfirmationData] = useState<any>(null);
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; variantId?: string; name: string } | null>(null);
+  const [orderNotice, setOrderNotice] = useState<string | null>(null);
 
   // Check if Paystack is enabled
   const paystackEnabled = store.paystackEnabled && store.paystackPublicKey;
@@ -693,7 +696,7 @@ export function Cart({ store }: CartProps) {
           customer: {
             name: customerName,
             phone: customerPhone,
-            email: undefined,
+            email: customerEmail || undefined,
             address: customerAddress || undefined,
           },
           subtotal: totalPrice,
@@ -737,15 +740,20 @@ export function Cart({ store }: CartProps) {
         (selectedPaymentDetails.instructions ? `\n\n📝 ${selectedPaymentDetails.instructions}` : '');
     }
 
+    const storeLink = buildStorefrontUrl({ subdomain: store.subdomain, storeSlug: store.storeSlug });
     const message = `🛒 *New Order - ${store.businessName}*\n\n` +
       `👤 Customer: ${customerName}\n` +
       `📱 Phone: ${customerPhone}` +
+      (customerEmail ? `\n✉️ Email: ${customerEmail}` : '') +
       (customerAddress ? `\n📍 Address: ${customerAddress}` : '') +
       `\n\n📦 *Order Details:*${orderItems}\n\n` +
       `💰 *Subtotal: ${currencyNGN(totalPrice)}*\n` +
       (appliedPromo ? `🎁 *Discount (${appliedPromo.code}): -${currencyNGN(discount)}*\n` : '') +
+      (store.deliveryFee ? `🚚 *Delivery: ${store.deliveryFee}*\n` : '') +
+      (store.deliveryTime ? `⏱ *Estimate: ${store.deliveryTime}*\n` : '') +
       `💵 *Total: ${currencyNGN(finalTotal)}*` +
-      paymentInfo;
+      paymentInfo +
+      `\n\n🔗 ${storeLink}`;
 
     // Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -763,7 +771,7 @@ export function Cart({ store }: CartProps) {
     closeCart();
 
     // Show simple confirmation message
-    alert('✅ Order sent!\n\nYour order has been sent to ' + store.businessName + '.\nThey will contact you to confirm payment and delivery.');
+    setOrderNotice(`Your order was sent to ${store.businessName}. They will contact you to confirm payment and delivery.`);
   };
 
   const handleCheckout = () => {
@@ -942,6 +950,7 @@ export function Cart({ store }: CartProps) {
                         className="cart-qty-btn"
                         disabled={item.quantity >= item.maxQty}
                         aria-label="Increase quantity"
+                        title={item.quantity >= item.maxQty ? 'That is all we have in stock' : 'Increase quantity'}
                         style={{
                           fontSize: '28px',
                           fontWeight: 'bold',
@@ -951,13 +960,14 @@ export function Cart({ store }: CartProps) {
                         +
                       </button>
                     </div>
+                    {item.quantity >= item.maxQty && (
+                      <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#334155' }}>
+                        That is all we have in stock.
+                      </p>
+                    )}
 
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Remove ${item.name} from cart?`)) {
-                          removeItem(item.id, item.variantId);
-                        }
-                      }}
+                      onClick={() => setPendingRemove({ id: item.id, variantId: item.variantId, name: item.name })}
                       className="cart-remove-btn"
                       aria-label="Remove item from cart"
                     >
@@ -1092,7 +1102,31 @@ export function Cart({ store }: CartProps) {
               {/* Checkout Form */}
               {isCheckingOut ? (
                 <div className="cart-checkout-form">
-                  <h3>Checkout Details</h3>
+                  <h3>Checkout</h3>
+                  <div data-testid="order-summary" style={{
+                    marginBottom: '16px',
+                    padding: '12px 14px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    color: '#1e293b'
+                  }}>
+                    {items.map((item) => (
+                      <div key={`${item.id}-${item.variantId || ''}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px' }}>
+                        <span>{item.name}{item.variantName ? ` (${item.variantName})` : ''} × {item.quantity}</span>
+                        <span>{currencyNGN(item.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+                      <span>Delivery fee</span>
+                      <span>{store.deliveryFee || 'The store will confirm'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                      <span>Delivery estimate</span>
+                      <span>{store.deliveryTime || 'The store will confirm'}</span>
+                    </div>
+                  </div>
 
                   {/* Payment Method Selection - Multi-Payment Support */}
                   <div style={{ marginBottom: '1.5rem' }}>
@@ -1396,16 +1430,15 @@ export function Cart({ store }: CartProps) {
                     className="cart-input"
                     required
                   />
-                  {(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') && (
-                    <input
-                      type="email"
-                      placeholder="Email for receipt *"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="cart-input"
-                      required
-                    />
-                  )}
+                  <input
+                    type="email"
+                    placeholder={(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') ? 'Email for receipt *' : 'Email (optional)'}
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="cart-input"
+                    required={paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount'}
+                    aria-required={paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount'}
+                  />
                   <textarea
                     placeholder="Delivery address (optional)"
                     value={customerAddress}
@@ -1594,6 +1627,41 @@ export function Cart({ store }: CartProps) {
           </>
         )}
       </div>}
+
+      {pendingRemove && (
+        <div role="dialog" aria-modal="true" aria-label="Remove item" style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px'
+        }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', maxWidth: '360px', width: '100%' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '18px', color: '#111827' }}>Remove {pendingRemove.name}?</h2>
+            <p style={{ margin: '0 0 16px', color: '#334155' }}>This takes it out of your cart.</p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" onClick={() => setPendingRemove(null)} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600 }}>
+                Keep it
+              </button>
+              <button type="button" onClick={() => { removeItem(pendingRemove.id, pendingRemove.variantId); setPendingRemove(null); }} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: 'none', background: '#b91c1c', color: '#fff', fontWeight: 700 }}>
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {orderNotice && (
+        <div role="dialog" aria-modal="true" aria-label="Order sent" style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px'
+        }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', maxWidth: '380px', width: '100%' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '18px', color: '#111827' }}>Order sent</h2>
+            <p style={{ margin: '0 0 16px', color: '#334155' }}>{orderNotice}</p>
+            <button type="button" onClick={() => setOrderNotice(null)} style={{ width: '100%', minHeight: 44, borderRadius: 8, border: 'none', background: '#166534', color: '#fff', fontWeight: 700 }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Order Confirmation Modal */}
       {showOrderConfirmation && orderConfirmationData && (

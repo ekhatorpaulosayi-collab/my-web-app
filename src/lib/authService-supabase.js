@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 import { logError } from '../utils/errorMonitoring';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { friendlyAuthError } from './authErrors';
+import { shortSlugFromName } from '../utils/storeSlug';
 
 /**
  * Sign up a new user with email and password
@@ -88,7 +89,7 @@ export async function signUp(email, password, storeName = null, storeType = null
         }
 
         // Step 2: Create store profile in stores table
-        const generatedSlug = generateSlug(defaultStoreName, user.id);
+        const generatedSlug = await generateUniqueSlug(defaultStoreName);
         const storeProfile = {
           user_id: user.id,
           business_name: defaultStoreName,
@@ -98,7 +99,7 @@ export async function signUp(email, password, storeName = null, storeType = null
           // safely act as a subdomain label.
           subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
           whatsapp_number: user.phone || 'pending', // Required field (never an email — M2)
-          is_public: false, // Default to private
+          is_public: true, // Live so the link works. Hidden is a setting.
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -420,18 +421,21 @@ function mapSupabaseUserToFirebase(supabaseUser) {
 }
 
 /**
- * Generate a unique store slug from business name and user ID
+ * Short unique store slug from the business name. Checked against stores.
  */
-function generateSlug(businessName, userId) {
-  const baseSlug = businessName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
-    .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
-    .substring(0, 40); // Limit length
-
-  // Add shortened user ID for uniqueness
-  const userIdShort = userId.substring(0, 8);
-  return `${baseSlug}-${userIdShort}`;
+async function generateUniqueSlug(businessName) {
+  const base = shortSlugFromName(businessName);
+  for (let i = 0; i < 20; i += 1) {
+    const candidate = i === 0 ? base : `${base.slice(0, 16).replace(/-+$/g, '')}-${i + 1}`;
+    const { data, error } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('store_slug', candidate)
+      .maybeSingle();
+    if (error) break;
+    if (!data) return candidate;
+  }
+  return `${base.slice(0, 15).replace(/-+$/g, '')}-${Date.now().toString(36).slice(-4)}`;
 }
 
 /**

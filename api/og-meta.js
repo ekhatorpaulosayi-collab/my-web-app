@@ -14,6 +14,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { buildOgDocument, FALLBACK_IMAGE } from './ogHtml.js';
 
 // Initialize Supabase client (serverless environment)
 // Note: Vercel automatically exposes VITE_* vars to serverless functions
@@ -38,7 +39,7 @@ if (!supabase) {
  */
 function getImageKitSocialUrl(imagePath) {
   if (!imagePath || !IMAGEKIT_ENDPOINT) {
-    return 'https://www.storehouse.ng/og-image.png'; // Fallback
+    return FALLBACK_IMAGE;
   }
 
   // Clean path (remove leading slash if present)
@@ -94,7 +95,11 @@ export default async function handler(req, res) {
       return res.status(404).send('Store not found');
     }
 
-    let metaTitle, metaDescription, metaImage, metaUrl, productData;
+    let metaTitle;
+    let metaDescription;
+    let metaImage;
+    let metaUrl = `https://www.storehouse.ng/store/${encodeURIComponent(slug)}`;
+    let productData;
 
     // If product ID provided, fetch product data
     if (productId) {
@@ -108,95 +113,46 @@ export default async function handler(req, res) {
 
       if (!productError && product) {
         productData = product;
-
-        // Product-specific meta tags
         metaTitle = `${product.name} - ${formatNGN(product.selling_price)} | ${store.business_name}`;
         metaDescription = (product.description || `${product.name} available at ${store.business_name}`)
           .slice(0, 155);
         metaImage = product.image_url
           ? getImageKitSocialUrl(product.image_url)
-          : (store.logo_url ? getImageKitSocialUrl(store.logo_url) : 'https://www.storehouse.ng/og-image.png');
-        metaUrl = `https://www.storehouse.ng/store/${slug}?product=${productId}`;
+          : (store.logo_url ? getImageKitSocialUrl(store.logo_url) : FALLBACK_IMAGE);
+        metaUrl = `https://www.storehouse.ng/store/${encodeURIComponent(slug)}?product=${encodeURIComponent(productId)}`;
       }
     }
 
-    // Fallback to store-level meta tags if no product
     if (!metaTitle) {
       metaTitle = `${store.business_name} | Online Store`;
       metaDescription = (store.about_us || `Shop quality products at ${store.business_name}`)
         .slice(0, 155);
-      metaImage = store.logo_url
-        ? getImageKitSocialUrl(store.logo_url)
-        : 'https://www.storehouse.ng/og-image.png';
-      metaUrl = `https://www.storehouse.ng/store/${slug}`;
+      if (store.logo_url) {
+        metaImage = getImageKitSocialUrl(store.logo_url);
+      } else {
+        const { data: firstProduct } = await supabase
+          .from('products')
+          .select('image_url')
+          .eq('user_id', store.user_id)
+          .eq('is_public', true)
+          .not('image_url', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        metaImage = firstProduct?.image_url
+          ? getImageKitSocialUrl(firstProduct.image_url)
+          : FALLBACK_IMAGE;
+      }
     }
 
-    // Generate HTML with meta tags for social crawlers
-    const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Primary Meta Tags -->
-  <title>${metaTitle}</title>
-  <meta name="title" content="${metaTitle}" />
-  <meta name="description" content="${metaDescription}" />
-
-  <!-- Open Graph / Facebook / WhatsApp -->
-  <meta property="og:type" content="${productData ? 'product' : 'website'}" />
-  <meta property="og:url" content="${metaUrl}" />
-  <meta property="og:title" content="${metaTitle}" />
-  <meta property="og:description" content="${metaDescription}" />
-  <meta property="og:image" content="${metaImage}" />
-  <meta property="og:image:secure_url" content="${metaImage}" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="${productData ? productData.name : store.business_name}" />
-  <meta property="og:site_name" content="${store.business_name}" />
-  <meta property="og:locale" content="en_NG" />
-
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:url" content="${metaUrl}" />
-  <meta name="twitter:title" content="${metaTitle}" />
-  <meta name="twitter:description" content="${metaDescription}" />
-  <meta name="twitter:image" content="${metaImage}" />
-  <meta name="twitter:image:alt" content="${productData ? productData.name : store.business_name}" />
-
-  ${productData ? `
-  <!-- Product-specific meta tags -->
-  <meta property="product:price:amount" content="${(productData.selling_price / 100).toFixed(2)}" />
-  <meta property="product:price:currency" content="NGN" />
-  <meta property="product:availability" content="${productData.quantity > 0 ? 'in stock' : 'out of stock'}" />
-  <meta property="product:condition" content="new" />
-  ` : ''}
-
-  <!-- Redirect to React app for regular users -->
-  <meta http-equiv="refresh" content="0; url=${req.url}" />
-  <script>
-    // Immediate redirect for browsers (meta refresh as fallback)
-    window.location.href = '${req.url}';
-  </script>
-</head>
-<body>
-  <div style="
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-  ">
-    <div style="text-align: center;">
-      <h2 style="font-size: 24px; margin-bottom: 16px;">Loading ${store.business_name}...</h2>
-      <p style="font-size: 14px; opacity: 0.9;">If you're not redirected, <a href="${req.url}" style="color: white; text-decoration: underline;">click here</a>.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+    const html = buildOgDocument({
+      title: metaTitle,
+      description: metaDescription,
+      image: metaImage,
+      url: metaUrl,
+      siteName: store.business_name,
+      priceNaira: productData ? productData.selling_price / 100 : null,
+      inStock: productData ? productData.quantity > 0 : undefined,
+    });
 
     // Return HTML with proper headers
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -207,19 +163,12 @@ export default async function handler(req, res) {
     console.error('Error in og-meta function:', error);
 
     // Return minimal fallback HTML
-    res.status(500).send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <meta property="og:title" content="Storehouse - Online Store" />
-  <meta property="og:description" content="Shop quality products" />
-  <meta property="og:image" content="https://www.storehouse.ng/og-image.png" />
-  <meta http-equiv="refresh" content="0; url=${req.url}" />
-</head>
-<body>
-  <p>Loading... <a href="${req.url}">Click here if not redirected</a></p>
-</body>
-</html>`);
+    res.status(500).send(buildOgDocument({
+      title: 'Storehouse',
+      description: 'Shop quality products',
+      image: FALLBACK_IMAGE,
+      url: 'https://www.storehouse.ng',
+      siteName: 'Storehouse',
+    }));
   }
 }

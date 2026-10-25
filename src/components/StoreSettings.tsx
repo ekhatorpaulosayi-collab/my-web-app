@@ -13,6 +13,8 @@ import { showFriendlyError } from '../utils/friendlyErrors';
 import { validateTikTokUrl, normalizeTikTokUrl } from '../utils/socialShare';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
+import { validateStoreSlug } from '../utils/storeSlug';
+import { storeHealthFlags } from '../utils/storeHealth';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -62,6 +64,7 @@ export const StoreSettings: React.FC = () => {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [storeSlug, setStoreSlug] = useState('');
+  const [storeLive, setStoreLive] = useState(true);
   const [businessName, setBusinessName] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [address, setAddress] = useState('');
@@ -121,18 +124,7 @@ export const StoreSettings: React.FC = () => {
 
   // Slug validation
   const validateSlug = (slug: string, existingSlug?: string): string | null => {
-    if (!slug || slug.length < 3) return 'Store URL must be at least 3 characters';
-    if (slug.length > 30) return 'Store URL must be less than 30 characters';
-    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug)) {
-      return 'Store URL must start and end with letter or number';
-    }
-    // Numeric-only labels collide with future subdomain routing.
-    // Grandfather an unchanged existing all-numeric slug so the lone
-    // pre-existing merchant (slug "234") isn't locked out on save.
-    if (/^\d+$/.test(slug) && slug !== existingSlug) {
-      return 'Store URL cannot be all numbers — please include at least one letter';
-    }
-    return null;
+    return validateStoreSlug(slug, existingSlug);
   };
 
   // Load existing store profile from Supabase hook
@@ -174,6 +166,7 @@ export const StoreSettings: React.FC = () => {
 
     setStoreProfile(data as StoreProfile);
     setStoreSlug(data.storeSlug || '');
+    setStoreLive(store.is_public !== false);
     setBusinessName(data.businessName || '');
     setWhatsappNumber(data.whatsappNumber || '');
     setAddress(data.address || '');
@@ -243,7 +236,17 @@ export const StoreSettings: React.FC = () => {
         throw queryError;
       }
 
-      const available = !data || data.user_id === user?.uid;
+      let available = !data || data.user_id === user?.uid;
+      if (available && normalized !== store?.store_slug) {
+        const { data: redirect, error: redirectError } = await supabase
+          .from('store_slug_redirects')
+          .select('store_id')
+          .eq('old_slug', normalized)
+          .maybeSingle();
+        if (!redirectError && redirect && redirect.store_id !== store?.id) {
+          available = false;
+        }
+      }
       setSlugAvailable(available);
     } catch (error) {
       console.error('Error checking slug:', error);
@@ -323,6 +326,20 @@ export const StoreSettings: React.FC = () => {
         logoUrl = await uploadStoreLogo(logoFile, user.uid, storeProfile?.logoUrl);
       }
 
+      const previousSlug = store?.store_slug || '';
+      if (previousSlug && previousSlug !== normalizedSlug) {
+        const { error: redirectError } = await supabase.rpc('remember_store_slug', {
+          p_store_id: store.id,
+          p_old: previousSlug,
+          p_new: normalizedSlug,
+        });
+        if (redirectError && !/remember_store_slug|schema cache|PGRST202|42883/i.test(`${redirectError.code || ''} ${redirectError.message || ''}`)) {
+          alert(`Could not keep the old store link.\n\n${redirectError.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Update store profile in Supabase
       const profileData = {
         business_name: businessName.trim(),
@@ -334,7 +351,7 @@ export const StoreSettings: React.FC = () => {
         logo_url: logoUrl || '',
         whatsapp_number: whatsappNumber.trim(),
         address: address.trim(),
-        is_public: true,
+        is_public: storeLive,
         // Payment details
         bank_name: bankName.trim(),
         account_number: accountNumber.trim(),
@@ -585,6 +602,55 @@ export const StoreSettings: React.FC = () => {
         </p>
       </div>
 
+      <div className="form-group" style={{ ...cleanCardStyle, marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 700, color: '#0F172A' }}>{storeLive ? 'Your store is Live' : 'Your store is Hidden'}</div>
+            <p style={{ margin: '6px 0 0', color: '#334155', fontSize: '0.95rem' }}>
+              {storeLive
+                ? 'Customers with the link can open your shop.'
+                : 'Customers cannot open your link until you switch this to Live.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-pressed={storeLive}
+            onClick={() => setStoreLive((value) => !value)}
+            style={{
+              minWidth: 108,
+              minHeight: 48,
+              borderRadius: 999,
+              border: '2px solid #0F172A',
+              background: storeLive ? '#166534' : '#FFFFFF',
+              color: storeLive ? '#FFFFFF' : '#0F172A',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {storeLive ? 'Live' : 'Hidden'}
+          </button>
+        </div>
+        {storeHealthFlags({
+          businessName,
+          aboutUs,
+          logoUrl: logoPreview || storeProfile?.logoUrl,
+          whatsappNumber,
+          paystackEnabled,
+          acceptedPaymentMethods: paymentMethods,
+        }).length > 0 && (
+          <ul style={{ margin: '16px 0 0', paddingLeft: '1.2rem', color: '#334155' }}>
+            {storeHealthFlags({
+              businessName,
+              aboutUs,
+              logoUrl: logoPreview || storeProfile?.logoUrl,
+              whatsappNumber,
+              paystackEnabled,
+              acceptedPaymentMethods: paymentMethods,
+            }).map((flag) => <li key={flag}>{flag}</li>)}
+          </ul>
+        )}
+      </div>
+
       {/* Store URL - Clean white card */}
       <div className="form-group" style={{
         ...cleanCardStyle,
@@ -613,6 +679,9 @@ export const StoreSettings: React.FC = () => {
         {slugError && <span className="error-text">{slugError}</span>}
         {slugAvailable === false && !slugError && (
           <span className="error-text">This URL is already taken</span>
+        )}
+        {slugAvailable === true && (
+          <span style={{ color: '#166534', fontSize: '0.875rem' }}>Available</span>
         )}
 
         {/* Share Preview */}

@@ -56,3 +56,34 @@ for (const [name, path] of routes) {
     expect(serious, summary || 'no serious axe violations').toEqual([]);
   });
 }
+
+test('preview storefront shows a product, a real price, and readable hours', async ({ page }) => {
+  const response = await page.goto('/store/preview', { waitUntil: 'domcontentloaded' });
+  expect(response, 'navigation').toBeTruthy();
+  await expect(page.getByRole('heading', { name: 'Preview Fabrics' })).toBeVisible();
+  const hours = page.getByTestId('business-hours');
+  await expect(hours).toContainText('Monday: 09:00');
+  await expect(hours).not.toContainText('{');
+  await expect(page.getByRole('link', { name: 'Privacy' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /shopping cart/i })).toBeVisible();
+
+  await page.getByRole('heading', { name: 'Ankara' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Ankara' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Six yards of cotton Ankara.')).toBeVisible();
+  await expect(dialog.getByText(/250,000/)).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Share product' }).click();
+  const sharePrice = page.getByLabel('Share Product', { exact: true }).getByText('₦2,500');
+  await expect(sharePrice).toBeVisible();
+  await expect(page.getByText(/₦250,000/)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Ankara' })).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  const serious = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+  const summary = serious.map((v) => `${v.id} (${v.nodes.length})`).join(', ');
+  expect(serious, summary || 'no serious axe violations').toEqual([]);
+});

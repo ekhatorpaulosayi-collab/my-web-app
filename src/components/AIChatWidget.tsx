@@ -2213,8 +2213,8 @@ export default function AIChatWidget({
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                     fontSize: '0.875rem',
-                    fontWeight: 600,
-                    color: '#059669',
+                    fontWeight: 700,
+                    color: '#064e3b',
                     whiteSpace: 'nowrap',
                     animation: 'bounce-tooltip 2s ease-in-out infinite',
                     pointerEvents: 'none',
@@ -2304,6 +2304,12 @@ export default function AIChatWidget({
 
         .chat-tooltip {
           animation: bounce-tooltip 2s ease-in-out infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .chat-tooltip {
+            animation: none;
+          }
         }
 
         @keyframes pulse-label {

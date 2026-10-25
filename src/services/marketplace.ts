@@ -66,7 +66,7 @@ export async function generateStoreSlug(businessName: string): Promise<string> {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
-      .substring(0, 50);
+      .substring(0, 20);
   }
 
   return data || businessName.toLowerCase().replace(/\s+/g, '-');

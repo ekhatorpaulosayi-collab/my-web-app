@@ -511,7 +511,7 @@ export default function OnlineStoreSetup() {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, color: '#0F172A' }}>{storeLive ? 'Store is live' : 'Store is hidden'}</div>
           <div style={{ fontSize: 14, color: '#475569' }}>
-            {storeLive ? 'Customers with the link can see your shop.' : 'New stores stay private until you turn this on.'}
+            {storeLive ? 'Customers with the link can see your shop.' : 'Customers cannot open your link while this is Hidden.'}
           </div>
         </div>
         <button

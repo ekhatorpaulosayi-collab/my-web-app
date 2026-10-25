@@ -452,6 +452,80 @@ Rollback. This removes the job. Do not paste the old command back in. That comma
 SELECT cron.unschedule('send-daily-whatsapp-reports');
 ```
 
+## Step 18 — signed-in customers can read public stores
+
+File: `supabase/migrations/20261025_16_stores_public_read.sql`
+
+Version `2026102516`, name `stores_public_read`.
+
+`stores_public_read` allowed only `anon`. A signed-in customer who does not own the store was left out, so a public shop looked empty after login. This recreates the same SELECT policy for `anon` and `authenticated`. It does not grant writes. The owner policy stays.
+
+A public store row still includes settlement columns. The storefront must keep selecting only the columns it shows.
+
+Smoke test:
+
+```sql
+SELECT r.rolname
+  FROM pg_policy p
+  JOIN pg_roles r ON r.oid = ANY (p.polroles)
+ WHERE p.polname = 'stores_public_read'
+ ORDER BY 1;
+```
+
+That returns `anon` and `authenticated`.
+
+Rollback. This puts the policy back to anon only.
+
+```sql
+DROP POLICY IF EXISTS stores_public_read ON public.stores;
+CREATE POLICY stores_public_read ON public.stores
+  FOR SELECT TO anon
+  USING (is_public = true);
+```
+
+## Step 19 — old slugs redirect, and new slugs stay short
+
+File: `supabase/migrations/20261025_17_store_slug_redirects.sql`
+
+Version `2026102517`, name `store_slug_redirects`.
+
+Six live slugs are longer than 30 characters. The settings screen now keeps an existing slug when you save, so those shops are not forced to rename. A new slug is 3–30 characters, is checked against the reserved-word list, and shows Available or Taken before save. Signup builds a slug of at most 20 characters and checks `stores`, not the user id.
+
+`generate_store_slug` used to look at `public.users`. It now looks at `public.stores` and `store_slug_redirects`. When a merchant changes a slug, `remember_store_slug` stores the old one. The storefront and the link-preview middleware follow that row.
+
+Smoke test:
+
+```sql
+SELECT pg_get_functiondef('public.generate_store_slug(text)'::regprocedure)
+       LIKE '%public.users%' AS still_checks_users;
+SELECT length(public.generate_store_slug('A Very Long Fabric Shop Name')) <= 20 AS short_enough;
+```
+
+`still_checks_users` is false. `short_enough` is true when that slug is free.
+
+Rollback. This drops the new function. Do not restore the old body that checked `public.users`. The app still builds a short slug if the function is gone.
+
+```sql
+DROP FUNCTION IF EXISTS public.remember_store_slug(uuid, text, text);
+DROP FUNCTION IF EXISTS public.generate_store_slug(text);
+DROP TABLE IF EXISTS public.store_slug_redirects;
+```
+
+## Wildcard shop addresses
+
+An unknown name such as `not-a-store.storehouse.ng` currently closes the connection before this app can answer. The code now has a Store not found page, with a link to sign up, for a reserved or missing shop. That page only runs after the hostname reaches Vercel.
+
+This pull request does not change the Vercel project. In the `smartstock-v2` project:
+
+1. Add the domain `*.storehouse.ng`.
+2. At the DNS host, add the CNAME `*` to the target Vercel shows for that domain.
+3. Wait until Vercel shows a certificate for `*.storehouse.ng`.
+4. Open `https://not-a-real-store.storehouse.ng`. It should show Store not found and a sign-up link.
+
+`www.storehouse.ng` and `storehouse.ng` stay the Storehouse home page.
+
+The return page asks `/api/verify-order-return` before it says a payment was received. That route needs `PAYSTACK_SECRET_KEY` on the Vercel project. Until the key is set, the page says the payment was not confirmed.
+
 ## If everything is on fire
 
 Promote the previous Vercel deployment. Redeploy the previous edge functions. Read `verify_jwt` back on `paystack-webhook-router` (it must be false). Restore the database with the Step 0 PITR point if a SQL file corrupted data. Do not run `DELETE` or `UPDATE` without a `WHERE`.

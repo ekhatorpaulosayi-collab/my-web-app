@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './utils/reservedSubdomains';
 import AuthConfirm from './pages/AuthConfirm.jsx';
@@ -64,8 +64,43 @@ const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
  *   - custom domain (not storehouse.ng, not vercel preview,
  *     not localhost)                                          → StorefrontPage (Strategy 1)
  *   - storehouse.ng, www.storehouse.ng, localhost,
- *     *.vercel.app, reserved/numeric subdomains              → LandingPage
+ *     *.vercel.app                                            → LandingPage
+ *   - reserved or numeric subdomains                          → store not found
  */
+function StoreMissing() {
+  return (
+    <main style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '32px 16px',
+      background: '#f8fafc',
+    }}>
+      <div style={{ maxWidth: 480, textAlign: 'center' }}>
+        <h1 style={{ fontSize: 32, color: '#111827', marginBottom: 12 }}>Store not found</h1>
+        <p style={{ fontSize: 16, color: '#334155', lineHeight: 1.6, marginBottom: 20 }}>
+          This address is not a live Storehouse shop. The link may be old, or the store may be hidden.
+        </p>
+        <Link to="/signup" style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 48,
+          padding: '12px 20px',
+          background: '#1d4ed8',
+          color: '#ffffff',
+          borderRadius: 10,
+          fontWeight: 700,
+          textDecoration: 'none',
+        }}>
+          Start your own store
+        </Link>
+      </div>
+    </main>
+  );
+}
+
 function CatchAllRoute() {
   const { currentUser, loading } = useAuth();
   if (loading) return null;
@@ -94,6 +129,14 @@ function RootRoute() {
     !isStorehouseNg &&
     hostname !== '';
 
+  const isReservedHost =
+    isStorehouseNg &&
+    hostname !== 'storehouse.ng' &&
+    hostname !== 'www.storehouse.ng' &&
+    labels.length >= 3 &&
+    (RESERVED_SUBDOMAINS.has(subdomainLabel) || NUMERIC_ONLY_LABEL.test(subdomainLabel));
+
+  if (isReservedHost) return <StoreMissing />;
   return (isStorefrontSubdomain || isCustomDomain) ? <StorefrontPage /> : <LandingPage />;
 }
 

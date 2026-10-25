@@ -125,7 +125,7 @@ export default function StoreQuickSetup() {
         business_name: businessName.trim(),
         store_slug: storeSlug,
         whatsapp_number: formatPhoneForWhatsApp(whatsappNumber),
-        is_public: false, // Default to private, user can make public later
+        is_public: true, // Live so the link works. Hidden is a setting.
       });
 
       // Mirror business_name to users table so dashboard header survives logout/login
