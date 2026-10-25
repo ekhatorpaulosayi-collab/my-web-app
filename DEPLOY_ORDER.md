@@ -721,9 +721,9 @@ The handler parses 360dialog JSON and Twilio form posts. A 360dialog body is acc
 
 The rate limit is per server instance. It counts eight messages a minute for each sender in that instance's memory. A second instance does not share the count, and a restart clears it. It is not a shared store.
 
-Twilio's signature is checked against the public function URL. Set `WHATSAPP_WEBHOOK_PUBLIC_URL` to the exact URL Twilio calls. When that variable is empty, the check uses `x-forwarded-proto`, `x-forwarded-host`, and `x-forwarded-uri`. It does not use the internal request URL.
+Twilio's signature is checked against `WHATSAPP_WEBHOOK_PUBLIC_URL` only. Set it to the exact URL Twilio calls. An unset or invalid value refuses the request.
 
-A repeated provider message id is ignored and answered 200. The id is stored in `whatsapp_seen_messages`. File: `supabase/migrations/20261025_25_whatsapp_seen_messages.sql`. Version `2026102525`, name `whatsapp_seen_messages`. This pull request does not run that file. Until the table exists, a repeated id is remembered only on that server instance. The function stays DO NOT DEPLOY either way.
+A provider message id is stored in `whatsapp_seen_messages` only after the reply is sent. A failed send leaves the id unset, so the provider can retry and the shopper still gets a reply. Rows older than 7 days are deleted on the next request. A message with no provider id is deduplicated by a hash of the channel, shop number, customer number, and text. File: `supabase/migrations/20261025_25_whatsapp_seen_messages.sql`. Version `2026102525`, name `whatsapp_seen_messages`. This pull request does not run that file. Until the table exists, a handled id is remembered only on that server instance, for the same 7 days. The function stays DO NOT DEPLOY either way.
 
 The function that is already live has no signature check. To turn it off, this is the one command:
 

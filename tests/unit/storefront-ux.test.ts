@@ -19,6 +19,7 @@ import { emptyNumberAsNull, parseAmountField } from '../../src/utils/emptyNumber
 import { normalizeNgWhatsApp, isValidStoreWhatsApp } from '../../src/utils/ngPhone.js';
 import { normalizeSocialUrl } from '../../src/utils/socialLinks.js';
 import { CRAWLER_UA, CRAWLER_UA_PATTERN } from '../../src/utils/crawlerUa.js';
+import { messageFallbackId } from '../../supabase/functions/_shared/messageFallbackId.ts';
 import { twilioPublicUrl } from '../../supabase/functions/_shared/twilioPublicUrl.ts';
 import { formatWhatsAppNumber } from '../../src/utils/phone.ts';
 import { existsSync } from 'node:fs';
@@ -357,7 +358,18 @@ test('preview links, phones, and social handles stay usable', () => {
   assert.match(webhook, /twilio_auth_token/);
   assert.match(webhook, /per server instance/);
   assert.match(webhook, /WHATSAPP_WEBHOOK_PUBLIC_URL/);
-  assert.match(webhook, /x-forwarded-host/);
+  assert.equal(webhook.includes('x-forwarded-host'), false);
+  assert.equal(webhook.includes('x-forwarded-proto'), false);
+  assert.equal(webhook.includes('x-forwarded-uri'), false);
+  assert.match(webhook, /alreadyHandled/);
+  assert.match(webhook, /markHandled/);
+  assert.equal(webhook.includes('claimMessage'), false);
+  const firstSend = webhook.indexOf('await sendWhatsAppMessage');
+  const firstMark = webhook.indexOf('await markHandled');
+  assert.ok(firstSend > 0 && firstMark > firstSend);
+  assert.match(webhook, /messageFallbackId/);
+  assert.match(webhook, /SEEN_TTL_MS/);
+  assert.match(webhook, /\.lt\('seen_at'/);
   assert.match(webhook, /provider_message_id/);
   assert.match(webhook, /whatsapp_seen_messages/);
   assert.equal(webhook.includes('twilioSignatureMatches(req.url'), false);
@@ -389,28 +401,20 @@ test('preview links, phones, and social handles stay usable', () => {
   const seen = readFileSync(new URL('../../supabase/migrations/20261025_25_whatsapp_seen_messages.sql', import.meta.url), 'utf8');
   assert.match(seen, /whatsapp_seen_messages/);
   assert.match(seen, /timestamptz/);
-  assert.equal(twilioPublicUrl({
-    configured: 'https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/whatsapp-webhook',
-    forwardedHost: 'internal',
-    forwardedProto: 'http',
-    forwardedUri: '',
-    path: '/whatsapp-webhook',
-    search: '?foo=1',
-  }), 'https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/whatsapp-webhook?foo=1');
-  assert.equal(twilioPublicUrl({
-    configured: '',
-    forwardedHost: 'abc.supabase.co, proxy',
-    forwardedProto: 'https, http',
-    forwardedUri: '/functions/v1/whatsapp-webhook',
-    path: '/whatsapp-webhook',
-    search: '',
-  }), 'https://abc.supabase.co/functions/v1/whatsapp-webhook');
-  assert.equal(twilioPublicUrl({
-    configured: '',
-    forwardedHost: '',
-    forwardedProto: '',
-    forwardedUri: '',
-    path: '/whatsapp-webhook',
-    search: '',
-  }), null);
+  assert.match(seen, /7 days/);
+  assert.match(seen, /whatsapp_seen_messages_seen_at_idx/);
+  const publicUrl = 'https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/whatsapp-webhook?foo=1';
+  assert.equal(twilioPublicUrl(publicUrl), publicUrl);
+  assert.equal(twilioPublicUrl(''), null);
+  assert.equal(twilioPublicUrl('not a url'), null);
+  assert.equal(twilioPublicUrl('javascript:alert(1)'), null);
+});
+
+test('a message with no provider id hashes to one stable key', async () => {
+  const first = await messageFallbackId(['twilio', '234801', '234802', 'hello']);
+  const second = await messageFallbackId(['twilio', '234801', '234802', 'hello']);
+  const different = await messageFallbackId(['twilio', '234801', '234802', 'hello again']);
+  assert.equal(first, second);
+  assert.notEqual(first, different);
+  assert.match(first, /^hash\.[0-9a-f]{64}$/);
 });

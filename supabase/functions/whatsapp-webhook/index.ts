@@ -2,8 +2,11 @@
 // This handler parses 360dialog JSON and Twilio form posts. It checks
 // x-360dialog-signature (D360_PLATFORM_SECRET) for 360dialog and
 // X-Twilio-Signature (the shop twilio_auth_token) for Twilio.
-// The Twilio URL is WHATSAPP_WEBHOOK_PUBLIC_URL, or the forwarded host.
-// A provider message id already stored in whatsapp_seen_messages is skipped.
+// Twilio's signature uses WHATSAPP_WEBHOOK_PUBLIC_URL. An unset or invalid
+// value refuses the request. The forwarded host is not a source for that URL.
+// A provider message id is stored in whatsapp_seen_messages only after the
+// reply is sent. Rows older than 7 days are removed. A message with no id
+// is deduplicated by a hash of the channel, shop, customer, and text.
 // This branch does not deploy the function. The live copy is turned off
 // only by the delete command in DEPLOY_ORDER.md.
 //
@@ -13,6 +16,7 @@
 // whatsapp_seen_messages exists.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { messageFallbackId } from '../_shared/messageFallbackId.ts';
 import { twilioPublicUrl } from '../_shared/twilioPublicUrl.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
@@ -20,7 +24,8 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = (Deno.env.get('EDGE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
 
 const recentHits = new Map<string, number[]>();
-const seenMessageIds = new Set<string>();
+const seenMessageIds = new Map<string, number>();
+const SEEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SHOP_SELECT = 'user_id, business_phone, greeting_message, out_of_stock_message, is_enabled, twilio_account_sid, twilio_auth_token, twilio_whatsapp_number';
 
 function json(body: Record<string, unknown>, status: number) {
@@ -101,23 +106,69 @@ function cleanProviderMessageId(value: unknown) {
   return id;
 }
 
-function rememberOnThisInstance(id: string) {
-  if (seenMessageIds.has(id)) return false;
-  seenMessageIds.add(id);
-  if (seenMessageIds.size > 1000) {
-    const oldest = seenMessageIds.values().next().value;
-    if (oldest) seenMessageIds.delete(oldest);
+function seenOnThisInstance(id: string) {
+  const at = seenMessageIds.get(id);
+  if (!at) return false;
+  if (Date.now() - at >= SEEN_TTL_MS) {
+    seenMessageIds.delete(id);
+    return false;
   }
   return true;
 }
 
-async function claimMessage(supabase: any, id: string) {
-  if (!id) return 'new' as const;
+function rememberOnThisInstance(id: string) {
+  seenMessageIds.delete(id);
+  seenMessageIds.set(id, Date.now());
+  const cutoff = Date.now() - SEEN_TTL_MS;
+  for (const [key, at] of seenMessageIds) {
+    if (at < cutoff) seenMessageIds.delete(key);
+  }
+  while (seenMessageIds.size > 1000) {
+    const oldest = seenMessageIds.keys().next().value;
+    if (!oldest) break;
+    seenMessageIds.delete(oldest);
+  }
+}
+
+function missingSeenStore(error: { code?: string } | null) {
+  return error?.code === '42P01' || error?.code === 'PGRST205';
+}
+
+async function forgetExpired(supabase: any) {
+  const cutoff = new Date(Date.now() - SEEN_TTL_MS).toISOString();
+  const { error } = await supabase.from('whatsapp_seen_messages').delete().lt('seen_at', cutoff);
+  if (!error) return 'ok' as const;
+  if (missingSeenStore(error)) return 'missing' as const;
+  console.error('Seen-message cleanup error', error.code || 'error');
+  return 'error' as const;
+}
+
+async function alreadyHandled(supabase: any, id: string) {
+  const store = await forgetExpired(supabase);
+  if (store === 'missing') return seenOnThisInstance(id);
+  const { data, error } = await supabase
+    .from('whatsapp_seen_messages')
+    .select('provider_message_id')
+    .eq('provider_message_id', id)
+    .maybeSingle();
+  if (error) {
+    if (missingSeenStore(error)) return seenOnThisInstance(id);
+    console.error('Seen-message store error', error.code || 'error');
+    throw error;
+  }
+  return Boolean(data);
+}
+
+async function markHandled(supabase: any, id: string) {
   const { error } = await supabase.from('whatsapp_seen_messages').insert({ provider_message_id: id });
-  if (!error) return 'new' as const;
-  if (error.code === '23505') return 'replay' as const;
-  const missing = error.code === '42P01' || error.code === 'PGRST205';
-  if (missing) return rememberOnThisInstance(id) ? 'new' as const : 'replay' as const;
+  if (!error || error.code === '23505') {
+    rememberOnThisInstance(id);
+    return;
+  }
+  if (missingSeenStore(error)) {
+    rememberOnThisInstance(id);
+    return;
+  }
   console.error('Seen-message store error', error.code || 'error');
   throw error;
 }
@@ -150,7 +201,7 @@ async function findShop(supabase: any, shopDigits: string) {
 }
 
 async function handleTextMessage(supabase: any, customerPhone: string, customerMessage: string, shopDigits: string, providerMessageId: string) {
-  if ((await claimMessage(supabase, providerMessageId)) === 'replay') {
+  if (await alreadyHandled(supabase, providerMessageId)) {
     return json({ status: 'ignored', reason: 'replay' }, 200);
   }
 
@@ -173,12 +224,14 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
   });
 
   if (!canChat) {
-    await sendWhatsAppMessage(
+    const sent = await sendWhatsAppMessage(
       shopDigits,
       customerPhone,
       "⚠️ This business has reached their monthly chat limit. Please contact them directly at their shop.",
       settings
     );
+    if (!sent) return json({ status: 'error' }, 500);
+    await markHandled(supabase, providerMessageId);
     return json({ status: 'quota_exceeded' }, 200);
   }
 
@@ -205,7 +258,9 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
   );
   const responseTime = Date.now() - startTime;
 
-  await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
+  const sent = await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
+  if (!sent) return json({ status: 'error' }, 500);
+  await markHandled(supabase, providerMessageId);
 
   await supabase.from('whatsapp_chats').insert({
     user_id: userId,
@@ -223,6 +278,8 @@ serve(async (req) => {
   if (Deno.env.get('WHATSAPP_WEBHOOK_DISABLED') === 'true') {
     return json({ status: 'disabled' }, 404);
   }
+  const signedUrl = twilioPublicUrl(Deno.env.get('WHATSAPP_WEBHOOK_PUBLIC_URL') || '');
+  if (!signedUrl) return json({ status: 'unauthorized' }, 401);
 
   try {
     const raw = await req.text();
@@ -236,21 +293,14 @@ serve(async (req) => {
       const shopDigits = digitsOnly(params.get('To'));
       const settingsResult = await findShop(supabase, shopDigits);
       const authToken = settingsResult.data?.twilio_auth_token || '';
-      const incoming = new URL(req.url);
-      const signedUrl = twilioPublicUrl({
-        configured: Deno.env.get('WHATSAPP_WEBHOOK_PUBLIC_URL') || '',
-        forwardedHost: req.headers.get('x-forwarded-host') || '',
-        forwardedProto: req.headers.get('x-forwarded-proto') || '',
-        forwardedUri: req.headers.get('x-forwarded-uri') || '',
-        path: incoming.pathname,
-        search: incoming.search,
-      });
-      if (!signedUrl || !(await twilioSignatureMatches(signedUrl, params, twilioHeader, authToken))) {
+      if (!(await twilioSignatureMatches(signedUrl, params, twilioHeader, authToken))) {
         return json({ status: 'unauthorized' }, 401);
       }
       const customerMessage = params.get('Body') || '';
       if (!customerMessage) return json({ status: 'ignored', reason: 'no_text' }, 200);
-      return handleTextMessage(supabase, digitsOnly(params.get('From')), customerMessage, shopDigits, cleanProviderMessageId(params.get('MessageSid')));
+      const providerMessageId = cleanProviderMessageId(params.get('MessageSid'))
+        || await messageFallbackId(['twilio', shopDigits, digitsOnly(params.get('From')), customerMessage]);
+      return handleTextMessage(supabase, digitsOnly(params.get('From')), customerMessage, shopDigits, providerMessageId);
     }
 
     if (!(await dialogSignatureMatches(raw, req.headers.get('x-360dialog-signature')))) {
@@ -267,7 +317,9 @@ serve(async (req) => {
     const inbound = readDialogMessage(body);
     if (!inbound) return json({ status: 'ignored', reason: 'unknown_format' }, 200);
     if (!inbound.customerMessage) return json({ status: 'ignored', reason: 'no_text' }, 200);
-    return handleTextMessage(supabase, inbound.customerPhone, inbound.customerMessage, inbound.shopDigits, inbound.providerMessageId);
+    const providerMessageId = inbound.providerMessageId
+      || await messageFallbackId(['360dialog', inbound.shopDigits, inbound.customerPhone, inbound.customerMessage]);
+    return handleTextMessage(supabase, inbound.customerPhone, inbound.customerMessage, inbound.shopDigits, providerMessageId);
   } catch (error) {
     console.error('Webhook error', error instanceof Error ? error.name : 'Error');
     return json({ status: 'error' }, 500);
@@ -363,7 +415,7 @@ async function sendWhatsAppMessage(
   to: string,
   message: string,
   settings: any
-): Promise<void> {
+): Promise<boolean> {
   // Determine if using 360dialog or Twilio based on settings
   const use360Dialog = settings.business_phone && settings.business_phone.startsWith('+');
 
@@ -379,10 +431,10 @@ async function sendWhatsAppMessage(
 
     if (!platformConfig?.api_key) {
       console.error('No platform API key found');
-      return;
+      return false;
     }
 
-    await fetch('https://waba.360dialog.io/v1/messages', {
+    const response = await fetch('https://waba.360dialog.io/v1/messages', {
       method: 'POST',
       headers: {
         'D360-API-KEY': platformConfig.api_key,
@@ -394,6 +446,11 @@ async function sendWhatsAppMessage(
         text: { body: message },
       }),
     });
+    if (!response.ok) {
+      console.error('WhatsApp send failed', response.status);
+      return false;
+    }
+    return true;
   } else {
     // Use Twilio API (customer self-setup model)
     const twilioSid = settings.twilio_account_sid;
@@ -402,12 +459,12 @@ async function sendWhatsAppMessage(
 
     if (!twilioSid || !twilioToken || !twilioNumber) {
       console.error('Twilio credentials not found');
-      return;
+      return false;
     }
 
     const auth = btoa(`${twilioSid}:${twilioToken}`);
 
-    await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
@@ -419,5 +476,10 @@ async function sendWhatsAppMessage(
         Body: message,
       }),
     });
+    if (!response.ok) {
+      console.error('WhatsApp send failed', response.status);
+      return false;
+    }
+    return true;
   }
 }

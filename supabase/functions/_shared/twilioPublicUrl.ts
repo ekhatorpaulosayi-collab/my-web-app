@@ -1,36 +1,15 @@
 /**
- * The URL Twilio signed. The edge runtime's req.url is the internal address,
- * so the signature is checked against the public function URL instead.
- * WHATSAPP_WEBHOOK_PUBLIC_URL wins. Otherwise the forwarded host, scheme,
- * and path are used. No forwarded host and no env var means there is no URL.
+ * The URL Twilio signed. WHATSAPP_WEBHOOK_PUBLIC_URL is that exact URL.
+ * An empty or invalid value means the request cannot be checked.
  */
-export function twilioPublicUrl(input: {
-  configured: string;
-  forwardedHost: string;
-  forwardedProto: string;
-  forwardedUri: string;
-  path: string;
-  search: string;
-}): string | null {
-  const search = input.search || '';
-  const configured = (input.configured || '').trim();
-  if (configured) {
-    try {
-      const base = new URL(configured);
-      if (!base.search && search) base.search = search;
-      return base.toString();
-    } catch {
-      return null;
-    }
+export function twilioPublicUrl(configured: string): string | null {
+  const value = (configured || '').trim();
+  if (!value) return null;
+  try {
+    const base = new URL(value);
+    if (base.protocol !== 'https:' && base.protocol !== 'http:') return null;
+  } catch {
+    return null;
   }
-  const host = (input.forwardedHost || '').split(',')[0].trim();
-  if (!host) return null;
-  const proto = (input.forwardedProto || '').split(',')[0].trim() || 'https';
-  const forwardedUri = (input.forwardedUri || '').trim();
-  if (forwardedUri) {
-    const pathAndQuery = forwardedUri.startsWith('/') ? forwardedUri : `/${forwardedUri}`;
-    return `${proto}://${host}${pathAndQuery}`;
-  }
-  const path = (input.path || '').startsWith('/') ? input.path : `/${input.path || ''}`;
-  return `${proto}://${host}${path}${search}`;
+  return value;
 }
