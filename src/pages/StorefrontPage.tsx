@@ -243,7 +243,6 @@ function StorefrontContent() {
           whatsappNumber: storeData.whatsapp_number,
           address: storeData.address,
           logoUrl: storeData.logo_url,
-          primaryColor: storeData.primary_color,
           isPublic: storeData.is_public,
           storeSlug: storeData.store_slug,
           subdomain: storeData.subdomain,

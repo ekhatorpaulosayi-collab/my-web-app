@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseUrl } from '../lib/supabase';
 import { OptimizedImage } from './OptimizedImage';
 
 interface ProductImage {
@@ -109,7 +109,8 @@ export default function ProductImageGallery({ productId, fallbackImage }: Produc
     } else {
       // Remove leading slash if present
       const cleanPath = url.startsWith('/') ? url.slice(1) : url;
-      fullUrl = `https://yzlniqwzqlsftxrtapdl.supabase.co/storage/v1/object/public/${cleanPath}`;
+      const base = (supabaseUrl || '').replace(/\/$/, '');
+      fullUrl = `${base}/storage/v1/object/public/${cleanPath}`;
     }
 
     // Add cache-busting parameter for lightbox

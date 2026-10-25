@@ -5037,8 +5037,11 @@ Low Stock: ${lowStockItems.length}
             {/* 7️⃣ PURCHASE PRICE */}
             <div className="form-row">
               <div className="form-group">
-                <label>Purchase Price (₦)</label>
+                <label htmlFor="item-purchase-price">
+                  Purchase Price (₦) <abbr title="required" style={{ color: '#b91c1c', textDecoration: 'none' }}>*</abbr>
+                </label>
                 <input
+                  id="item-purchase-price"
                   type="tel"
                   name="purchasePrice"
                   value={formattedPrices.purchasePrice}
@@ -5046,6 +5049,8 @@ Low Stock: ${lowStockItems.length}
                   placeholder="What you paid"
                   className="form-input"
                   autoComplete="off"
+                  required
+                  aria-required="true"
                 />
               </div>
             </div>

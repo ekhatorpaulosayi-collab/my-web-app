@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
+import { PUBLIC_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 
 // =====================================================
@@ -355,7 +356,7 @@ export function usePublicStore(identifier, lookupType = 'slug') {
 
         let query = supabase
           .from('stores')
-          .select('*')
+          .select(PUBLIC_STORE_COLUMNS)
           .eq('is_public', true);
 
         // Determine which field to query based on lookup type

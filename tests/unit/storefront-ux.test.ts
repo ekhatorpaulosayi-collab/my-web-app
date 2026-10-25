@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { escapeHtml, safeHttpUrl } from '../../src/utils/htmlEscape.js';
 import { formatBusinessHours } from '../../src/utils/businessHours.js';
 import { shortSlugFromName, validateStoreSlug } from '../../src/utils/storeSlug.ts';
@@ -63,9 +64,54 @@ test('link previews use the shop subdomain and the public select is narrow', () 
   const columns = PUBLIC_STORE_COLUMNS.split(',');
   assert.equal(columns.includes('business_name'), true);
   assert.equal(columns.includes('store_slug'), true);
+  assert.equal(columns.includes('primary_color'), false);
   for (const banned of ['bank_name', 'account_number', 'account_name', 'paystack_secret', 'subaccount_code', '*']) {
     assert.equal(columns.includes(banned), false, banned);
   }
+});
+
+function storesColumnsFromSchema() {
+  const columns = new Set();
+  const schema = readFileSync(new URL('../../sql-archive/root-scripts/supabase-schema.sql', import.meta.url), 'utf8');
+  const create = schema.match(/CREATE TABLE IF NOT EXISTS public\.stores \(([\s\S]*?)\n\);/);
+  if (!create) throw new Error('stores create table missing from schema dump');
+  for (const line of create[1].split('\n')) {
+    const match = line.match(/^\s*([a-z_][a-z0-9_]*)\s+/i);
+    if (!match) continue;
+    const name = match[1].toLowerCase();
+    if (name === 'constraint') continue;
+    columns.add(name);
+  }
+
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name.endsWith('.sql')) files.push(path);
+    }
+  };
+  walk(new URL('../../supabase/migrations', import.meta.url).pathname);
+  files.push(new URL('../../sql-archive/root-scripts/add-domain-support.sql', import.meta.url).pathname);
+
+  const alter = /ALTER TABLE\s+(?:public\.)?stores\b([\s\S]*?);/gi;
+  const add = /ADD COLUMN(?:\s+IF NOT EXISTS)?\s+([a-z_][a-z0-9_]*)/gi;
+  for (const file of files) {
+    const sql = readFileSync(file, 'utf8');
+    for (const statement of sql.matchAll(alter)) {
+      for (const col of statement[1].matchAll(add)) columns.add(col[1].toLowerCase());
+    }
+  }
+  return columns;
+}
+
+test('public store select only names columns the schema actually has', () => {
+  const known = storesColumnsFromSchema();
+  assert.equal(known.has('primary_color'), false);
+  assert.equal(known.has('business_name'), true);
+  assert.equal(known.has('payment_methods'), true);
+  const missing = PUBLIC_STORE_COLUMNS.split(',').filter((column) => !known.has(column));
+  assert.deepEqual(missing, []);
 });
 
 test('signup says when the store link could not be saved', () => {
@@ -84,6 +130,10 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   const storefront = readFileSync(new URL('../../src/pages/StorefrontPage.tsx', import.meta.url), 'utf8');
   const signup = readFileSync(new URL('../../src/lib/authService-supabase.js', import.meta.url), 'utf8');
   const overlay = readFileSync(new URL('../../src/components/BusinessTypeSelector.css', import.meta.url), 'utf8');
+  const gallery = readFileSync(new URL('../../src/components/ProductImageGallery.tsx', import.meta.url), 'utf8');
+  const addItem = readFileSync(new URL('../../src/App.jsx', import.meta.url), 'utf8');
+  const deploy = readFileSync(new URL('../../DEPLOY_ORDER.md', import.meta.url), 'utf8');
+  const guard = readFileSync(new URL('../../supabase/migrations/20261025_19_public_store_columns.sql', import.meta.url), 'utf8');
   assert.equal(editor.includes('remember_store_slug'), false);
   assert.equal(settings.includes('remember_store_slug'), false);
   assert.match(editor, /validateStoreSlug/);
@@ -103,6 +153,19 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   const overlayRule = overlay.split('.business-selector-modal')[0];
   assert.match(overlayRule, /pointer-events:\s*none/);
   assert.equal(/top:\s*0/.test(overlayRule), false);
+  assert.equal(overlay.includes('min-height: 100vh'), false);
+  assert.equal(gallery.includes('yzlniqwzqlsftxrtapdl'), false);
+  assert.match(gallery, /supabaseUrl/);
+  assert.match(addItem, /item-purchase-price/);
+  assert.match(addItem, /aria-required="true"/);
+  assert.match(chat, /env\(safe-area-inset-bottom\)/);
+  assert.equal(chat.includes("bottom: '20px'"), false);
+  assert.match(deploy, /after step 19b/);
+  assert.match(deploy, /Do not use that rollback after step 19b/);
+  assert.match(guard, /invalid_store_subdomain/);
+  assert.match(guard, /lower\(old_slug\)/);
+  assert.equal(guard.includes('account_number'), true);
+  assert.equal(/GRANT SELECT \([^)]*account_number/.test(guard), false);
 });
 
 test('unknown paths are not treated as app routes', () => {

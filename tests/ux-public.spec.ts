@@ -90,3 +90,67 @@ test('preview storefront shows a product, a real price, and readable hours', asy
   const summary = serious.map((v) => `${v.id} (${v.nodes.length})`).join(', ');
   expect(serious, summary || 'no serious axe violations').toEqual([]);
 });
+
+test('phone tab bar stays clear of help and uses 48px targets', async ({ page }) => {
+  const width = page.viewportSize()?.width ?? 0;
+  test.skip(width > 500, 'phone layout');
+
+  await page.addInitScript(() => {
+    localStorage.setItem('storehouse:setup-checklist:dismissed', 'true');
+    localStorage.setItem('storehouse_chat_used', 'true');
+  });
+
+  const intersects = (a, b) => {
+    if (!a || !b) return false;
+    const x = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const y = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    return x > 0 && y > 0;
+  };
+
+  await page.goto('/dev/ux-preview/dashboard', { waitUntil: 'domcontentloaded' });
+  const more = page.locator('.app-shell-tab', { hasText: 'More' });
+  await expect(more).toBeVisible();
+  await expect(page.locator('.need-help-fab')).toBeVisible();
+  const dash = await page.evaluate(() => {
+    const rect = (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const tab = Array.from(document.querySelectorAll('.app-shell-tab')).find((el) => (el.textContent || '').includes('More'));
+    const help = document.querySelector('.need-help-fab');
+    const heights = Array.from(document.querySelectorAll('.app-shell-tab')).map((el) => el.getBoundingClientRect().height);
+    return {
+      tab: tab ? rect(tab) : null,
+      help: help ? rect(help) : null,
+      heights,
+    };
+  });
+  expect(dash.tab && dash.help && intersects(dash.tab, dash.help)).toBe(false);
+  expect(Math.min(...dash.heights)).toBeGreaterThanOrEqual(48);
+
+  await page.goto('/dev/ux-preview/more', { waitUntil: 'domcontentloaded' });
+  const money = page.getByRole('button', { name: /Money Book/ });
+  await expect(money).toBeVisible();
+  const moneyBox = await money.boundingBox();
+  expect(moneyBox?.height ?? 0).toBeGreaterThanOrEqual(48);
+  await money.click();
+
+  await page.goto('/store/preview', { waitUntil: 'domcontentloaded' });
+  const ask = page.getByRole('button', { name: 'Ask about products' });
+  await expect(ask).toBeVisible();
+  const askBox = await ask.boundingBox();
+  expect(askBox?.y ?? 999).toBeLessThan(80);
+  expect(Math.round(askBox?.width ?? 0)).toBeGreaterThanOrEqual(48);
+  expect(Math.round(askBox?.height ?? 0)).toBeGreaterThanOrEqual(48);
+  const covered = await page.evaluate(() => {
+    const help = document.querySelector('.need-help-fab')?.getBoundingClientRect();
+    if (!help) return true;
+    return Array.from(document.querySelectorAll('.btn-add-to-cart, .storefront-share-button')).some((button) => {
+      const r = button.getBoundingClientRect();
+      const x = Math.min(help.right, r.right) - Math.max(help.left, r.left);
+      const y = Math.min(help.bottom, r.bottom) - Math.max(help.top, r.top);
+      return x > 0 && y > 0;
+    });
+  });
+  expect(covered).toBe(false);
+});

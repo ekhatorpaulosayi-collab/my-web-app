@@ -55,6 +55,7 @@ const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
 const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
 const KycWizard = lazy(() => import('./components/payments/KycWizard.tsx'));
 const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
+const DevPhoneNavPreview = lazy(() => import('./pages/DevPhoneNavPreview.tsx').then((m) => ({ default: m.DevPhoneNavPreview })));
 
 /**
  * Host-aware element for the root path "/".
@@ -536,6 +537,8 @@ export default function AppRoutes() {
         {import.meta.env.DEV && <Route path="/dev/ux-preview/upgrade" element={<SubscriptionUpgrade />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/referrals" element={<ReferralDashboard />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/quick-setup" element={<StoreQuickSetup />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/dashboard" element={<DevPhoneNavPreview />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/more" element={<DevPhoneNavPreview openMore />} />}
 
         {/* Store Setup - Clean minimal design for quick store creation */}
         <Route path="/store-setup" element={<StoreSetup />} />

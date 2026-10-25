@@ -10,7 +10,6 @@ export const PUBLIC_STORE_COLUMNS = [
   'whatsapp_number',
   'address',
   'logo_url',
-  'primary_color',
   'is_public',
   'store_slug',
   'subdomain',

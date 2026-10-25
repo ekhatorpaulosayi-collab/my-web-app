@@ -59,6 +59,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
   border-radius: 8px;
   color: #6b7280;
   transition: all 0.2s;
@@ -71,8 +75,7 @@
 
 /* Sections container */
 .more-menu-sections {
-  padding: 20px 16px;
-  padding-bottom: 140px;
+  padding: 20px 16px 24px;
   overflow-y: auto;
   flex: 1;
 }
@@ -156,6 +159,7 @@
 .more-menu-item {
   display: block;
   width: 100%;
+  min-height: 48px;
   padding: 0;
   background: transparent;
   border: none;
@@ -397,8 +401,7 @@
   }
 
   .more-menu-sections {
-    padding: 16px 12px;
-    padding-bottom: 120px;
+    padding: 16px 12px 24px;
   }
 
   .more-menu-item-content {
@@ -414,9 +417,4 @@
 .more-menu-sections {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Need Help button space (if present) */
-.more-menu-sections {
-  padding-bottom: 140px;
 }

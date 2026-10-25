@@ -28,7 +28,11 @@ CREATE TABLE public.stores (
   business_name text,
   store_slug text,
   subdomain text,
-  is_public boolean NOT NULL DEFAULT false
+  is_public boolean NOT NULL DEFAULT false,
+  bank_name text,
+  account_number text,
+  account_name text,
+  payment_methods jsonb
 );
 CREATE TABLE public.products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,11 +73,31 @@ VALUES (
   repeat('a', 38),
   true
 );
+
+-- Existing hosts. The guard must leave them alone until the column changes.
+INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, is_public)
+VALUES (
+  '33333333-3333-3333-3333-333333333333',
+  'owner-234',
+  'Numeric host',
+  'path-shop',
+  '234',
+  true
+);
+INSERT INTO public.stores (id, user_id, business_name, store_slug, is_public)
+VALUES (
+  '44444444-4444-4444-4444-444444444444',
+  'owner-case',
+  'Case',
+  'OldShop',
+  true
+);
 SQL
 
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_16_stores_public_read.sql"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_17_store_slug_redirects.sql"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_18_slug_guard.sql"
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_19_public_store_columns.sql"
 
 "${PSQL[@]}" -d "$DB" <<'SQL'
 DO $$
@@ -215,6 +239,72 @@ BEGIN
     RAISE EXCEPTION 'redirect resolved to %', resolved;
   END IF;
 
+  SELECT public.resolve_store_redirect('OSAYI-FABRICS') INTO resolved;
+  IF resolved IS DISTINCT FROM osayi THEN
+    RAISE EXCEPTION 'uppercase redirect resolved to %', resolved;
+  END IF;
+
+  UPDATE public.stores
+     SET store_slug = 'old-shop-new'
+   WHERE id = '44444444-4444-4444-4444-444444444444';
+  SELECT public.resolve_store_redirect('OLDSHOP') INTO resolved;
+  IF resolved IS DISTINCT FROM '44444444-4444-4444-4444-444444444444'::uuid THEN
+    RAISE EXCEPTION 'mixed-case old slug resolved to %', resolved;
+  END IF;
+
+  UPDATE public.stores
+     SET business_name = 'kept numeric host'
+   WHERE id = '33333333-3333-3333-3333-333333333333';
+  IF NOT EXISTS (
+    SELECT 1 FROM public.stores
+     WHERE id = '33333333-3333-3333-3333-333333333333'
+       AND subdomain = '234'
+       AND business_name = 'kept numeric host'
+  ) THEN
+    RAISE EXCEPTION 'grandfather subdomain was rewritten';
+  END IF;
+
+  BEGIN
+    UPDATE public.stores
+       SET subdomain = 'admin'
+     WHERE id = '22222222-2222-2222-2222-222222222222';
+    RAISE EXCEPTION 'admin subdomain was accepted';
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    NULL;
+  END;
+
+  BEGIN
+    UPDATE public.stores
+       SET subdomain = 'osayi-new'
+     WHERE id = '22222222-2222-2222-2222-222222222222';
+    RAISE EXCEPTION 'taken subdomain was accepted';
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    NULL;
+  END;
+
+  UPDATE public.stores
+     SET account_number = '0123456789',
+         account_name = 'Preview',
+         bank_name = 'Ecobank',
+         payment_methods = '[{"enabled":true}]'::jsonb
+   WHERE id = osayi;
+
+  IF has_column_privilege('anon', 'public.stores', 'account_number', 'SELECT') THEN
+    RAISE EXCEPTION 'anon can read account_number';
+  END IF;
+  IF has_column_privilege('anon', 'public.stores', 'account_name', 'SELECT') THEN
+    RAISE EXCEPTION 'anon can read account_name';
+  END IF;
+  IF has_column_privilege('anon', 'public.stores', 'bank_name', 'SELECT') THEN
+    RAISE EXCEPTION 'anon can read bank_name';
+  END IF;
+  IF NOT has_column_privilege('anon', 'public.stores', 'payment_methods', 'SELECT') THEN
+    RAISE EXCEPTION 'anon cannot read payment_methods';
+  END IF;
+  IF NOT has_column_privilege('authenticated', 'public.stores', 'account_number', 'SELECT') THEN
+    RAISE EXCEPTION 'owner cannot read account_number';
+  END IF;
+
   INSERT INTO public.products (id, user_id, is_public, name)
   VALUES ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'owner-public', true, 'Cloth');
   INSERT INTO public.stores (user_id, store_slug, is_public)
@@ -242,6 +332,21 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     NULL;
   END;
+
+  BEGIN
+    PERFORM account_number FROM public.stores;
+    RAISE EXCEPTION 'anon read account_number';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  PERFORM business_name, payment_methods
+    FROM public.stores
+   WHERE id = '11111111-1111-1111-1111-111111111111'
+     AND payment_methods IS NOT NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'anon lost checkout columns';
+  END IF;
 
   resolved := public.resolve_store_redirect('osayi-fabrics');
   IF resolved IS DISTINCT FROM '11111111-1111-1111-1111-111111111111'::uuid THEN

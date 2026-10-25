@@ -295,8 +295,9 @@
 /* Mobile optimizations */
 @media (max-width: 479px) {
   .business-selector-modal {
-    border-radius: 0;
-    min-height: 100vh;
+    border-radius: 16px;
+    max-height: min(46vh, 360px);
+    min-height: 0;
   }
 
   .bts-header h1 {

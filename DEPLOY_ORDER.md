@@ -491,7 +491,7 @@ Version `2026102517`, name `store_slug_redirects`.
 
 Six live slugs are longer than 30 characters. The settings screen now keeps an existing slug when you save, so those shops are not forced to rename. A new slug is 3–30 characters, is checked against the reserved-word list, and shows Available or Taken before save. Signup builds a slug of at most 20 characters and checks `stores`, not the user id.
 
-`generate_store_slug` used to look at `public.users`. It now looks at `public.stores` and `store_slug_redirects`. Step 20 removes `remember_store_slug`. Do not call it. Run step 20 in the same session as this file. The storefront follows a redirect only through `resolve_store_redirect`.
+`generate_store_slug` used to look at `public.users`. It now looks at `public.stores` and `store_slug_redirects`. Step 19b removes `remember_store_slug`. Do not call it. Run step 19b in the same session as this file. The storefront follows a redirect only through `resolve_store_redirect`.
 
 Smoke test:
 
@@ -511,9 +511,9 @@ DROP FUNCTION IF EXISTS public.generate_store_slug(text);
 DROP TABLE IF EXISTS public.store_slug_redirects;
 ```
 
-Do not use that rollback after step 20. It drops the redirect table. Step 20 has its own rollback, and that rollback does not restore `remember_store_slug`.
+Do not use that rollback after step 19b. Step 19's rollback drops `store_slug_redirects`. Step 19b writes old slugs into that table, so undoing step 19 after 19b removes the redirects 19b just recorded. After 19b is applied, use only the step 19b rollback below. That rollback removes the trigger. It does not restore `remember_store_slug`, and it does not drop the redirect table.
 
-## Step 20 — slug guard, private-store slug check, public variants
+## Step 19b — slug guard, private-store slug check, public variants
 
 File: `supabase/migrations/20261025_18_slug_guard.sql`
 
@@ -548,6 +548,37 @@ DROP FUNCTION IF EXISTS public.stores_guard_slug();
 DROP INDEX IF EXISTS public.stores_store_slug_uniq;
 DROP POLICY IF EXISTS product_variants_public_read ON public.product_variants;
 ```
+
+## Step 21 — hide settlement columns from anon, and check subdomain
+
+File: `supabase/migrations/20261025_19_public_store_columns.sql`
+
+Version `2026102519`, name `public_store_columns`.
+
+Run this after step 19b. Do not run it against the two live TEST signup rows. This file does not `UPDATE` or `DELETE` those rows.
+
+Anon can still read a public store, including `payment_methods`, which checkout shows to a customer. Anon cannot read `bank_name`, `account_number`, or `account_name`. The owner is signed in, and that role still has table select, so the dashboard and Store Settings keep those three columns. Do not revoke them from `authenticated`.
+
+A subdomain is checked only when it changes. An existing subdomain, including `234`, is left as it is. A new subdomain uses the same reserved-word and uniqueness rules as a slug. `resolve_store_redirect` matches an old slug in any letter case.
+
+Smoke test:
+
+```sql
+SELECT has_column_privilege('anon', 'public.stores', 'account_number', 'SELECT') AS anon_sees_account;
+SELECT has_column_privilege('authenticated', 'public.stores', 'account_number', 'SELECT') AS owner_sees_account;
+SELECT has_column_privilege('anon', 'public.stores', 'payment_methods', 'SELECT') AS anon_sees_checkout;
+SELECT pg_get_functiondef('public.resolve_store_redirect(text)'::regprocedure) LIKE '%lower(old_slug)%' AS old_slug_ignores_case;
+```
+
+`anon_sees_account` is false. `owner_sees_account` is true. `anon_sees_checkout` is true when `payment_methods` exists. `old_slug_ignores_case` is true.
+
+Rollback. Do not use the step 19 rollback after 19b. That rollback drops `store_slug_redirects`. To undo only this step, grant anon table select again and run the step 19b file again. The grant reopens the settlement columns. The step 19b file puts the previous trigger back, without the subdomain check.
+
+```sql
+GRANT SELECT ON TABLE public.stores TO anon;
+```
+
+Then run `supabase/migrations/20261025_18_slug_guard.sql` again.
 
 ## Wildcard shop addresses
 

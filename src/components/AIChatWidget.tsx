@@ -2107,18 +2107,23 @@ export default function AIChatWidget({
       {!isOpen && (
         <div className="need-help-fab" style={{
           position: 'fixed',
-          bottom: !isDesktop && contextType === 'storefront' ? '80px' : '20px', // Higher on mobile storefront to avoid bottom nav
-          right: !isDesktop && contextType === 'storefront' ? '20px' : contextType === 'storefront' && isDesktop ? '120px' : '20px',
-          zIndex: 99999,
-          // Hide with animation when modal is open
+          // Phone: sit above the owner tab bar, on the left, so More stays tappable.
+          // Storefront phone: a small button in the header, clear of the product cards.
+          top: !isDesktop && contextType === 'storefront' ? '12px' : 'auto',
+          left: !isDesktop ? '16px' : 'auto',
+          right: !isDesktop ? 'auto' : (contextType === 'storefront' ? '24px' : '24px'),
+          bottom: !isDesktop
+            ? (contextType === 'storefront' ? 'auto' : 'calc(76px + env(safe-area-inset-bottom))')
+            : '24px',
+          zIndex: 30,
           opacity: hasModalOpen ? 0 : 1,
           visibility: hasModalOpen ? 'hidden' : 'visible',
           transform: hasModalOpen ? 'scale(0.8)' : 'scale(1)',
           transition: 'opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease',
-          pointerEvents: hasModalOpen ? 'none' : 'auto', // Disable interactions when hidden
+          pointerEvents: hasModalOpen ? 'none' : 'auto',
         }}>
           {/* Pulsing ring animation for storefront */}
-          {contextType === 'storefront' && (
+          {contextType === 'storefront' && isDesktop && (
             <div
               className="pulse-ring"
               style={{
@@ -2143,9 +2148,13 @@ export default function AIChatWidget({
             }}
             className={shouldPulse ? 'first-visit-pulse' : ''}
             style={{
-              // Changed from circle to pill shape for text
-              borderRadius: '50px',
-              padding: '14px 24px',
+              borderRadius: !isDesktop && contextType === 'storefront' ? '50%' : '50px',
+              padding: !isDesktop && contextType === 'storefront' ? '0' : '12px 16px',
+              width: !isDesktop && contextType === 'storefront' ? '48px' : 'auto',
+              height: !isDesktop && contextType === 'storefront' ? '48px' : 'auto',
+              minWidth: !isDesktop && contextType === 'storefront' ? '48px' : 'fit-content',
+              minHeight: '48px',
+              boxSizing: 'border-box',
               background: contextType === 'storefront'
                 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' // Green for shopping
                 : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple for admin
@@ -2165,7 +2174,6 @@ export default function AIChatWidget({
               pointerEvents: 'auto',
               position: 'relative',
               zIndex: 1,
-              minWidth: 'fit-content',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'scale(1.08)';
@@ -2179,7 +2187,7 @@ export default function AIChatWidget({
                 ? '0 6px 24px rgba(16, 185, 129, 0.5)'
                 : '0 4px 16px rgba(102, 126, 234, 0.4)';
             }}
-            aria-label={contextType === 'storefront' ? 'Shop with AI Assistant' : 'Open AI Chat Assistant'}
+            aria-label={contextType === 'storefront' ? 'Ask about products' : 'Need Help?'}
           >
             <span style={{ fontSize: '1.5rem' }}>
               {contextType === 'storefront' ? '🛍️' : '🤖'}
@@ -2191,6 +2199,9 @@ export default function AIChatWidget({
               WebkitFontSmoothing: 'antialiased',
               MozOsxFontSmoothing: 'grayscale',
               textRendering: 'optimizeLegibility',
+              ...(!isDesktop && contextType === 'storefront'
+                ? { position: 'absolute' as const, width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap' as const, border: 0 }
+                : {}),
             }}>
               {/* Smart text that shows quota when low */}
               {(() => {
@@ -2238,40 +2249,6 @@ export default function AIChatWidget({
             )}
           </button>
 
-          {/* "Need Help?" tooltip for storefront - positioned to avoid cutoff */}
-          {contextType === 'storefront' && (
-            <>
-              {/* Tooltip above button (desktop) */}
-              {isDesktop && (
-                <div
-                  className="chat-tooltip"
-                  style={{
-                    position: 'absolute',
-                    bottom: '75px',
-                    right: 'auto',
-                    left: '50%',
-                    transform: 'translateX(-50%)', // Center it above the button
-                    background: 'white',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    fontSize: '0.875rem',
-                    fontWeight: 700,
-                    color: '#064e3b',
-                    whiteSpace: 'nowrap',
-                    animation: 'bounce-tooltip 2s ease-in-out infinite',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  💬 Need help?
-                </div>
-              )}
-
-              {/* Label above button (mobile - more visible) */}
-              {/* REMOVED: "Chat Here" label was misleading users on storefront pages */}
-              {/* The button itself already says "Ask about products" which is clear enough */}
-            </>
-          )}
         </div>
       )}
 
