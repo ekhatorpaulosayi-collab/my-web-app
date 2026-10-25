@@ -149,14 +149,15 @@ File: `supabase/migrations/20261025_06_storefront_inventory.sql`
 
 Version `2026102506`, name `storefront_inventory`.
 
-This file also creates `decrement_product_quantity(uuid, integer)` for a product that has no variant. Only `service_role` may run it. If there is not enough stock it raises `insufficient_stock` and the order stops, so the queue can retry and the customer write is not skipped.
+This file also creates `decrement_product_quantity(uuid, integer)` for a product that has no variant, and `decrement_storefront_lines(jsonb)` for a legacy checkout with several lines. Only `service_role` may run them. If there is not enough stock either function raises `insufficient_stock`. `decrement_storefront_lines` does every line in one transaction, so a shortfall on a later line puts the earlier lines back. If you already ran an older copy of this file, run it again. `CREATE OR REPLACE` keeps the fulfillment table.
 
-Smoke test: nothing visible changes yet. In the SQL editor, `SELECT proname FROM pg_proc WHERE proname IN ('apply_storefront_inventory', 'decrement_product_quantity');` returns two rows.
+Smoke test: nothing visible changes yet. In the SQL editor, `SELECT proname FROM pg_proc WHERE proname IN ('apply_storefront_inventory', 'decrement_storefront_lines', 'decrement_product_quantity');` returns three rows.
 
-Rollback. Drop `apply_storefront_inventory` first. It calls `decrement_product_quantity`.
+Rollback. Drop `apply_storefront_inventory` first, then `decrement_storefront_lines`. Both call `decrement_product_quantity`.
 
 ```sql
 DROP FUNCTION IF EXISTS public.apply_storefront_inventory(text);
+DROP FUNCTION IF EXISTS public.decrement_storefront_lines(jsonb);
 DROP FUNCTION IF EXISTS public.decrement_product_quantity(uuid, integer);
 DROP TABLE IF EXISTS public.storefront_fulfillments;
 ```
@@ -164,6 +165,8 @@ DROP TABLE IF EXISTS public.storefront_fulfillments;
 ## Step 8 — deploy complete-storefront-order
 
 Deploy `complete-storefront-order` **before** Step 13 (the file that revokes browser stock writes). Keep `verify_jwt` as it is live today (expected **true**, because the app calls it with a user token). Write the flag down before the deploy and read it back after.
+
+This copy checks the lines, claims the Paystack reference, then calls `decrement_storefront_lines` once. A shortfall rolls the earlier lines back and removes the claim, so a retry starts from the same stock. Deploy it only after Step 7 has created that function.
 
 ```bash
 supabase functions deploy complete-storefront-order --project-ref yzlniqwzqlsftxrtapdl
@@ -233,7 +236,7 @@ If you already applied an older copy of 09 or 12, run these files again. `CREATE
 
 `20261025_14` makes `custom_domain` unique, takes away the owner's ability to update `custom_domain`, `domain_verification_token`, and `custom_domain_verified`, and adds `set_store_custom_domain` (that call sets verified to false and issues a new token). Run its pre-check first. Duplicate domains must be cleared or the file stops.
 
-Deploy `verify-custom-domain` after 14 and before you rely on custom domains. Leave `verify_jwt` **true**. Write the flag down, deploy, read it back. It must stay true. This function is the only path that sets `custom_domain_verified` to true, and only after the TXT record `_storehouse.<domain>` matches the token.
+Deploy `verify-custom-domain` after 14 and before you rely on custom domains. Leave `verify_jwt` **true**. Write the flag down, deploy, read it back. It must stay true. This function is the only path that sets `custom_domain_verified` to true, and only after the TXT record `_storehouse.<domain>` matches the token. It reads `EDGE_SECRET_KEY` and, if that is unset, `SUPABASE_SERVICE_ROLE_KEY`.
 
 ```bash
 supabase functions deploy verify-custom-domain --project-ref yzlniqwzqlsftxrtapdl
@@ -406,6 +409,48 @@ SELECT paystack_reference, attempts, last_error, created_at
 A reference that disappears from the queue was applied. Applying the same reference again does not drop stock twice. If `last_error` is still set after a few runs, fix that error (usually a missing product) and run the `SELECT` again.
 
 The webhook also calls this function once after it queues a failure. You still run it yourself when the alert table has rows, because Paystack will not keep retrying.
+
+## Step 17 — daily WhatsApp report cron reads Vault
+
+File: `supabase/migrations/20261025_15_whatsapp_report_cron_vault.sql`
+
+Version `2026102515`, name `whatsapp_report_cron_vault`.
+
+The live job `send-daily-whatsapp-reports` calls `send-daily-reports` with the old service-role key written into the schedule. This file keeps that job's schedule and replaces the command. The new command reads two Vault secrets when the job runs. It does not copy the secret into `cron.job`.
+
+This file does not change `hourly-whatsapp-reports`.
+
+Before the file, create the secrets yourself in the SQL editor. Do not paste the values into this file, a ticket, or a screenshot.
+
+- `service_role_key` — the new service-role key. The leaked legacy JWT must not go back into the job.
+- `cron_secret` — the same string as the edge secret `CRON_SECRET`. The function rejects a call that does not send `x-cron-secret`.
+
+Confirm the names only. Do not select `decrypted_secret` on a shared screen.
+
+```sql
+SELECT name FROM vault.decrypted_secrets
+ WHERE name IN ('service_role_key', 'cron_secret');
+```
+
+That must return both names. If it does not, stop. The file also stops if the job is missing, so it cannot create a second schedule by guessing.
+
+Smoke test. The command text is safe to read after this file: it names the Vault secrets and does not contain the key.
+
+```sql
+SELECT jobname, schedule,
+       command LIKE '%vault.decrypted_secrets%' AS reads_vault,
+       command LIKE '%eyJ%' AS has_legacy_jwt_marker
+  FROM cron.job
+ WHERE jobname = 'send-daily-whatsapp-reports';
+```
+
+`reads_vault` is true and `has_legacy_jwt_marker` is false. `schedule` is the same value the job had before this file.
+
+Rollback. This removes the job. Do not paste the old command back in. That command is where the old key was hardcoded.
+
+```sql
+SELECT cron.unschedule('send-daily-whatsapp-reports');
+```
 
 ## If everything is on fire
 

@@ -179,6 +179,119 @@ BEGIN
   IF NOT has_function_privilege('service_role', 'public.decrement_product_quantity(uuid,integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'service_role cannot execute decrement_product_quantity';
   END IF;
+  IF has_function_privilege('anon', 'public.decrement_storefront_lines(jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can execute decrement_storefront_lines';
+  END IF;
+  IF has_function_privilege('authenticated', 'public.decrement_storefront_lines(jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated can execute decrement_storefront_lines';
+  END IF;
+  IF NOT has_function_privilege('service_role', 'public.decrement_storefront_lines(jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'service_role cannot execute decrement_storefront_lines';
+  END IF;
+END $$;
+
+-- Two lines, one call. The second line is short. A retry of that same
+-- call must not keep the first line's decrement. Then one successful
+-- call moves both lines once.
+CREATE TABLE public.product_variants (
+  id uuid PRIMARY KEY,
+  quantity integer NOT NULL
+);
+
+INSERT INTO public.products (id, quantity) VALUES
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 5),
+  ('ffffffff-ffff-ffff-ffff-ffffffffffff', 1),
+  ('99999999-9999-9999-9999-999999999999', 9);
+INSERT INTO public.product_variants (id, quantity) VALUES
+  ('88888888-8888-8888-8888-888888888888', 1);
+
+DO $$
+DECLARE
+  v_a integer;
+  v_b integer;
+BEGIN
+  BEGIN
+    PERFORM public.decrement_storefront_lines($lines$[
+      {"product_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","variant_id":null,"quantity":2},
+      {"product_id":"ffffffff-ffff-ffff-ffff-ffffffffffff","variant_id":null,"quantity":2}
+    ]$lines$::jsonb);
+    RAISE EXCEPTION 'expected insufficient_stock on the first multi-item call';
+  EXCEPTION WHEN check_violation THEN
+    IF SQLERRM NOT LIKE '%insufficient_stock%' THEN
+      RAISE;
+    END IF;
+  END;
+
+  SELECT quantity INTO v_a FROM public.products
+   WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  SELECT quantity INTO v_b FROM public.products
+   WHERE id = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  IF v_a IS DISTINCT FROM 5 OR v_b IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'first shortfall left stock at % and %', v_a, v_b;
+  END IF;
+
+  BEGIN
+    PERFORM public.decrement_storefront_lines($lines$[
+      {"product_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","variant_id":null,"quantity":2},
+      {"product_id":"ffffffff-ffff-ffff-ffff-ffffffffffff","variant_id":null,"quantity":2}
+    ]$lines$::jsonb);
+    RAISE EXCEPTION 'expected insufficient_stock on the retry';
+  EXCEPTION WHEN check_violation THEN
+    IF SQLERRM NOT LIKE '%insufficient_stock%' THEN
+      RAISE;
+    END IF;
+  END;
+
+  SELECT quantity INTO v_a FROM public.products
+   WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  SELECT quantity INTO v_b FROM public.products
+   WHERE id = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  IF v_a IS DISTINCT FROM 5 OR v_b IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'retry left stock at % and %', v_a, v_b;
+  END IF;
+
+  UPDATE public.products SET quantity = 4
+   WHERE id = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+  PERFORM public.decrement_storefront_lines($lines$[
+    {"product_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","variant_id":null,"quantity":2},
+    {"product_id":"ffffffff-ffff-ffff-ffff-ffffffffffff","variant_id":null,"quantity":2}
+  ]$lines$::jsonb);
+
+  SELECT quantity INTO v_a FROM public.products
+   WHERE id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  SELECT quantity INTO v_b FROM public.products
+   WHERE id = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  IF v_a IS DISTINCT FROM 3 OR v_b IS DISTINCT FROM 2 THEN
+    RAISE EXCEPTION 'successful multi-item call left stock at % and %', v_a, v_b;
+  END IF;
+END $$;
+
+-- A later variant shortfall undoes the earlier product line.
+DO $$
+DECLARE
+  v_product integer;
+  v_variant integer;
+BEGIN
+  BEGIN
+    PERFORM public.decrement_storefront_lines($lines$[
+      {"product_id":"99999999-9999-9999-9999-999999999999","quantity":2},
+      {"product_id":"99999999-9999-9999-9999-999999999999","variant_id":"88888888-8888-8888-8888-888888888888","quantity":4}
+    ]$lines$::jsonb);
+    RAISE EXCEPTION 'expected insufficient_stock for the variant line';
+  EXCEPTION WHEN check_violation THEN
+    IF SQLERRM NOT LIKE '%insufficient_stock%' THEN
+      RAISE;
+    END IF;
+  END;
+
+  SELECT quantity INTO v_product FROM public.products
+   WHERE id = '99999999-9999-9999-9999-999999999999';
+  SELECT quantity INTO v_variant FROM public.product_variants
+   WHERE id = '88888888-8888-8888-8888-888888888888';
+  IF v_product IS DISTINCT FROM 9 OR v_variant IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'variant shortfall left stock at % and %', v_product, v_variant;
+  END IF;
 END $$;
 SQL
 

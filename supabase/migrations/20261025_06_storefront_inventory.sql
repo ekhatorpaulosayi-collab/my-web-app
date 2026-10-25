@@ -13,7 +13,12 @@
 -- function is not on live, so this file creates it (service_role only)
 -- before apply_storefront_inventory. A shortfall raises insufficient_stock.
 --
+-- A legacy checkout with several lines uses decrement_storefront_lines.
+-- That function decrements every line in one transaction. A shortfall
+-- raises insufficient_stock and undoes the earlier lines in that call.
+--
 -- ROLLBACK: DROP FUNCTION public.apply_storefront_inventory(text);
+--           DROP FUNCTION public.decrement_storefront_lines(jsonb);
 --           DROP FUNCTION public.decrement_product_quantity(uuid, integer);
 --           DROP TABLE public.storefront_fulfillments;
 -- =============================================================================
@@ -55,6 +60,54 @@ $$;
 
 REVOKE ALL ON FUNCTION public.decrement_product_quantity(uuid, integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.decrement_product_quantity(uuid, integer) TO service_role;
+
+-- One call, one transaction. complete-storefront-order uses this so a
+-- later insufficient_stock does not leave the earlier lines decremented.
+CREATE OR REPLACE FUNCTION public.decrement_storefront_lines(p_lines jsonb)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_line jsonb;
+  v_qty integer;
+  v_product uuid;
+  v_variant uuid;
+  v_updated integer;
+BEGIN
+  IF jsonb_typeof(p_lines) IS DISTINCT FROM 'array' OR jsonb_array_length(p_lines) < 1 THEN
+    RAISE EXCEPTION 'bad_items' USING ERRCODE = '23514';
+  END IF;
+
+  FOR v_line IN SELECT value FROM jsonb_array_elements(p_lines)
+  LOOP
+    v_qty := (v_line ->> 'quantity')::integer;
+    IF v_qty IS NULL OR v_qty <= 0 OR v_qty > 10000 THEN
+      RAISE EXCEPTION 'bad_quantity' USING ERRCODE = '23514';
+    END IF;
+    v_variant := NULLIF(v_line ->> 'variant_id', '')::uuid;
+    v_product := NULLIF(v_line ->> 'product_id', '')::uuid;
+    IF v_variant IS NOT NULL THEN
+      UPDATE public.product_variants
+         SET quantity = quantity - v_qty
+       WHERE id = v_variant
+         AND quantity >= v_qty;
+      GET DIAGNOSTICS v_updated = ROW_COUNT;
+      IF v_updated = 0 THEN
+        RAISE EXCEPTION 'insufficient_stock' USING ERRCODE = '23514';
+      END IF;
+    ELSIF v_product IS NOT NULL THEN
+      PERFORM public.decrement_product_quantity(v_product, v_qty);
+    ELSE
+      RAISE EXCEPTION 'bad_items' USING ERRCODE = '23514';
+    END IF;
+  END LOOP;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.decrement_storefront_lines(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.decrement_storefront_lines(jsonb) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.apply_storefront_inventory(p_reference text)
 RETURNS jsonb

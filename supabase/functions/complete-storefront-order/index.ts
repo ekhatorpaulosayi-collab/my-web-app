@@ -64,6 +64,35 @@ serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceKey);
 
+  const lines = items.map((it) => {
+    const quantity = Number(it.quantity);
+    const productId = String(it.product_id || '').trim();
+    if (!productId || !Number.isInteger(quantity) || quantity <= 0 || quantity > 10000) {
+      return null;
+    }
+    return {
+      product_id: productId,
+      variant_id: it.variant_id ? String(it.variant_id) : null,
+      quantity,
+    };
+  });
+  if (lines.some((line) => line === null)) {
+    return json({ error: 'bad_quantity' }, 400);
+  }
+
+  const productIds = lines.map((line) => line!.product_id);
+  const { data: products, error: productError } = await admin
+    .from('products')
+    .select('id, user_id')
+    .in('id', productIds);
+  if (productError || !products || products.length !== new Set(productIds).size) {
+    return json({ error: 'unknown_product' }, 400);
+  }
+  const owner = String(products[0].user_id);
+  if (products.some((p) => String(p.user_id) !== owner)) {
+    return json({ error: 'mixed_store' }, 400);
+  }
+
   const { data: claimed, error: claimError } = await admin
     .from('storefront_fulfillments')
     .insert({ paystack_reference: reference })
@@ -78,37 +107,14 @@ serve(async (req) => {
   }
   if (!claimed) return json({ ok: true, already_applied: true });
 
-  const productIds = items.map((it) => String(it.product_id || '')).filter(Boolean);
-  const { data: products, error: productError } = await admin
-    .from('products')
-    .select('id, user_id')
-    .in('id', productIds);
-  if (productError || !products || products.length !== productIds.length) {
-    return json({ error: 'unknown_product' }, 400);
-  }
-  const owner = String(products[0].user_id);
-  if (products.some((p) => String(p.user_id) !== owner)) {
-    return json({ error: 'mixed_store' }, 400);
-  }
-
-  for (const item of items) {
-    const quantity = Number(item.quantity);
-    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 10000) {
-      return json({ error: 'bad_quantity' }, 400);
-    }
-    const { error } = item.variant_id
-      ? await admin.rpc('decrement_variant_quantity', {
-        p_variant_id: item.variant_id,
-        p_quantity: quantity,
-      })
-      : await admin.rpc('decrement_product_quantity', {
-        p_product_id: item.product_id,
-        p_quantity: quantity,
-      });
-    if (error) {
-      await admin.from('storefront_fulfillments').delete().eq('paystack_reference', reference);
-      return json({ error: 'stock_failed' }, 500);
-    }
+  // One database call. A shortfall on a later line rolls back the earlier
+  // lines, and the claim is removed so a retry starts from the same stock.
+  const { error: stockError } = await admin.rpc('decrement_storefront_lines', {
+    p_lines: lines,
+  });
+  if (stockError) {
+    await admin.from('storefront_fulfillments').delete().eq('paystack_reference', reference);
+    return json({ error: 'stock_failed' }, 500);
   }
 
   const customer = body.customer || {};
