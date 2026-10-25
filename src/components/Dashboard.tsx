@@ -107,7 +107,7 @@ export function Dashboard({
 
   // Staff permissions
   const { canEditProducts, canDeleteProducts, canAddProducts, canViewReports, isStaffMode, exitStaffMode, currentRole } = useStaff();
-  const { isFirstTimeSetup, businessType, businessTypePromptDismissed } = usePreferences();
+  const { isFirstTimeSetup, businessType, businessTypePromptDismissed, shopTypeReady } = usePreferences();
 
   // Load store from Supabase
   const { store, loading: storeLoading } = useStore(userId);
@@ -531,7 +531,8 @@ export function Dashboard({
   const setupStillOpen = !checklistDismissed && !(
     hasStoreName && items.length > 0 && sales.length > 0 && hasPayments
   );
-  const showShopType = !setupStillOpen && isFirstTimeSetup && !businessType && !businessTypePromptDismissed;
+  const shopTypePending = !shopTypeReady && !setupStillOpen && isFirstTimeSetup && !businessType && !businessTypePromptDismissed;
+  const showShopType = shopTypeReady && !setupStillOpen && isFirstTimeSetup && !businessType && !businessTypePromptDismissed;
 
   return (
     <div className="dashboard-minimal">
@@ -577,7 +578,7 @@ export function Dashboard({
       )}
 
       {/* Payment Status Indicator */}
-      {store && !shouldShowPaymentNudge && !setupStillOpen && !showShopType && (
+      {store && !shouldShowPaymentNudge && !setupStillOpen && !showShopType && !shopTypePending && (
         <PaymentStatusIndicator
           hasBank={!!(
             (store.bank_name && store.account_number)
@@ -877,7 +878,7 @@ export function Dashboard({
       />
 
       {/* Partner Program stays off a new dashboard so one setup card is the next step. */}
-      {!setupStillOpen && !showShopType && <div className="partner-widget-compact">
+      {!setupStillOpen && !showShopType && !shopTypePending && <div className="partner-widget-compact">
         <div
           className="partner-compact-header"
           onClick={() => {

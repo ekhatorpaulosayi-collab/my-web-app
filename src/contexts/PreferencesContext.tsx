@@ -39,6 +39,7 @@ interface PreferencesContextType {
   completeSetup: () => void;
   businessTypePromptDismissed: boolean;
   dismissBusinessTypePrompt: () => void;
+  shopTypeReady: boolean;
 
   // Calm Mode & Collapsed state
   calmMode: boolean;
@@ -119,6 +120,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const [shopTypeReady, setShopTypeReady] = useState(false);
+
   const [ownerAccess, setOwnerAccess] = useState<OwnerAccess>({
     isAuthenticated: false,
     expiresAt: null
@@ -173,47 +176,44 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (localStorage.getItem(STORAGE_KEYS.businessType)) return;
-      const { data } = await supabase.auth.getUser();
-      const id = data.user?.id;
-      if (!id || cancelled) return;
-      const { data: row, error } = await supabase.from('users').select('store_type').eq('id', id).maybeSingle();
-      if (cancelled || error || !row?.store_type) return;
-      const type = row.store_type as BusinessType;
-      if (!BUSINESS_PRESETS[type]) return;
-      setBusinessTypeState(type);
-      localStorage.setItem(STORAGE_KEYS.businessType, type);
-      const preset = BUSINESS_PRESETS[type];
-      if (preset) setActiveWidgets(preset.widgets);
-      setIsFirstTimeSetup(false);
-      localStorage.setItem(STORAGE_KEYS.isFirstTimeSetup, 'false');
-    })();
-    return () => { cancelled = true; };
-  }, []);
+      try {
+        const { data } = await supabase.auth.getUser();
+        const id = data.user?.id;
+        if (!id || cancelled) return;
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      const id = data.user?.id;
-      if (!id || cancelled) return;
-      const { data: row, error } = await supabase
-        .from('users')
-        .select('business_type_prompt_dismissed')
-        .eq('id', id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error) {
-        console.warn('[preferences] shop-type dismissal was not read', error.message);
-        return;
-      }
-      if (row?.business_type_prompt_dismissed) {
-        setBusinessTypePromptDismissed(true);
-        localStorage.setItem(BUSINESS_TYPE_PROMPT_KEY, 'true');
-        return;
-      }
-      if (localStorage.getItem(BUSINESS_TYPE_PROMPT_KEY) === 'true') {
-        void persistBusinessTypePromptDismissed();
+        if (!localStorage.getItem(STORAGE_KEYS.businessType)) {
+          const { data: row, error } = await supabase.from('users').select('store_type').eq('id', id).maybeSingle();
+          if (!cancelled && !error && row?.store_type && BUSINESS_PRESETS[row.store_type as BusinessType]) {
+            const type = row.store_type as BusinessType;
+            setBusinessTypeState(type);
+            localStorage.setItem(STORAGE_KEYS.businessType, type);
+            const preset = BUSINESS_PRESETS[type];
+            if (preset) setActiveWidgets(preset.widgets);
+            setIsFirstTimeSetup(false);
+            localStorage.setItem(STORAGE_KEYS.isFirstTimeSetup, 'false');
+          }
+        }
+
+        const { data: row, error } = await supabase
+          .from('users')
+          .select('business_type_prompt_dismissed')
+          .eq('id', id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          console.warn('[preferences] shop-type dismissal was not read', error.message);
+          return;
+        }
+        if (row?.business_type_prompt_dismissed) {
+          setBusinessTypePromptDismissed(true);
+          localStorage.setItem(BUSINESS_TYPE_PROMPT_KEY, 'true');
+          return;
+        }
+        if (localStorage.getItem(BUSINESS_TYPE_PROMPT_KEY) === 'true') {
+          void persistBusinessTypePromptDismissed();
+        }
+      } finally {
+        if (!cancelled) setShopTypeReady(true);
       }
     })();
     return () => { cancelled = true; };
@@ -330,6 +330,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     completeSetup,
     businessTypePromptDismissed,
     dismissBusinessTypePrompt,
+    shopTypeReady,
     calmMode,
     setCalmMode,
     collapsed,

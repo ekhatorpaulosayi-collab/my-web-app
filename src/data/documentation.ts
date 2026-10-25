@@ -1822,7 +1822,7 @@ The "Add New Item" modal opens with 10+ field sections.
 ### 7. LOW STOCK ALERT LEVEL (Optional)
 - Number input
 - Label: "🔔 Low Stock Alert Level"
-- Default: 10
+- Default: 3
 - **Purpose**: System notifies you when stock drops below this threshold
 - Help text: "You'll be notified when stock reaches this level"
 - **Nigerian Example**: Set to 20 for fast-moving items like soft drinks, 5 for slow movers like designer shoes

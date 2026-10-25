@@ -220,10 +220,11 @@ export function BusinessTypePrompt() {
     completeSetup,
     businessTypePromptDismissed,
     dismissBusinessTypePrompt,
+    shopTypeReady,
   } = usePreferences();
   const [open, setOpen] = useState(false);
 
-  if (!isFirstTimeSetup || businessType || businessTypePromptDismissed) return null;
+  if (!shopTypeReady || !isFirstTimeSetup || businessType || businessTypePromptDismissed) return null;
   if (open) return <BusinessTypeSelector onComplete={completeSetup} />;
 
   return (

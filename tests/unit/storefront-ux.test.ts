@@ -223,7 +223,8 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   const bankMove = readFileSync(new URL('../../supabase/migrations/20261025_21_store_bank_details.sql', import.meta.url), 'utf8');
   const bankCopy = readFileSync(new URL('../../supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql', import.meta.url), 'utf8');
   assert.match(bankMove, /store_bank_details.bank_name IS NULL/);
-  assert.match(bankMove, /s\.updated_at > d\.updated_at/);
+  assert.match(bankMove, /s\.bank_updated_at > d\.updated_at/);
+  assert.match(bankMove, /stores_touch_bank_updated_at/);
   assert.match(bankMove, /payment_methods/);
   assert.match(bankCopy, /to_regclass\('public.store_bank_details'\)/);
   const resolve = readFileSync(new URL('../../supabase/functions/resolve-bank-account/index.ts', import.meta.url), 'utf8');

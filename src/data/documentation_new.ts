@@ -4556,7 +4556,7 @@ Price: ₦8,000/month
 - Footer message: "Thank you for your patronage!"
 
 **Low Stock Threshold:**
-- Default: 10 units
+- Default: 3 units
 - Customize per product
 - Get alert when stock falls below
 

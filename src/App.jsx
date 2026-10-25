@@ -5027,7 +5027,7 @@ Low Stock: ${lowStockItems.length}
                   marginTop: '6px',
                   marginBottom: 0
                 }}>
-                  You'll be notified when stock reaches this level. Default: 10
+                  You'll be notified when stock reaches this level. Default: 3
                 </p>
               </div>
             )}

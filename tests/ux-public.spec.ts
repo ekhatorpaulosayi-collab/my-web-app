@@ -264,6 +264,30 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   await page.screenshot({ path: `${artifactDir}/retest12-phone-cart.png` });
 });
 
+test('reviews, affiliate, and upgrade open on a skeleton while auth is resolving', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('sb-example-auth-token', JSON.stringify({
+      access_token: 'expired',
+      refresh_token: 'refresh',
+      expires_at: 1,
+      expires_in: 1,
+      token_type: 'bearer',
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        aud: 'authenticated',
+        role: 'authenticated',
+      },
+    }));
+  });
+  await page.route('**/auth/v1/**', () => new Promise(() => {}));
+  for (const path of ['/reviews', '/affiliate/signup', '/upgrade']) {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.route-skeleton')).toBeVisible();
+    await expect(page.getByText('Loading your store...')).toHaveCount(0);
+    await expect(page.getByText('Loading...', { exact: true })).toHaveCount(0);
+  }
+});
+
 test('fresh dashboard shows one setup card in a wide column', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.removeItem('storehouse:setup-checklist:dismissed');

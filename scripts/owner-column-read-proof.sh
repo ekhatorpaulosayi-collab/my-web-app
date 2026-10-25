@@ -85,7 +85,10 @@ UPDATE public.store_bank_details
  WHERE store_id = '11111111-1111-1111-1111-111111111111';
 UPDATE public.stores
    SET bank_name = 'Stale Bank', account_number = '1111111111', account_name = 'Ada Old',
-       updated_at = timestamptz '2020-01-01+00'
+       bank_updated_at = timestamptz '2020-01-01+00'
+ WHERE id = '11111111-1111-1111-1111-111111111111';
+UPDATE public.stores
+   SET business_name = 'Renamed Shop', updated_at = clock_timestamp()
  WHERE id = '11111111-1111-1111-1111-111111111111';
 SQL
 
@@ -108,10 +111,10 @@ SQL
 | grep -q '1111111111'
 
 # A bank edit saved on the stores columns while 21b was undone is kept.
+# The statement does not set bank_updated_at; the trigger does.
 "${PSQL[@]}" -d "$DB" -v ON_ERROR_STOP=1 <<'SQL'
 UPDATE public.stores
-   SET bank_name = 'Edited Bank', account_number = '8888888888', account_name = 'Ada Edit',
-       updated_at = clock_timestamp()
+   SET bank_name = 'Edited Bank', account_number = '8888888888', account_name = 'Ada Edit'
  WHERE id = '11111111-1111-1111-1111-111111111111';
 SQL
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_21_store_bank_details.sql" >/dev/null

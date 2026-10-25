@@ -149,8 +149,15 @@ function RootRoute() {
 export default function AppRoutes() {
   const { currentUser, loading } = useAuth();
 
-  // Show loading spinner while checking auth state
+  // Show loading spinner while checking auth state.
+  // Reviews, affiliate signup, and Upgrade open on the route skeleton.
   if (loading) {
+    const directSkeleton = {
+      '/reviews': 'Reviews',
+      '/affiliate/signup': 'Affiliate signup',
+      '/upgrade': 'Subscription plans',
+    }[window.location.pathname];
+    if (directSkeleton) return <RouteSkeleton label={directSkeleton} />;
     return (
       <div style={{
         display: 'flex',

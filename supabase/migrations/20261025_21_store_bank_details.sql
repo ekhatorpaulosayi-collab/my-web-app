@@ -14,13 +14,16 @@
 -- this table. The manual transfer account stays here.
 --
 -- Re-run. An existing store_bank_details row is left as it is when any
--- field is already set and the stores columns are older than that row,
--- so a newer owner save is not replaced by stale stores columns. A row
--- that is still entirely empty can be filled once. A bank edit written
--- to the stores columns while this step was undone is kept when
--- stores.updated_at is later than store_bank_details.updated_at: that
--- edit replaces the details row and the existing Bank Transfer method,
--- then the stores columns are cleared. Before the stores columns are
+-- field is already set and the bank columns were not edited after that
+-- row, so a newer owner save is not replaced by stale stores columns.
+-- A row that is still entirely empty can be filled once. A bank edit
+-- written to the stores columns while this step was undone is kept when
+-- stores.bank_updated_at is later than store_bank_details.updated_at.
+-- bank_updated_at moves only when bank_name, account_number, or
+-- account_name changes, so a shop rename does not restore an old
+-- account. That newer bank edit replaces the details row and the
+-- existing Bank Transfer method, then the stores columns are cleared.
+-- Before the stores columns are
 -- cleared, a missing Bank Transfer entry is copied into payment_methods,
 -- so this file still helps checkout if step 21a has not run.
 --
@@ -46,6 +49,36 @@
 --   GRANT UPDATE (bank_name, account_number, account_name) ON TABLE public.stores TO authenticated;
 -- =============================================================================
 BEGIN;
+
+ALTER TABLE public.stores
+  ADD COLUMN IF NOT EXISTS bank_updated_at timestamptz;
+
+CREATE OR REPLACE FUNCTION public.stores_touch_bank_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.bank_name IS DISTINCT FROM OLD.bank_name
+     OR NEW.account_number IS DISTINCT FROM OLD.account_number
+     OR NEW.account_name IS DISTINCT FROM OLD.account_name
+  THEN
+    IF NEW.bank_updated_at IS NOT DISTINCT FROM OLD.bank_updated_at THEN
+      NEW.bank_updated_at = now();
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.stores_touch_bank_updated_at() FROM PUBLIC;
+
+DROP TRIGGER IF EXISTS stores_touch_bank_updated_at ON public.stores;
+CREATE TRIGGER stores_touch_bank_updated_at
+  BEFORE UPDATE OF bank_name, account_number, account_name
+  ON public.stores
+  FOR EACH ROW
+  EXECUTE FUNCTION public.stores_touch_bank_updated_at();
 
 CREATE TABLE IF NOT EXISTS public.store_bank_details (
   store_id uuid PRIMARY KEY REFERENCES public.stores(id) ON DELETE CASCADE,
@@ -121,9 +154,9 @@ ON CONFLICT (store_id) DO UPDATE
     AND public.store_bank_details.account_number IS NULL
     AND public.store_bank_details.account_name IS NULL;
 
--- A filled details row stays unless the stores columns were edited
--- later, which is what happens when this step is undone and the owner
--- saves a bank account on the old columns.
+-- A filled details row stays unless the bank columns were edited
+-- later. A shop rename moves stores.updated_at and leaves
+-- bank_updated_at alone, so it does not copy the old account back.
 UPDATE public.store_bank_details AS d
    SET bank_name = nullif(btrim(s.bank_name), ''),
        account_number = nullif(btrim(s.account_number), ''),
@@ -131,7 +164,7 @@ UPDATE public.store_bank_details AS d
        updated_at = now()
   FROM public.stores AS s
  WHERE s.id = d.store_id
-   AND s.updated_at > d.updated_at
+   AND s.bank_updated_at > d.updated_at
    AND (
         nullif(btrim(coalesce(s.bank_name, '')), '') IS NOT NULL
      OR nullif(btrim(coalesce(s.account_number, '')), '') IS NOT NULL
