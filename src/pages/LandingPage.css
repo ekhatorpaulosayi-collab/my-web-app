@@ -1879,12 +1879,12 @@ body {
 
 .pricing-cta-outline {
   background: white;
-  color: #2063F0;
-  border: 2px solid #2063F0;
+  color: #1d4ed8;
+  border: 2px solid #1d4ed8;
 }
 
 .pricing-cta-outline:hover {
-  background: #2063F0;
+  background: #1d4ed8;
   color: white;
 }
 

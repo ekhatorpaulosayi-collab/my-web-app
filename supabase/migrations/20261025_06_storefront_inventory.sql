@@ -9,7 +9,12 @@
 -- storefront client.
 --
 -- Safe to run with Stage A. Does not touch chat policies.
+-- Products without a variant use decrement_product_quantity. That
+-- function is not on live, so this file creates it (service_role only)
+-- before apply_storefront_inventory. A shortfall raises insufficient_stock.
+--
 -- ROLLBACK: DROP FUNCTION public.apply_storefront_inventory(text);
+--           DROP FUNCTION public.decrement_product_quantity(uuid, integer);
 --           DROP TABLE public.storefront_fulfillments;
 -- =============================================================================
 BEGIN;
@@ -21,6 +26,35 @@ CREATE TABLE IF NOT EXISTS public.storefront_fulfillments (
 
 ALTER TABLE public.storefront_fulfillments ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.storefront_fulfillments FROM PUBLIC, anon, authenticated;
+
+-- Same rule as decrement_variant_quantity: subtract only when the row
+-- still has enough stock. No updated row means the product is missing or
+-- the sale would go negative, and the order must not continue.
+CREATE OR REPLACE FUNCTION public.decrement_product_quantity(
+  p_product_id uuid,
+  p_quantity integer
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_updated integer;
+BEGIN
+  UPDATE public.products
+     SET quantity = quantity - p_quantity
+   WHERE id = p_product_id
+     AND quantity >= p_quantity;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  IF v_updated = 0 THEN
+    RAISE EXCEPTION 'insufficient_stock' USING ERRCODE = '23514';
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.decrement_product_quantity(uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.decrement_product_quantity(uuid, integer) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.apply_storefront_inventory(p_reference text)
 RETURNS jsonb

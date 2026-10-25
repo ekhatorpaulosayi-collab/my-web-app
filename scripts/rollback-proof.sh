@@ -40,6 +40,7 @@ run_db step7 -v ON_ERROR_STOP=1 <<SQL
 ${roles_sql}
 \i ${ROOT}/supabase/migrations/20261025_06_storefront_inventory.sql
 DROP FUNCTION IF EXISTS public.apply_storefront_inventory(text);
+DROP FUNCTION IF EXISTS public.decrement_product_quantity(uuid, integer);
 DROP TABLE IF EXISTS public.storefront_fulfillments;
 SQL
 

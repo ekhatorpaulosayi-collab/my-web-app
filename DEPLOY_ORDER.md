@@ -149,12 +149,15 @@ File: `supabase/migrations/20261025_06_storefront_inventory.sql`
 
 Version `2026102506`, name `storefront_inventory`.
 
-Smoke test: nothing visible changes yet. In the SQL editor, `SELECT proname FROM pg_proc WHERE proname = 'apply_storefront_inventory';` returns one row.
+This file also creates `decrement_product_quantity(uuid, integer)` for a product that has no variant. Only `service_role` may run it. If there is not enough stock it raises `insufficient_stock` and the order stops, so the queue can retry and the customer write is not skipped.
 
-Rollback:
+Smoke test: nothing visible changes yet. In the SQL editor, `SELECT proname FROM pg_proc WHERE proname IN ('apply_storefront_inventory', 'decrement_product_quantity');` returns two rows.
+
+Rollback. Drop `apply_storefront_inventory` first. It calls `decrement_product_quantity`.
 
 ```sql
 DROP FUNCTION IF EXISTS public.apply_storefront_inventory(text);
+DROP FUNCTION IF EXISTS public.decrement_product_quantity(uuid, integer);
 DROP TABLE IF EXISTS public.storefront_fulfillments;
 ```
 
