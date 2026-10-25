@@ -45,7 +45,10 @@ export default function ReferralDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
 
     async function loadReferralData() {
       try {
@@ -85,7 +88,7 @@ export default function ReferralDashboard() {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔄</div>
-        <p style={{ color: '#6b7280' }}>Loading your referral dashboard...</p>
+        <p style={{ color: '#475569' }}>Loading your referral dashboard...</p>
       </div>
     );
   }
@@ -119,19 +122,19 @@ export default function ReferralDashboard() {
 
   // Get badge
   let badge = '';
-  let badgeColor = '#3b82f6';
+  let badgeColor = '#1d4ed8';
   if (milestone?.isLegend) {
     badge = '⭐ Legend';
-    badgeColor = '#fbbf24';
+    badgeColor = '#92400e';
   } else if (milestone?.isAmbassador) {
     badge = '💎 Diamond';
-    badgeColor = '#a78bfa';
+    badgeColor = '#5b21b6';
   } else if (milestone?.milestone10Achieved) {
     badge = '👑 Champion';
-    badgeColor = '#f59e0b';
+    badgeColor = '#9a3412';
   } else if (milestone?.milestone5Achieved) {
     badge = '🔥 Fire Referrer';
-    badgeColor = '#ef4444';
+    badgeColor = '#b91c1c';
   }
 
   // Calculate total active rewards
@@ -150,14 +153,14 @@ export default function ReferralDashboard() {
         <h1 style={{ fontSize: '28px', fontWeight: 700, margin: '0 0 8px 0', color: '#111827' }}>
           Referral Program
         </h1>
-        <p style={{ fontSize: '16px', color: '#6b7280', margin: 0 }}>
+        <p style={{ fontSize: '16px', color: '#475569', margin: 0 }}>
           Invite friends and earn amazing rewards!
         </p>
       </div>
 
       {/* Referral Code Card */}
       <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
         borderRadius: '16px',
         padding: '24px',
         marginBottom: '24px',
@@ -166,7 +169,7 @@ export default function ReferralDashboard() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
-            <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>Your Referral Code</div>
+            <div style={{ fontSize: '14px', marginBottom: '4px' }}>Your Referral Code</div>
             <div style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '2px' }}>{referralCode}</div>
           </div>
           {badge && (
@@ -232,7 +235,7 @@ export default function ReferralDashboard() {
       {/* Stats Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
         gap: '16px',
         marginBottom: '24px'
       }}>
@@ -243,14 +246,14 @@ export default function ReferralDashboard() {
           padding: '20px',
           border: '1px solid #e5e7eb'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#3b82f6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#1d4ed8' }}>
             <Users size={20} />
             <div style={{ fontSize: '14px', fontWeight: 600 }}>Total Referrals</div>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 700, color: '#111827' }}>
             {milestone?.totalReferrals || 0}
           </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+          <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
             {conversions} converted to paid
           </div>
         </div>
@@ -263,14 +266,14 @@ export default function ReferralDashboard() {
             padding: '20px',
             border: '1px solid #e5e7eb'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#10b981' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#15803d' }}>
               <Gift size={20} />
               <div style={{ fontSize: '14px', fontWeight: 600 }}>Account Credit</div>
             </div>
             <div style={{ fontSize: '32px', fontWeight: 700, color: '#111827' }}>
               {formatNaira(totalCreditKobo / 100)}
             </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+            <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
               Use toward subscription
             </div>
           </div>
@@ -284,14 +287,14 @@ export default function ReferralDashboard() {
             padding: '20px',
             border: '1px solid #e5e7eb'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#8b5cf6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#6d28d9' }}>
               <Award size={20} />
               <div style={{ fontSize: '14px', fontWeight: 600 }}>Free Access</div>
             </div>
             <div style={{ fontSize: '32px', fontWeight: 700, color: '#111827' }}>
               {totalFreeMonths} {totalFreeMonths === 1 ? 'Month' : 'Months'}
             </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+            <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
               Stacked rewards
             </div>
           </div>
@@ -310,12 +313,12 @@ export default function ReferralDashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
               <div style={{ fontSize: '18px', fontWeight: 600, color: '#111827' }}>Next Milestone</div>
-              <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
+              <div style={{ fontSize: '14px', color: '#475569', marginTop: '4px' }}>
                 {nextMilestone - conversions} more {nextMilestone - conversions === 1 ? 'referral' : 'referrals'} to unlock {nextMilestoneReward}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#667eea' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: '#1d4ed8' }}>
                 {conversions}/{nextMilestone}
               </div>
             </div>
@@ -329,7 +332,7 @@ export default function ReferralDashboard() {
             overflow: 'hidden'
           }}>
             <div style={{
-              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(90deg, #1d4ed8 0%, #764ba2 100%)',
               height: '100%',
               width: `${Math.min(progress * 100, 100)}%`,
               borderRadius: '12px',
@@ -367,16 +370,15 @@ export default function ReferralDashboard() {
                 padding: '16px',
                 background: achieved ? '#f0fdf4' : '#f9fafb',
                 borderRadius: '8px',
-                border: achieved ? '2px solid #10b981' : '1px solid #e5e7eb',
-                opacity: achieved ? 1 : conversions >= count ? 0.9 : 0.6
+                border: achieved ? '2px solid #15803d' : '1px solid #e5e7eb',
               }}
             >
               <div style={{
                 width: '40px',
                 height: '40px',
                 borderRadius: '50%',
-                background: achieved ? '#10b981' : conversions >= count ? '#667eea' : '#d1d5db',
-                color: 'white',
+                background: achieved ? '#15803d' : conversions >= count ? '#1d4ed8' : '#e2e8f0',
+                color: achieved || conversions >= count ? '#ffffff' : '#334155',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -390,14 +392,14 @@ export default function ReferralDashboard() {
                 <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>
                   {count} Referrals
                 </div>
-                <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
+                <div style={{ fontSize: '14px', color: '#475569', marginTop: '2px' }}>
                   {reward}
                 </div>
               </div>
               {achieved && (
                 <div style={{
                   padding: '4px 12px',
-                  background: '#10b981',
+                  background: '#15803d',
                   color: 'white',
                   borderRadius: '12px',
                   fontSize: '12px',
@@ -453,7 +455,7 @@ export default function ReferralDashboard() {
                   <div style={{ fontSize: '15px', fontWeight: 500, color: '#111827' }}>
                     {ref.refereeName || ref.refereeEmail || 'Anonymous'}
                   </div>
-                  <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>
                     {new Date(ref.createdAt).toLocaleDateString()}
                   </div>
                 </div>
@@ -472,7 +474,7 @@ export default function ReferralDashboard() {
                   }),
                   ...(ref.status === 'pending' && {
                     background: '#f3f4f6',
-                    color: '#6b7280'
+                    color: '#475569'
                   })
                 }}>
                   {ref.status === 'converted' ? '✓ Paid' : ref.status === 'signed_up' ? 'Signed Up' : 'Pending'}

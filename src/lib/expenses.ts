@@ -1,4 +1,5 @@
 import { Expense, ExpenseCategory } from '../types/expenses';
+import { lagosMonthRange } from '../utils/businessDate';
 
 const STORAGE_KEY = 'storehouse:expenses:v1';
 
@@ -156,13 +157,8 @@ export function getExpensesByDateRange(
 
 // Get current month expenses
 export function getCurrentMonthExpenses(): Expense[] {
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString().split('T')[0];
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    .toISOString().split('T')[0];
-
-  return getExpensesByDateRange(firstDay, lastDay);
+  const { start, end } = lagosMonthRange();
+  return getExpensesByDateRange(start, end);
 }
 
 // Calculate total expenses in naira

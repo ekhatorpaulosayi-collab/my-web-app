@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, TrendingUp } from 'lucide-react';
 import { formatNGN } from '../utils/currency';
+import { saleRevenueKobo } from '../utils/money';
 import { getDB } from '../db/idb';
 import { useAuth } from '../contexts/AuthContext';
 import './ChannelAnalytics.css';
@@ -92,8 +93,7 @@ export const ChannelAnalytics: React.FC<ChannelAnalyticsProps> = ({ onClose }) =
 
       filteredSales.forEach(sale => {
         const channel = sale.salesChannel || 'in-store';
-        // H6: sellKobo is the UNIT price; revenue = unit price x quantity
-        const revenue = Math.round(((sale.sellKobo || 0) * (sale.qty || 1)) / 100);
+        const revenue = Math.round(saleRevenueKobo(sale) / 100);
 
         if (!channelGroups[channel]) {
           channelGroups[channel] = { count: 0, revenue: 0 };

@@ -86,7 +86,10 @@ export async function submitReview(reviewData: SubmitReviewData) {
       };
     }
 
-    const { data, error } = await supabase
+    // Do not .select() after insert. Migration 04 section 8 drops the open
+    // SELECT on product_reviews, so a returning read of a pending row fails
+    // and the storefront treats a saved review as an error.
+    const { error } = await supabase
       .from('product_reviews')
       .insert({
         product_id: reviewData.product_id,
@@ -101,9 +104,7 @@ export async function submitReview(reviewData: SubmitReviewData) {
         helpful_count: 0,
         not_helpful_count: 0,
         store_response: null
-      })
-      .select()
-      .single();
+      });
 
     if (error) {
       console.error('[ReviewService] Error submitting review:', error);
@@ -116,7 +117,7 @@ export async function submitReview(reviewData: SubmitReviewData) {
     console.log('[ReviewService] Review submitted successfully');
     return {
       success: true,
-      review: data as ProductReview
+      review: null
     };
   } catch (error: any) {
     console.error('[ReviewService] Unexpected error:', error);

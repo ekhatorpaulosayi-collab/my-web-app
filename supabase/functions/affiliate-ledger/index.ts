@@ -17,6 +17,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { markSignupAction } from '../_shared/moneyPolicies.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://www.storehouse.ng',
@@ -89,6 +90,45 @@ serve(async (req) => {
       .maybeSingle();
     if (!affiliate) return json({ error: 'unknown_code' }, 404);
 
+    // One attribution per customer. Repeating mark_signup must not inflate
+    // total_signups. attribute_affiliate_signup inserts once (migration 11).
+    const { data: counted, error: attributeError } = await admin.rpc('attribute_affiliate_signup', {
+      p_affiliate_id: affiliate.id,
+      p_customer_id: user.id,
+    });
+    const missingFn = attributeError && /attribute_affiliate_signup|PGRST202|42883/i.test(attributeError.message || '');
+    if (attributeError && !missingFn) {
+      return json({ error: 'signup_failed' }, 500);
+    }
+
+    if (missingFn) {
+      const { data: click } = await admin
+        .from('affiliate_clicks')
+        .select('id')
+        .eq('affiliate_id', affiliate.id)
+        .eq('converted', false)
+        .order('clicked_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!click) return json({ ok: true, already_counted: true });
+      const { data: claimed } = await admin
+        .from('affiliate_clicks')
+        .update({ converted: true, customer_id: user.id })
+        .eq('id', click.id)
+        .eq('converted', false)
+        .select('id')
+        .maybeSingle();
+      if (markSignupAction({ rpcAvailable: false, rpcCounted: false, claimedClick: Boolean(claimed) }) !== 'increment_fallback') {
+        return json({ ok: true, already_counted: true });
+      }
+      await admin.rpc('increment_affiliate_signup', { p_affiliate_id: affiliate.id });
+      return json({ ok: true, counted: true });
+    }
+
+    if (markSignupAction({ rpcAvailable: true, rpcCounted: counted === true, claimedClick: false }) !== 'count_in_rpc') {
+      return json({ ok: true, already_counted: true });
+    }
+
     const { data: click } = await admin
       .from('affiliate_clicks')
       .select('id')
@@ -106,8 +146,7 @@ serve(async (req) => {
         .eq('converted', false);
     }
 
-    await admin.rpc('increment_affiliate_signup', { p_affiliate_id: affiliate.id });
-    return json({ ok: true });
+    return json({ ok: true, counted: true });
   }
 
   if (action === 'record_sale' || action === 'refund') {

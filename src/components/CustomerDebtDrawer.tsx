@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { businessDayKey, lagosTodayPlus } from '../utils/businessDate';
 import { getDebts, markDebtPaidNotify, recordPaymentNotify, recordInstallmentPaymentNotify, addDebtNotify, createDebtWithInstallments, getNextPendingInstallment, type Debt as LocalStorageDebt, type InstallmentFrequency } from '../state/debts';
 import { openWhatsApp } from '../utils/wa';
 import { RecordPaymentModal } from './RecordPaymentModal';
@@ -81,7 +82,7 @@ export default function CustomerDebtDrawer({
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => businessDayKey(), []);
 
   // Load debts when drawer opens
   useEffect(() => {
@@ -403,9 +404,6 @@ Thank you for your payment! 🙏`;
       } else {
         // Create simple debt (single payment)
         // Set due date to 30 days from now as default
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 30);
-
         newDebt = {
           id: `DEBT-${Date.now()}`,
           customerName,
@@ -414,7 +412,7 @@ Thank you for your payment! 🙏`;
           amountPaid: 0,
           amountRemaining: totalAmount,
           payments: [],
-          dueDate: dueDate.toISOString().split('T')[0],
+          dueDate: lagosTodayPlus(30),
           createdAt: new Date().toISOString(),
           status: 'open'
         };

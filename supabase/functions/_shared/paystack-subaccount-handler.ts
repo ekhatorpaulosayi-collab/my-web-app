@@ -18,6 +18,7 @@
 // Return: { ok, status, body }. Caller writes the HTTP response.
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { chargeSuccessOutcome } from './moneyPolicies.ts';
 
 export interface SubaccountHandlerResult {
   ok: boolean;
@@ -44,23 +45,35 @@ export async function handleSubaccountEvent(
     });
     if (rpcError) {
       console.error('record_successful_payment failed', { reference, error: rpcError.message });
-      return { ok: false, status: 500, body: { error: 'rpc_failed', detail: rpcError.message } };
+      const failed = chargeSuccessOutcome(false, false);
+      return { ok: false, status: failed.httpStatus, body: { error: 'rpc_failed', detail: rpcError.message } };
     }
-    // B6: stock + server-computed promo. Idempotent. Missing until Paul runs
-    // 20261025_06 — that case must not 500 the webhook (payment already recorded).
+    // Payment is already recorded. A stock failure must not 500, or Paystack
+    // retries the charge and can double-apply side effects. Queue the reference
+    // (migration 10) and return 200. apply_storefront_inventory is idempotent
+    // on paystack reference, so a later replay is safe.
     const { error: inventoryError } = await admin.rpc('apply_storefront_inventory', {
       p_reference: reference,
     });
-    if (inventoryError) {
+    const outcome = chargeSuccessOutcome(true, Boolean(inventoryError));
+    let inventoryQueued = false;
+    if (outcome.queueInventory && inventoryError) {
       const missing = /apply_storefront_inventory|PGRST202|42883/i.test(inventoryError.message || '');
-      if (!missing) {
-        console.error('apply_storefront_inventory failed', { reference, error: inventoryError.message });
-        return { ok: false, status: 500, body: { error: 'inventory_failed' } };
+      console.error('apply_storefront_inventory failed', { reference, error: inventoryError.message, missing });
+      const { error: queueError } = await admin
+        .from('storefront_inventory_queue')
+        .upsert({
+          paystack_reference: reference,
+          last_error: String(inventoryError.message || 'inventory_failed').slice(0, 500),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'paystack_reference' });
+      if (queueError) {
+        console.error('inventory queue insert failed', { reference, error: queueError.message });
       }
-      console.warn('apply_storefront_inventory not installed yet', { reference });
+      inventoryQueued = true;
     }
-    console.log('webhook_processed', { eventType, reference, result: rpcResult });
-    return { ok: true, status: 200, body: { ok: true, ...(rpcResult || {}) } };
+    console.log('webhook_processed', { eventType, reference, result: rpcResult, inventoryQueued });
+    return { ok: true, status: outcome.httpStatus, body: { ok: true, inventory_queued: inventoryQueued, ...(rpcResult || {}) } };
   }
 
   // Non-success events: inline claim with ON CONFLICT detection.

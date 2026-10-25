@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStaff } from '../contexts/StaffContext';
 import { getUserTier } from '../services/subscriptionService';
 import { supabase } from '../lib/supabase';
+import { businessDayKey, lagosWeekStart } from '../utils/businessDate';
 import '../styles/BusinessInsights.css';
 
 interface BusinessSummary {
@@ -91,23 +92,7 @@ const BusinessInsights: React.FC = () => {
       setError(null);
 
       try {
-        // Calculate date range for today/this week in WAT
-        const now = new Date();
-        const watOffset = 1; // WAT is UTC+1
-        const watNow = new Date(now.getTime() + watOffset * 60 * 60 * 1000);
-
-        let periodStart: Date;
-        if (period === 'daily') {
-          periodStart = new Date(watNow);
-          periodStart.setUTCHours(0, 0, 0, 0);
-        } else {
-          // Weekly: Get Monday of this week
-          const dayOfWeek = watNow.getUTCDay();
-          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          periodStart = new Date(watNow);
-          periodStart.setUTCDate(periodStart.getUTCDate() - daysToMonday);
-          periodStart.setUTCHours(0, 0, 0, 0);
-        }
+        const periodStart = period === 'daily' ? businessDayKey() : lagosWeekStart();
 
         // Query for existing summary
         const { data, error: queryError } = await supabase
@@ -115,7 +100,7 @@ const BusinessInsights: React.FC = () => {
           .select('*')
           .eq('store_id', storeId)
           .eq('period', period)
-          .eq('period_start', periodStart.toISOString().split('T')[0])
+          .eq('period_start', periodStart)
           .single();
 
         if (queryError && queryError.code !== 'PGRST116') {

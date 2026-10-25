@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as contributionService from '../../services/contributionService';
 import { supabase } from '../../lib/supabase';
 import { collectionDate, formatCollectionDate, formatCollectionDateShort, hasStartDate } from '../../utils/ajoDates';
+import { calendarDateKey } from '../../utils/businessDate';
 import { formatPhoneForWhatsApp } from '../../utils/whatsapp';
 
 interface Member {
@@ -2045,7 +2046,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                 </label>
                 <input
                   type="date"
-                  value={group.cycle_start_date ? new Date(group.cycle_start_date).toISOString().split('T')[0] : ''}
+                  value={group.cycle_start_date ? calendarDateKey(group.cycle_start_date) : ''}
                   onChange={(e) => setEditedCycleStartDate(e.target.value)}
                   style={{
                     width: '100%',

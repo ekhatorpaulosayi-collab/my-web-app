@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
-  const { isStaffMode, currentRole } = useStaff();
+  const { isStaffMode, currentRole, canViewReports } = useStaff();
   const { store } = useStore(currentUser?.uid);
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const current = activeTab(location.pathname);
@@ -59,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       return;
     }
     if (id === 'money') {
+      if (!canViewReports()) return;
       const open = () => window.dispatchEvent(new CustomEvent('storehouse:open-money'));
       if (location.pathname !== '/dashboard') {
         navigate('/dashboard');
@@ -86,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           Storehouse
           <span>{storeName}</span>
         </div>
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => tab.id !== 'money' || canViewReports()).map((tab) => {
           const Icon = tab.icon;
           return (
             <button
@@ -113,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="app-shell-content">{children}</div>
       </div>
       <nav className="app-shell-tabs" aria-label="Primary">
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => tab.id !== 'money' || canViewReports()).map((tab) => {
           const Icon = tab.icon;
           return (
             <button

@@ -26,6 +26,8 @@ export default defineConfig({
     }
   },
   build: {
+    // The landing page should not download receipt/PDF code.
+    modulePreload: false,
     // Code splitting for faster loading
     rollupOptions: {
       output: {
@@ -33,11 +35,27 @@ export default defineConfig({
         entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
         chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
         assetFileNames: `assets/[name]-[hash]-${Date.now()}.[ext]`,
-        manualChunks: {
-          // Split vendor code
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
-          'vendor-icons': ['lucide-react'],
+        manualChunks(id) {
+          if (id.includes('preload-helper')) return 'preload';
+          if (!id.includes('node_modules')) return undefined;
+          if (
+            id.includes('jspdf') ||
+            id.includes('html2canvas') ||
+            id.includes('canvg') ||
+            id.includes('dompurify') ||
+            id.includes('fflate') ||
+            id.includes('fast-png') ||
+            id.includes('/pako/') ||
+            id.includes('file-saver')
+          ) return 'vendor-pdf';
+          if (id.includes('chart.js') || id.includes('react-chartjs')) return 'vendor-charts';
+          if (id.includes('firebase')) return 'vendor-firebase';
+          if (id.includes('@supabase')) return 'vendor-supabase';
+          if (id.includes('@sentry')) return 'vendor-sentry';
+          if (id.includes('lucide-react')) return 'vendor-icons';
+          if (id.includes('papaparse')) return 'vendor-csv';
+          if (id.includes('react-dom') || id.includes('react-router') || id.includes('/react/') || id.includes('scheduler')) return 'vendor-react';
+          return undefined;
         }
       }
     },

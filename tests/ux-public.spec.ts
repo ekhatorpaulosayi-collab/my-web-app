@@ -10,6 +10,10 @@ const routes = [
   ['terms', '/terms'],
   ['privacy', '/privacy'],
   ['not-found', '/this-route-does-not-exist'],
+  ['help', '/dev/ux-preview/help'],
+  ['upgrade', '/dev/ux-preview/upgrade'],
+  ['referrals', '/dev/ux-preview/referrals'],
+  ['quick-setup', '/dev/ux-preview/quick-setup'],
 ];
 
 test.beforeAll(async () => {
@@ -32,8 +36,15 @@ for (const [name, path] of routes) {
       await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     }
 
-    const shot = `/opt/cursor/artifacts/ux-after/${name}-${testInfo.project.name}.png`;
+    const width = page.viewportSize()?.width ?? 0;
+    const sizeLabel = width <= 400 ? '390x844' : '1440x900';
+    const shot = `/opt/cursor/artifacts/ux-after/${name}-${sizeLabel}.png`;
     await page.screenshot({ path: shot, fullPage: false });
+
+    if (name === 'help' || name === 'upgrade' || name === 'referrals' || name === 'quick-setup') {
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${name} horizontal overflow`).toBeLessThanOrEqual(1);
+    }
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])

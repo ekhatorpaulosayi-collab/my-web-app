@@ -22,6 +22,7 @@ import { ensureQty, ensurePrice } from '../utils/validators';
 // SINGLE-PATH (Option b): offlineQueue import removed — offline sales now go to IndexedDB.
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { lagosTodayPlus } from '../utils/businessDate';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -110,9 +111,7 @@ export default function RecordSaleModal({
   // Initialize due date to today + 7 days
   useEffect(() => {
     if (isOpen && !dueDate) {
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
     }
   }, [isOpen, dueDate]);
 
@@ -217,9 +216,7 @@ export default function RecordSaleModal({
       setPhone('');
       setPhoneDisplay('');
       setPhoneValidation({ valid: true, message: '' });
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
       setMessage('');
       setSendWhatsApp(false);
       setHasConsent(false);

@@ -5,7 +5,7 @@
  * cannot edit or delete products. Managers may add products. Everyone,
  * including cashiers, can record sales. Owner-only routes stay owner-only.
  * The same rules are mirrored by the restrictive RLS policies in
- * supabase/migrations/20261025_04_staff_sessions_rls.sql.
+ * supabase/migrations/20261025_09_staff_sessions.sql.
  */
 
 export type StaffRole = 'owner' | 'manager' | 'cashier';

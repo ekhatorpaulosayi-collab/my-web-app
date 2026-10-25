@@ -3,9 +3,6 @@
  * Creates PDF and image receipts for Nigerian retail businesses
  */
 
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-
 interface ReceiptData {
   businessName: string;
   businessPhone?: string;
@@ -38,6 +35,7 @@ function formatNaira(amount: number): string {
  * Generate PDF receipt
  */
 export async function generatePDFReceipt(data: ReceiptData): Promise<Blob> {
+  const { default: jsPDF } = await import('jspdf');
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -207,6 +205,7 @@ export async function generateReceiptImage(elementId: string): Promise<Blob> {
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
+  const { default: html2canvas } = await import('html2canvas');
   const canvas = await html2canvas(element, {
     backgroundColor: '#ffffff',
     scale: 2, // Higher quality

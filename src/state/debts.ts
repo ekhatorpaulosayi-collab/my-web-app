@@ -1,4 +1,5 @@
 // src/state/debts.ts
+import { addCalendarDays, addCalendarMonths, calendarDateKey } from '../utils/businessDate';
 export type DebtStatus = "open" | "paid" | "partial";
 export type InstallmentFrequency = "weekly" | "biweekly" | "monthly";
 export type InstallmentStatus = "pending" | "paid" | "overdue";
@@ -240,21 +241,10 @@ export function getPaymentHistory(debtId: string): Payment[] {
 
 // Calculate next installment date based on frequency
 function calculateNextDate(startDate: string, frequency: InstallmentFrequency, interval: number): string {
-  const date = new Date(startDate);
-
-  switch (frequency) {
-    case 'weekly':
-      date.setDate(date.getDate() + (interval * 7));
-      break;
-    case 'biweekly':
-      date.setDate(date.getDate() + (interval * 14));
-      break;
-    case 'monthly':
-      date.setMonth(date.getMonth() + interval);
-      break;
-  }
-
-  return date.toISOString().split('T')[0];
+  const base = calendarDateKey(startDate);
+  if (frequency === 'weekly') return addCalendarDays(base, interval * 7);
+  if (frequency === 'biweekly') return addCalendarDays(base, interval * 14);
+  return addCalendarMonths(base, interval);
 }
 
 // Generate installment schedule

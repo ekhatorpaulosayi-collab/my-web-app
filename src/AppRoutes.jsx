@@ -263,7 +263,7 @@ export default function AppRoutes() {
         <Route
           path="/customers"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <CustomersPage />
             </ProtectedRoute>
           }
@@ -489,6 +489,10 @@ export default function AppRoutes() {
 
         {/* Dev preview route for Sale Modal V2 - Public for testing */}
         {import.meta.env.DEV && <Route path="/dev/sale-modal" element={<DevSaleModal />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/help" element={<HelpCenter />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/upgrade" element={<SubscriptionUpgrade />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/referrals" element={<ReferralDashboard />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/quick-setup" element={<StoreQuickSetup />} />}
 
         {/* Store Setup - Clean minimal design for quick store creation */}
         <Route path="/store-setup" element={<StoreSetup />} />

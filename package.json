@@ -18,6 +18,7 @@
     "record-session": "node ux-tools/record-session.js",
     "quick-test": "node ux-tools/quick-test.js",
     "check:chat": "./scripts/check-chat-integrity.sh",
+    "test:unit": "tsx --test tests/unit/*.test.ts",
     "test:ux": "playwright test",
     "chat:snapshot": "./scripts/chat-snapshot.sh"
   },

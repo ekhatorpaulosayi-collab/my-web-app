@@ -8,9 +8,9 @@ import { AppShell } from './layout/AppShell';
  * Redirects to /login if user is not authenticated
  * Shows loading spinner while checking auth state
  */
-export default function ProtectedRoute({ children, ownerOnly = false, devOnly = false }) {
+export default function ProtectedRoute({ children, ownerOnly = false, blockCashier = false, devOnly = false }) {
   const { currentUser, loading } = useAuth();
-  const { isStaffMode } = useStaff();
+  const { isStaffMode, currentRole, roleReady } = useStaff();
 
   console.warn('🔐 [ProtectedRoute] Checking auth:', {
     hasUser: !!currentUser,
@@ -21,7 +21,7 @@ export default function ProtectedRoute({ children, ownerOnly = false, devOnly = 
   });
 
   // Show loading spinner while checking auth state
-  if (loading) {
+  if (loading || (currentUser && !roleReady)) {
     console.warn('🔐 [ProtectedRoute] Still loading auth...');
     return (
       <div style={{
@@ -66,8 +66,13 @@ export default function ProtectedRoute({ children, ownerOnly = false, devOnly = 
     return <Navigate to="/dashboard" replace />;
   }
 
-  // H1: staff (cashier/manager) sessions can't open owner-only pages by URL
+  // H1: staff (cashier/manager) sessions can't open owner-only pages by URL.
+  // Cashiers also can't open money, export, or customer routes. The role is
+  // the server session, not localStorage.
   if (ownerOnly && isStaffMode) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  if (blockCashier && currentRole === 'cashier') {
     return <Navigate to="/dashboard" replace />;
   }
 

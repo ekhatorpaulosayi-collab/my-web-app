@@ -22,6 +22,7 @@ import {
   type PaymentData
 } from '../utils/paystackSettings';
 import { getProductVariants } from '../lib/supabase-variants';
+import { lagosTodayPlus } from '../utils/businessDate';
 import type { ProductVariant } from '../types/variants';
 
 /**
@@ -129,9 +130,7 @@ export default function RecordSaleModalV2({
   // Initialize due date
   useEffect(() => {
     if (isOpen && !dueDate) {
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
     }
   }, [isOpen, dueDate]);
 
@@ -228,9 +227,7 @@ export default function RecordSaleModalV2({
       setPhone('');
       setPhoneDisplay('');
       setPhoneValidation({ valid: true, message: '' });
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
       setMessage('');
       setCustomerEmail('');
       setShowMorePayments(false);

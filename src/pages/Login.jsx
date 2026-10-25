@@ -88,14 +88,12 @@ export default function Login() {
       if (
         code === 'auth/wrong-password' ||
         code === 'auth/invalid-credential' ||
+        code === 'auth/user-not-found' ||
+        code === 'auth/invalid-email' ||
         code === 'invalid_credentials' ||
-        /invalid login credentials|email or password is incorrect|wrong password/i.test(message)
+        /invalid login credentials|email or password is incorrect|wrong password|user not found|no account found/i.test(message)
       ) {
         setError('Email or password is incorrect');
-      } else if (err.code === 'auth/user-not-found') {
-        setError('No account found with this email. Want to sign up?');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Please enter a valid email address');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed attempts. Try again later or reset your password.');
       } else {

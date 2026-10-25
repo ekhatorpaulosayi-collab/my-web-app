@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { businessDayKey } from '../utils/businessDate';
 
 // ============================================
 // TYPES & INTERFACES
@@ -661,6 +662,25 @@ Thank you for your business! 🙏`;
 /**
  * Calculate payment terms due date
  */
+export function dueDateKey(issueDate: string, paymentTerms: PaymentTerms): string {
+  const match = String(issueDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const base = match ? `${match[1]}-${match[2]}-${match[3]}` : businessDayKey();
+  const extra: Record<string, number> = {
+    DUE_ON_RECEIPT: 0,
+    NET_7: 7,
+    NET_15: 15,
+    NET_30: 30,
+    NET_60: 60,
+  };
+  const days = extra[paymentTerms] ?? 0;
+  const [year, month, day] = base.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day + days));
+  const y = utc.getUTCFullYear();
+  const m = String(utc.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(utc.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function calculateDueDate(issueDate: Date, paymentTerms: PaymentTerms): Date {
   const dueDate = new Date(issueDate);
 

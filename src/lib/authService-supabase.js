@@ -6,6 +6,7 @@
 import { supabase } from './supabase';
 import { logError } from '../utils/errorMonitoring';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { friendlyAuthError } from './authErrors';
 
 /**
  * Sign up a new user with email and password
@@ -437,42 +438,5 @@ function generateSlug(businessName, userId) {
  * Format Supabase auth errors into user-friendly messages
  */
 export function formatAuthError(error) {
-  const code = String(error?.code || error?.error_code || '').toLowerCase();
-  const raw = String(error?.message || '');
-  const lower = raw.toLowerCase();
-
-  // Exact credential failures first. A shorter "invalid email" substring must not win.
-  if (
-    code === 'invalid_credentials' ||
-    code === 'invalid_grant' ||
-    lower.includes('invalid login credentials') ||
-    lower.includes('invalid email or password') ||
-    lower.includes('wrong password')
-  ) {
-    return new Error('Email or password is incorrect');
-  }
-  if (code === 'email_not_confirmed' || lower.includes('email not confirmed')) {
-    return new Error('Please confirm your email address before signing in.');
-  }
-
-  const errorMessages = {
-    'User already registered': 'This email is already registered. Please log in instead.',
-    'Invalid email': 'Please enter a valid email address.',
-    'Password should be at least 6 characters': 'Password must be at least 6 characters long.',
-    'User not found': 'No account found with this email.',
-    'Network request failed': 'Network error. Please check your connection.',
-    'Failed to fetch': 'Network error. Please check your connection and try again.',
-    'rate limit': 'Too many attempts. Please wait a few minutes and try again.',
-    'For security purposes, you can only request this after': 'Please wait a minute before trying again.',
-    'Password should contain': 'Password is too weak. Use at least 8 characters with letters and numbers.',
-    'Password should be at least': 'Password must be at least 8 characters long.',
-    'weak_password': 'Password is too weak. Use at least 8 characters with letters and numbers.',
-    'Signups not allowed': 'Sign-ups are temporarily closed. Please contact support@storehouse.ng.',
-    'Database error saving new user': 'We could not create your account right now. Please try again in a minute.',
-  };
-
-  const keys = Object.keys(errorMessages).sort((a, b) => b.length - a.length);
-  const message = keys.find(key => lower.includes(key.toLowerCase()) || code === key.toLowerCase());
-  const friendlyMessage = message ? errorMessages[message] : 'Something went wrong. Please try again.';
-  return new Error(friendlyMessage);
+  return new Error(friendlyAuthError(error));
 }

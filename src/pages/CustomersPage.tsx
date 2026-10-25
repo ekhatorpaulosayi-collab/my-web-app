@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSales } from '../lib/supabase-hooks';
 import { getDebts } from '../state/debts';
 import { openWhatsApp } from '../utils/wa';
+import { businessDayKey } from '../utils/businessDate';
+import { saleRevenueKobo } from '../utils/money';
 
 interface Customer {
   name: string;
@@ -76,7 +78,7 @@ export default function CustomersPage() {
       }
 
       const customer = customerMap[customerKey];
-      const saleAmount = (sale.sellKobo || 0) * (sale.qty || 0) / 100;
+      const saleAmount = saleRevenueKobo(sale) / 100;
 
       customer.totalSpent += saleAmount;
       customer.purchaseCount += 1;
@@ -100,7 +102,7 @@ export default function CustomersPage() {
 
     // Second, merge in debt data
     const debts = getDebts();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessDayKey();
 
     debts.forEach(debt => {
       const customerKey = debt.customerName.toLowerCase();
@@ -500,7 +502,7 @@ Thank you for your business! 🙏
                 {selectedCustomer.purchases
                   .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
                   .map((purchase, index) => {
-                    const amount = (purchase.sellKobo || 0) * (purchase.qty || 0) / 100;
+                    const amount = saleRevenueKobo(purchase) / 100;
                     return (
                       <tr key={index} style={{ borderBottom: '1px solid #f3f4f6' }}>
                         <td style={{ padding: '12px', fontSize: '13px', color: '#374151' }}>

@@ -3,9 +3,10 @@
  * Only 5 visible elements: Share banner, Actions, Today's Sales, Quick Sell, Search
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
+import { saleRevenueKobo } from '../utils/money';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { PaymentStatusIndicator } from './PaymentStatusIndicator';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
@@ -20,7 +21,7 @@ import { useStaff } from '../contexts/StaffContext';
 import { currencyNGN } from '../utils/format';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
 import { useStore, useUser } from '../lib/supabase-hooks';
-import { SalesChart } from './SalesChart';
+const SalesChart = lazy(() => import('./SalesChart').then((m) => ({ default: m.SalesChart })));
 import { useNavigate } from 'react-router-dom';
 import '../styles/dashboard-minimal.css';
 
@@ -280,7 +281,7 @@ export function Dashboard({
               minute: '2-digit',
               hour12: true
             }),
-            amount: (s.sellKobo || 0) * (s.qty || 0),
+            amount: saleRevenueKobo(s),
             itemName: itemName || 'Unknown',
             staffName: s.recorded_by_staff_name || null,
             staffRole: s.recorded_by_staff_role || null
@@ -298,7 +299,7 @@ export function Dashboard({
     let totalCost = 0;
 
     filtered.forEach(sale => {
-      const revenue = (sale.sellKobo || 0) * (sale.qty || 0);
+      const revenue = saleRevenueKobo(sale);
       totalRevenue += revenue;
 
       // Look up cost price from items
@@ -836,7 +837,9 @@ export function Dashboard({
 
           {salesTrendExpanded && (
             <div style={{ padding: '16px 0 0 0' }}>
-              <SalesChart sales={sales} days={7} />
+              <Suspense fallback={null}>
+                <SalesChart sales={sales} days={7} />
+              </Suspense>
             </div>
           )}
         </div>

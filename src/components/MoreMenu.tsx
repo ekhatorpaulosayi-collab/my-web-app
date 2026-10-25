@@ -51,7 +51,7 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const navigate = useNavigate();
-  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, canViewReports, currentRole } = useStaff();
+  const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, canViewReports, canManageCustomers, currentRole } = useStaff();
   const { currentUser } = useAuth();
   const [userTier, setUserTier] = useState<string>('Free');
   const [isOwner, setIsOwner] = useState(false);
@@ -143,12 +143,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
       title: 'MANAGE',
       theme: 'purple',
       items: [
-        {
+        ...(canManageCustomers() ? [{
           icon: BookOpen,
           label: 'Money Book',
           description: 'Credit sales and ajo/contribution groups',
           action: onViewCustomers // Fixed: This opens CustomerDebtDrawer (Money Book with Credit Sales + Contributions tabs)
-        },
+        }] : []),
         {
           icon: MessageCircle,
           label: 'Customer Chats',
@@ -168,12 +168,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           description: 'Add and manage team members',
           action: () => navigate('/staff')
         }] : []),
-        {
+        ...(canViewReports() ? [{
           icon: FileSpreadsheet,
           label: 'Export Data',
           description: 'Download for Excel or Google Sheets',
           action: onExportData
-        }
+        }] : [])
       ]
     },
     {
@@ -198,30 +198,32 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
           badge: ['Pro', 'Business'].includes(userTier) ? undefined : 'PRO',
           locked: !['Pro', 'Business'].includes(userTier)
         }] : []),
-        {
-          icon: TrendingUp,
-          label: 'Money & Profits',
-          description: 'Item costs, prices, and margins',
-          action: onViewMoney // This opens the Money & Profits page
-        },
-        {
-          icon: Send,
-          label: 'Daily Sales Summary',
-          description: 'Daily digest via email or WhatsApp',
-          action: onSendDailySummary
-        },
-        {
-          icon: BarChart3,
-          label: 'Sales by Channel',
-          description: 'Instagram, WhatsApp, Walk-in',
-          action: onViewChannelAnalytics
-        },
-        {
+        ...(canViewReports() ? [
+          {
+            icon: TrendingUp,
+            label: 'Money & Profits',
+            description: 'Item costs, prices, and margins',
+            action: onViewMoney
+          },
+          {
+            icon: Send,
+            label: 'Daily Sales Summary',
+            description: 'Daily digest via email or WhatsApp',
+            action: onSendDailySummary
+          },
+          {
+            icon: BarChart3,
+            label: 'Sales by Channel',
+            description: 'Instagram, WhatsApp, Walk-in',
+            action: onViewChannelAnalytics
+          },
+        ] : []),
+        ...(canManageCustomers() ? [{
           icon: UserCircle2,
           label: 'Customers',
           description: 'Purchases, loyalty, outstanding payments',
-          action: () => navigate('/customers') // Fixed: Navigate to customers page, not credits
-        }
+          action: () => navigate('/customers')
+        }] : [])
       ]
     },
     {

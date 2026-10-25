@@ -5,6 +5,14 @@
 
 import { supabase } from '../lib/supabase';
 import bcrypt from 'bcryptjs';
+import { saleRevenueKobo } from '../utils/money';
+
+const STAFF_COLUMNS = 'id, store_owner_uid, name, phone, email, role, is_active, created_at, updated_at, last_login_at';
+
+function missingRpc(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST202' || error.code === '42883' || /does not exist|could not find the function/i.test(error.message || '');
+}
 
 export interface StaffMember {
   id: string;
@@ -70,7 +78,7 @@ export async function createStaffMember(
       role: data.role,
       is_active: true
     })
-    .select()
+    .select(STAFF_COLUMNS)
     .single();
 
   if (error) {
@@ -95,7 +103,7 @@ export async function createStaffMember(
 export async function fetchStaffMembers(ownerUid: string): Promise<StaffMember[]> {
   const { data, error } = await supabase
     .from('staff_members')
-    .select('*')
+    .select(STAFF_COLUMNS)
     .eq('store_owner_uid', ownerUid)
     .order('created_at', { ascending: false });
 
@@ -114,10 +122,31 @@ export async function authenticateStaffWithPin(
   ownerUid: string,
   pin: string
 ): Promise<StaffMember | null> {
-  // Fetch all active staff for this owner
+  // Server session (migration 09). The PIN is checked in Postgres and the
+  // JWT session is locked to this role until end_staff_session.
+  const { data: started, error: rpcError } = await supabase.rpc('begin_staff_session', { p_pin: pin });
+  if (!rpcError && started?.staff_id) {
+    return {
+      id: started.staff_id,
+      store_owner_uid: ownerUid,
+      name: started.name || 'Staff',
+      role: started.role === 'manager' ? 'manager' : 'cashier',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+  if (rpcError && !missingRpc(rpcError)) {
+    if (/invalid_pin/i.test(rpcError.message || '')) return null;
+    console.error('[staffService] begin_staff_session failed:', rpcError);
+    throw new Error('Could not start staff session');
+  }
+
+  // Migration 09 not applied yet. Client check still works, but clearing
+  // localStorage restores the owner until the SQL is run.
   const { data: staffMembers, error } = await supabase
     .from('staff_members')
-    .select('*')
+    .select(`${STAFF_COLUMNS}, pin`)
     .eq('store_owner_uid', ownerUid)
     .eq('is_active', true);
 
@@ -172,7 +201,7 @@ export async function updateStaffMember(
     .update(updates)
     .eq('id', staffId)
     .eq('store_owner_uid', ownerUid)
-    .select()
+    .select(STAFF_COLUMNS)
     .single();
 
   if (error) {
@@ -314,7 +343,7 @@ export async function getStaffMember(
 ): Promise<StaffMember | null> {
   const { data, error } = await supabase
     .from('staff_members')
-    .select('*')
+    .select(STAFF_COLUMNS)
     .eq('id', staffId)
     .eq('store_owner_uid', ownerUid)
     .single();
@@ -364,7 +393,7 @@ export async function getStaffSalesStats(
   const sales = data || [];
   const totalSales = sales.length;
   const totalRevenue = sales.reduce((sum, sale) => {
-    return sum + ((sale.sellKobo || 0) * (sale.qty || 0) / 100);
+    return sum + saleRevenueKobo(sale) / 100;
   }, 0);
   const averageSaleAmount = totalSales > 0 ? totalRevenue / totalSales : 0;
 

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { lagosTodayPlus } from '../utils/businessDate';
 
 // ============================================
 // TYPES
@@ -343,7 +344,7 @@ async function issueFeatureTrial(userUid: string, days: number): Promise<void> {
       user_uid: userUid,
       reward_type: 'feature_unlock',
       features_unlocked: ['profit_tracking', 'credit_sales', 'whatsapp_integration'],
-      features_until_date: expiresAt.toISOString().split('T')[0],
+      features_until_date: lagosTodayPlus(days),
       status: 'active',
       issued_at: new Date().toISOString(),
       expires_at: expiresAt.toISOString(),

@@ -47,6 +47,9 @@ interface StaffContextType {
 
   // Role getter
   currentRole: 'owner' | 'manager' | 'cashier';
+
+  /** False until the server session (or the pre-migration fallback) has loaded. */
+  roleReady: boolean;
 }
 
 const StaffContext = createContext<StaffContextType | undefined>(undefined);
@@ -54,24 +57,76 @@ const StaffContext = createContext<StaffContextType | undefined>(undefined);
 export function StaffProvider({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
+  const [roleReady, setRoleReady] = useState(false);
 
-  // H1: staff mode used to be wiped on every page load, so a cashier could just
-  // refresh to become the owner. Now the session is persisted (per owner account)
-  // and restored, and leaving it requires the owner's password.
+  // The role comes from get_acting_staff (migration 09), keyed to this JWT
+  // session. Clearing localStorage does not clear the server row, so the next
+  // load puts the cashier back. Until that function exists, fall back to the
+  // saved session so the app still works before the SQL is applied.
   useEffect(() => {
-    if (loading || !currentUser) return;
-    try {
-      const raw = localStorage.getItem(STAFF_SESSION_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved?.ownerUid === currentUser.uid && saved?.staff?.id) {
-        setCurrentStaff(saved.staff);
-      } else {
-        localStorage.removeItem(STAFF_SESSION_KEY);
-      }
-    } catch {
-      localStorage.removeItem(STAFF_SESSION_KEY);
+    if (loading) return;
+    if (!currentUser) {
+      setCurrentStaff(null);
+      setRoleReady(true);
+      return;
     }
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('get_acting_staff');
+      if (cancelled) return;
+      const missing = error && (
+        error.code === 'PGRST202' ||
+        error.code === '42883' ||
+        /does not exist|could not find the function/i.test(error.message || '')
+      );
+      if (!error && data) {
+        if (data.role === 'manager' || data.role === 'cashier') {
+          const staff = {
+            id: data.staff_id,
+            store_owner_uid: currentUser.uid,
+            name: data.name || 'Staff',
+            role: data.role,
+            is_active: true,
+            created_at: '',
+            updated_at: '',
+          } as StaffMember;
+          setCurrentStaff(staff);
+          const { pin: _pin, ...safeStaff } = staff as any;
+          localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify({ ownerUid: currentUser.uid, staff: safeStaff }));
+        } else {
+          setCurrentStaff(null);
+          localStorage.removeItem(STAFF_SESSION_KEY);
+        }
+        setRoleReady(true);
+        return;
+      }
+      if (!missing && error) {
+        console.warn('[StaffContext] get_acting_staff failed', error.message);
+      }
+      try {
+        const raw = localStorage.getItem(STAFF_SESSION_KEY);
+        if (!raw) {
+          setCurrentStaff(null);
+        } else {
+          const saved = JSON.parse(raw);
+          if (saved?.ownerUid === currentUser.uid && saved?.staff?.id) {
+            setCurrentStaff(saved.staff);
+          } else {
+            localStorage.removeItem(STAFF_SESSION_KEY);
+            setCurrentStaff(null);
+          }
+        }
+      } catch {
+        localStorage.removeItem(STAFF_SESSION_KEY);
+        setCurrentStaff(null);
+      }
+      setRoleReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentUser, loading]);
 
   // Clear staff mode when owner logs out
@@ -106,8 +161,21 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
     const email = currentUser?.email;
     if (!email) return { ok: false, error: 'Owner account not found' };
     if (!ownerPassword) return { ok: false, error: 'Owner password is required' };
-    const { error } = await supabase.auth.signInWithPassword({ email, password: ownerPassword });
-    if (error) return { ok: false, error: 'Wrong owner password' };
+    const { data, error } = await supabase.rpc('end_staff_session', { p_password: ownerPassword });
+    const missing = error && (
+      error.code === 'PGRST202' ||
+      error.code === '42883' ||
+      /does not exist|could not find the function/i.test(error.message || '')
+    );
+    if (!error && data) {
+      setStaffMode(null);
+      return { ok: true };
+    }
+    if (error && !missing) {
+      return { ok: false, error: 'Wrong owner password' };
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: ownerPassword });
+    if (signInError) return { ok: false, error: 'Wrong owner password' };
     setStaffMode(null);
     return { ok: true };
   };
@@ -148,7 +216,8 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
     canManageStaff,
     canAccessSettings,
     canManageCustomers,
-    currentRole
+    currentRole,
+    roleReady,
   };
 
   return (

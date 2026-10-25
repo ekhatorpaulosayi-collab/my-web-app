@@ -17,6 +17,7 @@ import {
   type StoreContext,
 } from './store-context.ts';
 import { cachedOpenAICall } from './cache-helper.ts';
+import { aiSpendGate, isBuiltInChatOrigin, originsForVerifiedDomain } from '../_shared/moneyPolicies.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -625,6 +626,73 @@ function getClientIp(req: Request): string {
   return 'unknown';
 }
 
+let spendClient: ReturnType<typeof createClient> | null = null;
+let customOriginCache: { at: number; origins: Set<string> } = { at: 0, origins: new Set() };
+
+function builtInOrigin(origin: string): boolean {
+  const extra = (Deno.env.get('AI_CHAT_EXTRA_ORIGINS') || '').split(',').map((o) => o.trim()).filter(Boolean);
+  return isBuiltInChatOrigin(origin, extra);
+}
+
+async function verifiedCustomOrigins(supabase: ReturnType<typeof createClient>): Promise<Set<string>> {
+  if (Date.now() - customOriginCache.at < 5 * 60 * 1000) return customOriginCache.origins;
+  const { data, error } = await supabase
+    .from('stores')
+    .select('custom_domain')
+    .eq('custom_domain_verified', true)
+    .not('custom_domain', 'is', null);
+  const origins = new Set<string>();
+  if (!error) {
+    for (const row of data || []) {
+      for (const origin of originsForVerifiedDomain(String((row as { custom_domain?: string }).custom_domain || ''))) {
+        origins.add(origin);
+      }
+    }
+  }
+  customOriginCache = { at: Date.now(), origins };
+  return origins;
+}
+
+async function resolveAllowedOrigin(origin: string | null, supabase: ReturnType<typeof createClient>): Promise<string | null> {
+  if (!origin) return 'https://www.storehouse.ng';
+  if (builtInOrigin(origin)) return origin;
+  const custom = await verifiedCustomOrigins(supabase);
+  if (custom.has(origin)) return origin;
+  return null;
+}
+
+// Flat reserve per OpenAI call. AI_DAILY_COST_CAP_USD defaults to $20 (Lagos day).
+// Missing RPC (migration 11 not applied) does not call the model.
+async function reserveAiSpend(supabase: ReturnType<typeof createClient>): Promise<'ok' | 'capped' | 'uninstalled'> {
+  const cap = Number(Deno.env.get('AI_DAILY_COST_CAP_USD') || '20');
+  const perCall = Number(Deno.env.get('AI_CHAT_CALL_USD') || '0.01');
+  const { data, error } = await supabase.rpc('reserve_ai_chat_spend', { p_usd: perCall, p_cap: cap });
+  const rpcMissing = Boolean(error && /reserve_ai_chat_spend|PGRST202|42883|does not exist/i.test(error.message || ''));
+  if (rpcMissing) console.error('[ai-chat] daily cost cap is not installed');
+  return aiSpendGate({ rpcMissing, reserved: !error && data === true });
+}
+
+const BUDGET_REPLY = "We've reached today's help limit. Please try again tomorrow, or message the store on WhatsApp.";
+
+async function postChatCompletion(body: Record<string, unknown>): Promise<any> {
+  if (!spendClient) {
+    return { choices: [{ message: { content: BUDGET_REPLY } }], budgetExceeded: true };
+  }
+  const gate = await reserveAiSpend(spendClient);
+  if (gate !== 'ok') {
+    return { choices: [{ message: { content: BUDGET_REPLY } }], budgetExceeded: true };
+  }
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+  return response.json();
+}
+
 serve(async (req) => {
   // Handle CORS
   currentOrigin = corsOrigin(req.headers.get('origin'));
@@ -642,6 +710,13 @@ serve(async (req) => {
   try {
     console.log('[ai-chat] Request received');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    spendClient = supabase;
+    const allowedOrigin = await resolveAllowedOrigin(req.headers.get('origin'), supabase);
+    if (!allowedOrigin) {
+      currentOrigin = 'https://www.storehouse.ng';
+      return jsonResponse({ error: 'origin_not_allowed' }, 403);
+    }
+    currentOrigin = allowedOrigin;
 
     // Get user from auth header
     const authHeader = req.headers.get('authorization');
@@ -1799,21 +1874,12 @@ async function generateAIResponse(
         userMessage,
         async () => {
           // The actual OpenAI API call
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            },
-            body: JSON.stringify({
+          const data = await postChatCompletion({
               model: 'gpt-4o-mini',
               messages: messages,
               max_tokens: 250,  // PHASE 2: Enough for complete multi-step instructions without cutoff
               temperature: 0.7,
-            }),
-          });
-
-          const data = await response.json();
+            });
 
           if (data.choices && data.choices[0]?.message?.content) {
             return data.choices[0].message.content.trim();
@@ -1825,21 +1891,12 @@ async function generateAIResponse(
       );
     } else {
       // No caching available, make direct call
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
+      const data = await postChatCompletion({
           model: 'gpt-4o-mini',
           messages: messages,
           max_tokens: 250,
           temperature: 0.7,
-        }),
-      });
-
-      const data = await response.json();
+        });
 
       if (data.choices && data.choices[0]?.message?.content) {
         aiResponseText = data.choices[0].message.content.trim();
@@ -2646,13 +2703,7 @@ async function handleStorefrontChat(
 
           // Use GPT-4o Mini for translation
           try {
-            const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
+            const translationData = await postChatCompletion({
                 model: 'gpt-4o-mini',
                 messages: [
                   {
@@ -2670,10 +2721,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
                 ],
                 max_tokens: 200,
                 temperature: 0
-              })
-            });
-
-            const translationData = await translationResponse.json();
+              });
             const translationText = translationData.choices[0].message.content.trim();
 
             const parsed = JSON.parse(translationText);
@@ -3129,13 +3177,7 @@ ${languageInstruction}`;
 
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
+    const data = await postChatCompletion({
         model: 'gpt-4o-mini',  // Fast and good quality
         messages: [
           { role: 'system', content: systemPrompt },
@@ -3143,10 +3185,7 @@ ${languageInstruction}`;
         ],
         max_tokens: 300,  // INCREASED for detailed responses
         temperature: 0.8,  // INCREASED for more natural, conversational tone
-      }),
-    });
-
-    const data = await response.json();
+      });
 
     if (data.choices && data.choices[0]?.message?.content) {
       let aiResponse = data.choices[0].message.content.trim();

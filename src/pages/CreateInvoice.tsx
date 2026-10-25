@@ -9,7 +9,7 @@ import { ArrowLeft, Plus, Trash2, Save, Send, Calculator } from 'lucide-react';
 import {
   createInvoice,
   calculateInvoiceTotals,
-  calculateDueDate,
+  dueDateKey,
   formatCurrency,
   Invoice,
   InvoiceItem,
@@ -55,8 +55,7 @@ export default function CreateInvoice() {
   // Auto-calculate due date when payment terms or issue date changes
   useEffect(() => {
     if (issueDate) {
-      const calculated = calculateDueDate(new Date(issueDate), paymentTerms);
-      setDueDate(calculated.toISOString().split('T')[0]);
+      setDueDate(dueDateKey(issueDate, paymentTerms));
     }
   }, [paymentTerms, issueDate]);
 

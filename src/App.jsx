@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import './App.css';
 import { useNavigate } from 'react-router-dom';
 import './styles/dashboard.css';
 import { useStrings } from './hooks/useStrings';
 import { Settings, Calculator, Lock, Eye, EyeOff, DollarSign, Camera, X, Share2 } from 'lucide-react';
-import TestPayment from './pages/TestPayment';
+const TestPayment = lazy(() => import('./pages/TestPayment'));
 import { usePreferences } from './contexts/PreferencesContext.tsx';
 import { useStaff } from './contexts/StaffContext.tsx';
 import { BusinessTypeSelector } from './components/BusinessTypeSelector.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
-import { DashboardCustomize } from './components/DashboardCustomize.tsx';
-import AIChatWidget from './components/AIChatWidget.tsx';
+const DashboardCustomize = lazy(() => import('./components/DashboardCustomize.tsx').then((m) => ({ default: m.DashboardCustomize })));
+const AIChatWidget = lazy(() => import('./components/AIChatWidget.tsx'));
 import { AIUsageCounter } from './components/AIUsageCounter.tsx';
 import {
   initDB,
@@ -43,10 +43,10 @@ import { computeTotals } from './lib/salesTotals.js';
 import ReceiptPreview from './components/ReceiptPreview.jsx';
 import Chip from './components/ui/Chip.jsx';
 import CustomerDebtDrawer from './components/CustomerDebtDrawer.tsx';
-import RecordSaleModal from './components/RecordSaleModal.tsx';
-import RecordSaleModalV2 from './components/RecordSaleModalV2.tsx';
-import BusinessSettings from './components/BusinessSettings.tsx';
-import CalculatorModal from './components/CalculatorModal.tsx';
+const RecordSaleModal = lazy(() => import('./components/RecordSaleModal.tsx'));
+const RecordSaleModalV2 = lazy(() => import('./components/RecordSaleModalV2.tsx'));
+const BusinessSettings = lazy(() => import('./components/BusinessSettings.tsx'));
+const CalculatorModal = lazy(() => import('./components/CalculatorModal.tsx'));
 import { OfflineBanner } from './components/OfflineBanner.tsx';
 import {
   getDebts,
@@ -72,16 +72,16 @@ import {
   syncOfflineSales
 } from './services/supabaseSales.ts';
 import { openWhatsApp } from './utils/wa.ts';
-import { formatNaira, safeMoney } from './utils/money.ts';
+import { formatNaira, safeMoney, saleRevenueKobo } from './utils/money.ts';
+import { businessDayKey } from './utils/businessDate.ts';
 import { useBusinessProfile } from './contexts/BusinessProfile.jsx';
 import CurrentDate from './components/CurrentDate.tsx';
 import { calculateTax, getCurrentMonth, shareViaWhatsApp, downloadTaxSummary } from './utils/taxCalculations.ts';
 import { shareProductToWhatsApp } from './utils/shareToWhatsApp';
-import ExpenseModal from './components/ExpenseModal.tsx';
+const ExpenseModal = lazy(() => import('./components/ExpenseModal.tsx'));
 import { saveExpense, getCurrentMonthExpenses, calculateTotalExpenses } from './lib/expenses.ts';
-import ExpensesPage from './pages/ExpensesPage.tsx';
-import TaxPanel from './components/TaxPanel.tsx';
-import MoneyPage from './pages/MoneyPage.jsx';
+const ExpensesPage = lazy(() => import('./pages/ExpensesPage.tsx'));
+const MoneyPage = lazy(() => import('./pages/MoneyPage.jsx'));
 import { hasPinSet, verifyPin, isUnlocked, unlock, lock } from './lib/pinService.ts';
 import ShareStoreCard from './components/ShareStoreCard.jsx';
 import QuotaAlert from './components/dashboard/QuotaAlert.tsx';
@@ -98,7 +98,7 @@ import {
   productExists
 } from './services/supabaseProducts';
 // import { migrateUserData } from './services/dataMigration'; // Disabled - migration not needed
-import { CSVImport } from './components/CSVImport.tsx';
+const CSVImport = lazy(() => import('./components/CSVImport.tsx').then((m) => ({ default: m.CSVImport })));
 import { uploadProductImage } from './lib/supabase-storage';
 // DISABLED: Contextual prompts were annoying users
 // import { ContextualPromptToast } from './components/ContextualPromptToast.tsx';
@@ -107,7 +107,7 @@ import { getCategoryAttributes, formatAttributeValue, getAttributeIcon } from '.
 import { VariantManager } from './components/VariantManager.tsx';
 import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
 import MultiImageUpload from './components/MultiImageUpload.tsx';
-import UpgradeModal from './components/UpgradeModal.tsx';
+const UpgradeModal = lazy(() => import('./components/UpgradeModal.tsx'));
 import { exportAllDataCSV } from './utils/csvExport.ts';
 // import ChatHistory from './pages/ChatHistory.tsx'; // Removed - incompatible imports
 import WaitingCustomerBanner from './components/dashboard/WaitingCustomerBanner.tsx';
@@ -151,7 +151,7 @@ function App() {
   const { isFirstTimeSetup, completeSetup, businessType } = usePreferences();
 
   // Staff context - track who records sales
-  const { currentStaff, canViewReports } = useStaff();
+  const { currentStaff, canViewReports, currentRole, roleReady } = useStaff();
 
   // DISABLED: Contextual prompts - were annoying users with popups
   // const { prompt, dismissPrompt: dismissContextualPrompt } = useContextualPrompts();
@@ -583,6 +583,7 @@ function App() {
 
   // Handle Money page access (with PIN check)
   const handleMoneyPageAccess = async () => {
+    if (!canViewReports()) return;
     // Check if PIN is set
     const pinExists = await hasPinSet();
     if (!pinExists) {
@@ -788,14 +789,14 @@ function App() {
 
     // Total sales in kobo
     const totalKobo = todaySales.reduce((sum, sale) => {
-      return sum + (sale.qty * sale.sellKobo);
+      return sum + saleRevenueKobo(sale);
     }, 0);
 
     // Count credit sales by checking if saleId exists in credits
     const creditSaleIds = Array.isArray(credits) ? new Set(credits.map(c => c.saleId)) : new Set();
     const creditSalesKobo = todaySales
       .filter(sale => creditSaleIds.has(sale.id))
-      .reduce((sum, sale) => sum + (sale.qty * sale.sellKobo), 0);
+      .reduce((sum, sale) => sum + saleRevenueKobo(sale), 0);
 
     const cashSalesKobo = totalKobo - creditSalesKobo;
 
@@ -804,8 +805,8 @@ function App() {
       if (!Array.isArray(items)) return sum;
       const item = items.find(i => i.id === sale.itemId);
       if (item) {
-        const profitPerUnit = sale.sellKobo - (item.purchaseKobo || 0);
-        return sum + (profitPerUnit * sale.qty);
+        const cost = (item.purchaseKobo || 0) * (sale.qty || 0);
+        return sum + (saleRevenueKobo(sale) - cost);
       }
       return sum;
     }, 0);
@@ -859,7 +860,7 @@ function App() {
 
     // Calculate total sales revenue in naira (from kobo)
     const totalKobo = monthSales.reduce((sum, sale) => {
-      return sum + (sale.qty * sale.sellKobo);
+      return sum + saleRevenueKobo(sale);
     }, 0);
     const salesTotal = Math.round(totalKobo / 100);
 
@@ -906,10 +907,13 @@ function App() {
   }, [showRecordSale, showModal, showSettings, showSalesHistory, showCreditsDrawer, showDashboardCustomize, showCSVImport, showMoneyPage, showExpensesPage, showTestPayment]);
 
   useEffect(() => {
-    const openMoney = () => setShowMoneyPage(true);
+    const openMoney = () => {
+      if (currentRole === 'cashier') return;
+      setShowMoneyPage(true);
+    };
     window.addEventListener('storehouse:open-money', openMoney);
     return () => window.removeEventListener('storehouse:open-money', openMoney);
-  }, []);
+  }, [currentRole]);
 
   // Trial logic removed - Using Free/Paid subscription model
   useEffect(() => {
@@ -948,7 +952,7 @@ function App() {
     });
 
     // Wait for auth to finish loading before deciding
-    if (authLoading) {
+    if (authLoading || !roleReady) {
       console.log('[App] Auth still loading, waiting...');
       return;
     }
@@ -982,7 +986,10 @@ function App() {
       try {
         if (boot) {
           console.log('[App] Loaded', boot.products.length, 'products from dashboard_bootstrap');
-          setItems(boot.products);
+          const products = currentRole === 'cashier'
+            ? boot.products.map((product) => ({ ...product, cost_price: 0, purchaseKobo: 0 }))
+            : boot.products;
+          setItems(products);
         } else {
           console.log('[App] Loading products from Supabase...');
           console.log('[App] Current User UID:', currentUser.uid);
@@ -1020,10 +1027,13 @@ function App() {
         console.log('[App] User UID:', currentUser.uid);
 
         let supabaseSales = [];
+        const hideReports = currentRole === 'cashier';
 
         // ALWAYS use the authenticated user's ID for consistency
         // This ensures sales are loaded with the same ID they were saved with
-        if (boot?.salesRaw) {
+        if (hideReports) {
+          supabaseSales = [];
+        } else if (boot?.salesRaw) {
           supabaseSales = boot.salesRaw;
           console.log(`[App] Loaded ${supabaseSales.length} sales from dashboard_bootstrap`);
         } else if (currentUser && currentUser.uid) {
@@ -1082,7 +1092,9 @@ function App() {
             dayKey: sale.sale_date, // Use sale_date directly as dayKey (already in YYYY-MM-DD format)
             cogsKobo: sale.cogsKobo,
             // Add sellKobo for Dashboard calculations
-            sellKobo: sale.unit_price // Already kobo per migration 20260530
+            sellKobo: sale.unit_price, // Already kobo per migration 20260530
+            discountKobo: Number(sale.discount_amount) || 0,
+            finalKobo: sale.final_amount == null ? null : Number(sale.final_amount),
           };
         });
 
@@ -1095,8 +1107,8 @@ function App() {
         // products cache (same source the sync drain uses), falling back to `items` state.
         // NOTE: only swaps WHICH array is set — the rest of initializeData (drain,
         // credits load, etc.) continues normally below.
-        let salesToShow = allSales;
-        if (allSales.length === 0) {
+        let salesToShow = hideReports ? [] : allSales;
+        if (!hideReports && allSales.length === 0) {
           try {
             const idbDb = await getDB();
             const idbSales = await new Promise((resolve, reject) => {
@@ -1147,6 +1159,8 @@ function App() {
                   itemName: resolvedName,
                   qty: s.qty,
                   sellKobo: s.sellKobo, // kobo — dashboard reads this directly
+                  discountKobo: Number(s.discountKobo || s.discount_amount) || 0,
+                  finalKobo: s.finalKobo == null && s.final_amount == null ? null : Number(s.finalKobo ?? s.final_amount),
                   createdAt: s.createdAt,
                   dayKey: s.dayKey,
                   payment: s.paymentMethod,
@@ -1180,7 +1194,7 @@ function App() {
           if (failed > 0 || skipped > 0) {
             console.warn(`[App] Offline sync: ${synced} synced, ${failed} failed, ${skipped} skipped`);
           }
-          if (synced > 0) {
+          if (synced > 0 && !hideReports) {
             console.log(`[App] Synced ${synced} offline sales to cloud`);
             // Reload sales to include newly synced ones
             const refreshedSales = await getSupabaseSales(currentUser.uid);
@@ -1205,7 +1219,9 @@ function App() {
                 dayKey: sale.day_key || sale.sale_date,
                 cogsKobo: sale.cogsKobo,
                 // Add sellKobo for Dashboard calculations
-                sellKobo: sale.unit_price // Already kobo per migration 20260530
+                sellKobo: sale.unit_price, // Already kobo per migration 20260530
+                discountKobo: Number(sale.discount_amount) || 0,
+                finalKobo: sale.final_amount == null ? null : Number(sale.final_amount),
               };
             });
             setSales(mappedSales);
@@ -1259,7 +1275,7 @@ function App() {
         unsubscribe();
       }
     };
-  }, [currentUser, authLoading]);
+  }, [currentUser, authLoading, roleReady, currentRole]);
 
   // Migrate PRO/TEAM users to STARTER (run once on mount)
   useEffect(() => {
@@ -3369,8 +3385,11 @@ Thank you for your business! 🙏
         // Create debt record for KPI tracking (new debt management system)
         const debtId = `debt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
         const debtAmount = totalKobo / 100; // Convert kobo to naira
-        const dueDate = new Date(formData.dueDate);
-        const dueDateStr = dueDate.toISOString().split('T')[0]; // yyyy-mm-dd format
+        const dueDateStr = businessDayKey(
+          typeof formData.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(formData.dueDate)
+            ? new Date(`${formData.dueDate.slice(0, 10)}T12:00:00+01:00`)
+            : new Date(formData.dueDate)
+        );
 
         addDebtNotify({
           id: debtId,
@@ -3714,7 +3733,7 @@ Thank you for your business! 🙏
       if (item) {
         const sellKobo = sale.sellKobo ?? 0;
         const costKobo = item.purchaseKobo ?? item.cost_price ?? 0;
-        itemSales[sale.itemName].profit += Math.round(((sellKobo - costKobo) * (sale.qty || 0)) / 100);
+        itemSales[sale.itemName].profit += Math.round((saleRevenueKobo(sale) - costKobo * (sale.qty || 0)) / 100);
       }
     });
 
@@ -3734,7 +3753,7 @@ Thank you for your business! 🙏
 Generated by Storehouse 📱`;
     } else {
       return `=== Storehouse EOD ===
-Date: ${today.toISOString().split('T')[0]}
+Date: ${businessDayKey(today)}
 Sales: ₦${todayStats.total.toLocaleString()} | Profit: ₦${todayStats.profit.toLocaleString()}
 Cash: ₦${todayStats.cash.toLocaleString()} | Credit: ₦${todayStats.credit.toLocaleString()}
 Transactions: ${todayStats.transactions} | Top: ${topItemName}
@@ -3758,6 +3777,7 @@ Low Stock: ${lowStockItems.length}
 
   // Export CSV handler
   const handleExportCSV = () => {
+    if (!canViewReports()) return;
     console.log('[App] Export CSV triggered from More menu');
 
     try {
@@ -3869,6 +3889,9 @@ Low Stock: ${lowStockItems.length}
       // Maps to the SAME app shape as the online initial load (sellKobo/qty/createdAt),
       // so the dashboard's KPI math and today-filter work (raw Supabase rows lack these).
       try {
+        if (currentRole === 'cashier') {
+          setSales([]);
+        } else {
         const refreshed = await getSupabaseSales(currentUser.uid);
         const mapped = refreshed.map(sale => {
           const saleTimestamp = sale.created_at ? new Date(sale.created_at).getTime() : sale.sale_date ? new Date(`${sale.sale_date}T${sale.sale_time || '12:00:00'}`).getTime() : Date.now(); // H5: real time, local tz
@@ -3888,10 +3911,13 @@ Low Stock: ${lowStockItems.length}
             createdAt: saleTimestamp,
             dayKey: sale.sale_date,
             cogsKobo: sale.cogsKobo,
-            sellKobo: sale.unit_price // Already kobo per migration 20260530
+            sellKobo: sale.unit_price,
+            discountKobo: Number(sale.discount_amount) || 0,
+            finalKobo: sale.final_amount == null ? null : Number(sale.final_amount),
           };
         });
         setSales(mapped);
+        }
       } catch (reloadErr) {
         console.warn('[App] Reconnect refresh failed (sales left as-is):', reloadErr);
       }
@@ -4203,6 +4229,7 @@ Low Stock: ${lowStockItems.length}
   }, [filteredSales]);
 
   const exportSalesToCSV = () => {
+    if (!canViewReports()) return;
     if (filteredSales.length === 0) {
       displayToast('No sales to export');
       return;
@@ -4215,7 +4242,7 @@ Low Stock: ${lowStockItems.length}
       s.itemName,
       s.qty,
       (s.sellKobo / 100).toLocaleString(),
-      ((s.sellKobo * s.qty) / 100).toLocaleString(),
+      (saleRevenueKobo(s) / 100).toLocaleString(),
       s.paymentMethod || 'Cash',
       s.customerName || '-'
     ]);
@@ -4282,6 +4309,7 @@ Low Stock: ${lowStockItems.length}
   // Show Expenses Page if active
   if (showExpensesPage) {
     return (
+      <Suspense fallback={null}>
       <ExpensesPage
         onBack={() => setShowExpensesPage(false)}
         onAddExpense={() => {
@@ -4289,15 +4317,16 @@ Low Stock: ${lowStockItems.length}
           setShowExpenseModal(true);
         }}
       />
+      </Suspense>
     );
   }
 
   // Show Test Payment page if enabled
   if (showTestPayment) {
-    return <TestPayment onBack={() => {
+    return <Suspense fallback={null}><TestPayment onBack={() => {
       setShowTestPayment(false);
       localStorage.setItem('storehouse-test-mode', JSON.stringify(false));
-    }} />;
+    }} /></Suspense>;
   }
 
   // Removed loading screen - app shows UI immediately and loads data in background
@@ -5702,7 +5731,7 @@ Low Stock: ${lowStockItems.length}
       )}
 
       {/* Record Sale Modal with V2 Feature Flag */}
-      {(() => {
+      <Suspense fallback={null}>{(() => {
         // Check feature flag - V2 is now the default, users can opt-out with 'false'
         const useV2 = localStorage.getItem('storehouse:useNewSaleModal') !== 'false';
 
@@ -5758,16 +5787,19 @@ Low Stock: ${lowStockItems.length}
 
         // Default to V1
         return <RecordSaleModal {...modalProps} />;
-      })()}
+      })()}</Suspense>
 
       {/* Calculator Bottom Sheet */}
       {/* Production-ready Calculator Modal with POS and Math tabs */}
+      <Suspense fallback={null}>
       <CalculatorModal
         isOpen={showCalculator}
         onClose={() => setShowCalculator(false)}
       />
+      </Suspense>
 
       {/* Business Settings Sheet */}
+      <Suspense fallback={null}>
       <BusinessSettings
         isOpen={showSettings}
         onClose={() => {
@@ -5794,6 +5826,7 @@ Low Stock: ${lowStockItems.length}
         itemCount={items.length}
         onToast={displayToast}
       />
+      </Suspense>
 
       {/* CSV Import Modal */}
       {showCSVImport && (
@@ -5840,7 +5873,7 @@ Low Stock: ${lowStockItems.length}
             >
               ×
             </button>
-            <CSVImport />
+            <Suspense fallback={null}><CSVImport /></Suspense>
           </div>
         </div>
       )}
@@ -6628,6 +6661,7 @@ Low Stock: ${lowStockItems.length}
       */}
 
       {/* Expense Modal */}
+      <Suspense fallback={null}>
       <ExpenseModal
         isOpen={showExpenseModal}
         onClose={() => setShowExpenseModal(false)}
@@ -6649,11 +6683,14 @@ Low Stock: ${lowStockItems.length}
       />
 
       {/* Money Page */}
+      {showMoneyPage && canViewReports() && (
       <MoneyPage
         isOpen={showMoneyPage}
         onClose={() => setShowMoneyPage(false)}
         items={items}
       />
+      )}
+      </Suspense>
 
       {/* EOD Report Modal */}
       {showEODModal && (
@@ -7025,10 +7062,13 @@ Low Stock: ${lowStockItems.length}
 
       {/* Dashboard Customization Modal */}
       {showDashboardCustomize && (
-        <DashboardCustomize onClose={() => setShowDashboardCustomize(false)} />
+        <Suspense fallback={null}>
+          <DashboardCustomize onClose={() => setShowDashboardCustomize(false)} />
+        </Suspense>
       )}
 
       {/* Upgrade Modal - Tier Limits */}
+      <Suspense fallback={null}>
       <UpgradeModal
         isOpen={upgradeModalState.isOpen}
         onClose={() => setUpgradeModalState({ ...upgradeModalState, isOpen: false })}
@@ -7039,14 +7079,17 @@ Low Stock: ${lowStockItems.length}
         limit={upgradeModalState.limit}
         reason={upgradeModalState.reason}
       />
+      </Suspense>
 
       {/* AI Chat Widget - Intelligent Onboarding & Help */}
       {/* PHASE 1: Enhanced to provide help everywhere, not just onboarding */}
+      <Suspense fallback={null}>
       <AIChatWidget
         contextType="help"
         autoOpen={false}
         persistentBubble={true}
       />
+      </Suspense>
 
       {/* Footer Spacer - prevents content from being cut off at bottom */}
       <div className="footer-spacer"></div>
