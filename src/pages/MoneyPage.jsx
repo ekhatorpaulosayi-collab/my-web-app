@@ -13,7 +13,7 @@ export default function MoneyPage({ isOpen, onClose, items: itemsProp }) {
     if (!isOpen) return;
     // H7: use the products App already loaded from Supabase; IndexedDB is
     // empty for Supabase-era accounts, so only fall back to it when no prop.
-    if (Array.isArray(itemsProp) && itemsProp.length > 0) {
+    if (Array.isArray(itemsProp)) {
       setItems(itemsProp);
     } else {
       loadItems();

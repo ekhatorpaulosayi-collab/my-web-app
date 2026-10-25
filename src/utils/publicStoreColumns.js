@@ -37,3 +37,21 @@ export const PUBLIC_STORE_COLUMNS = [
   'kyc_status',
   'frozen',
 ].join(',');
+
+/**
+ * Columns a signed-in owner can read and return after insert or update.
+ * bank_name, account_number, and account_name are revoked by step 21b.
+ * PostgREST select('*') asks for those columns and the whole read fails,
+ * so every owner query names this list and loads the bank row separately.
+ */
+export const OWNER_STORE_COLUMNS = [
+  ...PUBLIC_STORE_COLUMNS.split(','),
+  'created_at',
+  'updated_at',
+  'is_verified',
+  'allow_staff_price_change',
+  'domain_verification_token',
+  'custom_domain_added_at',
+  'custom_domain_verified_at',
+  'wa_fallback_minutes',
+].join(',');

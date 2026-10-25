@@ -10,7 +10,15 @@
 --
 -- Owner read and write is RLS on store_bank_details: the signed-in user must
 -- own the store. Anon has no privilege. service_role keeps access for
--- resolve-bank-account.
+-- resolve-bank-account, which writes bank_accounts and does not touch
+-- this table. The manual transfer account stays here.
+--
+-- Re-run. An existing store_bank_details row is left as it is when any
+-- field is already set, so a newer owner save is not replaced by stale
+-- stores columns. A row that is still entirely empty can be filled once.
+-- Before the stores columns are cleared, a missing Bank Transfer entry
+-- is copied into payment_methods, so this file still helps checkout if
+-- step 21a has not run.
 --
 -- DRY RUN. This SELECT changes nothing.
 --
@@ -101,10 +109,55 @@ SELECT s.id,
     OR nullif(btrim(coalesce(s.account_number, '')), '') IS NOT NULL
     OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL
 ON CONFLICT (store_id) DO UPDATE
-  SET bank_name = COALESCE(EXCLUDED.bank_name, public.store_bank_details.bank_name),
-      account_number = COALESCE(EXCLUDED.account_number, public.store_bank_details.account_number),
-      account_name = COALESCE(EXCLUDED.account_name, public.store_bank_details.account_name),
-      updated_at = now();
+  SET bank_name = EXCLUDED.bank_name,
+      account_number = EXCLUDED.account_number,
+      account_name = EXCLUDED.account_name,
+      updated_at = now()
+  WHERE public.store_bank_details.bank_name IS NULL
+    AND public.store_bank_details.account_number IS NULL
+    AND public.store_bank_details.account_name IS NULL;
+
+-- Checkout reads payment_methods. If step 21a has not run, add the
+-- transfer account from the owner row we just kept. An existing
+-- bank-transfer method is not rewritten.
+UPDATE public.stores AS s
+   SET payment_methods =
+     CASE
+       WHEN jsonb_typeof(s.payment_methods) = 'array' THEN s.payment_methods
+       ELSE '[]'::jsonb
+     END
+     || jsonb_build_array(
+          jsonb_strip_nulls(jsonb_build_object(
+            'id', 'legacy-' || s.id::text,
+            'type', 'bank',
+            'enabled', true,
+            'label', 'Bank Transfer',
+            'bank_name', nullif(btrim(coalesce(b.bank_name, '')), ''),
+            'account_number', nullif(btrim(coalesce(b.account_number, '')), ''),
+            'account_name', nullif(btrim(coalesce(b.account_name, '')), '')
+          ))
+        )
+  FROM public.store_bank_details AS b
+ WHERE b.store_id = s.id
+   AND (
+         nullif(btrim(coalesce(b.bank_name, '')), '') IS NOT NULL
+      OR nullif(btrim(coalesce(b.account_number, '')), '') IS NOT NULL
+      OR nullif(btrim(coalesce(b.account_name, '')), '') IS NOT NULL
+       )
+   AND (
+         s.payment_methods IS NULL
+      OR jsonb_typeof(s.payment_methods) = 'array'
+       )
+   AND NOT EXISTS (
+         SELECT 1
+           FROM jsonb_array_elements(
+             CASE
+               WHEN jsonb_typeof(s.payment_methods) = 'array' THEN s.payment_methods
+               ELSE '[]'::jsonb
+             END
+           ) AS method
+          WHERE lower(coalesce(method->>'type', '')) IN ('bank', 'bank-transfer', 'bank_transfer')
+       );
 
 UPDATE public.stores
    SET bank_name = NULL,

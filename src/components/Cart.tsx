@@ -1117,7 +1117,7 @@ export function Cart({ store }: CartProps) {
                     ))}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
                       <span>Delivery fee</span>
-                      <span>{store.deliveryFee || 'The store will confirm'}</span>
+                      <span>{deliveryKobo > 0 ? currencyNGN(deliveryKobo) : (/free/i.test(String(store.deliveryFee || '')) ? 'Free' : 'The store will confirm')}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
                       <span>Delivery estimate</span>

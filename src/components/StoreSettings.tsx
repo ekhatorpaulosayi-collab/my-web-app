@@ -16,6 +16,7 @@ import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl'
 import { validateStoreSlug } from '../utils/storeSlug';
 import { storeHealthFlags } from '../utils/storeHealth';
 import { mergeBankDetails, readStoreBankDetails, writeStoreBankDetails } from '../lib/storeBankDetails.js';
+import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -40,7 +41,7 @@ export const StoreSettings: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('stores')
-        .select('*')
+        .select(OWNER_STORE_COLUMNS)
         .eq('user_id', String(user.uid))
         .maybeSingle();
       if (error) {
@@ -387,7 +388,7 @@ export const StoreSettings: React.FC = () => {
         .update(profileData)
         .eq('id', store.id)
         .eq('user_id', String(user.uid))
-        .select()
+        .select(OWNER_STORE_COLUMNS)
         .maybeSingle();
 
       if (updateError) {

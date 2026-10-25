@@ -4,6 +4,7 @@ import { ChevronLeft, Search, Send, MessageSquare, X, UserCheck, UserX, AlertCir
 import { supabase, supabaseUrl, supabaseAnonKey } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { buildStorefrontUrl } from '../../utils/storefrontUrl';
 import { parseISO } from 'date-fns';
 import QuotaAlert from './QuotaAlert';
 
@@ -168,6 +169,8 @@ export default function ConversationsSimplifiedFixed() {
   const [isTakeoverActive, setIsTakeoverActive] = useState(false);
   const [hasTakeoverMessageSent, setHasTakeoverMessageSent] = useState(false);
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
+  const [storeShare, setStoreShare] = useState<{ url: string; name: string; live: boolean } | null>(null);
+  const shareKeyRef = useRef('');
   const [isMobile, setIsMobile] = useState(false);
 
   const { currentUser: user } = useAuth();
@@ -255,8 +258,21 @@ export default function ConversationsSimplifiedFixed() {
       // First get stores for this user
       const { data: stores } = await supabase
         .from('stores')
-        .select('id')
+        .select('id, store_slug, subdomain, business_name, is_public')
         .eq('user_id', user?.uid || '');
+
+      const firstStore = stores?.[0];
+      const shareKey = firstStore
+        ? `${firstStore.id}|${firstStore.store_slug}|${firstStore.is_public}|${firstStore.business_name}`
+        : '';
+      if (shareKeyRef.current !== shareKey) {
+        shareKeyRef.current = shareKey;
+        setStoreShare(firstStore ? {
+          url: buildStorefrontUrl({ subdomain: firstStore.subdomain, storeSlug: firstStore.store_slug }),
+          name: firstStore.business_name || 'your store',
+          live: firstStore.is_public === true,
+        } : null);
+      }
 
       const storeIds = stores?.map(s => s.id) || [];
 
@@ -829,9 +845,45 @@ export default function ConversationsSimplifiedFixed() {
         {/* Conversation List */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {filteredConversations.length === 0 ? (
-            <div style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
-              No conversations found
-            </div>
+            conversations.length === 0 ? (
+              <div style={{ padding: '32px 24px', textAlign: 'center', color: '#334155' }}>
+                <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#0f172a' }}>No conversations yet</p>
+                <p style={{ margin: '0 0 16px', lineHeight: 1.45 }}>
+                  Chats arrive here when a customer messages your store.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!storeShare?.live || !storeShare.url) {
+                      navigate('/online-store');
+                      return;
+                    }
+                    const text = `${storeShare.name}\n${storeShare.url}`;
+                    if (navigator.share) {
+                      navigator.share({ title: storeShare.name, text, url: storeShare.url }).catch(() => {});
+                      return;
+                    }
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+                  }}
+                  style={{
+                    minHeight: 48,
+                    padding: '12px 18px',
+                    border: 'none',
+                    borderRadius: 12,
+                    background: '#1d4ed8',
+                    color: '#fff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Share store
+                </button>
+              </div>
+            ) : (
+              <div style={{ padding: '32px', textAlign: 'center', color: '#6b7280' }}>
+                No conversations found
+              </div>
+            )
           ) : (
             filteredConversations.map(conv => {
               const status = getConversationStatus(conv);

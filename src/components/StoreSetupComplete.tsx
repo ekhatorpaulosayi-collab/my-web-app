@@ -44,6 +44,7 @@ export default function StoreSetupComplete() {
   // Bank fields come from store_bank_details, not the public stores columns.
   const storeProfile: StoreProfile | null = settled ? {
     id: settled.id,
+    businessName: settled.business_name || 'Your store',
     storeSlug: settled.store_slug,
     subdomain: settled.subdomain,
     logoUrl: settled.logo_url,

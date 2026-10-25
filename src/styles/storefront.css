@@ -467,7 +467,7 @@
   font-weight: 700;
   letter-spacing: 0.025em;
   text-transform: none;
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.15;
   text-align: center;
   cursor: pointer;
@@ -746,9 +746,15 @@
   .btn-quick-order,
   .btn-order {
     min-height: 48px;
-    font-size: 0.875rem !important;
-    padding: 0.5rem 0.65rem !important;
-    white-space: normal !important;
+    font-size: 0.8125rem !important;
+    padding: 0.5rem 0.45rem !important;
+    white-space: nowrap !important;
+    letter-spacing: 0;
+    gap: 0.25rem;
+  }
+
+  .btn-add-to-cart svg {
+    display: none;
   }
 
   .btn-quick-order {

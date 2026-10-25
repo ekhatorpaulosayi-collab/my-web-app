@@ -51,6 +51,51 @@ export function mergeBankDetails(store, bank) {
   };
 }
 
+const BANK_TRANSFER_TYPES = new Set(['bank', 'bank-transfer', 'bank_transfer']);
+
+/**
+ * Replace the customer-facing Bank Transfer method with the account the
+ * owner just saved. Checkout reads payment_methods, not store_bank_details.
+ */
+export function withBankTransferMethod(paymentMethods, storeId, bank) {
+  const list = Array.isArray(paymentMethods) ? paymentMethods.map((method) => ({ ...method })) : [];
+  const next = {
+    type: 'bank',
+    enabled: Boolean(String(bank?.account_number || '').trim() || String(bank?.bank_name || '').trim()),
+    label: 'Bank Transfer',
+    bank_name: String(bank?.bank_name || '').trim(),
+    account_number: String(bank?.account_number || '').trim(),
+    account_name: String(bank?.account_name || '').trim(),
+  };
+  const index = list.findIndex((method) => BANK_TRANSFER_TYPES.has(String(method?.type || '').toLowerCase()));
+  if (index >= 0) {
+    list[index] = {
+      ...list[index],
+      ...next,
+      id: list[index].id || `transfer-${storeId}`,
+    };
+    return list;
+  }
+  if (!next.bank_name && !next.account_number && !next.account_name) return list;
+  list.push({ id: `transfer-${storeId}`, ...next });
+  return list;
+}
+
+async function syncBankTransferMethod(client, storeId, bank) {
+  const { data, error } = await client
+    .from('stores')
+    .select('payment_methods')
+    .eq('id', storeId)
+    .maybeSingle();
+  if (error) return { error };
+  const payment_methods = withBankTransferMethod(data?.payment_methods, storeId, bank);
+  const { error: updateError } = await client
+    .from('stores')
+    .update({ payment_methods })
+    .eq('id', storeId);
+  return { error: updateError || null };
+}
+
 export async function writeStoreBankDetails(client, storeId, bank) {
   if (!storeId || !bank || Object.keys(bank).length === 0) {
     return { error: null, stored: false };
@@ -63,8 +108,12 @@ export async function writeStoreBankDetails(client, storeId, bank) {
     .from('store_bank_details')
     .upsert(row, { onConflict: 'store_id' });
   if (error && missingTable(error)) {
+    const synced = await syncBankTransferMethod(client, storeId, bank);
+    if (synced.error) return { error: synced.error, stored: false };
     return { error, stored: false, missing: true };
   }
   if (error) return { error, stored: false };
+  const synced = await syncBankTransferMethod(client, storeId, bank);
+  if (synced.error) return { error: synced.error, stored: true };
   return { error: null, stored: true };
 }

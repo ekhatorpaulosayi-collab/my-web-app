@@ -1082,7 +1082,7 @@ function StorefrontContent() {
                       }}
                       className="btn-add-to-cart"
                       aria-label="Add to Cart"
-                      style={{ flex: '1 1 auto', width: 'auto', whiteSpace: 'normal' }}
+                      style={{ flex: '1 1 auto', width: 'auto', whiteSpace: 'nowrap' }}
                     >
                       <Plus size={18} aria-hidden="true" />
                       <span>Add to Cart</span>

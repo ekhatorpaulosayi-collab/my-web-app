@@ -42,11 +42,7 @@ function arrayToCSV(data: any[], headers: string[]): string {
   return csv.join('\n');
 }
 
-/**
- * Download CSV file
- */
-function downloadCSV(content: string, filename: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+function downloadBlob(blob: Blob, filename: string) {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
@@ -62,9 +58,82 @@ function downloadCSV(content: string, filename: string) {
 }
 
 /**
+ * Download CSV file
+ */
+function downloadCSV(content: string, filename: string) {
+  downloadBlob(new Blob([content], { type: 'text/csv;charset=utf-8;' }), filename);
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc ^= bytes[i];
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipStore(files: { name: string; content: string }[]): Blob {
+  const encoder = new TextEncoder();
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((Math.max(now.getFullYear(), 1980) - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const locals: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const name = encoder.encode(file.name);
+    const data = encoder.encode(file.content);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + name.length);
+    const view = new DataView(local.buffer);
+    view.setUint32(0, 0x04034b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, dosTime, true);
+    view.setUint16(12, dosDate, true);
+    view.setUint32(14, crc, true);
+    view.setUint32(18, data.length, true);
+    view.setUint32(22, data.length, true);
+    view.setUint16(26, name.length, true);
+    local.set(name, 30);
+    locals.push(local, data);
+
+    const cen = new Uint8Array(46 + name.length);
+    const cenView = new DataView(cen.buffer);
+    cenView.setUint32(0, 0x02014b50, true);
+    cenView.setUint16(4, 20, true);
+    cenView.setUint16(6, 20, true);
+    cenView.setUint16(12, dosTime, true);
+    cenView.setUint16(14, dosDate, true);
+    cenView.setUint32(16, crc, true);
+    cenView.setUint32(20, data.length, true);
+    cenView.setUint32(24, data.length, true);
+    cenView.setUint16(28, name.length, true);
+    cenView.setUint32(42, offset, true);
+    cen.set(name, 46);
+    central.push(cen);
+    offset += local.length + data.length;
+  }
+
+  const centralSize = central.reduce((sum, part) => sum + part.length, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(8, files.length, true);
+  endView.setUint16(10, files.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, offset, true);
+  return new Blob([...locals, ...central, end], { type: 'application/zip' });
+}
+
+/**
  * Export inventory (products) to CSV
  */
-export function exportInventoryCSV(items: any[]) {
+export function exportInventoryCSV(items: any[], bucket?: { name: string; content: string }[]) {
   const headers = [
     'id',
     'name',
@@ -102,13 +171,15 @@ export function exportInventoryCSV(items: any[]) {
   const helpText = '# INVENTORY DATA - This file contains all your products with prices, quantities, and details. Open in Excel or Google Sheets.\n';
   const csv = helpText + arrayToCSV(processedItems, headers);
   const timestamp = new Date().toLocaleDateString('en-CA');
-  downloadCSV(csv, `inventory_${timestamp}.csv`);
+  const name = `inventory_${timestamp}.csv`;
+  if (bucket) bucket.push({ name, content: csv });
+  else downloadCSV(csv, name);
 }
 
 /**
  * Export sales to CSV
  */
-export function exportSalesCSV(sales: any[]) {
+export function exportSalesCSV(sales: any[], bucket?: { name: string; content: string }[]) {
   const headers = [
     'id',
     'timestamp',
@@ -136,13 +207,15 @@ export function exportSalesCSV(sales: any[]) {
   const helpText = '# SALES RECORDS - This file contains all your sales transactions with customer info and payment details. Use for accounting and analysis.\n';
   const csv = helpText + arrayToCSV(processedSales, headers);
   const timestamp = new Date().toLocaleDateString('en-CA');
-  downloadCSV(csv, `sales_${timestamp}.csv`);
+  const name = `sales_${timestamp}.csv`;
+  if (bucket) bucket.push({ name, content: csv });
+  else downloadCSV(csv, name);
 }
 
 /**
  * Export customers to CSV
  */
-export function exportCustomersCSV(customers: any[]) {
+export function exportCustomersCSV(customers: any[], bucket?: { name: string; content: string }[]) {
   const headers = [
     'id',
     'name',
@@ -171,7 +244,19 @@ export function exportCustomersCSV(customers: any[]) {
   const helpText = '# CUSTOMER LIST - This file contains your customers with contact info and purchase history. Great for marketing and customer analysis.\n';
   const csv = helpText + arrayToCSV(processedCustomers, headers);
   const timestamp = new Date().toLocaleDateString('en-CA');
-  downloadCSV(csv, `customers_${timestamp}.csv`);
+  const name = `customers_${timestamp}.csv`;
+  if (bucket) bucket.push({ name, content: csv });
+  else downloadCSV(csv, name);
+}
+
+/** One zip with inventory, sales, and customers, including empty files. */
+export function exportDataZip(items: any[], sales: any[], customers: any[]) {
+  const files: { name: string; content: string }[] = [];
+  exportInventoryCSV(items || [], files);
+  exportSalesCSV(sales || [], files);
+  exportCustomersCSV(customers || [], files);
+  const stamp = new Date().toLocaleDateString('en-CA');
+  downloadBlob(zipStore(files), `storehouse_${stamp}.zip`);
 }
 
 /**

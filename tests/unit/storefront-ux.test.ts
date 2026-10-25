@@ -9,7 +9,8 @@ import { isKnownAppPath } from '../../src/utils/appPaths.js';
 import { storeHealthFlags } from '../../src/utils/storeHealth.js';
 import { buildOgDocument } from '../../api/ogHtml.js';
 import { canonicalStoreUrl, STORE_SUBDOMAIN_BLOCKLIST } from '../../src/utils/canonicalStoreUrl.js';
-import { PUBLIC_STORE_COLUMNS } from '../../src/utils/publicStoreColumns.js';
+import { OWNER_STORE_COLUMNS, PUBLIC_STORE_COLUMNS } from '../../src/utils/publicStoreColumns.js';
+import { withBankTransferMethod } from '../../src/lib/storeBankDetails.js';
 import { RESERVED_SUBDOMAINS } from '../../src/utils/reservedSubdomains.ts';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
 import { currencyNGN } from '../../src/utils/format.ts';
@@ -200,6 +201,43 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   const moneyAt = moreMenu.indexOf("label: 'Money Book'");
   assert.ok(shareAt > 0 && shareAt < salesAt && salesAt < moneyAt);
   assert.equal(moreMenu.includes('WhatsApp Store Link'), false);
+  assert.equal(moreMenu.includes('Upgrade to unlock'), false);
+  assert.match(moreMenu, /Add a product/);
+  assert.match(moreMenu, /All three in one zip/);
+  assert.match(moreMenu, /More tools/);
+  const ownerColumns = OWNER_STORE_COLUMNS.split(',');
+  for (const banned of ['bank_name', 'account_number', 'account_name']) {
+    assert.equal(ownerColumns.includes(banned), false, banned);
+  }
+  assert.equal(ownerColumns.includes('business_name'), true);
+  const missingOwner = ownerColumns.filter((column) => !storesColumnsFromSchema().has(column));
+  assert.deepEqual(missingOwner, []);
+  const hooks = readFileSync(new URL('../../src/lib/supabase-hooks.js', import.meta.url), 'utf8');
+  const auth = readFileSync(new URL('../../src/lib/authService-supabase.js', import.meta.url), 'utf8');
+  const settingsSheet = readFileSync(new URL('../../src/components/StoreSettings.tsx', import.meta.url), 'utf8');
+  assert.match(hooks, /OWNER_STORE_COLUMNS/);
+  assert.match(auth, /OWNER_STORE_COLUMNS/);
+  assert.match(settingsSheet, /OWNER_STORE_COLUMNS/);
+  assert.equal(settingsSheet.includes(".select('*')"), false);
+  assert.equal(auth.includes(".select('*')"), false);
+  const bankMove = readFileSync(new URL('../../supabase/migrations/20261025_21_store_bank_details.sql', import.meta.url), 'utf8');
+  const bankCopy = readFileSync(new URL('../../supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql', import.meta.url), 'utf8');
+  assert.match(bankMove, /store_bank_details.bank_name IS NULL/);
+  assert.match(bankMove, /payment_methods/);
+  assert.match(bankCopy, /to_regclass\('public.store_bank_details'\)/);
+  const resolve = readFileSync(new URL('../../supabase/functions/resolve-bank-account/index.ts', import.meta.url), 'utf8');
+  assert.equal(resolve.includes(".from('store_bank_details')"), false);
+  assert.match(readFileSync(new URL('../../src/components/dashboard/ConversationsSimplifiedFixed.tsx', import.meta.url), 'utf8'), /Chats arrive here when a customer messages your store/);
+  assert.match(readFileSync(new URL('../../src/components/StoreSetupComplete.tsx', import.meta.url), 'utf8'), /business_name/);
+  assert.match(readFileSync(new URL('../../supabase/migrations/20261025_22_users_store_type.sql', import.meta.url), 'utf8'), /store_type/);
+  const replaced = withBankTransferMethod(
+    [{ id: 'old', type: 'bank', enabled: true, bank_name: 'Old Bank', account_number: '111', account_name: 'Old' }],
+    'store-1',
+    { bank_name: 'New Bank', account_number: '222', account_name: 'New' },
+  );
+  assert.equal(replaced.length, 1);
+  assert.equal(replaced[0].account_number, '222');
+  assert.equal(replaced[0].id, 'old');
   assert.equal(moreMenu.includes("label: 'Online Store'"), false);
   assert.match(moreCss, /more-menu-fade/);
   assert.match(moreCss, /mask-image/);

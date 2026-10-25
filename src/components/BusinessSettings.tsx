@@ -246,9 +246,19 @@ export default function BusinessSettings({
           Promise.resolve()
         ]);
 
-        setHasPinEnabled(hasPinSet());
+        const pinOn = await hasPinSet();
+        setHasPinEnabled(pinOn);
+        let storedName = profile.businessName || '';
+        if (!storedName.trim() && currentUser?.uid) {
+          const { data: nameRow } = await supabase
+            .from('stores')
+            .select('business_name')
+            .eq('user_id', String(currentUser.uid))
+            .maybeSingle();
+          storedName = nameRow?.business_name || '';
+        }
         setFormData({
-          businessName: profile.businessName || '',
+          businessName: storedName,
           ownerName: profile.ownerName || '',
           phone: profile.phone || '',
           whatsappNumber: profile.whatsappNumber || '',
@@ -493,6 +503,7 @@ export default function BusinessSettings({
 
       console.debug('[Settings] Saved successfully');
       showToast('Settings saved successfully!', 'success');
+      onClose();
 
       // Reset success state after 2 seconds
       setTimeout(() => {

@@ -98,7 +98,8 @@ export default function OnlineStoreSetup() {
 
     // Populate form fields from Supabase store data
     setBusinessName(store.business_name || '');
-    setWhatsappNumber(store.whatsapp_number || '');
+    const savedWhatsapp = String(store.whatsapp_number || '');
+    setWhatsappNumber(savedWhatsapp.includes('@') || savedWhatsapp === 'pending' ? '' : savedWhatsapp);
     setStoreSlug(store.store_slug || '');
     setLogoUrl(store.logo_url || '');
     setBankName(store.bank_name || '');

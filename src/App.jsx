@@ -108,7 +108,7 @@ import { VariantManager } from './components/VariantManager.tsx';
 import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
 import MultiImageUpload from './components/MultiImageUpload.tsx';
 const UpgradeModal = lazy(() => import('./components/UpgradeModal.tsx'));
-import { exportAllDataCSV } from './utils/csvExport.ts';
+import { exportCustomersCSV, exportDataZip, exportInventoryCSV, exportSalesCSV } from './utils/csvExport.ts';
 // import ChatHistory from './pages/ChatHistory.tsx'; // Removed - incompatible imports
 import WaitingCustomerBanner from './components/dashboard/WaitingCustomerBanner.tsx';
 import { checkForWaitingCustomers, playNotificationChime, requestNotificationPermission } from './services/ownerNotificationService.ts';
@@ -328,7 +328,7 @@ function App() {
     qty: '',
     purchasePrice: '',
     sellingPrice: '',
-    reorderLevel: '10', // Default reorder level
+    reorderLevel: '3', // Default reorder level
     isPublic: true, // Default to public for storefront
     attributes: {}, // Category-specific attributes
     specifications: {} // PHASE 2A: Product specifications for AI
@@ -418,6 +418,7 @@ function App() {
 
   // General info toast state
   const [infoToast, setInfoToast] = useState('');
+  const infoToastTimer = useRef(null);
 
   // Item search for Record Sale
   const [itemSearchTerm, setItemSearchTerm] = useState('');
@@ -2315,7 +2316,7 @@ Thank you for your business! 🙏
           quantity: totalVariantQty,  // Sum of all variant quantities, or base quantity if no variants
           cost_price: purchase,  // Changed from 'purchaseKobo', service converts to kobo
           selling_price: selling,  // Changed from 'sellKobo', service converts to kobo
-          low_stock_threshold: parseInt(formData.reorderLevel) || 10,  // Changed from 'reorderLevel'
+          low_stock_threshold: parseInt(formData.reorderLevel) || 3,
           image_url: imageUrl,  // Changed from 'imageUrl' to 'image_url'
           is_public: formData.isPublic !== false,  // Default to true (public) unless explicitly set to false
           is_active: true,  // Add is_active field
@@ -2449,7 +2450,7 @@ Thank you for your business! 🙏
         qty: '',
         purchasePrice: '',
         sellingPrice: '',
-        reorderLevel: '10',
+        reorderLevel: '3',
         isPublic: true,  // Reset to public by default
         attributes: {},  // Reset attributes
         specifications: {}  // PHASE 2A: Reset specifications
@@ -2515,7 +2516,7 @@ Thank you for your business! 🙏
 
   // Calculate stats (with safety checks)
   const totalItems = Array.isArray(items) ? items.reduce((sum, item) => sum + item.qty, 0) : 0;
-  const lowStockItems = Array.isArray(items) ? items.filter(item => item.qty < 10).length : 0;
+  const lowStockItems = Array.isArray(items) ? items.filter(item => item.qty <= (item.low_stock_threshold || item.reorderLevel || 3)).length : 0;
   const totalPotentialProfit = Array.isArray(items) ? items.reduce((sum, item) => sum + (item.profit * item.qty), 0) : 0;
 
   // Get today's date
@@ -2583,7 +2584,7 @@ Thank you for your business! 🙏
         qty: (item.qty || item.quantity || 0).toString(),
         purchasePrice: costPrice.toString(), // Set raw numeric value
         sellingPrice: sellPrice.toString(), // Set raw numeric value
-        reorderLevel: (item.low_stock_threshold || item.reorderLevel || 10).toString(),
+        reorderLevel: (item.low_stock_threshold || item.reorderLevel || 3).toString(),
         description: item.description || '',
         isPublic: item.is_public !== false,
         attributes: item.attributes || {},
@@ -2647,7 +2648,7 @@ Thank you for your business! 🙏
     setShowLowStock(true);
     // Initialize stock update form for all low stock items
     const initialForm = {};
-    items.filter(item => item.qty < 10).forEach(item => {
+    items.filter(item => item.qty <= (item.low_stock_threshold || item.reorderLevel || 3)).forEach(item => {
       initialForm[item.id] = '';
     });
     setStockUpdateForm(initialForm);
@@ -2847,8 +2848,12 @@ Thank you for your business! 🙏
 
   // Helper: Show toast with auto-dismiss
   const displayToast = (message, duration = 3000) => {
-    setInfoToast(message);
-    setTimeout(() => setInfoToast(''), duration);
+    if (infoToastTimer.current) clearTimeout(infoToastTimer.current);
+    setInfoToast('');
+    infoToastTimer.current = setTimeout(() => {
+      setInfoToast(message);
+      infoToastTimer.current = setTimeout(() => setInfoToast(''), duration);
+    }, 20);
   };
 
   // Send reminder for customer (all their open debts)
@@ -3614,7 +3619,7 @@ Thank you for your business! 🙏
     console.log('🔍 Debug: Checking low stock items...');
 
     let lowStock = items.filter(item => {
-      const reorderLevel = item.reorderLevel || 10;
+      const reorderLevel = item.reorderLevel || 3;
       const isLowStock = item.qty <= reorderLevel;
       console.log(`  ${item.name}: qty=${item.qty}, reorderLevel=${reorderLevel}, isLowStock=${isLowStock}`);
       return isLowStock;
@@ -3631,8 +3636,8 @@ Thank you for your business! 🙏
 
     // Sort by urgency: items furthest below reorder level appear first
     lowStock.sort((a, b) => {
-      const urgencyA = a.qty / (a.reorderLevel || 10);
-      const urgencyB = b.qty / (b.reorderLevel || 10);
+      const urgencyA = a.qty / (a.reorderLevel || 3);
+      const urgencyB = b.qty / (b.reorderLevel || 3);
       return urgencyA - urgencyB;
     });
 
@@ -3772,12 +3777,10 @@ Low Stock: ${lowStockItems.length}
   };
 
   // Export CSV handler
-  const handleExportCSV = () => {
+  const handleExportCSV = (kind = 'zip') => {
     if (!canViewReports()) return;
-    console.log('[App] Export CSV triggered from More menu');
 
     try {
-      // Get customers from debts (unique customers who have made purchases)
       const uniqueCustomers = Array.from(
         new Map(
           sales
@@ -3790,26 +3793,22 @@ Low Stock: ${lowStockItems.length}
         ).values()
       );
 
-      const result = exportAllDataCSV(items, sales, uniqueCustomers);
-
-      console.log('[App] Export complete:', result);
-
-      // Show success message with helpful tips
-      const message = `✅ Export successful!\n\n` +
-        `Downloaded:\n` +
-        `• ${result.inventory} inventory items\n` +
-        `• ${result.sales} sales records\n` +
-        `• ${result.customers} customers\n\n` +
-        `💡 What to do next:\n` +
-        `1. Check your Downloads folder for 3 CSV files\n` +
-        `2. Open files in Excel, Google Sheets, or Numbers\n` +
-        `3. Use for backup, analysis, or importing to other software\n\n` +
-        `💾 Tip: Save these files in a safe place as backup!`;
-
-      alert(message);
+      if (kind === 'inventory') {
+        exportInventoryCSV(items);
+        displayToast('Inventory CSV downloaded');
+      } else if (kind === 'sales') {
+        exportSalesCSV(sales);
+        displayToast('Sales CSV downloaded');
+      } else if (kind === 'customers') {
+        exportCustomersCSV(uniqueCustomers);
+        displayToast('Customers CSV downloaded');
+      } else {
+        exportDataZip(items, sales, uniqueCustomers);
+        displayToast('Your data downloaded as one zip');
+      }
     } catch (error) {
       console.error('[App] Export failed:', error);
-      alert('Failed to export data. Please try again.');
+      displayToast('Could not export. Try again.');
     }
   };
 
@@ -4051,7 +4050,7 @@ Low Stock: ${lowStockItems.length}
     message += isTop3 ? `Top 3 most urgent items:\n\n` : `Items below reorder level:\n\n`;
 
     items.forEach((item, index) => {
-      const reorderLevel = item.reorderLevel || 10;
+      const reorderLevel = item.reorderLevel || 3;
       message += `${index + 1}. ${item.name} - Only ${item.qty} left (Reorder at ${reorderLevel})\n`;
     });
 
@@ -4662,7 +4661,7 @@ Low Stock: ${lowStockItems.length}
                             </span>
                           )}
                           {/* Low Stock Badge - inline with name */}
-                          {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 10) && (
+                          {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 3) && (
                             <span style={{
                               fontSize: '11px',
                               background: '#ef4444',
@@ -4749,7 +4748,7 @@ Low Stock: ${lowStockItems.length}
             qty: '',
             purchasePrice: '',
             sellingPrice: '',
-            reorderLevel: '10',
+            reorderLevel: '3',
             isPublic: true,
             attributes: {}
           });
@@ -4773,7 +4772,7 @@ Low Stock: ${lowStockItems.length}
                   qty: '',
                   purchasePrice: '',
                   sellingPrice: '',
-                  reorderLevel: '10',
+                  reorderLevel: '3',
                   isPublic: true,
                   attributes: {}
                 });
@@ -5048,7 +5047,6 @@ Low Stock: ${lowStockItems.length}
                   placeholder="What you paid"
                   className="form-input"
                   autoComplete="off"
-                  required
                   aria-required="true"
                 />
               </div>
@@ -5688,6 +5686,7 @@ Low Stock: ${lowStockItems.length}
 
             <div className="modal-footer">
               <button
+                type="button"
                 className="btn-save"
                 onClick={handleSave}
                 disabled={productImages.some(img => img.uploading || img.url?.startsWith('blob:'))}
@@ -6277,7 +6276,7 @@ Low Stock: ${lowStockItems.length}
                   </thead>
                   <tbody>
                     {getLowStockItems().map(item => {
-                      const reorderLevel = item.reorderLevel || 10;
+                      const reorderLevel = item.reorderLevel || 3;
                       const isEditing = editingStockId === item.id;
 
                       return (

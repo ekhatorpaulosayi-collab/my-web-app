@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
-import { PUBLIC_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
+import { OWNER_STORE_COLUMNS, PUBLIC_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { mergeBankDetails, readStoreBankDetails, splitBankDetails, writeStoreBankDetails } from './storeBankDetails.js';
 
@@ -112,7 +112,9 @@ export function useUser(firebaseUser) {
           const newUser = {
             id: firebaseUser.uid,
             email: firebaseUser.email,
-            phone_number: firebaseUser.phone || firebaseUser.email, // Use email as fallback (now allowed by DB)
+            phone_number: firebaseUser.phone && !String(firebaseUser.phone).includes('@')
+              ? firebaseUser.phone
+              : `pending-${firebaseUser.uid}`,
             business_name: 'My Store', // Default business name
             device_type: 'web',
             is_active: true,
@@ -193,7 +195,7 @@ export function useStore(userId) {
 
       const { data, error: fetchError } = await supabase
         .from('stores')
-        .select('*')
+        .select(OWNER_STORE_COLUMNS)
         .eq('user_id', userId)
         .single();
 
@@ -254,18 +256,23 @@ export function useStoreActions(userId) {
         ? null
         : storeData.store_slug;
 
+      const { bank, rest } = splitBankDetails(storeData);
       const { data, error: createError } = await supabase
         .from('stores')
         .insert({
           user_id: userId,
           is_public: true,    // ✅ DEFAULT: Always public (database default as backup)
-          ...storeData,       // Caller can override if explicitly needed
+          ...rest,             // Caller can override if explicitly needed
           subdomain,          // Auto-generated subdomain (always last to prevent override)
         })
-        .select()
+        .select(OWNER_STORE_COLUMNS)
         .single();
 
       if (createError) throw createError;
+
+      if (data?.id && Object.keys(bank).length > 0) {
+        await writeStoreBankDetails(supabase, data.id, bank);
+      }
 
       // Log successful store creation
       console.log('[✅ Supabase] Store created successfully:', {
@@ -308,7 +315,7 @@ export function useStoreActions(userId) {
           .from('stores')
           .update(rest)
           .eq('id', storeId)
-          .select()
+          .select(OWNER_STORE_COLUMNS)
           .single();
         if (updateError) throw updateError;
         data = updated;

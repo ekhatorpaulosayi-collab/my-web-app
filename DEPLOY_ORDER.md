@@ -583,10 +583,10 @@ SELECT s.id, s.store_slug, s.bank_name, s.account_number, s.account_name
        );
 ```
 
-- **No.** The SELECT returns no rows. Skip the file. Go to step 21.
+- **No.** The SELECT returns no rows. Run the file anyway. It is a no-op when the stores columns are already clear, and it also copies from `store_bank_details` when that table already exists. Then go to step 21.
 - **Yes.** The SELECT returns rows. Those stores get one bank-transfer method. Run the file. Run the SELECT again. It must return no rows.
 
-A store that already has a bank-transfer method is not in the SELECT and is not changed. Running the file twice changes nothing the second time.
+A store that already has a bank-transfer method is not in the SELECT and is not changed. Running the file twice changes nothing the second time. Step 21b can run before this file. This file still fills a missing transfer method from `store_bank_details` and does not replace a method that is already there.
 
 ## Step 21 — hide settlement columns from anon, and check subdomain
 
@@ -637,8 +637,10 @@ SELECT s.id, s.store_slug, s.bank_name, s.account_number, s.account_name
     OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL;
 ```
 
-- **No.** The SELECT returns no rows. Run the file anyway. It still creates the table, the policies, and the revoke. The copy changes nothing.
-- **Yes.** The SELECT returns rows. Run the file. Those values move to `store_bank_details` and the stores columns become null.
+- **No.** The SELECT returns no rows. Run the file anyway. It still creates the table, the policies, and the revoke. The copy changes nothing. A second run does not replace a `store_bank_details` row that already has a bank name or account number.
+- **Yes.** The SELECT returns rows. Run the file. Those values move to `store_bank_details` and the stores columns become null. If step 21a has not run, this file also adds the missing Bank Transfer entry on `payment_methods`. An existing transfer method is left as it is.
+
+Running this file before step 21a is safe. Checkout still receives the transfer account, and a later step 21a does not overwrite it.
 
 Smoke test, as the database owner (this is privilege and row-security, not a live shopper session):
 
@@ -653,6 +655,24 @@ SELECT COUNT(*) AS owner_policies
 `signed_in_reads_column` is false. `anon_reads_bank_table` is false. `owner_policies` is 3.
 
 Rollback is in the file header. It copies the values back and grants the three columns to authenticated again. It does not drop `store_slug_redirects` and it does not restore `remember_store_slug`. Do not use the step 19 rollback after step 19b.
+
+## Step 22 — save the business type
+
+File: `supabase/migrations/20261025_22_users_store_type.sql`
+
+Version `2026102522`, name `users_store_type`.
+
+The business-type picker writes `users.store_type`. On a database where that column was never added, the save is ignored and the picker asks again. Run this file. It adds the column when it is missing and does not change a value that is already stored.
+
+```sql
+SELECT column_name
+  FROM information_schema.columns
+ WHERE table_schema = 'public'
+   AND table_name = 'users'
+   AND column_name = 'store_type';
+```
+
+One row means the column is there. Zero rows means this file adds it.
 
 ## Wildcard shop addresses
 

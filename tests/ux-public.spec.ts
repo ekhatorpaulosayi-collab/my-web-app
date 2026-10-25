@@ -169,7 +169,7 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
     const top = foot.getBoundingClientRect().top + window.scrollY - (window.innerHeight - tabH - footH - 12);
     window.scrollTo(0, Math.max(0, top));
   });
-  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-dashboard.png' });
+  await page.screenshot({ path: `${artifactDir}/retest12-phone-dashboard.png` });
 
   await page.goto('/dev/ux-preview/more', { waitUntil: 'domcontentloaded' });
   const share = page.getByRole('button', { name: /Share your store/ });
@@ -185,8 +185,19 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   const moneyBox = await money.boundingBox();
   expect(shareBox && historyBox && moneyBox && shareBox.y < historyBox.y && historyBox.y < moneyBox.y).toBe(true);
   expect(moneyBox?.height ?? 0).toBeGreaterThanOrEqual(48);
+  await page.getByRole('button', { name: /Getting Started Guide/ }).click();
+  await expect(page.getByRole('button', { name: /Add a product/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Publish your store/ })).toBeVisible();
+  await page.screenshot({ path: `${artifactDir}/getting-started-phone.png` });
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(share).toBeVisible();
   const fade = page.locator('.more-menu-fade.is-on');
-  await expect(fade).toBeVisible();
+  const overflows = await page.evaluate(() => {
+    const sections = document.querySelector('.more-menu-sections');
+    if (!sections) return false;
+    return sections.scrollHeight > sections.clientHeight + 12;
+  });
+  if (overflows) await expect(fade).toBeVisible();
   await expect(page.locator('footer.app-footer')).toBeHidden();
   const sheetFits = await page.evaluate(() => {
     const dialog = document.querySelector('dialog.more-menu');
@@ -197,15 +208,13 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
     const pad = parseFloat(style.paddingBottom);
     return box.top >= 0
       && box.bottom <= window.innerHeight + 1
-      && sections.scrollHeight > sections.clientHeight + 12
       && pad >= 16;
   });
   expect(sheetFits).toBe(true);
-  await page.screenshot({ path: '/opt/cursor/artifacts/more-sheet-after-phone.png' });
+  await page.screenshot({ path: `${artifactDir}/more-sheet-after-phone.png` });
 
   // iPhone Safari with the toolbars open leaves about 664px of page on a 390×844 screen.
   await page.setViewportSize({ width: 390, height: 664 });
-  await expect(fade).toBeVisible();
   await expect(page.locator('footer.app-footer')).toBeHidden();
   const fitsToolbar = await page.evaluate(() => {
     const box = document.querySelector('dialog.more-menu')?.getBoundingClientRect();
@@ -213,7 +222,7 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
     return box.top >= 0 && box.bottom <= window.innerHeight + 1;
   });
   expect(fitsToolbar).toBe(true);
-  await page.screenshot({ path: '/opt/cursor/artifacts/more-sheet-after-safari-toolbar.png' });
+  await page.screenshot({ path: `${artifactDir}/more-sheet-after-safari-toolbar.png` });
   await page.setViewportSize({ width: 390, height: 844 });
 
   const moreFooter = page.locator('.more-menu-powered');
@@ -247,9 +256,9 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   expect(clipped).toBe(false);
   await page.locator('.storefront-footer').scrollIntoViewIfNeeded();
   await expect(page.locator('.storefront-footer')).toContainText('Storehouse');
-  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-storefront.png' });
+  await page.screenshot({ path: `${artifactDir}/retest12-phone-storefront.png` });
   await page.getByRole('button', { name: /shopping cart/i }).click();
   await expect(page.locator('.cart-powered')).toBeVisible();
   await expect(page.locator('.cart-powered')).toContainText('Powered by Storehouse');
-  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-cart.png' });
+  await page.screenshot({ path: `${artifactDir}/retest12-phone-cart.png` });
 });

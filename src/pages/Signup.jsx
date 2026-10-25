@@ -8,6 +8,7 @@ import '../styles/Auth.css';
 export default function Signup() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
+    storeName: '',
     email: '',
     password: ''
   });
@@ -35,10 +36,16 @@ export default function Signup() {
     setError('');
 
     // Trim and normalize inputs
+    const storeName = formData.storeName.trim();
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
 
     // Validation
+    if (storeName.length < 2) {
+      setError('Please enter your store name');
+      return;
+    }
+
     if (!email) {
       setError('Please enter your email');
       return;
@@ -68,8 +75,7 @@ export default function Signup() {
       console.debug('[Signup] Attempting signup:', email);
       console.debug('[Signup] Rate limit remaining:', rateLimit.remaining - 1);
 
-      // No storeName or storeType - authService will generate defaults
-      const result = await signUp(email, password);
+      const result = await signUp(email, password, storeName);
 
       // Record successful signup attempt for rate limiting
       recordSignupAttempt(email);
@@ -204,6 +210,23 @@ export default function Signup() {
         )}
 
         <form onSubmit={handleSubmit} className="auth-form">
+          <div className="form-group">
+            <label htmlFor="storeName" className="form-label">
+              Store name *
+            </label>
+            <input
+              id="storeName"
+              name="storeName"
+              type="text"
+              autoComplete="organization"
+              value={formData.storeName}
+              onChange={handleChange}
+              className="form-input"
+              placeholder="Ada's Fabrics"
+              required
+            />
+          </div>
+
           <div className="form-group">
             <label htmlFor="email" className="form-label">
               Email Address *

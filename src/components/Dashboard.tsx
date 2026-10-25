@@ -44,7 +44,7 @@ interface DashboardProps {
   onEditItem?: (item: any) => void;
   onShowCSVImport?: () => void;
   onSendDailySummary?: () => void;
-  onExportData?: () => void;
+  onExportData?: (kind?: 'inventory' | 'sales' | 'customers' | 'zip') => void;
   hasOpenModal?: boolean;
   userId?: string;
   profileComplete?: boolean;
@@ -1163,7 +1163,7 @@ export function Dashboard({
                               </span>
                             )}
                             {/* Low Stock Badge */}
-                            {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 10) && (
+                            {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 3) && (
                               <span style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1372,8 +1372,16 @@ export function Dashboard({
           }}
           onSendDailySummary={onSendDailySummary}
           onExportData={onExportData}
+          onAddProduct={onAddItem}
+          onSetStoreName={onViewSettings}
+          onPublishStore={() => navigate('/online-store')}
+          checklist={{
+            hasProduct: items.length > 0,
+            hasName: Boolean((businessName || '').trim()) && businessName !== 'My Store',
+            isLive: (store as any)?.is_public === true,
+          }}
           storeUrl={storeUrl}
-          storeName={store?.store_name || 'My Store'}
+          storeName={businessName}
           onStaffModeToggle={() => {
             setShowMoreMenu(false);
             setShowStaffLogin(true);

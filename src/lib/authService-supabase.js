@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 import { logError } from '../utils/errorMonitoring';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { friendlyAuthError } from './authErrors';
+import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 
 /**
  * Sign up a new user with email and password
@@ -61,7 +62,7 @@ export async function signUp(email, password, storeName = null, storeType = null
         const userRecord = {
           id: user.id, // Use same ID as auth.users
           email: user.email,
-          phone_number: user.phone || user.email, // Use email as fallback if phone not provided
+          phone_number: user.phone && !String(user.phone).includes('@') ? user.phone : user.email,
           business_name: defaultStoreName,
           // store_type: defaultStoreType, // Column doesn't exist
           device_type: 'web',
@@ -101,7 +102,7 @@ export async function signUp(email, password, storeName = null, storeType = null
             // for new signups. Numeric-only slugs stay NULL — they cannot
             // safely act as a subdomain label.
             subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
-            whatsapp_number: user.phone || 'pending', // Required field (never an email — M2)
+            whatsapp_number: user.phone && !String(user.phone).includes('@') ? user.phone : 'pending',
             is_public: true, // Live so the link works. Hidden is a setting.
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -110,7 +111,7 @@ export async function signUp(email, password, storeName = null, storeType = null
           const inserted = await supabase
             .from('stores')
             .insert([storeProfile])
-            .select()
+            .select(OWNER_STORE_COLUMNS)
             .single();
           storeError = inserted.error;
           if (!storeError) {
@@ -240,7 +241,7 @@ export async function signIn(email, password) {
     // Fetch store profile
     const { data: storeData, error: storeError } = await supabase
       .from('stores')
-      .select('*')
+      .select(OWNER_STORE_COLUMNS)
       .eq('user_id', user.id)
       .single();
 
@@ -361,7 +362,7 @@ export async function getUserProfile(uid) {
     // Fetch from stores table
     const { data: storeData, error: storeError } = await supabase
       .from('stores')
-      .select('*')
+      .select(OWNER_STORE_COLUMNS)
       .eq('user_id', uid)
       .single();
 
