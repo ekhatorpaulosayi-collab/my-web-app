@@ -440,6 +440,13 @@ body[data-modal-open] .ai-chat-container .need-help-fab {
   animation: ds-shimmer 1.2s ease infinite;
   border-radius: var(--ds-radius-sm);
 }
+.route-skeleton {
+  padding: 24px 16px;
+  display: grid;
+  gap: 12px;
+}
+.route-skeleton-title { height: 28px; width: 42%; }
+.route-skeleton-block { height: 84px; width: 100%; }
 @keyframes ds-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 
 .ds-table { width: 100%; border-collapse: collapse; }

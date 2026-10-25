@@ -37,7 +37,8 @@ CREATE TABLE public.stores (
   account_number text,
   account_name text,
   payment_methods jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
 CREATE POLICY stores_owner_all ON public.stores
@@ -83,7 +84,8 @@ UPDATE public.store_bank_details
    SET bank_name = 'Newer Bank', account_number = '9999999999', account_name = 'Ada New'
  WHERE store_id = '11111111-1111-1111-1111-111111111111';
 UPDATE public.stores
-   SET bank_name = 'Stale Bank', account_number = '1111111111', account_name = 'Ada Old'
+   SET bank_name = 'Stale Bank', account_number = '1111111111', account_name = 'Ada Old',
+       updated_at = timestamptz '2020-01-01+00'
  WHERE id = '11111111-1111-1111-1111-111111111111';
 SQL
 
@@ -100,6 +102,27 @@ SQL
 "${PSQL[@]}" -d "$DB" -v ON_ERROR_STOP=1 -c \
 "SELECT count(*) FROM public.stores s WHERE jsonb_typeof(s.payment_methods) = 'array' AND EXISTS (SELECT 1 FROM jsonb_array_elements(s.payment_methods) m WHERE m->>'type' = 'bank');" \
 | grep -q ' 2'
+
+# Stale stores columns must not rewrite the transfer method customers already see.
+"${PSQL[@]}" -d "$DB" -tA -c "SELECT payment_methods->0->>'account_number' FROM public.stores WHERE id = '11111111-1111-1111-1111-111111111111';" \
+| grep -q '1111111111'
+
+# A bank edit saved on the stores columns while 21b was undone is kept.
+"${PSQL[@]}" -d "$DB" -v ON_ERROR_STOP=1 <<'SQL'
+UPDATE public.stores
+   SET bank_name = 'Edited Bank', account_number = '8888888888', account_name = 'Ada Edit',
+       updated_at = clock_timestamp()
+ WHERE id = '11111111-1111-1111-1111-111111111111';
+SQL
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_21_store_bank_details.sql" >/dev/null
+"${PSQL[@]}" -d "$DB" -tA -c "SELECT account_number FROM public.store_bank_details WHERE store_id = '11111111-1111-1111-1111-111111111111';" | grep -q '8888888888'
+"${PSQL[@]}" -d "$DB" -tA -c "SELECT payment_methods->0->>'account_number' FROM public.stores WHERE id = '11111111-1111-1111-1111-111111111111';" | grep -q '8888888888'
+"${PSQL[@]}" -d "$DB" -tA -c "SELECT bank_name IS NULL AND account_number IS NULL FROM public.stores WHERE id = '11111111-1111-1111-1111-111111111111';" | grep -q t
+kept=$("${PSQL[@]}" -d "$DB" -tA -c "SELECT jsonb_array_length(payment_methods) FROM public.stores WHERE id = '11111111-1111-1111-1111-111111111111';")
+if [[ "$kept" != "1" ]]; then
+  echo "OWNER_EDIT_METHOD_COUNT:$kept"
+  exit 1
+fi
 
 # 21a after 21b must not add a second transfer method.
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql" >/dev/null
@@ -129,7 +152,8 @@ CREATE TABLE public.stores (
   bank_name text,
   account_number text,
   account_name text,
-  payment_methods jsonb
+  payment_methods jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 GRANT SELECT, INSERT, UPDATE ON public.stores TO anon, authenticated;
 INSERT INTO public.stores (id, user_id, business_name, store_slug, bank_name, account_number, account_name)
@@ -144,5 +168,9 @@ SQL
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_22_users_store_type.sql" >/dev/null
 "${PSQL[@]}" -d "$DB" -c "INSERT INTO public.users (id) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'); UPDATE public.users SET store_type = 'fashion' WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';" >/dev/null
 "${PSQL[@]}" -d "$DB" -tA -c "SELECT store_type FROM public.users;" | grep -q fashion
+
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261025_23_users_business_type_prompt.sql" >/dev/null
+"${PSQL[@]}" -d "$DB" -c "UPDATE public.users SET business_type_prompt_dismissed = true WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';" >/dev/null
+"${PSQL[@]}" -d "$DB" -tA -c "SELECT business_type_prompt_dismissed FROM public.users;" | grep -q t
 
 echo "OWNER_COLUMN_READ:ok"

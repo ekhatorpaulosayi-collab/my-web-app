@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Check, X, Loader2, CreditCard, XCircle } from 'lucide-react';
+import { RouteSkeleton } from './RouteSkeleton';
 
 // Hardcoded tier display data — keeps the in-app subscription page in lock-step
 // with the landing page pricing section. DB drives prices/limits; this drives
@@ -735,13 +736,10 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
     return isDifferentTier || isDifferentCycle;
   };
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <Loader2 size={32} className="spin" style={{ margin: '0 auto' }} />
-        <p style={{ marginTop: '16px', color: '#475569' }}>Loading subscription plans...</p>
-      </div>
-    );
+  const previewSkeleton = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('skeleton') === '1';
+  if (loading || previewSkeleton) {
+    return <RouteSkeleton label="Subscription plans" />;
   }
 
   return (

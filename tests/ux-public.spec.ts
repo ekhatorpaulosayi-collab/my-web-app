@@ -187,6 +187,7 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   expect(moneyBox?.height ?? 0).toBeGreaterThanOrEqual(48);
   await page.getByRole('button', { name: /Getting Started Guide/ }).click();
   await expect(page.getByRole('button', { name: /Add a product/ })).toBeVisible();
+  await expect(page.locator('.more-sheet-status svg').first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Publish your store/ })).toBeVisible();
   await page.screenshot({ path: `${artifactDir}/getting-started-phone.png` });
   await page.getByRole('button', { name: 'Back' }).click();
@@ -261,4 +262,51 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   await expect(page.locator('.cart-powered')).toBeVisible();
   await expect(page.locator('.cart-powered')).toContainText('Powered by Storehouse');
   await page.screenshot({ path: `${artifactDir}/retest12-phone-cart.png` });
+});
+
+test('fresh dashboard shows one setup card in a wide column', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem('storehouse:setup-checklist:dismissed');
+    localStorage.removeItem('storehouse:business-type-prompt:dismissed');
+    localStorage.removeItem('storehouse_business_type');
+    localStorage.setItem('storehouse_first_time_setup', 'true');
+  });
+
+  await page.goto('/dev/ux-preview/dashboard', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Finish setting up' })).toBeVisible();
+  await expect(page.getByText('Add your business name')).toBeVisible();
+  await expect(page.locator('.business-type-prompt')).toHaveCount(0);
+  await expect(page.locator('.partner-widget-compact')).toHaveCount(0);
+
+  const width = page.viewportSize()?.width ?? 0;
+  const column = await page.locator('.dashboard-minimal').boundingBox();
+  expect(column?.width ?? 0).toBeGreaterThan(width > 500 ? 700 : 300);
+  if (width > 500 && column) {
+    const contentCenter = 240 + (width - 240) / 2;
+    expect(Math.abs(column.x + column.width / 2 - contentCenter)).toBeLessThan(80);
+  }
+
+  const sizeLabel = width <= 400 ? '390x844' : '1440x900';
+  await page.screenshot({ path: `${artifactDir}/fresh-owner-dashboard-${sizeLabel}.png` });
+
+  if (width > 500) {
+    await page.goto('/dev/ux-preview/more', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Getting Started Guide/ }).click();
+    await expect(page.locator('.more-sheet-status svg').first()).toBeVisible();
+    const dialog = await page.locator('dialog.more-menu').boundingBox();
+    expect(dialog).toBeTruthy();
+    if (dialog) expect(Math.abs(dialog.x + dialog.width / 2 - width / 2)).toBeLessThan(40);
+    await page.screenshot({ path: `${artifactDir}/getting-started-desktop.png` });
+  }
+
+  for (const [name, path] of [
+    ['reviews', '/dev/ux-preview/reviews'],
+    ['affiliate', '/dev/ux-preview/affiliate'],
+    ['plans', '/dev/ux-preview/upgrade?skeleton=1'],
+  ] as const) {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.route-skeleton')).toBeVisible();
+    await expect(page.getByText(/^Loading/)).toHaveCount(0);
+    await page.screenshot({ path: `${artifactDir}/${name}-skeleton-${sizeLabel}.png` });
+  }
 });

@@ -212,23 +212,19 @@ export function BusinessTypeSelector({ onComplete }: BusinessTypeSelectorProps) 
   );
 }
 
-const PROMPT_KEY = 'storehouse:business-type-prompt:dismissed';
-
 /** In-flow card. The full sheet opens only after Choose. */
 export function BusinessTypePrompt() {
-  const { isFirstTimeSetup, businessType, completeSetup } = usePreferences();
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(PROMPT_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const {
+    isFirstTimeSetup,
+    businessType,
+    completeSetup,
+    businessTypePromptDismissed,
+    dismissBusinessTypePrompt,
+  } = usePreferences();
   const [open, setOpen] = useState(false);
 
-  if (!isFirstTimeSetup || businessType) return null;
+  if (!isFirstTimeSetup || businessType || businessTypePromptDismissed) return null;
   if (open) return <BusinessTypeSelector onComplete={completeSetup} />;
-  if (dismissed) return null;
 
   return (
     <section className="business-type-prompt" aria-label="Shop type">
@@ -237,14 +233,7 @@ export function BusinessTypePrompt() {
         <button type="button" onClick={() => setOpen(true)}>Choose shop type</button>
         <button
           type="button"
-          onClick={() => {
-            try {
-              localStorage.setItem(PROMPT_KEY, 'true');
-            } catch {
-              /* private mode */
-            }
-            setDismissed(true);
-          }}
+          onClick={() => dismissBusinessTypePrompt()}
         >
           Not now
         </button>

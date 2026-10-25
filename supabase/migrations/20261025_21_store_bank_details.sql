@@ -14,11 +14,15 @@
 -- this table. The manual transfer account stays here.
 --
 -- Re-run. An existing store_bank_details row is left as it is when any
--- field is already set, so a newer owner save is not replaced by stale
--- stores columns. A row that is still entirely empty can be filled once.
--- Before the stores columns are cleared, a missing Bank Transfer entry
--- is copied into payment_methods, so this file still helps checkout if
--- step 21a has not run.
+-- field is already set and the stores columns are older than that row,
+-- so a newer owner save is not replaced by stale stores columns. A row
+-- that is still entirely empty can be filled once. A bank edit written
+-- to the stores columns while this step was undone is kept when
+-- stores.updated_at is later than store_bank_details.updated_at: that
+-- edit replaces the details row and the existing Bank Transfer method,
+-- then the stores columns are cleared. Before the stores columns are
+-- cleared, a missing Bank Transfer entry is copied into payment_methods,
+-- so this file still helps checkout if step 21a has not run.
 --
 -- DRY RUN. This SELECT changes nothing.
 --
@@ -116,6 +120,65 @@ ON CONFLICT (store_id) DO UPDATE
   WHERE public.store_bank_details.bank_name IS NULL
     AND public.store_bank_details.account_number IS NULL
     AND public.store_bank_details.account_name IS NULL;
+
+-- A filled details row stays unless the stores columns were edited
+-- later, which is what happens when this step is undone and the owner
+-- saves a bank account on the old columns.
+UPDATE public.store_bank_details AS d
+   SET bank_name = nullif(btrim(s.bank_name), ''),
+       account_number = nullif(btrim(s.account_number), ''),
+       account_name = nullif(btrim(s.account_name), ''),
+       updated_at = now()
+  FROM public.stores AS s
+ WHERE s.id = d.store_id
+   AND s.updated_at > d.updated_at
+   AND (
+        nullif(btrim(coalesce(s.bank_name, '')), '') IS NOT NULL
+     OR nullif(btrim(coalesce(s.account_number, '')), '') IS NOT NULL
+     OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL
+   );
+
+-- The transfer method customers already see has to follow that newer edit.
+UPDATE public.stores AS s
+   SET payment_methods = (
+     SELECT jsonb_agg(
+              CASE
+                WHEN lower(coalesce(elem->>'type', '')) IN ('bank', 'bank-transfer', 'bank_transfer')
+                THEN elem || jsonb_strip_nulls(jsonb_build_object(
+                  'bank_name', nullif(btrim(coalesce(b.bank_name, '')), ''),
+                  'account_number', nullif(btrim(coalesce(b.account_number, '')), ''),
+                  'account_name', nullif(btrim(coalesce(b.account_name, '')), '')
+                ))
+                ELSE elem
+              END
+              ORDER BY ord
+            )
+       FROM jsonb_array_elements(s.payment_methods) WITH ORDINALITY AS t(elem, ord)
+   )
+  FROM public.store_bank_details AS b
+ WHERE b.store_id = s.id
+   AND jsonb_typeof(s.payment_methods) = 'array'
+   AND (
+        nullif(btrim(coalesce(b.bank_name, '')), '') IS NOT NULL
+     OR nullif(btrim(coalesce(b.account_number, '')), '') IS NOT NULL
+     OR nullif(btrim(coalesce(b.account_name, '')), '') IS NOT NULL
+   )
+   AND nullif(btrim(coalesce(s.bank_name, '')), '') IS NOT DISTINCT FROM nullif(btrim(coalesce(b.bank_name, '')), '')
+   AND nullif(btrim(coalesce(s.account_number, '')), '') IS NOT DISTINCT FROM nullif(btrim(coalesce(b.account_number, '')), '')
+   AND nullif(btrim(coalesce(s.account_name, '')), '') IS NOT DISTINCT FROM nullif(btrim(coalesce(b.account_name, '')), '')
+   AND EXISTS (
+        SELECT 1
+          FROM jsonb_array_elements(s.payment_methods) AS method
+         WHERE lower(coalesce(method->>'type', '')) IN ('bank', 'bank-transfer', 'bank_transfer')
+           AND (
+                nullif(btrim(coalesce(method->>'bank_name', '')), '')
+                  IS DISTINCT FROM nullif(btrim(coalesce(b.bank_name, '')), '')
+             OR nullif(btrim(coalesce(method->>'account_number', '')), '')
+                  IS DISTINCT FROM nullif(btrim(coalesce(b.account_number, '')), '')
+             OR nullif(btrim(coalesce(method->>'account_name', '')), '')
+                  IS DISTINCT FROM nullif(btrim(coalesce(b.account_name, '')), '')
+           )
+   );
 
 -- Checkout reads payment_methods. If step 21a has not run, add the
 -- transfer account from the owner row we just kept. An existing

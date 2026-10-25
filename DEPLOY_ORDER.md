@@ -637,8 +637,10 @@ SELECT s.id, s.store_slug, s.bank_name, s.account_number, s.account_name
     OR nullif(btrim(coalesce(s.account_name, '')), '') IS NOT NULL;
 ```
 
-- **No.** The SELECT returns no rows. Run the file anyway. It still creates the table, the policies, and the revoke. The copy changes nothing. A second run does not replace a `store_bank_details` row that already has a bank name or account number.
-- **Yes.** The SELECT returns rows. Run the file. Those values move to `store_bank_details` and the stores columns become null. If step 21a has not run, this file also adds the missing Bank Transfer entry on `payment_methods`. An existing transfer method is left as it is.
+- **No.** The SELECT returns no rows. Run the file anyway. It still creates the table, the policies, and the revoke. The copy changes nothing. A second run does not replace a `store_bank_details` row that already has a bank name or account number when the stores columns are older than that row.
+- **Yes.** The SELECT returns rows. Run the file. Those values move to `store_bank_details` and the stores columns become null. If step 21a has not run, this file also adds the missing Bank Transfer entry on `payment_methods`. An existing transfer method is left as it is, unless the stores columns are a newer edit than `store_bank_details`. That newer edit replaces the details row and the Bank Transfer account, then the stores columns are cleared. A stale copy of the old account on the stores columns does not.
+
+After this file is applied, do not roll the deployed site back to a commit before `6dbba10`. That build still reads every column of `stores`, including `bank_name`, `account_number`, and `account_name`. This step revokes those columns, so the database denies the whole read. Owners then cannot open the dashboard, Settings, or Online Store, and signup cannot create a shop. Keep the site on `6dbba10` or later. If you must roll the site back, run the rollback in the file header first so authenticated can read those three columns again.
 
 Running this file before step 21a is safe. Checkout still receives the transfer account, and a later step 21a does not overwrite it.
 
@@ -670,6 +672,24 @@ SELECT column_name
  WHERE table_schema = 'public'
    AND table_name = 'users'
    AND column_name = 'store_type';
+```
+
+One row means the column is there. Zero rows means this file adds it.
+
+## Step 23 — remember “Not now” on the shop-type card
+
+File: `supabase/migrations/20261025_23_users_business_type_prompt.sql`
+
+Version `2026102523`, name `users_business_type_prompt`.
+
+“Not now” writes `users.business_type_prompt_dismissed`. Until this column exists, the card hides on the device that dismissed it and shows again on a new device. Run this file. It adds the column when it is missing and does not change a value that is already stored. Signup does not write this column.
+
+```sql
+SELECT column_name
+  FROM information_schema.columns
+ WHERE table_schema = 'public'
+   AND table_name = 'users'
+   AND column_name = 'business_type_prompt_dismissed';
 ```
 
 One row means the column is there. Zero rows means this file adds it.

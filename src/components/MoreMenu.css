@@ -49,6 +49,12 @@
   color: #0f172a;
 }
 
+.more-sheet-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .more-sheet-choice small,
 .more-sheet-choice span {
   color: #475569;

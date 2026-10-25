@@ -5,6 +5,7 @@ import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './utils/reservedSubdoma
 import AuthConfirm from './pages/AuthConfirm.jsx';
 import UpdatePassword from './pages/UpdatePassword.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { RouteSkeleton } from './components/RouteSkeleton';
 import { AppShell } from './components/layout/AppShell';
 
 const App = lazy(() => import('./App.jsx'));
@@ -357,9 +358,11 @@ export default function AppRoutes() {
         <Route
           path="/upgrade"
           element={
-            <ProtectedRoute ownerOnly>
-              <SubscriptionUpgrade />
-            </ProtectedRoute>
+            <Suspense fallback={<RouteSkeleton label="Subscription plans" />}>
+              <ProtectedRoute ownerOnly skeleton={<RouteSkeleton label="Subscription plans" />}>
+                <SubscriptionUpgrade />
+              </ProtectedRoute>
+            </Suspense>
           }
         />
 
@@ -367,9 +370,11 @@ export default function AppRoutes() {
         <Route
           path="/affiliate/signup"
           element={
-            <ProtectedRoute>
-              <AffiliateSignup />
-            </ProtectedRoute>
+            <Suspense fallback={<RouteSkeleton label="Affiliate signup" />}>
+              <ProtectedRoute skeleton={<RouteSkeleton label="Affiliate signup" />}>
+                <AffiliateSignup />
+              </ProtectedRoute>
+            </Suspense>
           }
         />
 
@@ -487,9 +492,11 @@ export default function AppRoutes() {
         <Route
           path="/reviews"
           element={
-            <ProtectedRoute>
-              <ReviewManagement />
-            </ProtectedRoute>
+            <Suspense fallback={<RouteSkeleton label="Reviews" />}>
+              <ProtectedRoute skeleton={<RouteSkeleton label="Reviews" />}>
+                <ReviewManagement />
+              </ProtectedRoute>
+            </Suspense>
           }
         />
 
@@ -535,6 +542,8 @@ export default function AppRoutes() {
         {import.meta.env.DEV && <Route path="/dev/sale-modal" element={<DevSaleModal />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/help" element={<HelpCenter />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/upgrade" element={<SubscriptionUpgrade />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/reviews" element={<ReviewManagement />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/affiliate" element={<AffiliateSignup />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/referrals" element={<ReferralDashboard />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/quick-setup" element={<StoreQuickSetup />} />}
         {import.meta.env.DEV && <Route path="/dev/ux-preview/dashboard" element={<DevPhoneNavPreview />} />}

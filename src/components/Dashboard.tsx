@@ -19,6 +19,7 @@ import { StaffPinLogin } from './StaffPinLogin';
 import { StaffPerformanceWidget } from './StaffPerformanceWidget';
 import { ReferralRewardsWidget } from './ReferralRewardsWidget';
 import { useStaff } from '../contexts/StaffContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import { currencyNGN } from '../utils/format';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
 import { useStore, useUser } from '../lib/supabase-hooks';
@@ -69,7 +70,6 @@ export function Dashboard({
   onSendDailySummary,
   onExportData,
   userId,
-  profileComplete = true,
   onSetupProfile,
 }: DashboardProps) {
   const navigate = useNavigate();
@@ -107,6 +107,7 @@ export function Dashboard({
 
   // Staff permissions
   const { canEditProducts, canDeleteProducts, canAddProducts, canViewReports, isStaffMode, exitStaffMode, currentRole } = useStaff();
+  const { isFirstTimeSetup, businessType, businessTypePromptDismissed } = usePreferences();
 
   // Load store from Supabase
   const { store, loading: storeLoading } = useStore(userId);
@@ -522,11 +523,21 @@ export function Dashboard({
     day: 'numeric'
   });
 
+  const hasStoreName = Boolean((businessName || '').trim()) && businessName !== 'My Store';
+  const hasPayments = Boolean(
+    (store?.bank_name && store?.account_number)
+    || store?.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+  );
+  const setupStillOpen = !checklistDismissed && !(
+    hasStoreName && items.length > 0 && sales.length > 0 && hasPayments
+  );
+  const showShopType = !setupStillOpen && isFirstTimeSetup && !businessType && !businessTypePromptDismissed;
+
   return (
     <div className="dashboard-minimal">
       {/* Date Display */}
       <div className="dashboard-date">{dateString}</div>
-      <BusinessTypePrompt />
+      {showShopType && <BusinessTypePrompt />}
 
       {/* Getting Started Checklist - DISABLED to match localhost appearance */}
       {/* <GettingStartedChecklist
@@ -548,15 +559,12 @@ export function Dashboard({
         />
       )}
 
-      {!checklistDismissed && (
+      {setupStillOpen && (
         <SetupChecklist
-          profileComplete={profileComplete}
+          profileComplete={hasStoreName}
           hasItems={items.length > 0}
           hasSales={sales.length > 0}
-          hasPayments={!!(
-            (store?.bank_name && store?.account_number)
-            || store?.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
-          )}
+          hasPayments={hasPayments}
           onProfile={onSetupProfile || onViewSettings || (() => {})}
           onAddItem={onAddItem}
           onRecordSale={onRecordSale}
@@ -569,7 +577,7 @@ export function Dashboard({
       )}
 
       {/* Payment Status Indicator */}
-      {store && !shouldShowPaymentNudge && (
+      {store && !shouldShowPaymentNudge && !setupStillOpen && !showShopType && (
         <PaymentStatusIndicator
           hasBank={!!(
             (store.bank_name && store.account_number)
@@ -868,8 +876,8 @@ export function Dashboard({
         onOpenFullDashboard={() => navigate('/referrals')}
       />
 
-      {/* Partner Program Widget - Compact Collapsible Version */}
-      <div className="partner-widget-compact">
+      {/* Partner Program stays off a new dashboard so one setup card is the next step. */}
+      {!setupStillOpen && !showShopType && <div className="partner-widget-compact">
         <div
           className="partner-compact-header"
           onClick={() => {
@@ -919,7 +927,7 @@ export function Dashboard({
             🎯 127 partners earning recurring income
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* 4. Quick Sell Grid */}
       <div className="quick-sell-card">

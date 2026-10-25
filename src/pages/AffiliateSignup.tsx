@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { DollarSign, Users, TrendingUp, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createAffiliate, getAffiliateByUserId } from '../services/affiliateService';
+import { RouteSkeleton } from '../components/RouteSkeleton';
 
 export default function AffiliateSignup() {
   const { currentUser } = useAuth();
@@ -39,7 +40,7 @@ export default function AffiliateSignup() {
   // Check if user already has affiliate account
   useEffect(() => {
     if (!currentUser) {
-      navigate('/login');
+      if (!window.location.pathname.startsWith('/dev/ux-preview')) navigate('/login');
       return;
     }
 
@@ -140,34 +141,7 @@ export default function AffiliateSignup() {
 
   // Loading state
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f9fafb'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '32px',
-          textAlign: 'center',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: '4px solid #e5e7eb',
-            borderTopColor: '#1d4ed8',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 16px'
-          }} />
-          <p style={{ color: '#6b7280', margin: 0 }}>Loading...</p>
-        </div>
-      </div>
-    );
+    return <RouteSkeleton label="Affiliate signup" />;
   }
 
   // Already an affiliate

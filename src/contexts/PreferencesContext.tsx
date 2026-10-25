@@ -37,6 +37,8 @@ interface PreferencesContextType {
   // First-time setup
   isFirstTimeSetup: boolean;
   completeSetup: () => void;
+  businessTypePromptDismissed: boolean;
+  dismissBusinessTypePrompt: () => void;
 
   // Calm Mode & Collapsed state
   calmMode: boolean;
@@ -50,6 +52,8 @@ interface PreferencesContextType {
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
 
+export const BUSINESS_TYPE_PROMPT_KEY = 'storehouse:business-type-prompt:dismissed';
+
 const STORAGE_KEYS = {
   businessType: 'storehouse_business_type',
   activeWidgets: 'storehouse_active_widgets',
@@ -60,6 +64,20 @@ const STORAGE_KEYS = {
 };
 
 const OWNER_SESSION_DURATION = 30 * 60 * 1000; // 30 minutes
+
+async function persistBusinessTypePromptDismissed() {
+  try {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user?.id) return;
+    const { error } = await supabase
+      .from('users')
+      .update({ business_type_prompt_dismissed: true })
+      .eq('id', data.user.id);
+    if (error) console.warn('[preferences] shop-type dismissal was not saved', error.message);
+  } catch (err) {
+    console.warn('[preferences] shop-type dismissal skipped', err);
+  }
+}
 
 async function persistStoreType(type: string) {
   try {
@@ -91,6 +109,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState<boolean>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.isFirstTimeSetup);
     return saved !== 'false'; // Default to true if not set
+  });
+
+  const [businessTypePromptDismissed, setBusinessTypePromptDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(BUSINESS_TYPE_PROMPT_KEY) === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const [ownerAccess, setOwnerAccess] = useState<OwnerAccess>({
@@ -164,6 +190,44 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const id = data.user?.id;
+      if (!id || cancelled) return;
+      const { data: row, error } = await supabase
+        .from('users')
+        .select('business_type_prompt_dismissed')
+        .eq('id', id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.warn('[preferences] shop-type dismissal was not read', error.message);
+        return;
+      }
+      if (row?.business_type_prompt_dismissed) {
+        setBusinessTypePromptDismissed(true);
+        localStorage.setItem(BUSINESS_TYPE_PROMPT_KEY, 'true');
+        return;
+      }
+      if (localStorage.getItem(BUSINESS_TYPE_PROMPT_KEY) === 'true') {
+        void persistBusinessTypePromptDismissed();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const dismissBusinessTypePrompt = () => {
+    setBusinessTypePromptDismissed(true);
+    try {
+      localStorage.setItem(BUSINESS_TYPE_PROMPT_KEY, 'true');
+    } catch {
+      /* private mode */
+    }
+    void persistBusinessTypePromptDismissed();
+  };
 
   const setActiveWidgets = (widgets: WidgetId[]) => {
     setActiveWidgetsState(widgets);
@@ -244,6 +308,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEYS.isFirstTimeSetup);
     localStorage.removeItem(STORAGE_KEYS.calmMode);
     localStorage.removeItem(STORAGE_KEYS.collapsed);
+    localStorage.removeItem(BUSINESS_TYPE_PROMPT_KEY);
+    setBusinessTypePromptDismissed(false);
 
     logoutOwner();
   };
@@ -262,6 +328,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     logoutOwner,
     isFirstTimeSetup,
     completeSetup,
+    businessTypePromptDismissed,
+    dismissBusinessTypePrompt,
     calmMode,
     setCalmMode,
     collapsed,

@@ -223,6 +223,7 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   const bankMove = readFileSync(new URL('../../supabase/migrations/20261025_21_store_bank_details.sql', import.meta.url), 'utf8');
   const bankCopy = readFileSync(new URL('../../supabase/migrations/20261025_20_legacy_bank_to_payment_methods.sql', import.meta.url), 'utf8');
   assert.match(bankMove, /store_bank_details.bank_name IS NULL/);
+  assert.match(bankMove, /s\.updated_at > d\.updated_at/);
   assert.match(bankMove, /payment_methods/);
   assert.match(bankCopy, /to_regclass\('public.store_bank_details'\)/);
   const resolve = readFileSync(new URL('../../supabase/functions/resolve-bank-account/index.ts', import.meta.url), 'utf8');
@@ -230,6 +231,10 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   assert.match(readFileSync(new URL('../../src/components/dashboard/ConversationsSimplifiedFixed.tsx', import.meta.url), 'utf8'), /Chats arrive here when a customer messages your store/);
   assert.match(readFileSync(new URL('../../src/components/StoreSetupComplete.tsx', import.meta.url), 'utf8'), /business_name/);
   assert.match(readFileSync(new URL('../../supabase/migrations/20261025_22_users_store_type.sql', import.meta.url), 'utf8'), /store_type/);
+  assert.match(readFileSync(new URL('../../supabase/migrations/20261025_23_users_business_type_prompt.sql', import.meta.url), 'utf8'), /business_type_prompt_dismissed/);
+  assert.match(readFileSync(new URL('../../DEPLOY_ORDER.md', import.meta.url), 'utf8'), /before `6dbba10`/);
+  assert.match(readFileSync(new URL('../../src/components/Dashboard.tsx', import.meta.url), 'utf8'), /hasStoreName/);
+  assert.match(readFileSync(new URL('../../src/components/MoreMenu.tsx', import.meta.url), 'utf8'), /CheckCircle2/);
   const replaced = withBankTransferMethod(
     [{ id: 'old', type: 'bank', enabled: true, bank_name: 'Old Bank', account_number: '111', account_name: 'Old' }],
     'store-1',

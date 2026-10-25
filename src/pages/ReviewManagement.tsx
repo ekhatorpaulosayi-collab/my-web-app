@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, CheckCircle, XCircle, MessageSquare, Eye, Clock, ArrowLeft, Filter } from 'lucide-react';
 import { getStoreReviews, approveReview, rejectReview, respondToReview, ProductReview } from '../services/reviewService';
+import { RouteSkeleton } from '../components/RouteSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/ReviewManagement.css';
 
@@ -224,10 +225,7 @@ export default function ReviewManagement() {
 
       {/* Reviews List */}
       {loading ? (
-        <div className="loading-state">
-          <div className="spinner" />
-          <p>Loading reviews...</p>
-        </div>
+        <RouteSkeleton label="Reviews" />
       ) : error ? (
         <div className="error-state">
           <p>{error}</p>

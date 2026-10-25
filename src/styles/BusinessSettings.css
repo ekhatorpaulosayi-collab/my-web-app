@@ -1,13 +1,9 @@
 /* Business Settings Sheet - Premium Design */
 
-/* Prevent horizontal scrolling globally */
-html, body {
-  overflow-x: hidden !important;
-  max-width: 100vw !important;
-}
-
-/* Prevent any element from causing horizontal overflow */
-* {
+/* Keep overflow rules on the sheet. A global max-width on every element
+   shrinks the dashboard into a narrow left column. */
+.bs-sheet,
+.bs-sheet * {
   max-width: 100%;
 }
 

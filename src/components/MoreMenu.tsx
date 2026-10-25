@@ -5,7 +5,7 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, FileSpreadsheet, Sparkles, Lock } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, FileSpreadsheet, Sparkles, Lock, CheckCircle2, Circle } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
 import { canViewInvoices } from '../utils/staffPermissions';
 import { useAuth } from '../contexts/AuthContext';
@@ -341,7 +341,12 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
                   className="more-sheet-choice"
                   onClick={() => handleItemClick(step.action)}
                 >
-                  <span>{step.done ? 'Done' : 'To do'}</span>
+                  <span className="more-sheet-status">
+                    {step.done
+                      ? <CheckCircle2 size={20} color="#15803d" aria-hidden="true" />
+                      : <Circle size={20} color="#475569" aria-hidden="true" />}
+                    {step.done ? 'Done' : 'To do'}
+                  </span>
                   <strong>{step.title}</strong>
                   <small>{step.detail}</small>
                 </button>

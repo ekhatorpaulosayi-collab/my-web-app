@@ -8,7 +8,7 @@ import { AppShell } from './layout/AppShell';
  * Redirects to /login if user is not authenticated
  * Shows loading spinner while checking auth state
  */
-export default function ProtectedRoute({ children, ownerOnly = false, blockCashier = false, devOnly = false }) {
+export default function ProtectedRoute({ children, ownerOnly = false, blockCashier = false, devOnly = false, skeleton = null }) {
   const { currentUser, loading } = useAuth();
   const { isStaffMode, currentRole, roleReady } = useStaff();
 
@@ -23,6 +23,7 @@ export default function ProtectedRoute({ children, ownerOnly = false, blockCashi
   // Show loading spinner while checking auth state
   if (loading || (currentUser && !roleReady)) {
     console.warn('🔐 [ProtectedRoute] Still loading auth...');
+    if (skeleton) return skeleton;
     return (
       <div style={{
         display: 'flex',
