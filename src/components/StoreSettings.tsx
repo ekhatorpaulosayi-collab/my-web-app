@@ -581,7 +581,7 @@ export const StoreSettings: React.FC = () => {
           <span>Allow staff to change the price at the till</span>
         </label>
         <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.75rem 0 0' }}>
-          Cashiers use the catalogue price. Turn this on and a cashier can type a different price, down to the product's cost price. You and a manager can change the price either way.
+          Cashiers use the catalogue price. Turn this on and a cashier can type a different price, down to the product's cost price. By design, a manager may set any price that is not negative, including below cost, and you may sell below cost.
         </p>
       </div>
 

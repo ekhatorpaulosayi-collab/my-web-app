@@ -15,7 +15,6 @@
 --
 -- ROLLBACK:
 --   GRANT EXECUTE ON FUNCTION public.decrement_variant_quantity(uuid, integer) TO anon, authenticated;
---   GRANT EXECUTE ON FUNCTION public.decrement_product_quantity(uuid, integer) TO anon, authenticated;
 --   GRANT EXECUTE ON FUNCTION public.upsert_customer(text, text, text, text, bigint, date) TO anon, authenticated;
 --   (recreate promo_usage_insert_checkout from 20261025_04 section 8 if you still need it)
 -- =============================================================================

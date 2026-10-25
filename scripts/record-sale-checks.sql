@@ -51,9 +51,34 @@ EXCEPTION WHEN check_violation THEN
   END IF;
 END $$;
 
--- A cashier cannot turn the owner setting on.
-UPDATE public.stores SET allow_staff_price_change = true
+-- A cashier who changes the switch gets an explicit error. The flag stays false.
+DO $$
+BEGIN
+  UPDATE public.stores SET allow_staff_price_change = true
+   WHERE user_id = '11111111-1111-1111-1111-111111111111';
+  RAISE EXCEPTION 'expected staff_price_setting_locked';
+EXCEPTION WHEN insufficient_privilege THEN
+  IF SQLERRM NOT LIKE '%staff_price_setting_locked%' THEN
+    RAISE;
+  END IF;
+END $$;
+
+-- Updating another column and leaving the switch alone still succeeds.
+UPDATE public.stores SET created_at = now()
  WHERE user_id = '11111111-1111-1111-1111-111111111111';
+
+-- A cashier insert that tries to turn the switch on raises the same error.
+DO $$
+BEGIN
+  INSERT INTO public.stores (user_id, allow_staff_price_change)
+  VALUES ('11111111-1111-1111-1111-111111111112', true);
+  RAISE EXCEPTION 'expected staff_price_setting_locked on insert';
+EXCEPTION WHEN insufficient_privilege THEN
+  IF SQLERRM NOT LIKE '%staff_price_setting_locked%' THEN
+    RAISE;
+  END IF;
+END $$;
+
 DO $$
 DECLARE v boolean;
 BEGIN

@@ -187,13 +187,10 @@ ${roles_sql}
 CREATE TABLE public.promo_code_usage (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
 CREATE FUNCTION public.decrement_variant_quantity(uuid, integer) RETURNS void
 LANGUAGE sql AS \$\$ SELECT NULL::void \$\$;
-CREATE FUNCTION public.decrement_product_quantity(uuid, integer) RETURNS void
-LANGUAGE sql AS \$\$ SELECT NULL::void \$\$;
 CREATE FUNCTION public.upsert_customer(text, text, text, text, bigint, date) RETURNS void
 LANGUAGE sql AS \$\$ SELECT NULL::void \$\$;
 \i ${ROOT}/supabase/migrations/20261025_07_revoke_storefront_client_writes.sql
 GRANT EXECUTE ON FUNCTION public.decrement_variant_quantity(uuid, integer) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.decrement_product_quantity(uuid, integer) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.upsert_customer(text, text, text, text, bigint, date) TO anon, authenticated;
 SQL
 

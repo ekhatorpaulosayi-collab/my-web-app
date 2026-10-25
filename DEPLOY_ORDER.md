@@ -242,7 +242,7 @@ After the staff-sessions file, the **old** website cannot read staff PINs. Staff
 
 `record_sale` is what actually saves a sale and drops stock for a cashier. The new website does not update products from the browser. If you deploy the website **before** this file, sales can still be saved but server stock will not drop, and those sales will not drop stock later. Run this file first.
 
-`20261025_12` also adds `stores.allow_staff_price_change` (default false). That is the Store Settings switch **Allow staff to change the price at the till**. While it is off, a cashier must use the catalogue price or that product's discount. While it is on, a cashier may type another price that is not below `cost_price`. The owner and a manager may change the price either way. A staff session cannot turn the switch on. `20261025_09` adds `sales_staff_no_direct_insert`, so a staff session cannot insert into `sales` except through `record_sale`.
+`20261025_12` also adds `stores.allow_staff_price_change` (default false). That is the Store Settings switch **Allow staff to change the price at the till**. While it is off, a cashier must use the catalogue price or that product's discount. While it is on, a cashier may type another price that is not below `cost_price`. By design, a manager may record any price that is not negative, including a price below cost, and the owner may sell below cost. The cost floor applies only to a cashier, and only when the switch is on. A staff session that changes the switch gets `staff_price_setting_locked` (42501). An update that leaves the switch as it is still succeeds. `20261025_09` adds `sales_staff_no_direct_insert`, so a staff session cannot insert into `sales` except through `record_sale`.
 
 Smoke test, after the website deploy in Step 12 as well:
 
@@ -319,7 +319,6 @@ Rollback — paste this, then redeploy the previous website if customers are sti
 
 ```sql
 GRANT EXECUTE ON FUNCTION public.decrement_variant_quantity(uuid, integer) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.decrement_product_quantity(uuid, integer) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.upsert_customer(text, text, text, text, bigint, date) TO anon, authenticated;
 ```
 

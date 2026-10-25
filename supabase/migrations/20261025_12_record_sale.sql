@@ -18,14 +18,18 @@
 -- existing id and does not decrement stock again.
 --
 -- Price:
---   * The owner (acting_staff_role() IS NULL) and a manager may record any
---     unit price that is not negative.
---   * A cashier must use selling_price, or discount_price when that discount
---     is positive and below the catalogue price.
---   * stores.allow_staff_price_change (default false) is the owner setting
---     "Allow staff to change the price at the till". When it is true, a
---     cashier may use another price that is not below cost_price
---     (a missing cost_price counts as 0).
+--   * By design, the owner (acting_staff_role() IS NULL) may sell below
+--     cost, and a manager may record any unit price that is not negative,
+--     including a price below cost.
+--   * The cost floor applies only to a cashier, and only when
+--     stores.allow_staff_price_change is true. While that switch is off, a
+--     cashier must use selling_price, or discount_price when that discount
+--     is positive and below the catalogue price. While it is on, a cashier
+--     may use another price that is not below cost_price (a missing
+--     cost_price counts as 0).
+--   * A staff session that changes the switch raises
+--     staff_price_setting_locked (42501). An update that leaves the switch
+--     unchanged does not.
 -- Stock is never taken below zero: the sale is rejected with
 -- insufficient_stock. An unknown product_id is rejected. A product owned
 -- by someone else is not_allowed.
@@ -46,8 +50,10 @@ ALTER TABLE public.stores
 
 GRANT UPDATE (allow_staff_price_change) ON public.stores TO authenticated;
 
--- A staff session uses the owner's JWT. Without this, a cashier could turn
--- the setting on. The owner (acting_staff_role() IS NULL) can change it.
+-- A staff session uses the owner's JWT. Changing the switch raises
+-- staff_price_setting_locked. Leaving it unchanged does not. The owner
+-- (acting_staff_role() IS NULL) can change it. On INSERT, the default
+-- false is allowed; setting it true raises the same error.
 CREATE OR REPLACE FUNCTION public.protect_staff_price_setting()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -58,10 +64,17 @@ BEGIN
     RETURN NEW;
   END IF;
   IF TG_OP = 'UPDATE' THEN
-    NEW.allow_staff_price_change := OLD.allow_staff_price_change;
-  ELSE
-    NEW.allow_staff_price_change := false;
+    IF NEW.allow_staff_price_change IS DISTINCT FROM OLD.allow_staff_price_change THEN
+      RAISE EXCEPTION 'staff_price_setting_locked: only the owner can change this'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
   END IF;
+  IF NEW.allow_staff_price_change IS TRUE THEN
+    RAISE EXCEPTION 'staff_price_setting_locked: only the owner can change this'
+      USING ERRCODE = '42501';
+  END IF;
+  NEW.allow_staff_price_change := false;
   RETURN NEW;
 END;
 $$;
