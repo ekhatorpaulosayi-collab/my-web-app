@@ -172,14 +172,54 @@ test('phone tab bar stays clear of help and uses 48px targets', async ({ page })
   await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-dashboard.png' });
 
   await page.goto('/dev/ux-preview/more', { waitUntil: 'domcontentloaded' });
+  const share = page.getByRole('button', { name: /Share your store/ });
+  const history = page.getByRole('button', { name: /Sales History/ });
   const money = page.getByRole('button', { name: /Money Book/ });
+  await expect(share).toBeVisible();
+  await expect(history).toBeVisible();
   await expect(money).toBeVisible();
+  await expect(page.getByRole('button', { name: /Online Store/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /WhatsApp Store Link/ })).toHaveCount(0);
+  const shareBox = await share.boundingBox();
+  const historyBox = await history.boundingBox();
   const moneyBox = await money.boundingBox();
+  expect(shareBox && historyBox && moneyBox && shareBox.y < historyBox.y && historyBox.y < moneyBox.y).toBe(true);
   expect(moneyBox?.height ?? 0).toBeGreaterThanOrEqual(48);
+  const fade = page.locator('.more-menu-fade.is-on');
+  await expect(fade).toBeVisible();
+  await expect(page.locator('footer.app-footer')).toBeHidden();
+  const sheetFits = await page.evaluate(() => {
+    const dialog = document.querySelector('dialog.more-menu');
+    const sections = document.querySelector('.more-menu-sections');
+    if (!dialog || !sections) return false;
+    const box = dialog.getBoundingClientRect();
+    const style = getComputedStyle(sections);
+    const pad = parseFloat(style.paddingBottom);
+    return box.top >= 0
+      && box.bottom <= window.innerHeight + 1
+      && sections.scrollHeight > sections.clientHeight + 12
+      && pad >= 16;
+  });
+  expect(sheetFits).toBe(true);
+  await page.screenshot({ path: '/opt/cursor/artifacts/more-sheet-after-phone.png' });
+
+  // iPhone Safari with the toolbars open leaves about 664px of page on a 390×844 screen.
+  await page.setViewportSize({ width: 390, height: 664 });
+  await expect(fade).toBeVisible();
+  await expect(page.locator('footer.app-footer')).toBeHidden();
+  const fitsToolbar = await page.evaluate(() => {
+    const box = document.querySelector('dialog.more-menu')?.getBoundingClientRect();
+    if (!box) return false;
+    return box.top >= 0 && box.bottom <= window.innerHeight + 1;
+  });
+  expect(fitsToolbar).toBe(true);
+  await page.screenshot({ path: '/opt/cursor/artifacts/more-sheet-after-safari-toolbar.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+
   const moreFooter = page.locator('.more-menu-powered');
-  await moreFooter.scrollIntoViewIfNeeded();
+  await page.locator('.more-menu-sections').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(page.locator('.more-menu-fade.is-on')).toHaveCount(0);
   await expect(moreFooter).toBeVisible();
-  await page.screenshot({ path: '/opt/cursor/artifacts/retest12-phone-more.png' });
   await money.click();
 
   await page.goto('/store/preview', { waitUntil: 'domcontentloaded' });

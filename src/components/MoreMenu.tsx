@@ -3,9 +3,9 @@
  * Hidden features accessible via "More" button
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, QrCode, FileSpreadsheet, Sparkles, Lock } from 'lucide-react';
+import { X, Package, AlertTriangle, DollarSign, FileText, Users, Receipt, Share2, HelpCircle, Send, Download, UserCircle2, UserCog, LogOut, Gift, BarChart3, BarChart2, Star, TrendingUp, CreditCard, MessageCircle, Bell, BookOpen, FileSpreadsheet, Sparkles, Lock } from 'lucide-react';
 import { useStaff } from '../contexts/StaffContext';
 import { canViewInvoices } from '../utils/staffPermissions';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,10 +47,10 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
   onStaffModeToggle,
   onViewChannelAnalytics,
   onViewHistory,
-  storeUrl,
-  storeName = 'My Store'
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const sectionsRef = useRef<HTMLDivElement>(null);
+  const [showScrollCue, setShowScrollCue] = useState(false);
   const navigate = useNavigate();
   const { isStaffMode, currentStaff, exitStaffMode, canManageStaff, canViewReports, canManageCustomers, currentRole } = useStaff();
   const { currentUser } = useAuth();
@@ -78,6 +78,8 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
 
   useEffect(() => {
     dialogRef.current?.showModal();
+    const previousModal = document.body.getAttribute('data-modal-open');
+    document.body.setAttribute('data-modal-open', 'true');
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -89,6 +91,8 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     document.addEventListener('keydown', handleEscape);
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      if (previousModal) document.body.setAttribute('data-modal-open', previousModal);
+      else document.body.removeAttribute('data-modal-open');
       // Clean up dialog on unmount
       if (dialogRef.current?.open) {
         dialogRef.current?.close();
@@ -96,48 +100,40 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
     };
   }, [onClose]);
 
+  useLayoutEffect(() => {
+    const el = sectionsRef.current;
+    if (!el) return;
+    const update = () => {
+      setShowScrollCue(el.scrollHeight - el.scrollTop - el.clientHeight > 12);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    observer?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, [isOwner, userTier, isStaffMode, currentRole]);
+
   // Organize menu items into sections with premium color themes
   const sections = [
     {
       title: 'SELL',
       theme: 'teal',
       items: [
+        {
+          icon: Share2,
+          label: 'Share your store',
+          description: 'WhatsApp, a link, or QR — customers browse anytime',
+          action: onShowOnlineStore
+        },
         ...(canViewReports() ? [{
           icon: BarChart2,
           label: 'Sales History',
           description: 'View and search all your sales',
           action: onViewHistory
         }] : []),
-        {
-          icon: Share2,
-          label: 'Online Store',
-          description: 'Share your catalog — customers browse 24/7',
-          action: onShowOnlineStore
-        },
-        {
-          icon: QrCode,
-          label: 'WhatsApp Store Link',
-          description: 'Share via WhatsApp or QR code',
-          action: () => {
-            if (storeUrl) {
-              // Create WhatsApp share message
-              const message = `🏪 *${storeName}*\n\n` +
-                `🛍️ Browse all my products!\n\n` +
-                `✨ Easy ordering via WhatsApp\n\n` +
-                `👉 Visit store: ${storeUrl}\n\n` +
-                `🔥 Start shopping now!`;
-
-              const fullMessage = message + '\n\n' + storeUrl;
-              const encodedMessage = encodeURIComponent(fullMessage);
-              const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
-
-              // Open WhatsApp share
-              window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-            } else {
-              alert('Store URL is not configured. Please check your store settings.');
-            }
-          }
-        }
       ]
     },
     {
@@ -311,7 +307,8 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
             <X size={20} />
           </button>
         </div>
-        <div className="more-menu-sections">
+        <div className="more-menu-scroll">
+        <div className={`more-menu-sections${showScrollCue ? ' has-more' : ''}`} ref={sectionsRef}>
           {sections.map((section) => (
             <div key={section.title} className="more-menu-section">
               <h4 className={`more-menu-section-title more-menu-section-title--${section.theme}`}>
@@ -362,6 +359,8 @@ export const MoreMenu: React.FC<MoreMenuProps> = ({
             </div>
           ))}
           <p className="more-menu-powered">Powered by Storehouse</p>
+        </div>
+        <div className={`more-menu-fade${showScrollCue ? ' is-on' : ''}`} aria-hidden="true" />
         </div>
       </div>
     </dialog>

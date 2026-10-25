@@ -191,6 +191,21 @@ test('the live editor owns slug checks and chat errors stay out of the message l
   assert.equal(affiliates.includes(".from('stores')"), false);
   assert.match(footerCss, /@media \(max-width: 1023px\)/);
   assert.match(footerCss, /position: static/);
+  assert.match(footerCss, /dialog\[open\]/);
+  assert.match(footerCss, /data-modal-open/);
+  const moreMenu = readFileSync(new URL('../../src/components/MoreMenu.tsx', import.meta.url), 'utf8');
+  const moreCss = readFileSync(new URL('../../src/components/MoreMenu.css', import.meta.url), 'utf8');
+  const shareAt = moreMenu.indexOf("label: 'Share your store'");
+  const salesAt = moreMenu.indexOf("label: 'Sales History'");
+  const moneyAt = moreMenu.indexOf("label: 'Money Book'");
+  assert.ok(shareAt > 0 && shareAt < salesAt && salesAt < moneyAt);
+  assert.equal(moreMenu.includes('WhatsApp Store Link'), false);
+  assert.equal(moreMenu.includes("label: 'Online Store'"), false);
+  assert.match(moreCss, /more-menu-fade/);
+  assert.match(moreCss, /mask-image/);
+  assert.match(moreCss, /100svh/);
+  assert.match(moreCss, /env\(safe-area-inset-bottom, 0px\)/);
+  assert.match(moreCss, /-webkit-overflow-scrolling: touch/);
   for (const page of ['test-paystack.html', 'clear-cache.html', 'fix-chat-complete.html', 'reset-to-localhost.html', 'googleXXXXXXXX.html']) {
     assert.equal(existsSync(new URL(`../../public/${page}`, import.meta.url)), false);
   }

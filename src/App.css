@@ -3903,6 +3903,19 @@ body {
   }
 }
 
+/* A sheet covers the page, including a fixed "Powered by Storehouse" bar. */
+body[data-modal-open] .app-footer,
+body:has(dialog[open]) .app-footer,
+body:has(.modal-overlay) .app-footer,
+body:has(.drawer-backdrop) .app-footer,
+body:has(.ds-overlay) .app-footer,
+body:has(.rs-overlay) .app-footer,
+body:has(.business-selector-overlay) .app-footer,
+body:has(.cart-drawer-overlay) .app-footer,
+body:has(.product-modal-overlay) .app-footer {
+  display: none;
+}
+
 /* ==================== CREDITS DRAWER ==================== */
 
 .drawer-backdrop {
