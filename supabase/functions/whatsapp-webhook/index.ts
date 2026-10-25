@@ -4,19 +4,32 @@
 // X-Twilio-Signature (the shop twilio_auth_token) for Twilio.
 // Twilio's signature uses WHATSAPP_WEBHOOK_PUBLIC_URL. An unset or invalid
 // value refuses the request. The forwarded host is not a source for that URL.
-// A provider message id is stored in whatsapp_seen_messages only after the
-// reply is sent. Rows older than 7 days are removed. A message with no id
-// is deduplicated by a hash of the channel, shop, customer, and text.
+// A provider message id is claimed with INSERT ... ON CONFLICT DO NOTHING
+// and status pending before any reply work. It becomes sent after the reply
+// is sent. A failed send deletes the pending row. Pending rows older than
+// 2 minutes can be claimed again. Sent rows older than 7 days are removed
+// about every 50 requests, or once an hour. A message with no id is
+// deduplicated by a hash that includes a 2-minute time bucket. A failed
+// send does not count against the chat quota.
 // This branch does not deploy the function. The live copy is turned off
 // only by the delete command in DEPLOY_ORDER.md.
 //
 // The rate limit is per server instance. recentHits lives in this isolate.
 // A second instance does not share the count, and a restart clears it.
-// It is not a shared store. The same is true of seenMessageIds until
+// It is not a shared store. The same is true of memorySeen until
 // whatsapp_seen_messages exists.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { messageFallbackId } from '../_shared/messageFallbackId.ts';
+import {
+  CLEANUP_EVERY,
+  CLEANUP_INTERVAL_MS,
+  MemorySeenStore,
+  PENDING_TTL_MS,
+  SENT_TTL_MS,
+  claimDelivery,
+  type SeenStore,
+} from '../_shared/seenClaim.ts';
 import { twilioPublicUrl } from '../_shared/twilioPublicUrl.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
@@ -24,8 +37,9 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = (Deno.env.get('EDGE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!;
 
 const recentHits = new Map<string, number[]>();
-const seenMessageIds = new Map<string, number>();
-const SEEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const memorySeen = new MemorySeenStore();
+let claimsSinceCleanup = 0;
+let lastCleanupAt = Date.now();
 const SHOP_SELECT = 'user_id, business_phone, greeting_message, out_of_stock_message, is_enabled, twilio_account_sid, twilio_auth_token, twilio_whatsapp_number';
 
 function json(body: Record<string, unknown>, status: number) {
@@ -106,71 +120,116 @@ function cleanProviderMessageId(value: unknown) {
   return id;
 }
 
-function seenOnThisInstance(id: string) {
-  const at = seenMessageIds.get(id);
-  if (!at) return false;
-  if (Date.now() - at >= SEEN_TTL_MS) {
-    seenMessageIds.delete(id);
-    return false;
-  }
-  return true;
-}
-
-function rememberOnThisInstance(id: string) {
-  seenMessageIds.delete(id);
-  seenMessageIds.set(id, Date.now());
-  const cutoff = Date.now() - SEEN_TTL_MS;
-  for (const [key, at] of seenMessageIds) {
-    if (at < cutoff) seenMessageIds.delete(key);
-  }
-  while (seenMessageIds.size > 1000) {
-    const oldest = seenMessageIds.keys().next().value;
-    if (!oldest) break;
-    seenMessageIds.delete(oldest);
-  }
-}
-
 function missingSeenStore(error: { code?: string } | null) {
   return error?.code === '42P01' || error?.code === 'PGRST205';
 }
 
-async function forgetExpired(supabase: any) {
-  const cutoff = new Date(Date.now() - SEEN_TTL_MS).toISOString();
-  const { error } = await supabase.from('whatsapp_seen_messages').delete().lt('seen_at', cutoff);
-  if (!error) return 'ok' as const;
-  if (missingSeenStore(error)) return 'missing' as const;
-  console.error('Seen-message cleanup error', error.code || 'error');
-  return 'error' as const;
+function seenStore(supabase: any): SeenStore {
+  return {
+    async releaseExpiredPending(id, cutoffMs) {
+      const { error } = await supabase
+        .from('whatsapp_seen_messages')
+        .delete()
+        .eq('provider_message_id', id)
+        .eq('status', 'pending')
+        .lte('seen_at', new Date(cutoffMs).toISOString());
+      if (error) throw error;
+    },
+    async insertPending(id, at) {
+      // INSERT ... ON CONFLICT DO NOTHING. One concurrent delivery gets the pending row.
+      const { data, error } = await supabase
+        .from('whatsapp_seen_messages')
+        .upsert(
+          { provider_message_id: id, status: 'pending', seen_at: new Date(at).toISOString() },
+          { onConflict: 'provider_message_id', ignoreDuplicates: true },
+        )
+        .select('provider_message_id');
+      if (error) throw error;
+      return Array.isArray(data) && data.length > 0;
+    },
+    async markSent(id) {
+      const { error } = await supabase
+        .from('whatsapp_seen_messages')
+        .update({ status: 'sent', seen_at: new Date().toISOString() })
+        .eq('provider_message_id', id)
+        .eq('status', 'pending');
+      if (error) throw error;
+    },
+    async releasePending(id) {
+      const { error } = await supabase
+        .from('whatsapp_seen_messages')
+        .delete()
+        .eq('provider_message_id', id)
+        .eq('status', 'pending');
+      if (error) throw error;
+    },
+  };
 }
 
-async function alreadyHandled(supabase: any, id: string) {
-  const store = await forgetExpired(supabase);
-  if (store === 'missing') return seenOnThisInstance(id);
-  const { data, error } = await supabase
-    .from('whatsapp_seen_messages')
-    .select('provider_message_id')
-    .eq('provider_message_id', id)
-    .maybeSingle();
-  if (error) {
-    if (missingSeenStore(error)) return seenOnThisInstance(id);
-    console.error('Seen-message store error', error.code || 'error');
+async function maybeCleanup(supabase: any) {
+  claimsSinceCleanup += 1;
+  const now = Date.now();
+  if (claimsSinceCleanup < CLEANUP_EVERY && now - lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+  claimsSinceCleanup = 0;
+  lastCleanupAt = now;
+  const sentCutoff = new Date(now - SENT_TTL_MS).toISOString();
+  const pendingCutoff = new Date(now - PENDING_TTL_MS).toISOString();
+  const sent = await supabase.from('whatsapp_seen_messages').delete().eq('status', 'sent').lt('seen_at', sentCutoff);
+  if (sent.error) {
+    if (!missingSeenStore(sent.error)) console.error('Seen-message cleanup error', sent.error.code || 'error');
+    return;
+  }
+  const pending = await supabase.from('whatsapp_seen_messages').delete().eq('status', 'pending').lt('seen_at', pendingCutoff);
+  if (pending.error && !missingSeenStore(pending.error)) console.error('Seen-message cleanup error', pending.error.code || 'error');
+}
+
+async function claimIncoming(supabase: any, id: string) {
+  await maybeCleanup(supabase);
+  try {
+    return await claimDelivery(seenStore(supabase), id);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (missingSeenStore({ code })) return claimDelivery(memorySeen, id);
+    console.error('Seen-message store error', code || 'error');
     throw error;
   }
-  return Boolean(data);
 }
 
-async function markHandled(supabase: any, id: string) {
-  const { error } = await supabase.from('whatsapp_seen_messages').insert({ provider_message_id: id });
-  if (!error || error.code === '23505') {
-    rememberOnThisInstance(id);
-    return;
+async function markSent(supabase: any, id: string) {
+  try {
+    await seenStore(supabase).markSent(id);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (!missingSeenStore({ code })) {
+      console.error('Seen-message store error', code || 'error');
+      throw error;
+    }
   }
-  if (missingSeenStore(error)) {
-    rememberOnThisInstance(id);
-    return;
+  await memorySeen.markSent(id);
+}
+
+async function releaseClaim(supabase: any, id: string) {
+  try {
+    await seenStore(supabase).releasePending(id);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (!missingSeenStore({ code })) {
+      console.error('Seen-message store error', code || 'error');
+      throw error;
+    }
   }
-  console.error('Seen-message store error', error.code || 'error');
-  throw error;
+  await memorySeen.releasePending(id);
+}
+
+async function chatQuotaOpen(supabase: any, userId: string) {
+  const { data, error } = await supabase
+    .from('subscription_tiers')
+    .select('monthly_chat_limit, chats_used_this_month')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) return false;
+  if (!data) return true;
+  return Number(data.chats_used_this_month) < Number(data.monthly_chat_limit);
 }
 
 function readDialogMessage(body: any) {
@@ -201,77 +260,91 @@ async function findShop(supabase: any, shopDigits: string) {
 }
 
 async function handleTextMessage(supabase: any, customerPhone: string, customerMessage: string, shopDigits: string, providerMessageId: string) {
-  if (await alreadyHandled(supabase, providerMessageId)) {
+  if ((await claimIncoming(supabase, providerMessageId)) !== 'claimed') {
     return json({ status: 'ignored', reason: 'replay' }, 200);
   }
 
-  if (!customerPhone || !allowSender(customerPhone)) {
-    return json({ status: 'rate_limited' }, 429);
-  }
+  try {
+    if (!customerPhone || !allowSender(customerPhone)) {
+      await releaseClaim(supabase, providerMessageId);
+      return json({ status: 'rate_limited' }, 429);
+    }
 
-  const settingsResult = await findShop(supabase, shopDigits);
-  const settings = settingsResult.data;
-  const settingsError = settingsResult.error;
+    const settingsResult = await findShop(supabase, shopDigits);
+    const settings = settingsResult.data;
+    const settingsError = settingsResult.error;
 
-  if (settingsError || !settings) {
-    console.error('Shop not found for number ending', shopDigits.slice(-4));
-    return json({ status: 'error', message: 'Shop not found' }, 404);
-  }
+    if (settingsError || !settings) {
+      console.error('Shop not found for number ending', shopDigits.slice(-4));
+      await releaseClaim(supabase, providerMessageId);
+      return json({ status: 'error', message: 'Shop not found' }, 404);
+    }
 
-  const userId = settings.user_id;
-  const { data: canChat } = await supabase.rpc('increment_chat_usage', {
-    p_user_id: userId,
-  });
+    const userId = settings.user_id;
+    if (!(await chatQuotaOpen(supabase, userId))) {
+      const sent = await sendWhatsAppMessage(
+        shopDigits,
+        customerPhone,
+        "⚠️ This business has reached their monthly chat limit. Please contact them directly at their shop.",
+        settings
+      );
+      if (!sent) {
+        await releaseClaim(supabase, providerMessageId);
+        return json({ status: 'error' }, 500);
+      }
+      await markSent(supabase, providerMessageId);
+      return json({ status: 'quota_exceeded' }, 200);
+    }
 
-  if (!canChat) {
-    const sent = await sendWhatsAppMessage(
-      shopDigits,
-      customerPhone,
-      "⚠️ This business has reached their monthly chat limit. Please contact them directly at their shop.",
-      settings
+    const productNames = safeKeywords(customerMessage);
+    let products: any[] = [];
+    if (productNames.length > 0) {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, price, quantity, category')
+        .eq('user_id', userId)
+        .or(productNames.map((name) => `name.ilike.%${name}%`).join(','))
+        .limit(5);
+      products = data || [];
+    }
+
+    console.log('Found products:', products.length);
+
+    const startTime = Date.now();
+    const aiResponse = await generateAIResponse(
+      customerMessage,
+      products || [],
+      settings.greeting_message,
+      settings.out_of_stock_message
     );
-    if (!sent) return json({ status: 'error' }, 500);
-    await markHandled(supabase, providerMessageId);
-    return json({ status: 'quota_exceeded' }, 200);
+    const responseTime = Date.now() - startTime;
+
+    const sent = await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
+    if (!sent) {
+      await releaseClaim(supabase, providerMessageId);
+      return json({ status: 'error' }, 500);
+    }
+    await markSent(supabase, providerMessageId);
+    await supabase.rpc('increment_chat_usage', { p_user_id: userId });
+
+    await supabase.from('whatsapp_chats').insert({
+      user_id: userId,
+      customer_phone: customerPhone,
+      customer_message: customerMessage,
+      bot_response: aiResponse,
+      products_mentioned: products?.map(p => p.id) || [],
+      response_time_ms: responseTime,
+    });
+
+    return json({ status: 'success', response_time_ms: responseTime }, 200);
+  } catch (error) {
+    try {
+      await releaseClaim(supabase, providerMessageId);
+    } catch {
+      // releaseClaim already logged a store error.
+    }
+    throw error;
   }
-
-  const productNames = safeKeywords(customerMessage);
-  let products: any[] = [];
-  if (productNames.length > 0) {
-    const { data } = await supabase
-      .from('products')
-      .select('id, name, price, quantity, category')
-      .eq('user_id', userId)
-      .or(productNames.map((name) => `name.ilike.%${name}%`).join(','))
-      .limit(5);
-    products = data || [];
-  }
-
-  console.log('Found products:', products.length);
-
-  const startTime = Date.now();
-  const aiResponse = await generateAIResponse(
-    customerMessage,
-    products || [],
-    settings.greeting_message,
-    settings.out_of_stock_message
-  );
-  const responseTime = Date.now() - startTime;
-
-  const sent = await sendWhatsAppMessage(shopDigits, customerPhone, aiResponse, settings);
-  if (!sent) return json({ status: 'error' }, 500);
-  await markHandled(supabase, providerMessageId);
-
-  await supabase.from('whatsapp_chats').insert({
-    user_id: userId,
-    customer_phone: customerPhone,
-    customer_message: customerMessage,
-    bot_response: aiResponse,
-    products_mentioned: products?.map(p => p.id) || [],
-    response_time_ms: responseTime,
-  });
-
-  return json({ status: 'success', response_time_ms: responseTime }, 200);
 }
 
 serve(async (req) => {
