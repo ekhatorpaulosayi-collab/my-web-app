@@ -1,3 +1,28 @@
+export type ChatReserveInput = {
+  hasSubscription: boolean;
+  grandfathered: boolean;
+  used: number;
+  limit: number;
+  /** False when ai_chats_reset_at is before the current month. */
+  periodStartedThisMonth: boolean;
+};
+
+/**
+ * Same decision as increment_chat_usage. A missing subscription and a
+ * grandfathered row are allowed. A new month starts at 1. The count moves
+ * only while it is still under the catalogue limit.
+ */
+export function decideChatReserve(input: ChatReserveInput) {
+  const used = Number.isFinite(input.used) ? input.used : 0;
+  if (!input.hasSubscription) return { used, reserved: true };
+  if (input.grandfathered || input.limit < 0) {
+    return { used: input.periodStartedThisMonth ? used + 1 : 1, reserved: true };
+  }
+  if (!input.periodStartedThisMonth) return { used: 1, reserved: true };
+  if (used >= input.limit) return { used, reserved: false };
+  return { used: used + 1, reserved: true };
+}
+
 /** One statement in SQL: increment only while used is still under the limit. */
 export function reserveChatUnit(used: number, limit: number) {
   const current = Number.isFinite(used) ? used : 0;

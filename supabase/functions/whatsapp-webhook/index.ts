@@ -13,7 +13,9 @@
 // again. Sent rows older than 7 days are removed about every 50 requests, or
 // once an hour. A message with no id is deduplicated by a hash that includes
 // a 2-minute time bucket, and a retry also checks the previous bucket.
-// Chat quota is one conditional UPDATE. A failed send gives that unit back.
+// Chat quota is one conditional UPDATE of user_subscriptions.ai_chats_used_this_month.
+// The limit is subscription_tiers.max_ai_chats_monthly. A reserve error is a
+// retry, not a limit message. A failed send gives that unit back.
 // This branch does not deploy the function. The live copy is turned off
 // only by the delete command in DEPLOY_ORDER.md.
 //
@@ -304,6 +306,7 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
   if (claim === 'pending') return json({ status: 'in_progress' }, 503);
 
   let reserved = false;
+  let userId = '';
   try {
     if (!customerPhone || !allowSender(customerPhone)) {
       await releaseClaim(supabase, providerMessageId);
@@ -320,9 +323,14 @@ async function handleTextMessage(supabase: any, customerPhone: string, customerM
       return json({ status: 'error', message: 'Shop not found' }, 404);
     }
 
-    const userId = settings.user_id;
+    userId = settings.user_id;
     const reservedResult = await supabase.rpc('increment_chat_usage', { p_user_id: userId });
-    reserved = !reservedResult.error && Boolean(reservedResult.data);
+    if (reservedResult.error) {
+      console.error('Chat quota reserve error', reservedResult.error.code || 'error');
+      await releaseClaim(supabase, providerMessageId);
+      return json({ status: 'error' }, 500);
+    }
+    reserved = reservedResult.data === true;
     if (!reserved) {
       const sent = await sendWhatsAppMessage(
         shopDigits,

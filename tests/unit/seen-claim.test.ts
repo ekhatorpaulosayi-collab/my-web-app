@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AtomicChatQuota } from '../../supabase/functions/_shared/chatQuota.ts';
+import { AtomicChatQuota, decideChatReserve } from '../../supabase/functions/_shared/chatQuota.ts';
 import { HASH_BUCKET_MS, messageFallbackId } from '../../supabase/functions/_shared/messageFallbackId.ts';
 import {
   CLEANUP_EVERY,
@@ -69,6 +69,53 @@ test('a no-id retry in the next bucket still matches the previous one', async ()
   assert.equal(await claimWithPrevious(store, current, previous, now + HASH_BUCKET_MS), 'pending');
   await store.markSent(previous);
   assert.equal(await claimWithPrevious(store, current, previous, now + HASH_BUCKET_MS), 'replay');
+});
+
+test('an existing customer under the catalogue limit is allowed', () => {
+  const open = decideChatReserve({
+    hasSubscription: true,
+    grandfathered: false,
+    used: 0,
+    limit: 30,
+    periodStartedThisMonth: true,
+  });
+  assert.equal(open.reserved, true);
+  assert.equal(open.used, 1);
+  const full = decideChatReserve({
+    hasSubscription: true,
+    grandfathered: false,
+    used: 30,
+    limit: 30,
+    periodStartedThisMonth: true,
+  });
+  assert.equal(full.reserved, false);
+  assert.equal(full.used, 30);
+  const grandfathered = decideChatReserve({
+    hasSubscription: true,
+    grandfathered: true,
+    used: 30,
+    limit: 30,
+    periodStartedThisMonth: true,
+  });
+  assert.equal(grandfathered.reserved, true);
+  const missing = decideChatReserve({
+    hasSubscription: false,
+    grandfathered: false,
+    used: 30,
+    limit: 30,
+    periodStartedThisMonth: true,
+  });
+  assert.equal(missing.reserved, true);
+  assert.equal(missing.used, 30);
+  const newMonth = decideChatReserve({
+    hasSubscription: true,
+    grandfathered: false,
+    used: 30,
+    limit: 30,
+    periodStartedThisMonth: false,
+  });
+  assert.equal(newMonth.reserved, true);
+  assert.equal(newMonth.used, 1);
 });
 
 test('two reserves of the last chat unit let one through', async () => {

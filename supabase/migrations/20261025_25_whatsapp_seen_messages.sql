@@ -11,6 +11,9 @@
 -- draft marked pending, were written after a reply and are set to 'sent'.
 -- The function is still DO NOT DEPLOY. Run this file only if that function
 -- is ever deployed, and run it before the function takes traffic.
+-- Re-running this file needs zero webhook traffic. The UPDATE below marks
+-- every pending row sent. A live in-flight claim would then look already
+-- answered, and the provider would not retry it.
 --
 -- UNDO: DROP TABLE public.whatsapp_seen_messages;
 -- =============================================================================
@@ -28,6 +31,7 @@ ALTER TABLE public.whatsapp_seen_messages
 
 -- The R21 draft of this file added status with default 'pending', so an
 -- already-answered row looked in progress. Correct those rows before traffic.
+-- Re-running this UPDATE needs zero webhook traffic.
 UPDATE public.whatsapp_seen_messages
 SET status = 'sent'
 WHERE status = 'pending';
