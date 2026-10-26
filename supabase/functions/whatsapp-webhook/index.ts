@@ -37,6 +37,7 @@ import {
   startClaimHeartbeat,
   type SeenStore,
 } from '../_shared/seenClaim.ts';
+import { errorLogFields } from '../_shared/errorLog.ts';
 import { twilioPublicUrl } from '../_shared/twilioPublicUrl.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
@@ -527,7 +528,8 @@ Generate a helpful response:`;
       throw new Error('Invalid response from Claude API');
     }
   } catch (error) {
-    console.error('Claude API error:', error);
+    const logged = errorLogFields(error);
+    console.error('Claude API error', logged.message, logged.code);
 
     // Fallback response if AI fails
     if (products.length > 0) {

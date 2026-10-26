@@ -20,6 +20,7 @@ import { normalizeNgWhatsApp, isValidStoreWhatsApp } from '../../src/utils/ngPho
 import { normalizeSocialUrl } from '../../src/utils/socialLinks.js';
 import { CRAWLER_UA, CRAWLER_UA_PATTERN } from '../../src/utils/crawlerUa.js';
 import { HASH_BUCKET_MS, messageFallbackId } from '../../supabase/functions/_shared/messageFallbackId.ts';
+import { errorLogFields } from '../../supabase/functions/_shared/errorLog.ts';
 import { twilioPublicUrl } from '../../supabase/functions/_shared/twilioPublicUrl.ts';
 import { formatWhatsAppNumber } from '../../src/utils/phone.ts';
 import { existsSync } from 'node:fs';
@@ -445,6 +446,26 @@ test('preview links, phones, and social handles stay usable', () => {
   assert.equal(twilioPublicUrl(''), null);
   assert.equal(twilioPublicUrl('not a url'), null);
   assert.equal(twilioPublicUrl('javascript:alert(1)'), null);
+});
+
+test('a Claude error log is the message and the code', () => {
+  const invalid = errorLogFields(new Error('Invalid response from Claude API'));
+  assert.equal(invalid.message, 'Invalid response from Claude API');
+  assert.equal(invalid.code, 'error');
+  const limited = errorLogFields({ message: 'rate limited', code: 529 });
+  assert.equal(limited.message, 'rate limited');
+  assert.equal(limited.code, '529');
+  const named = errorLogFields({ message: 'overloaded', code: 'overloaded_error' });
+  assert.equal(named.message, 'overloaded');
+  assert.equal(named.code, 'overloaded_error');
+  const plain = errorLogFields({ error: { message: 'hidden' } });
+  assert.equal(plain.message, 'Error');
+  assert.equal(plain.code, 'error');
+  assert.equal(`${plain.message} ${plain.code}`.includes('[object Object]'), false);
+  const webhook = readFileSync(new URL('../../supabase/functions/whatsapp-webhook/index.ts', import.meta.url), 'utf8');
+  assert.match(webhook, /const logged = errorLogFields\(error\)/);
+  assert.match(webhook, /console\.error\('Claude API error', logged\.message, logged\.code\)/);
+  assert.equal(webhook.includes("console.error('Claude API error:', error)"), false);
 });
 
 test('a message with no provider id hashes to one stable key', async () => {
