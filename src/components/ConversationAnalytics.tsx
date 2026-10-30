@@ -47,6 +47,12 @@ export const ConversationAnalytics: React.FC<Props> = ({ storeId, dateRange }) =
     try {
       // Calculate date range based on selected period
       const endKey = businessDayKey();
+      const endDate = new Date(`${endKey}T23:59:59+01:00`);
+      const startDate = new Date(`${(selectedPeriod === 'week'
+        ? addCalendarDays(endKey, -7)
+        : selectedPeriod === 'month'
+          ? addCalendarDays(endKey, -30)
+          : endKey)}T00:00:00+01:00`);
       const startKey = selectedPeriod === 'week'
         ? addCalendarDays(endKey, -7)
         : selectedPeriod === 'month'

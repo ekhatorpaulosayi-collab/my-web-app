@@ -38,7 +38,11 @@ Rollback is to redeploy the previous bundle only if you still need it, and only 
 
 ## 5. Credentials
 
-Rotate, outside this repository, any secret that has appeared in git history: the legacy service-role JWT, the legacy anon JWT, and any Paystack, ImageKit, Resend, or VAPID private key you know was committed. Do not paste the values into chat, the pull request, or a migration. A deleted file is not a rotation. After you disable the legacy API keys, confirm those keys receive 401.
+Rotate, outside this repository, any secret that has appeared in git history: the legacy service-role JWT, the legacy anon JWT, the database password, and any Paystack, ImageKit, Resend, or VAPID private key you know was committed. Do not paste the values into chat, the pull request, or a migration. A deleted file is not a rotation. After you disable the legacy API keys, confirm those keys receive 401.
+
+Also rotate the Vercel OIDC token that was in `.env.vercel`. That file is gone from the working tree and is still in git history. In Vercel, open Account → Tokens (and any OIDC or team token that was created for this repo) and revoke it, then create a new one only if a script still needs it. Do not put the new value in the repo. The token type is a Vercel OIDC token. This note does not repeat the value.
+
+Nothing in `src` or `api` posts to `/api/whatsapp`. The route file `api/whatsapp/index.js` is not in the tree. After the next deploy, a request to that path 404s. Confirm no WhatsApp provider is still configured to post there.
 
 ## 6. Checkout and stock
 
@@ -46,4 +50,4 @@ Apply `20261030_02` (version `2026103002`) before deploying `initiate-storefront
 
 ## Fallback
 
-If `20261030_01` blocks a legitimate owner profile save, the failure text will be `platform_field_locked`. Ordinary columns are not in that trigger. If a name collision stops `20261030_03`, the error is `store_name_collision`. Stop and inspect the two stores. Do not delete a shop URL to force the migration through.
+If `20261030_01` or `20261030_04` blocks a legitimate owner profile save, the failure text will be `platform_field_locked`. Ordinary columns are not in that trigger. A name that already belongs to two shops is listed in `store_name_collisions` and both shop URLs stay. Do not delete a shop URL.

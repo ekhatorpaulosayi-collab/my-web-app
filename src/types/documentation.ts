@@ -18,7 +18,7 @@ export interface CommonIssue {
 
 export interface Documentation {
   id: string;
-  category: 'getting-started' | 'products' | 'sales' | 'staff' | 'reports' | 'settings' | 'troubleshooting' | 'advanced' | 'marketing' | 'invoices' | 'customers' | 'credit-sales' | 'payments' | 'general';
+  category: 'getting-started' | 'products' | 'sales' | 'staff' | 'reports' | 'settings' | 'troubleshooting' | 'advanced' | 'marketing' | 'invoices' | 'invoicing' | 'customers' | 'credit-sales' | 'payments' | 'general' | 'referrals' | 'online-store';
   title: string;
   subtitle: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
@@ -27,10 +27,10 @@ export interface Documentation {
   steps?: DocStep[];
   content?: string; // For non-step-based docs
   commonIssues?: CommonIssue[];
-  relatedDocs: string[];
+  relatedDocs?: string[];
   keywords: string[];
   videoUrl?: string;
-  lastUpdated: string;
+  lastUpdated?: string;
   priority?: number; // Higher = shown first for new users
 }
 
@@ -52,5 +52,6 @@ export interface AppContext {
   accountAge: number; // in days
   isNewUser: boolean; // < 7 days
   hasCompletedOnboarding: boolean;
+  hasOnlineStore?: boolean;
   recentErrors?: string[];
 }

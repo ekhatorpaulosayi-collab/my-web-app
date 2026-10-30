@@ -281,9 +281,11 @@ export function useStoreActions(userId) {
         subdomain: data.subdomain
       });
 
-      // Auto-register the subdomain with Vercel (fire-and-forget).
       if (data?.subdomain && data?.id) {
-        provisionSubdomain({ subdomain: data.subdomain, storeId: data.id });
+        const provision = await provisionSubdomain({ subdomain: data.subdomain, storeId: data.id });
+        if (provision.state !== 'active') {
+          console.warn('[Supabase] Store link saved. Web address is not confirmed yet.', provision.state);
+        }
       }
 
       // Invalidate cache

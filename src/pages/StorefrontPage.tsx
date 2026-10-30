@@ -46,6 +46,7 @@ interface Product {
   image_url?: string;
   image_thumbnail?: string;
   attributes?: Record<string, any>;
+  specifications?: Record<string, any>;
 }
 
 // Payment method provider configurations

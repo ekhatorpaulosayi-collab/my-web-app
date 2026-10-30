@@ -4,7 +4,7 @@
  */
 export default async function handler(req, res) {
   const reference = String(req.query.reference || '').trim();
-  if (!reference || reference.length > 100 || !/^[A-Za-z0-9_\-]+$/.test(reference)) {
+  if (!reference || reference.length > 100 || !/^[A-Za-z0-9_-]+$/.test(reference)) {
     return res.status(400).json({ status: 'missing' });
   }
   const key = process.env.PAYSTACK_SECRET_KEY;

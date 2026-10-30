@@ -171,21 +171,52 @@ DECLARE
   previous text;
   owner uuid;
   seen text[] := ARRAY[]::text[];
+  slug_unchanged boolean;
+  sub_unchanged boolean;
 BEGIN
-  IF TG_OP = 'UPDATE' AND OLD.store_slug IS NOT DISTINCT FROM NEW.store_slug THEN
+  slug_unchanged := TG_OP = 'UPDATE' AND OLD.store_slug IS NOT DISTINCT FROM NEW.store_slug;
+  sub_unchanged := TG_OP = 'UPDATE' AND OLD.subdomain IS NOT DISTINCT FROM NEW.subdomain;
+
+  -- A subdomain-only save used to return here and skip every check, so a
+  -- shop could claim another shop's old name or the word "storehouse".
+  IF slug_unchanged AND sub_unchanged THEN
     RETURN NEW;
   END IF;
 
-  IF NEW.store_slug IS NULL OR btrim(NEW.store_slug) = '' THEN
-    IF TG_OP = 'INSERT' THEN
-      RETURN NEW;
+  IF NOT slug_unchanged THEN
+    IF NEW.store_slug IS NULL OR btrim(NEW.store_slug) = '' THEN
+      IF TG_OP = 'INSERT' THEN
+        NULL;
+      ELSE
+        RAISE EXCEPTION 'invalid_store_slug' USING ERRCODE = '23514';
+      END IF;
+    ELSE
+      NEW.store_slug := lower(btrim(NEW.store_slug));
+      IF NOT public.store_slug_is_available(NEW.store_slug, NEW.id) THEN
+        RAISE EXCEPTION 'invalid_store_slug' USING ERRCODE = '23514';
+      END IF;
     END IF;
-    RAISE EXCEPTION 'invalid_store_slug' USING ERRCODE = '23514';
   END IF;
 
-  NEW.store_slug := lower(btrim(NEW.store_slug));
-  IF NOT public.store_slug_is_available(NEW.store_slug, NEW.id) THEN
-    RAISE EXCEPTION 'invalid_store_slug' USING ERRCODE = '23514';
+  IF NOT sub_unchanged THEN
+    IF NEW.subdomain IS NULL OR btrim(NEW.subdomain) = '' THEN
+      NEW.subdomain := NULL;
+    ELSE
+      NEW.subdomain := lower(btrim(NEW.subdomain));
+      IF NOT public.store_slug_is_available(NEW.subdomain, NEW.id) THEN
+        RAISE EXCEPTION 'invalid_store_subdomain' USING ERRCODE = '23514';
+      END IF;
+    END IF;
+  END IF;
+
+  IF slug_unchanged AND TG_OP = 'UPDATE' THEN
+    -- Redirect history is recorded from the slug change below. A subdomain
+    -- change still has to pass the checks above.
+    NULL;
+  END IF;
+
+  IF TG_OP = 'INSERT' OR slug_unchanged THEN
+    RETURN NEW;
   END IF;
 
   IF TG_OP = 'UPDATE' THEN

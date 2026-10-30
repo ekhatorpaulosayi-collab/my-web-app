@@ -28,7 +28,7 @@ export default function DocViewer({
   const handleFeedback = (type: 'helpful' | 'not-helpful') => {
     setFeedback(type);
     // TODO: Send feedback to analytics
-    console.log('[DocViewer] Feedback:', { docId, type });
+    console.log('[DocViewer] Feedback:', { docId: doc.id, type });
 
     // If not helpful, show support option
     if (type === 'not-helpful') {
@@ -42,7 +42,7 @@ export default function DocViewer({
   };
 
   const handleShare = () => {
-    const shareText = `${doc.title} - Storehouse Help\n\n${doc.description}\n\nLearn more: https://docs.storehouse.ng/${docId}`;
+    const shareText = `${doc.title} - Storehouse Help\n\n${doc.description}\n\nLearn more: https://docs.storehouse.ng/${doc.id}`;
 
     if (navigator.share) {
       navigator.share({

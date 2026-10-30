@@ -7,6 +7,7 @@ import { decideAffiliateCommission } from '../../supabase/functions/_shared/affi
 import { bindPaidOrder } from '../../supabase/functions/_shared/paidOrder.ts';
 import { historicHostTarget } from '../../src/utils/canonicalStoreUrl.js';
 import { interpretProvisionResponse } from '../../src/utils/provisionStatus.js';
+import { assessCharge, chargeEventStatus, inventoryFollowUp } from '../../supabase/functions/_shared/moneyPolicies.ts';
 
 const ankara = {
   id: 'p-ankara',
@@ -228,4 +229,38 @@ test('the repair SQL and checkout source keep the tenant boundaries', () => {
   const slug17 = readFileSync(new URL('../../supabase/migrations/20261025_17_store_slug_redirects.sql', import.meta.url), 'utf8');
   assert.match(slug17, /slug_redirect_owned/);
   assert.equal(slug17.includes('GRANT EXECUTE ON FUNCTION public.remember_store_slug(uuid, text, text) TO authenticated'), false);
+  const namesFile = readFileSync(new URL('../../supabase/migrations/20261030_03_names_discounts_queue.sql', import.meta.url), 'utf8');
+  assert.equal(namesFile.includes("RAISE EXCEPTION 'store_name_collision'"), false);
+  assert.match(namesFile, /store_name_collisions/);
+  const follow = readFileSync(new URL('../../supabase/migrations/20261030_04_flags_staff_affiliates_payments.sql', import.meta.url), 'utf8');
+  assert.match(follow, /is_admin/);
+  assert.match(follow, /staff_pin_locked/);
+  assert.match(follow, /record_affiliate_commission/);
+  assert.match(follow, /platform_config/);
+  assert.match(follow, /storefront-inventory-retry/);
+  const handler = readFileSync(new URL('../../supabase/functions/_shared/paystack-subaccount-handler.ts', import.meta.url), 'utf8');
+  assert.match(handler, /inventory_queue_failed/);
+  assert.match(handler, /record_storefront_reversal/);
+  assert.match(handler, /assess_storefront_charge/);
+  assert.match(ledger, /record_affiliate_commission/);
+  assert.match(ledger, /refund_affiliate_commission/);
+});
+
+test('an underpaid or wrong-currency charge is rejected and a closed order is not fulfilled', () => {
+  assert.deepEqual(assessCharge({
+    orderStatus: 'pending', orderAmountKobo: 250000, paidAmountKobo: 100, currency: 'NGN',
+  }), { accept: false, error: 'amount_mismatch' });
+  assert.equal(chargeEventStatus({ accept: false, error: 'amount_mismatch' }).httpStatus, 400);
+  assert.deepEqual(assessCharge({
+    orderStatus: 'pending', orderAmountKobo: 250000, paidAmountKobo: 250000, currency: 'USD',
+  }).error, 'wrong_currency');
+  assert.equal(assessCharge({
+    orderStatus: 'failed', orderAmountKobo: 250000, paidAmountKobo: 250000, currency: 'NGN',
+  }).error, 'order_not_payable');
+  assert.equal(chargeEventStatus({ accept: false, error: 'order_not_payable' }).httpStatus, 200);
+  assert.equal(assessCharge({
+    orderStatus: 'pending', orderAmountKobo: 250000, paidAmountKobo: 250000, currency: 'NGN',
+  }).accept, true);
+  assert.deepEqual(inventoryFollowUp(true, true), { httpStatus: 500, inventoryQueued: false });
+  assert.deepEqual(inventoryFollowUp(true, false), { httpStatus: 200, inventoryQueued: true });
 });

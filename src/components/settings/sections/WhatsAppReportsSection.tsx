@@ -121,7 +121,7 @@ export default function WhatsAppReportsSection({ onToast }: WhatsAppReportsSecti
       onToast?.('WhatsApp report settings saved successfully!');
     } catch (error) {
       console.error('[WhatsApp Reports] Save error:', error);
-      alert('❌ Failed to save: ' + error.message);
+      alert('❌ Failed to save: ' + (error instanceof Error ? error.message : 'unknown'));
       onToast?.('Failed to save WhatsApp report settings');
     } finally {
       setSaving(false);

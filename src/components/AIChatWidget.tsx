@@ -14,7 +14,8 @@ import { getSmartQuestionsForContext, getTopQuestions } from '../data/smartQuest
 interface Message {
   id?: string; // UUID from database for deduplication
   isLocal?: boolean; // Flag for optimistically added messages
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'ai';
+  is_agent_message?: boolean;
   content: string;
   translated_text?: string; // Translated version of content for multi-language support
   timestamp: Date;
@@ -141,7 +142,7 @@ function parseInlineMarkdown(text: string): React.ReactNode {
                 body: JSON.stringify({
                   eventType,
                   linkUrl,
-                  userType,
+                  userType: 'visitor',
                 }),
               }).catch(err => console.error('Analytics tracking failed:', err));
             } catch (err) {
@@ -190,7 +191,7 @@ interface AIChatWidgetProps {
     aboutUs?: string;
     address?: string;
     whatsappNumber?: string;
-    deliveryAreas?: string;
+    deliveryAreas?: string | string[];
     deliveryTime?: string;
     businessHours?: string;
     returnPolicy?: string;
@@ -1138,7 +1139,7 @@ export default function AIChatWidget({
           // Owner-notification relay fields (added 2026-05-01).
           requestOwnerNotification: true,
           conversationId,
-          customerName: customerName || 'Customer',
+          customerName: user?.email || 'Customer',
           messagePreview: lastCustomerMessage.substring(0, 100),
         };
 

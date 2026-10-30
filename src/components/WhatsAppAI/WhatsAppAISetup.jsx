@@ -24,7 +24,7 @@ import {
 
 // Debug logger
 const debugLog = (event, data) => {
-  if (process.env.NODE_ENV === 'development' || window.WHATSAPP_DEBUG) {
+  if (import.meta.env?.DEV || window.WHATSAPP_DEBUG) {
     console.log(`[WhatsApp AI] ${event}:`, data);
   }
 };

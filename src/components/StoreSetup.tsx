@@ -26,7 +26,7 @@ export default function StoreSetup({ onComplete }: StoreSetupProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const slugCheckTimeout = useRef<NodeJS.Timeout>();
+  const slugCheckTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-suggest slug based on business name
   useEffect(() => {

@@ -11,7 +11,7 @@ import { db } from '../lib/firebase';
  * Used to generate content hash before upload
  */
 export async function computeHash(buffer: Uint8Array): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer as BufferSource);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   return hashHex.substring(0, 16);

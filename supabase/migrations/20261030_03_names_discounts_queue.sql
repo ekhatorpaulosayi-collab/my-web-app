@@ -20,7 +20,9 @@
 --   DROP FUNCTION IF EXISTS public.reserve_store_name(text, uuid);
 --   DROP FUNCTION IF EXISTS public.stores_reserve_names();
 --   DROP FUNCTION IF EXISTS public.redirects_reserve_names();
+--   DROP FUNCTION IF EXISTS public.backfill_store_name_reservations();
 --   DROP TABLE IF EXISTS public.store_name_reservations;
+--   DROP TABLE IF EXISTS public.store_name_collisions;
 -- =============================================================================
 BEGIN;
 
@@ -43,6 +45,16 @@ CREATE TRIGGER sales_reject_cashier_discount
   FOR EACH ROW
   EXECUTE FUNCTION public.reject_cashier_discount();
 
+CREATE TABLE IF NOT EXISTS public.store_name_collisions (
+  name text NOT NULL,
+  store_id uuid NOT NULL,
+  recorded_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (name, store_id)
+);
+
+ALTER TABLE public.store_name_collisions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.store_name_collisions FROM PUBLIC, anon, authenticated;
+
 CREATE TABLE IF NOT EXISTS public.store_name_reservations (
   name text PRIMARY KEY,
   store_id uuid NOT NULL,
@@ -64,6 +76,20 @@ DECLARE
 BEGIN
   IF v_name = '' OR p_store_id IS NULL THEN
     RETURN;
+  END IF;
+
+  -- A label already used by two shops stays on both. Neither shop takes the
+  -- exclusive row, and a third shop cannot take it.
+  IF EXISTS (
+    SELECT 1 FROM public.store_name_collisions WHERE name = v_name
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM public.store_name_collisions
+       WHERE name = v_name AND store_id = p_store_id
+    ) THEN
+      RETURN;
+    END IF;
+    RAISE EXCEPTION 'store_name_taken' USING ERRCODE = '23505';
   END IF;
 
   INSERT INTO public.store_name_reservations (name, store_id)
@@ -118,34 +144,16 @@ CREATE TRIGGER redirects_reserve_names
   FOR EACH ROW
   EXECUTE FUNCTION public.redirects_reserve_names();
 
--- Refuse to hide an existing collision. Backfill only when each label has one store.
-DO $$
+-- Record a label that already belongs to two shops, and reserve only labels
+-- that belong to one shop. Do not delete either shop URL, and do not abort.
+CREATE OR REPLACE FUNCTION public.backfill_store_name_reservations()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 BEGIN
-  IF EXISTS (
-    SELECT 1
-      FROM (
-        SELECT lower(btrim(store_slug)) AS name, id AS store_id
-          FROM public.stores
-         WHERE store_slug IS NOT NULL AND btrim(store_slug) <> ''
-        UNION ALL
-        SELECT lower(btrim(subdomain)), id
-          FROM public.stores
-         WHERE subdomain IS NOT NULL AND btrim(subdomain) <> ''
-        UNION ALL
-        SELECT lower(btrim(old_slug)), store_id
-          FROM public.store_slug_redirects
-         WHERE old_slug IS NOT NULL AND btrim(old_slug) <> ''
-      ) AS names
-     GROUP BY name
-    HAVING count(DISTINCT store_id) > 1
-  ) THEN
-    RAISE EXCEPTION 'store_name_collision' USING ERRCODE = '23505';
-  END IF;
-END $$;
-
-INSERT INTO public.store_name_reservations (name, store_id)
-SELECT name, store_id
-  FROM (
+  WITH names AS (
     SELECT lower(btrim(store_slug)) AS name, id AS store_id
       FROM public.stores
      WHERE store_slug IS NOT NULL AND btrim(store_slug) <> ''
@@ -157,8 +165,44 @@ SELECT name, store_id
     SELECT lower(btrim(old_slug)), store_id
       FROM public.store_slug_redirects
      WHERE old_slug IS NOT NULL AND btrim(old_slug) <> ''
-  ) AS names
-ON CONFLICT (name) DO NOTHING;
+  ),
+  crowded AS (
+    SELECT name
+      FROM names
+     GROUP BY name
+    HAVING count(DISTINCT store_id) > 1
+  )
+  INSERT INTO public.store_name_collisions (name, store_id)
+  SELECT names.name, names.store_id
+    FROM names
+    JOIN crowded ON crowded.name = names.name
+  ON CONFLICT (name, store_id) DO NOTHING;
+
+  INSERT INTO public.store_name_reservations (name, store_id)
+  SELECT name, min(store_id::text)::uuid
+    FROM (
+      SELECT lower(btrim(store_slug)) AS name, id AS store_id
+        FROM public.stores
+       WHERE store_slug IS NOT NULL AND btrim(store_slug) <> ''
+      UNION
+      SELECT lower(btrim(subdomain)), id
+        FROM public.stores
+       WHERE subdomain IS NOT NULL AND btrim(subdomain) <> ''
+      UNION
+      SELECT lower(btrim(old_slug)), store_id
+        FROM public.store_slug_redirects
+       WHERE old_slug IS NOT NULL AND btrim(old_slug) <> ''
+    ) AS names
+   GROUP BY name
+  HAVING count(DISTINCT store_id) = 1
+  ON CONFLICT (name) DO NOTHING;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.backfill_store_name_reservations() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.backfill_store_name_reservations() TO service_role;
+
+SELECT public.backfill_store_name_reservations();
 
 ALTER TABLE public.storefront_inventory_queue
   ADD COLUMN IF NOT EXISTS dead_at timestamptz;

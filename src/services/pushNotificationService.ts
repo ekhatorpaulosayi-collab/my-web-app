@@ -97,7 +97,7 @@ export async function subscribeToPush(userId: string, storeId: string): Promise<
       // Subscribe to push notifications
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource
       });
 
       console.log('[Push] New subscription created:', subscription);

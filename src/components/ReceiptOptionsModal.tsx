@@ -93,11 +93,12 @@ Powered by Storehouse
         const result = await openWhatsApp(phone, receiptText);
         console.log('[ReceiptModal] ✅ openWhatsApp completed, result:', result);
       } catch (error) {
+        const err = error as { message?: string; stack?: string; name?: string };
         console.error('[ReceiptModal] ❌ Error calling openWhatsApp:', error);
         console.error('[ReceiptModal] Error details:', {
-          message: error?.message,
-          stack: error?.stack,
-          name: error?.name
+          message: err.message,
+          stack: err.stack,
+          name: err.name
         });
 
         // Fallback: try direct WhatsApp link

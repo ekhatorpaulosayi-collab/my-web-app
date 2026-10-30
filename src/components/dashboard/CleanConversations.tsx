@@ -14,6 +14,7 @@ interface Conversation {
   is_storefront?: boolean;
   is_agent_active?: boolean;
   agent_id?: string;
+  takeover_status?: string;
   created_at: string;
   updated_at: string;
   messages?: Message[];

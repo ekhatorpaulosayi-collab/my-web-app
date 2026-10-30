@@ -39,6 +39,14 @@ BEGIN
   IF p_old IS NULL OR p_new IS NULL OR btrim(p_old) = '' OR p_old = p_new THEN
     RETURN;
   END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM public.stores
+     WHERE id IS DISTINCT FROM p_store_id
+       AND (lower(store_slug) = lower(btrim(p_old)) OR lower(subdomain) = lower(btrim(p_old)))
+  ) THEN
+    RAISE EXCEPTION 'slug_redirect_owned' USING ERRCODE = '23505';
+  END IF;
   IF auth.uid() IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.stores
      WHERE id = p_store_id

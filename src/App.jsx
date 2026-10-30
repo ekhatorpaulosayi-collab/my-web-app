@@ -2235,15 +2235,13 @@ Thank you for your business! 🙏
             try {
               console.log('[handleSave] Creating/updating variants...', productVariants);
               console.log('[handleSave] Product ID:', existingItem.id);
-              console.log('[handleSave] User ID (supabaseUser):', supabaseUser?.id);
               console.log('[handleSave] User ID (currentUser):', currentUser?.uid);
               displayToast('💾 Saving variants...');
 
-              // Use supabaseUser.id for variants
-              if (!supabaseUser?.id) {
+              if (!currentUser?.uid) {
                 throw new Error('Supabase user ID not available. Please try logging out and back in.');
               }
-              await createVariants(existingItem.id, supabaseUser.id, productVariants);
+              await createVariants(existingItem.id, currentUser.uid, productVariants);
 
               console.log('[handleSave] ✅ Variants saved successfully');
               displayToast(`✓ ${existingItem.name} updated with ${productVariants.length} variants!`);
@@ -2392,15 +2390,13 @@ Thank you for your business! 🙏
           try {
             console.log('[handleSave] Creating variants...', productVariants);
             console.log('[handleSave] Product ID:', addedItem.id);
-            console.log('[handleSave] User ID (supabaseUser):', supabaseUser?.id);
             console.log('[handleSave] User ID (currentUser):', currentUser?.uid);
             displayToast('💾 Saving variants...');
 
-            // Use supabaseUser.id for variants (not Firebase UID)
-            if (!supabaseUser?.id) {
+            if (!currentUser?.uid) {
               throw new Error('Supabase user ID not available. Please try logging out and back in.');
             }
-            await createVariants(addedItem.id, supabaseUser.id, productVariants);
+            await createVariants(addedItem.id, currentUser.uid, productVariants);
 
             console.log('[handleSave] ✅ Variants saved successfully');
             displayToast(`✓ Item added with ${productVariants.length} variants!`);
@@ -3386,11 +3382,10 @@ Thank you for your business! 🙏
         // Create debt record for KPI tracking (new debt management system)
         const debtId = `debt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
         const debtAmount = totalKobo / 100; // Convert kobo to naira
-        const dueDateStr = businessDayKey(
-          typeof formData.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(formData.dueDate)
-            ? new Date(`${formData.dueDate.slice(0, 10)}T12:00:00+01:00`)
-            : new Date(formData.dueDate)
-        );
+        const dueDate = typeof formData.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(formData.dueDate)
+          ? new Date(`${formData.dueDate.slice(0, 10)}T12:00:00+01:00`)
+          : new Date(formData.dueDate);
+        const dueDateStr = businessDayKey(dueDate);
 
         addDebtNotify({
           id: debtId,
@@ -3423,7 +3418,7 @@ Thank you for your business! 🙏
       }
 
       // WhatsApp receipt (plan gated, but allowed for beta testers)
-      const canSendWhatsApp = isBetaTester || currentPlan !== 'FREE' || trialDaysLeft > 0;
+      const canSendWhatsApp = isBetaTester || currentPlan !== 'FREE';
       if (formData.isCreditSale && formData.sendWhatsApp && canSendWhatsApp) {
         const receipt = buildCreditReceipt({
           storeName: settings.businessName || 'Storehouse',
@@ -4397,7 +4392,7 @@ Low Stock: ${lowStockItems.length}
       </header>
 
       {/* First-Run Setup Banner */}
-      {false && !isProfileComplete && !welcomeBannerDismissed && (
+      {isProfileComplete === '__never__' && !welcomeBannerDismissed && (
         <div style={{
           position: 'relative',
           margin: '8px 0',

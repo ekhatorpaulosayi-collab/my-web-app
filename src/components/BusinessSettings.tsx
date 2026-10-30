@@ -578,11 +578,12 @@ export default function BusinessSettings({
   };
 
   const handleDiscard = () => {
-    setFormData({
+    setFormData((prev) => ({
+      ...prev,
       businessName: profile.businessName || '',
       ownerName: profile.ownerName || '',
       phone: profile.phone || ''
-    });
+    }));
     markClean();
     setShowDiscardDialog(false);
     onClose();
@@ -814,7 +815,7 @@ export default function BusinessSettings({
                         </label>
                         <WhatsAppFallbackSettings
                           value={formData.waFallbackMinutes}
-                          onChange={(value) => handleInputChange('waFallbackMinutes', value)}
+                          onChange={(value) => handleInputChange('waFallbackMinutes', String(value))}
                           whatsappNumber={formData.whatsappNumber}
                         />
                         <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px', display: 'block' }}>

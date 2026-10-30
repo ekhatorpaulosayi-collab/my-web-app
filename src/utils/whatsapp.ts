@@ -242,3 +242,5 @@ export function openWhatsApp(phone: string, message: string): Promise<boolean> {
     }
   });
 }
+
+export const formatWhatsAppNumber = formatPhoneForWhatsApp;

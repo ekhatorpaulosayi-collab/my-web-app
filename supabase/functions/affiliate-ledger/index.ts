@@ -182,7 +182,7 @@ serve(async (req) => {
       const { data: existing } = await admin
         .from('affiliate_sales')
         .select('id')
-        .eq('subscription_id', reference)
+        .eq('payment_reference', reference)
         .maybeSingle();
 
       const planCode = transaction.metadata?.plan_code || transaction.plan?.plan_code || null;
@@ -218,23 +218,20 @@ serve(async (req) => {
         return json({ ok: true, commission_kobo: 0, reason: decision.reason });
       }
 
-      const { error: saleError } = await admin.from('affiliate_sales').insert({
-        affiliate_id: affiliate.id,
-        customer_id: user.id,
-        customer_email: user.email,
-        customer_name: body.customer_name ? String(body.customer_name).slice(0, 200) : null,
-        subscription_id: reference,
-        plan_name: String(planCode).slice(0, 80),
-        sale_amount_kobo: amountKobo,
-        commission_amount_kobo: decision.commissionKobo,
-        status: 'pending',
-      });
-      if (saleError) return json({ error: 'sale_insert_failed' }, 500);
-
-      await admin.rpc('increment_affiliate_conversion', {
+      const { data: recorded, error: saleError } = await admin.rpc('record_affiliate_commission', {
         p_affiliate_id: affiliate.id,
+        p_customer_id: user.id,
+        p_customer_email: user.email,
+        p_customer_name: body.customer_name ? String(body.customer_name).slice(0, 200) : null,
+        p_reference: reference,
+        p_plan_name: String(planCode).slice(0, 80),
+        p_sale_amount_kobo: amountKobo,
         p_commission_kobo: decision.commissionKobo,
       });
+      if (saleError) return json({ error: 'sale_insert_failed' }, 500);
+      if (recorded !== true) {
+        return json({ ok: true, commission_kobo: 0, reason: 'already_recorded' });
+      }
 
       const { data: click } = await admin
         .from('affiliate_clicks')
@@ -257,18 +254,11 @@ serve(async (req) => {
     const refunded = transaction.status === 'reversed' || transaction.status === 'abandoned';
     if (!refunded) return json({ error: 'not_refunded' }, 400);
 
-    const { data: sale } = await admin
-      .from('affiliate_sales')
-      .select('id, affiliate_id, commission_amount_kobo, status')
-      .eq('subscription_id', reference)
-      .maybeSingle();
-    if (!sale || sale.status !== 'pending') return json({ ok: true, skipped: true });
-
-    await admin.from('affiliate_sales').update({ status: 'refunded' }).eq('id', sale.id);
-    await admin.rpc('deduct_affiliate_earnings', {
-      p_affiliate_id: sale.affiliate_id,
-      p_amount_kobo: sale.commission_amount_kobo,
+    const { data: refundedSale, error: refundError } = await admin.rpc('refund_affiliate_commission', {
+      p_reference: reference,
     });
+    if (refundError) return json({ error: 'refund_failed' }, 500);
+    if (refundedSale !== true) return json({ ok: true, skipped: true });
     return json({ ok: true });
   }
 

@@ -310,13 +310,17 @@ export default function OnlineStoreSetup() {
       };
 
       // Create or update store
+      let provisionNote = '';
       if (store?.id) {
         await updateStore(store.id, storeData);
         // createStore already fires provisionSubdomain inside the hook;
         // updateStore is a generic passthrough, so do it here when the
         // subdomain actually changed.
         if (nextSubdomain && nextSubdomain !== previousSubdomain) {
-          provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+          const provision = await provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+          if (provision.state !== 'active') {
+            provisionNote = ' The store link is saved. The web address is not confirmed yet.';
+          }
         }
       } else {
         await createStore(storeData);
@@ -336,6 +340,7 @@ export default function OnlineStoreSetup() {
         console.warn('[OnlineStoreSetup] Could not sync business_name to users table:', userSyncError);
       }
 
+      if (provisionNote) console.warn('[OnlineStoreSetup]', provisionNote.trim());
       console.log('[OnlineStoreSetup] Save successful!');
       setSaveStatus('saved');
       setMainSetupComplete(true);
@@ -707,7 +712,6 @@ export default function OnlineStoreSetup() {
               backgroundColor: mainSetupComplete && !isEditingMain ? '#F3F4F6' : 'white',
               color: '#1F2937',
               WebkitTextFillColor: '#1F2937',
-              WebkitTextSecurity: 'none',
               WebkitAppearance: 'none',
             }}
           />
@@ -745,7 +749,6 @@ export default function OnlineStoreSetup() {
               backgroundColor: mainSetupComplete && !isEditingMain ? '#F3F4F6' : 'white',
               color: '#1F2937',
               WebkitTextFillColor: '#1F2937',
-              WebkitTextSecurity: 'none',
               WebkitAppearance: 'none',
             }}
           />
@@ -789,7 +792,6 @@ export default function OnlineStoreSetup() {
                 backgroundColor: mainSetupComplete && !isEditingMain ? '#F3F4F6' : 'white',
                 color: '#1F2937',
                 WebkitTextFillColor: '#1F2937',
-                WebkitTextSecurity: 'none',
                 WebkitAppearance: 'none',
               }}
             />
@@ -1055,8 +1057,12 @@ export default function OnlineStoreSetup() {
                         is_public: storeLive,
                       });
 
+                      let provisionNote = '';
                       if (nextSubdomain && nextSubdomain !== previousSubdomain) {
-                        provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+                        const provision = await provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+                        if (provision.state !== 'active') {
+                          provisionNote = ' The store link is saved. The web address is not confirmed yet.';
+                        }
                       }
 
                       // Refresh the local store reference so isEditingSlug
@@ -1076,7 +1082,7 @@ export default function OnlineStoreSetup() {
 
                       setSaveStatus('saved');
                       setIsEditingMain(false);
-                      alert('✅ Details updated successfully!');
+                      alert(`✅ Details updated successfully!${provisionNote}`);
 
                       setTimeout(() => setSaveStatus('idle'), 2000);
                     } catch (error) {

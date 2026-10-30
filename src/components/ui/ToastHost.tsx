@@ -18,15 +18,17 @@ export function ToastHost() {
   const [items, setItems] = useState<ToastItem[]>([]);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
 
-  useEffect(() => subscribeToasts(setItems), []);
-  useEffect(() => subscribeConfirm((req) => {
-    setConfirm(req ? {
-      title: req.title,
-      message: req.message,
-      confirmLabel: req.confirmLabel,
-      danger: req.danger,
-    } : null);
-  }), []);
+  useEffect(() => { subscribeToasts(setItems); }, []);
+  useEffect(() => {
+    subscribeConfirm((req) => {
+      setConfirm(req ? {
+        title: req.title,
+        message: req.message,
+        confirmLabel: req.confirmLabel,
+        danger: req.danger,
+      } : null);
+    });
+  }, []);
 
   return (
     <>

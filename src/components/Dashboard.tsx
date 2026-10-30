@@ -419,7 +419,7 @@ export function Dashboard({
         }
 
         // Numeric comparison (for qty and price)
-        if (sortConfig.key !== 'name') {
+        if ((sortConfig.key as string) !== 'name') {
           if (sortConfig.direction === 'asc') {
             return aValue - bValue;
           } else {

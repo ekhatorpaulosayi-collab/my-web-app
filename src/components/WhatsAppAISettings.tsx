@@ -152,7 +152,7 @@ export default function WhatsAppAISettings() {
         alert('❌ Connection failed. Please check your Twilio credentials.');
       }
     } catch (error) {
-      alert('❌ Connection failed: ' + error.message);
+      alert('❌ Connection failed: ' + (error instanceof Error ? error.message : 'unknown'));
     } finally {
       setTestingConnection(false);
     }

@@ -30,9 +30,20 @@ These files are not applied by this pull request. Run them only after the 25 Oct
 
 1. `supabase/migrations/20261030_01_platform_flags_and_chat.sql` after `20261025_04` and `20261025_21`.
 2. `supabase/migrations/20261030_02_owned_inventory.sql` after `20261025_06`. Do not re-run `06` after this file.
-3. `supabase/migrations/20261030_03_names_discounts_queue.sql` after `20261025_09`, `20261025_12`, and `20261025_18`.
-4. Deploy `initiate-storefront-payment` and `complete-storefront-order` only after step 2. A checkout insert writes `order_items.variant_id`.
-5. Record each file in `supabase_migrations.schema_migrations` yourself. Do not `db push`.
+3. `supabase/migrations/20261030_03_names_discounts_queue.sql` after `20261025_09`, `20261025_12`, and `20261025_18`. A label that already belongs to two shops is recorded in `store_name_reservations`'s companion table `store_name_collisions`. Both shop URLs stay. The file does not abort.
+4. `supabase/migrations/20261030_04_flags_staff_affiliates_payments.sql` after step 3. Version `2026103004`, name `flags_staff_affiliates_payments`.
+5. Deploy `initiate-storefront-payment` and `complete-storefront-order` only after step 2. Deploy `paystack-webhook-router` only after step 4, because charge success now checks the amount and the currency. Do not deploy `whatsapp-webhook`.
+6. Record each file in `supabase_migrations.schema_migrations` yourself. Do not `db push`.
+
+Smoke test after step 1: an owner update of `stores.is_admin`, `stores.is_verified`, or `stores.kyc_approved_at` raises `platform_field_locked`. A service-role update writes one row in `store_platform_flag_audit`.
+
+Smoke test after step 2: a card order decrements only that store's stock, and a second delivery does not decrement again. Rollback for step 2 is roll-forward: do not re-apply `20261025_06`. That file puts the unscoped stock functions back.
+
+Smoke test after step 3: `SELECT public.backfill_store_name_reservations();` finishes, and both stores in a collision still have their slug and subdomain. A third store cannot reserve that label (`store_name_taken`).
+
+Smoke test after step 4: `cron.job` contains `storefront-inventory-retry`. `platform_config` has one row and `api_key` is empty until you set it in the database. An underpaid `charge.success` leaves the order pending. A cashier session cannot insert `staff_members`. Two commission calls for one Paystack reference leave one `affiliate_sales` row.
+
+Rollback for step 4 is in the footer of that file. Re-apply the file to put the amount check back. Do not re-apply `20260527` afterwards. A refund that restored stock is not undone by the rollback.
 
 `20261025_17` and `20261025_18` stay one window. `17` no longer grants merchants `remember_store_slug`. If an older copy of `17` was already applied, run `18` before any shop traffic, then run step 3.
 

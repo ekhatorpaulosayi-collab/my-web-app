@@ -88,7 +88,7 @@ export function initializeSentry() {
     ],
 
     // Sanitize data before sending to Sentry
-    beforeSend(event, hint) {
+    beforeSend(event: any, hint: any) {
       // Don't send errors in development (unless explicitly enabled)
       if (import.meta.env.DEV && import.meta.env.VITE_SENTRY_ENABLED !== 'true') {
         console.log('[Sentry] Event suppressed in development:', event);

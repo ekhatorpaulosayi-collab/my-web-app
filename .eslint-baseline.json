@@ -1,0 +1,56 @@
+{
+  "public/sw-with-push.js": {
+    "no-unused-vars": 1
+  },
+  "public/sw.js": {
+    "no-unused-vars": 1
+  },
+  "scripts/analyze-dashboard-ux.js": {
+    "no-undef": 26
+  },
+  "src/App.jsx": {
+    "no-unused-vars": 70
+  },
+  "src/components/FirebaseTest.jsx": {
+    "no-unused-vars": 2
+  },
+  "src/components/ShareStoreCard.jsx": {
+    "no-unused-vars": 4
+  },
+  "src/components/WhatsAppAI/WhatsAppAISetup.jsx": {
+    "no-unused-vars": 2
+  },
+  "src/contexts/AuthContext.jsx": {
+    "react-refresh/only-export-components": 1
+  },
+  "src/contexts/BusinessProfile.jsx": {
+    "react-refresh/only-export-components": 1
+  },
+  "src/lib/firebase.js": {
+    "no-unused-vars": 1
+  },
+  "src/lib/supabase.js": {
+    "no-unused-vars": 1
+  },
+  "src/pages/SentryTest.jsx": {
+    "no-unused-vars": 1
+  },
+  "src/utils/shareToWhatsApp.js": {
+    "no-unused-vars": 1
+  },
+  "take-screenshot-playwright.js": {
+    "no-undef": 2
+  },
+  "take-screenshot.js": {
+    "no-undef": 2
+  },
+  "test-modal-ux.js": {
+    "no-undef": 3
+  },
+  "ux-tools/quick-test.js": {
+    "no-undef": 6
+  },
+  "ux-tools/record-session.js": {
+    "no-undef": 5
+  }
+}

@@ -442,10 +442,6 @@ export default function WhatsAppFallbackTimer({
                   justifyContent: 'center',
                   gap: '8px',
                   transition: 'all 0.2s',
-                  ':hover': {
-                    backgroundColor: '#f9fafb',
-                    borderColor: '#475569'
-                  }
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = '#f9fafb';
@@ -478,9 +474,6 @@ export default function WhatsAppFallbackTimer({
                     justifyContent: 'center',
                     gap: '8px',
                     transition: 'all 0.2s',
-                    ':hover': {
-                      backgroundColor: '#22c55e'
-                    }
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = '#22c55e';

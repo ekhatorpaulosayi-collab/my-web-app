@@ -738,7 +738,7 @@ export function EnhancedConversations() {
       {/* Chat Takeover Panel */}
       {showTakeoverPanel && takeoverConversation && user?.uid && (
         <ChatTakeoverPanel
-          conversation={takeoverConversation}
+          conversation={takeoverConversation as any}
           onClose={() => {
             setShowTakeoverPanel(false);
             setTakeoverConversation(null);

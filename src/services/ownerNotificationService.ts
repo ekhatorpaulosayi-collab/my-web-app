@@ -188,8 +188,8 @@ class OwnerNotificationService {
         badge: '/icon-72x72.png',
         tag: conversation.id,
         requireInteraction: true,
-        vibrate: [200, 100, 200]
-      });
+        vibrate: [200, 100, 200],
+      } as NotificationOptions);
 
       notification.onclick = () => {
         window.focus();

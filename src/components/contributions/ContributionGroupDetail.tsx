@@ -32,6 +32,13 @@ interface ContributionGroup {
   status?: 'active' | 'paused' | 'completed';
   members: Member[];
   currentRecipientId: string;
+  currentRecipient?: string;
+  current_cycle?: number;
+  totalMembers?: number;
+  total_members?: number;
+  collection_day?: string;
+  contribution_members?: Member[];
+  payment_frequency?: string;
   cycleNumber: number;
   totalCycles: number;
   nextCollectionDate?: string;
@@ -49,6 +56,7 @@ interface ContributionGroupDetailProps {
   onAddMember?: (member: { name: string; phone?: string }) => Promise<void> | void;
   onUpdate?: (group: ContributionGroup) => void;
   onSettingsVisibilityChange?: (isVisible: boolean) => void;
+  onRecordPayment?: (memberId: string, amount: number, cycle: number) => void;
 }
 
 const formatNaira = (amount: number) => {
@@ -3073,7 +3081,7 @@ export const ContributionGroupDetail: React.FC<ContributionGroupDetailProps> = (
                             }
                           } catch (err) {
                             console.error('Move exception:', err);
-                            alert('Error: ' + err.message);
+                            alert('Error: ' + (err instanceof Error ? err.message : 'unknown'));
                           }
                         }}
                         style={{

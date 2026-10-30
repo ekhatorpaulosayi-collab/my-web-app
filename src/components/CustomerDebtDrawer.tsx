@@ -1305,7 +1305,7 @@ Thank you for your payment! 🙏`;
               };
 
               // Update the group in the database
-              const result = await updateGroup(selectedGroup.id, dbUpdates);
+              const result = await updateGroup(selectedGroup.id, dbUpdates as any);
 
               if (!result.error) {
                 // Update local state

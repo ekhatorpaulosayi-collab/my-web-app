@@ -18,7 +18,7 @@
 // Return: { ok, status, body }. Caller writes the HTTP response.
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { chargeSuccessOutcome } from './moneyPolicies.ts';
+import { chargeEventStatus, chargeSuccessOutcome, inventoryFollowUp } from './moneyPolicies.ts';
 
 export interface SubaccountHandlerResult {
   ok: boolean;
@@ -36,8 +36,45 @@ export async function handleSubaccountEvent(
     return { ok: false, status: 400, body: { error: 'missing_event_or_reference' } };
   }
 
+  if (eventType === 'refund.processed' || eventType === 'charge.dispute.create' || eventType === 'transfer.reversed') {
+    const kind = eventType === 'refund.processed'
+      ? 'refund'
+      : eventType === 'charge.dispute.create'
+        ? 'dispute'
+        : 'reversal';
+    const { data: reversal, error: reversalError } = await admin.rpc('record_storefront_reversal', {
+      p_reference: reference,
+      p_event_type: eventType,
+      p_payload: event,
+      p_kind: kind,
+    });
+    if (reversalError) {
+      console.error('record_storefront_reversal failed', { reference, eventType, error: reversalError.message });
+      return { ok: false, status: 500, body: { error: 'reversal_failed' } };
+    }
+    return { ok: true, status: 200, body: { ok: true, ...(reversal || {}) } };
+  }
+
   // charge.success: atomic RPC owns the claim + all writes.
   if (eventType === 'charge.success') {
+    const { data: gate, error: gateError } = await admin.rpc('assess_storefront_charge', {
+      p_reference: reference,
+      p_payload: event,
+    });
+    if (gateError) {
+      console.error('assess_storefront_charge failed', { reference, error: gateError.message });
+      return { ok: false, status: 500, body: { error: 'charge_check_failed' } };
+    }
+    const decision = chargeEventStatus(gate);
+    if (!decision.accept) {
+      console.error('charge.success rejected', { reference, error: decision.error });
+      return {
+        ok: decision.httpStatus >= 200 && decision.httpStatus < 300,
+        status: decision.httpStatus,
+        body: { ok: false, error: decision.error },
+      };
+    }
+
     const { data: rpcResult, error: rpcError } = await admin.rpc('record_successful_payment', {
       p_reference: reference,
       p_event_type: eventType,
@@ -46,18 +83,26 @@ export async function handleSubaccountEvent(
     if (rpcError) {
       console.error('record_successful_payment failed', { reference, error: rpcError.message });
       const failed = chargeSuccessOutcome(false, false);
-      return { ok: false, status: failed.httpStatus, body: { error: 'rpc_failed', detail: rpcError.message } };
+      return { ok: false, status: failed.httpStatus, body: { error: 'rpc_failed' } };
+    }
+    if (rpcResult && rpcResult.accept === false) {
+      const rejected = chargeEventStatus(rpcResult);
+      return {
+        ok: rejected.httpStatus >= 200 && rejected.httpStatus < 300,
+        status: rejected.httpStatus,
+        body: { ok: false, error: rejected.error },
+      };
     }
     // Payment is already recorded. A stock failure must not 500, or Paystack
     // retries the charge and can double-apply side effects. Queue the reference
     // (migration 10) and return 200. apply_storefront_inventory is idempotent
-    // on paystack reference, so a later replay is safe.
+    // on paystack reference, so a later replay is safe. If the queue insert
+    // itself fails, return non-200 so Paystack retries the stock step.
     const { error: inventoryError } = await admin.rpc('apply_storefront_inventory', {
       p_reference: reference,
     });
-    const outcome = chargeSuccessOutcome(true, Boolean(inventoryError));
-    let inventoryQueued = false;
-    if (outcome.queueInventory && inventoryError) {
+    let queueFailed = false;
+    if (inventoryError) {
       const missing = /apply_storefront_inventory|PGRST202|42883/i.test(inventoryError.message || '');
       console.error('apply_storefront_inventory failed', { reference, error: inventoryError.message, missing });
       const { error: queueError } = await admin
@@ -69,15 +114,20 @@ export async function handleSubaccountEvent(
         }, { onConflict: 'paystack_reference' });
       if (queueError) {
         console.error('inventory queue insert failed', { reference, error: queueError.message });
+        queueFailed = true;
+      } else {
+        const { error: processError } = await admin.rpc('process_storefront_inventory_queue', { p_limit: 10 });
+        if (processError && !/process_storefront_inventory_queue|PGRST202|42883/i.test(processError.message || '')) {
+          console.error('inventory queue processor failed', { reference, error: processError.message });
+        }
       }
-      const { error: processError } = await admin.rpc('process_storefront_inventory_queue', { p_limit: 10 });
-      if (processError && !/process_storefront_inventory_queue|PGRST202|42883/i.test(processError.message || '')) {
-        console.error('inventory queue processor failed', { reference, error: processError.message });
-      }
-      inventoryQueued = true;
     }
-    console.log('webhook_processed', { eventType, reference, result: rpcResult, inventoryQueued });
-    return { ok: true, status: outcome.httpStatus, body: { ok: true, inventory_queued: inventoryQueued, ...(rpcResult || {}) } };
+    const followUp = inventoryFollowUp(Boolean(inventoryError), queueFailed);
+    console.log('webhook_processed', { eventType, reference, result: rpcResult, inventoryQueued: followUp.inventoryQueued });
+    if (followUp.httpStatus !== 200) {
+      return { ok: false, status: followUp.httpStatus, body: { error: 'inventory_queue_failed' } };
+    }
+    return { ok: true, status: followUp.httpStatus, body: { ok: true, inventory_queued: followUp.inventoryQueued, ...(rpcResult || {}) } };
   }
 
   // Non-success events: inline claim with ON CONFLICT detection.

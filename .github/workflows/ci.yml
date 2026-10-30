@@ -25,6 +25,7 @@ jobs:
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz" | tar -xz gitleaks
       - name: Secret scan
         run: ./gitleaks detect --no-git --source . --redact --config .gitleaks.toml --baseline-path .gitleaks-baseline.json --exit-code 1
+      - run: npm run lint
       - run: npm run test:unit
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
@@ -51,6 +52,11 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
       - name: Apply release migrations on a fresh database
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/storehouse
@@ -59,3 +65,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
           bash scripts/rehearse-migrations.sh
+      - name: Database behaviour
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/storehouse
+          PGPASSWORD: postgres
+        run: npm run test:db

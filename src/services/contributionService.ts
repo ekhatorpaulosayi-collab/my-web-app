@@ -288,7 +288,7 @@ export async function getGroup(groupId: string) {
 
     // Current recipient = lowest payout_position among members with no payout row
     // (Stage 2). null when everyone has collected (rotation complete).
-    const currentRecipient = pickCurrentRecipient(annotatedMembers, collectedMemberIds);
+    const currentRecipient = pickCurrentRecipient(annotatedMembers, collectedMemberIds as Set<string>);
 
     return {
       data: {

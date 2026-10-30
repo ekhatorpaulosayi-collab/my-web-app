@@ -8,6 +8,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   stockAvailable: number;
+  variantId?: string;
 }
 
 interface CartDrawerProps {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, type Settings } from '../utils/settings';
 import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';

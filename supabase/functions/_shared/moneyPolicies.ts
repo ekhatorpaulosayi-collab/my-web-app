@@ -13,6 +13,53 @@ export function chargeSuccessOutcome(paymentRecorded: boolean, inventoryFailed: 
   return { httpStatus: 200, queueInventory: inventoryFailed };
 }
 
+/** Same rules as assess_storefront_charge. Exact kobo, NGN, and an open order. */
+export function assessCharge(input: {
+  orderStatus: string | null;
+  orderAmountKobo: number | null;
+  paidAmountKobo: number | null;
+  currency: string | null;
+}): { accept: boolean; error?: string } {
+  if (!input.orderStatus) return { accept: false, error: 'unknown_order' };
+  if (!['pending', 'paid', 'verified'].includes(input.orderStatus)) {
+    return { accept: false, error: 'order_not_payable' };
+  }
+  if (String(input.currency || '').toUpperCase() !== 'NGN') {
+    return { accept: false, error: 'wrong_currency' };
+  }
+  if (
+    !Number.isInteger(input.orderAmountKobo)
+    || !Number.isInteger(input.paidAmountKobo)
+    || input.paidAmountKobo !== input.orderAmountKobo
+  ) {
+    return { accept: false, error: 'amount_mismatch' };
+  }
+  return { accept: true };
+}
+
+/** Permanent mismatches are 400. A missing order is retried. A closed order is acknowledged. */
+export function chargeEventStatus(gate: { accept?: boolean; error?: string } | null): {
+  accept: boolean;
+  httpStatus: number;
+  error: string | null;
+} {
+  if (gate?.accept === true) return { accept: true, httpStatus: 200, error: null };
+  const error = String(gate?.error || 'rejected');
+  if (error === 'unknown_order') return { accept: false, httpStatus: 500, error };
+  if (error === 'order_not_payable') return { accept: false, httpStatus: 200, error };
+  return { accept: false, httpStatus: 400, error };
+}
+
+/** A failed queue insert must not look like success. Paystack retries a non-200. */
+export function inventoryFollowUp(inventoryFailed: boolean, queueFailed: boolean): {
+  httpStatus: number;
+  inventoryQueued: boolean;
+} {
+  if (!inventoryFailed) return { httpStatus: 200, inventoryQueued: false };
+  if (queueFailed) return { httpStatus: 500, inventoryQueued: false };
+  return { httpStatus: 200, inventoryQueued: true };
+}
+
 export type SignupAction = 'count_in_rpc' | 'increment_fallback' | 'already_counted';
 
 /** Repeating mark_signup must not add another total_signups. */

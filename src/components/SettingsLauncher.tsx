@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, Suspense, lazy } from "react";
 import SettingsSpark from "./icons/SettingsSpark";
 

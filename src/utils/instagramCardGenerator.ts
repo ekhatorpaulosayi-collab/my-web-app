@@ -111,12 +111,10 @@ export async function generateInstagramCard(
   const imageY = padding;
 
   if (productImage) {
+    const imageMaxWidth = width - (padding * 2);
+    const imageMaxHeight = imageHeight - (padding * 2);
     try {
       const img = await loadImage(productImage);
-
-      // Calculate dimensions to fit and center the image
-      const imageMaxWidth = width - (padding * 2);
-      const imageMaxHeight = imageHeight - (padding * 2);
 
       let drawWidth = img.width;
       let drawHeight = img.height;

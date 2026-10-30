@@ -42,6 +42,8 @@ export interface StoreProfile {
   storeType?: 'fashion' | 'electronics' | 'food' | 'pharmacy' | 'general';
   logoUrl?: string;
   whatsappNumber: string;
+  phone?: string;
+  description?: string;
   address?: string;
   primaryColor?: string;
   createdAt: Timestamp;
@@ -133,6 +135,7 @@ export interface Product {
   // Category-Specific Attributes (JSONB)
   // Optional fields like size, color, brand, warranty, etc.
   attributes?: Record<string, any>;
+  specifications?: Record<string, any>;
 
   // Status Flags
   is_active?: boolean;

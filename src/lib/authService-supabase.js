@@ -136,12 +136,11 @@ export async function signUp(email, password, storeName = null, storeType = null
         }
         if (storeData) {
 
-          // Auto-register the subdomain with Vercel (fire-and-forget).
-          // Skipped silently if the session isn't ready yet (email-
-          // confirmation flow) — Path D (settings save) will fire it
-          // on the merchant's first save.
           if (storeData?.subdomain && storeData?.id) {
-            provisionSubdomain({ subdomain: storeData.subdomain, storeId: storeData.id });
+            const provision = await provisionSubdomain({ subdomain: storeData.subdomain, storeId: storeData.id });
+            if (provision.state !== 'active') {
+              console.warn('[Auth] Store link saved. Web address is not confirmed yet.', provision.state);
+            }
           }
         }
 

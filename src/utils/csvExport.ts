@@ -127,7 +127,10 @@ function zipStore(files: { name: string; content: string }[]): Blob {
   endView.setUint16(10, files.length, true);
   endView.setUint32(12, centralSize, true);
   endView.setUint32(16, offset, true);
-  return new Blob([...locals, ...central, end], { type: 'application/zip' });
+  return new Blob(
+    [...(locals as unknown as BlobPart[]), ...(central as unknown as BlobPart[]), end as unknown as BlobPart],
+    { type: 'application/zip' },
+  );
 }
 
 /**

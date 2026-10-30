@@ -7,7 +7,6 @@
     "dev": "vite",
     "prebuild": "node scripts/update-cache-version.js",
     "build": "vite build",
-    "lint": "eslint .",
     "preview": "vite preview",
     "functions:build": "cd functions && npm run build",
     "functions:deploy": "firebase deploy --only functions",
@@ -19,6 +18,8 @@
     "quick-test": "node ux-tools/quick-test.js",
     "check:chat": "./scripts/check-chat-integrity.sh",
     "test:unit": "tsx --test tests/unit/*.test.ts",
+    "test:db": "tsx --test --test-concurrency=1 tests/db/*.test.ts",
+    "lint": "node scripts/lint-baseline.mjs",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "test:ux": "playwright test",
     "chat:snapshot": "./scripts/chat-snapshot.sh"

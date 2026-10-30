@@ -17,8 +17,21 @@ CREATE TABLE IF NOT EXISTS cron.job (
 INSERT INTO cron.job (jobname, schedule)
 SELECT 'send-daily-whatsapp-reports', '0 6 * * *'
 WHERE NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports');
-CREATE OR REPLACE FUNCTION cron.unschedule(text) RETURNS void LANGUAGE sql AS $$ SELECT NULL::void $$;
-CREATE OR REPLACE FUNCTION cron.schedule(text, text, text) RETURNS bigint LANGUAGE sql AS $$ SELECT 1::bigint $$;
+CREATE OR REPLACE FUNCTION cron.unschedule(p_jobname text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  DELETE FROM cron.job WHERE jobname = p_jobname;
+END $$;
+CREATE OR REPLACE FUNCTION cron.schedule(p_jobname text, p_schedule text, p_command text) RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_id bigint;
+BEGIN
+  DELETE FROM cron.job WHERE jobname = p_jobname;
+  INSERT INTO cron.job (jobname, schedule) VALUES (p_jobname, p_schedule)
+  RETURNING jobid INTO v_id;
+  RETURN v_id;
+END $$;
 
 CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE SCHEMA IF NOT EXISTS auth;
