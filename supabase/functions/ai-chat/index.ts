@@ -10,7 +10,6 @@ import {
   getLanguageFallback,
   isOffTopic,
   getOffTopicResponse,
-  isSpam,
   checkRateLimit,
   trackOffTopicAttempt,
   getRateLimitResponse,
@@ -569,7 +568,7 @@ async function logAbuseAttempt(
   supabase: any,
   userId: string | null,
   ipAddress: string,
-  messageType: 'off_topic' | 'jailbreak' | 'spam' | 'suspicious_response',
+  messageType: 'off_topic' | 'jailbreak' | 'spam' | 'suspicious_response' | 'dangerous_business_advice',
   message: string
 ) {
   try {
@@ -2616,7 +2615,8 @@ async function handleStorefrontChat(
   console.log('[StorefrontChat] SessionId:', sessionId); // Debug log
 
   // Debug: Add tracking info to response for debugging
-  let trackingDebug = { attempted: true, success: false, error: null };
+  let trackingDebug: any = { attempted: true, success: false, error: null };
+  let storeRow: any = null;
 
   try {
     // Get store ID
@@ -2633,6 +2633,7 @@ async function handleStorefrontChat(
     }
 
     if (store) {
+      storeRow = store;
       console.log('[StorefrontChat] Found store ID:', store.id);
       trackingDebug.storeFound = true;
 
@@ -2908,7 +2909,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
   let limitMessage = '';
 
   try {
-    const storeUserId = store?.user_id;
+    const storeUserId = storeRow?.user_id;
     const conversationId = storeContext?.conversationId;
 
     if (storeUserId && conversationId) {
@@ -2945,7 +2946,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
 
     if (aiResponseCount && aiResponseCount >= perConversationLimit) {
       // Find when the limit was hit
-      const { data: limitMessage } = await supabase
+      const { data: limitRows } = await supabase
         .from('ai_chat_messages')
         .select('created_at')
         .eq('conversation_id', conversationId)
@@ -2953,7 +2954,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
         .order('created_at', { ascending: true })
         .range(perConversationLimit - 1, perConversationLimit - 1);
 
-      const limitHitTime = limitMessage?.[0]?.created_at;
+      const limitHitTime = limitRows?.[0]?.created_at;
       const cooldownExpiry = new Date(Date.now() - (cooldownMinutes * 60000)).toISOString();
 
       if (limitHitTime && limitHitTime > cooldownExpiry) {
@@ -2996,7 +2997,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
   let quotaMessage = '';
 
   try {
-    const storeUserId = store?.user_id;
+    const storeUserId = storeRow?.user_id;
     const conversationId = storeContext?.conversationId;
 
     if (storeUserId && conversationId) {

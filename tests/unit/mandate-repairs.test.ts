@@ -140,7 +140,9 @@ test('admin calls and subdomain registration do not trust a public key or a 200'
   assert.equal(interpretProvisionResponse(200, { status: 'active' }).state, 'active');
   assert.equal(interpretProvisionResponse(429, null).state, 'retryable_failure');
   assert.equal(interpretProvisionResponse(500, null).state, 'retryable_failure');
-  assert.equal(interpretProvisionResponse(409, null).state, 'retryable_failure');
+  assert.equal(interpretProvisionResponse(409, null).state, 'active');
+  assert.equal(interpretProvisionResponse(200, { status: 'already_registered' }).state, 'active');
+  assert.equal(interpretProvisionResponse(200, { status: 'registered' }).state, 'pending');
   assert.equal(interpretProvisionResponse(0, null).state, 'retryable_failure');
 });
 
@@ -215,8 +217,13 @@ test('the repair SQL and checkout source keep the tenant boundaries', () => {
   assert.equal(checkout.includes('it.quantity * it.unit_price_kobo'), false);
   const legacy = readFileSync(new URL('../../supabase/functions/complete-storefront-order/index.ts', import.meta.url), 'utf8');
   assert.match(legacy, /bindPaidOrder/);
-  assert.match(legacy, /decrement_owned_lines/);
+  assert.match(legacy, /fulfill_legacy_storefront_lines/);
   assert.equal(legacy.includes('body.items'), false);
+  const closed = readFileSync(new URL('../../supabase/migrations/20261030_05_fail_closed_and_status_checks.sql', import.meta.url), 'utf8');
+  assert.match(closed, /fulfill_legacy_storefront_lines/);
+  assert.match(closed, /decrement_owned_lines/);
+  assert.match(closed, /orders_status_check/);
+  assert.match(closed, /cron_secret_missing/);
   const ledger = readFileSync(new URL('../../supabase/functions/affiliate-ledger/index.ts', import.meta.url), 'utf8');
   assert.match(ledger, /decideAffiliateCommission/);
   assert.match(ledger, /affiliate_attributions/);

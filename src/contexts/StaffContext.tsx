@@ -81,12 +81,12 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
         /does not exist|could not find the function/i.test(error.message || '')
       );
       if (!error && data) {
-        if (data.role === 'manager' || data.role === 'cashier') {
+        if (data.role === 'manager' || data.role === 'cashier' || data.role === 'expired') {
           const staff = {
             id: data.staff_id,
             store_owner_uid: currentUser.uid,
             name: data.name || 'Staff',
-            role: data.role,
+            role: data.role === 'manager' ? 'manager' : 'cashier',
             is_active: true,
             created_at: '',
             updated_at: '',

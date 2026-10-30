@@ -15,13 +15,8 @@ import {
   initDB,
   seedDemoItems,
   removeDemoItems,
-  getItems,
-  addItem,
-  updateItem,
   updateSale,
-  checkItemExists,
   getCredits,
-  getCreditsByStatus,
   getCustomer,
   addPayment,
   getDB,
@@ -33,9 +28,6 @@ import {
   isValidNG,
   toWhatsAppTarget,
   buildCreditReceipt,
-  findCustomerByLowerName,
-  updateCustomer,
-  addCustomer
 } from './db/idb';
 import { buildWhatsAppSummary } from './lib/share.js';
 import { computeTotals } from './lib/salesTotals.js';
@@ -54,30 +46,23 @@ import {
   totalOpenDebt,
   openCount,
   isOverdue,
-  countsByStatus,
-  searchDebts,
   subscribeDebts
 } from './state/debts.ts';
 import { logStockMovement } from './lib/stockMovements.ts';
-import { createDebtReminderLink, isValidNigerianPhone } from './utils/whatsapp.ts';
-import { loadSales, saveSales, loadDebts, saveDebts, formatNGN as formatCurrency, uid } from './lib/store.ts';
+import { saveSales, loadDebts, saveDebts, uid } from './lib/store.ts';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
-import { safeParse, saveJson } from './utils/safeJson.ts';
 import {
   createSale as createSupabaseSale,
   getSales as getSupabaseSales,
-  getSalesByEmail as getSupabaseSalesByEmail,
   migrateSalesToSupabase,
   syncOfflineSales
 } from './services/supabaseSales.ts';
 import { openWhatsApp } from './utils/wa.ts';
-import { formatNaira, safeMoney, saleRevenueKobo } from './utils/money.ts';
+import { formatNaira, saleRevenueKobo } from './utils/money.ts';
 import { isPermanentSaleError } from './utils/saleSync.ts';
 import { businessDayKey } from './utils/businessDate.ts';
 import { useBusinessProfile } from './contexts/BusinessProfile.jsx';
 import CurrentDate from './components/CurrentDate.tsx';
-import { calculateTax, getCurrentMonth, shareViaWhatsApp, downloadTaxSummary } from './utils/taxCalculations.ts';
-import { shareProductToWhatsApp } from './utils/shareToWhatsApp';
 const ExpenseModal = lazy(() => import('./components/ExpenseModal.tsx'));
 import { saveExpense, getCurrentMonthExpenses, calculateTotalExpenses } from './lib/expenses.ts';
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage.tsx'));
@@ -95,7 +80,6 @@ import {
   addProduct,
   updateProduct,
   deleteProduct,
-  productExists
 } from './services/supabaseProducts';
 // import { migrateUserData } from './services/dataMigration'; // Disabled - migration not needed
 const CSVImport = lazy(() => import('./components/CSVImport.tsx').then((m) => ({ default: m.CSVImport })));
@@ -103,7 +87,7 @@ import { uploadProductImage } from './lib/supabase-storage';
 // DISABLED: Contextual prompts were annoying users
 // import { ContextualPromptToast } from './components/ContextualPromptToast.tsx';
 // import { useContextualPrompts } from './hooks/useContextualPrompts.ts';
-import { getCategoryAttributes, formatAttributeValue, getAttributeIcon } from './config/categoryAttributes.ts';
+import { getCategoryAttributes } from './config/categoryAttributes.ts';
 import { VariantManager } from './components/VariantManager.tsx';
 import { createVariants, getProductVariants } from './lib/supabase-variants.ts';
 import MultiImageUpload from './components/MultiImageUpload.tsx';
@@ -1480,7 +1464,7 @@ function App() {
                   grouped[name].hasOverdue = true;
                 }
               }
-            } catch (e) {
+            } catch (_e) {
               // Invalid date, skip
             }
           }

@@ -168,7 +168,7 @@ function oldBrowserCopy(text, label = 'Message') {
       `✅ ${label} copied!\n\n` +
       'Now open WhatsApp and paste it to share with your contacts.'
     );
-  } catch (err) {
+  } catch (_err) {
     alert(`📋 Please copy this ${label.toLowerCase()} manually:\n\n` + text);
   }
 

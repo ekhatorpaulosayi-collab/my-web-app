@@ -68,10 +68,21 @@ export async function handleSubaccountEvent(
     const decision = chargeEventStatus(gate);
     if (!decision.accept) {
       console.error('charge.success rejected', { reference, error: decision.error });
+      if (decision.error === 'order_not_payable') {
+        const { error: alertError } = await admin.rpc('note_storefront_payment_alert', {
+          p_reference: reference,
+          p_kind: 'closed_order_charge',
+          p_message: 'charge.success for an order that is not payable',
+        });
+        if (alertError) {
+          console.error('payment alert failed', { reference, error: alertError.message });
+          return { ok: false, status: 500, body: { error: 'alert_failed' } };
+        }
+      }
       return {
         ok: decision.httpStatus >= 200 && decision.httpStatus < 300,
         status: decision.httpStatus,
-        body: { ok: false, error: decision.error },
+        body: { ok: false, error: decision.error, alerted: decision.error === 'order_not_payable' },
       };
     }
 

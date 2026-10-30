@@ -9,13 +9,13 @@
     "no-undef": 26
   },
   "src/App.jsx": {
-    "no-unused-vars": 70
+    "no-unused-vars": 44
   },
   "src/components/FirebaseTest.jsx": {
     "no-unused-vars": 2
   },
   "src/components/ShareStoreCard.jsx": {
-    "no-unused-vars": 4
+    "no-unused-vars": 2
   },
   "src/components/WhatsAppAI/WhatsAppAISetup.jsx": {
     "no-unused-vars": 2
@@ -25,12 +25,6 @@
   },
   "src/contexts/BusinessProfile.jsx": {
     "react-refresh/only-export-components": 1
-  },
-  "src/lib/firebase.js": {
-    "no-unused-vars": 1
-  },
-  "src/lib/supabase.js": {
-    "no-unused-vars": 1
   },
   "src/pages/SentryTest.jsx": {
     "no-unused-vars": 1

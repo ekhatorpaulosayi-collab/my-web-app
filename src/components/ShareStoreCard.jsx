@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { getStoreUrl, getStoreSlug } from '../utils/storeSlug';
+import React, { useState } from 'react';
+import { getStoreUrl } from '../utils/storeSlug';
 import { useBusinessProfile } from '../contexts/BusinessProfile';
 import '../styles/ShareStoreCard.css';
 
@@ -38,7 +38,7 @@ export default function ShareStoreCard({ onOpenSettings }) {
       await navigator.clipboard.writeText(storeUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch (_err) {
       // Fallback for older browsers or iOS
       try {
         const input = document.createElement('input');
@@ -61,7 +61,7 @@ export default function ShareStoreCard({ onOpenSettings }) {
         } else {
           throw new Error('Copy failed');
         }
-      } catch (fallbackErr) {
+      } catch (_fallbackErr) {
         // Last resort: show the URL and tell user to copy manually
         alert(`Copy this link:\n\n${storeUrl}`);
       }

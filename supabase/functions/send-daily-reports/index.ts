@@ -218,8 +218,8 @@ async function generateDailyMetrics(
   // Calculate profit
   let profit = 0
   sales?.forEach(sale => {
-    const costPrice = costPriceMap.get(sale.product_id) || 0
-    const saleProfit = ((sale.unit_price - costPrice) * sale.quantity) / 100
+    const costPrice = Number(costPriceMap.get(sale.product_id) || 0)
+    const saleProfit = ((Number(sale.unit_price) - costPrice) * Number(sale.quantity)) / 100
     profit += saleProfit
   })
 
@@ -240,8 +240,8 @@ async function generateDailyMetrics(
   const productMap = new Map()
   sales?.forEach(sale => {
     const existing = productMap.get(sale.product_name) || { units: 0, profit: 0 }
-    const costPrice = costPriceMap.get(sale.product_id) || 0
-    const saleProfit = ((sale.unit_price - costPrice) * sale.quantity) / 100
+    const costPrice = Number(costPriceMap.get(sale.product_id) || 0)
+    const saleProfit = ((Number(sale.unit_price) - costPrice) * Number(sale.quantity)) / 100
 
     productMap.set(sale.product_name, {
       name: sale.product_name,

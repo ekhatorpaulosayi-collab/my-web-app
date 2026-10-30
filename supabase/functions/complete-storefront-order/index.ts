@@ -88,7 +88,7 @@ serve(async (req) => {
       }
       : null,
   });
-  if (!decision.ok) return json({ error: decision.error }, 400);
+  if (!decision.ok) return json({ error: 'error' in decision ? decision.error : 'rejected' }, 400);
   if (!order?.primary_store_id) return json({ error: 'missing_store' }, 400);
 
   const { data: store, error: storeError } = await admin
@@ -106,20 +106,9 @@ serve(async (req) => {
   const lines = (orderItems || []).filter((line) => String(line.store_id) === String(order.primary_store_id));
   if (lines.length === 0) return json({ error: 'missing_order_lines' }, 400);
 
-  const { data: claimed, error: claimError } = await admin
-    .from('storefront_fulfillments')
-    .insert({ paystack_reference: reference })
-    .select('paystack_reference')
-    .maybeSingle();
-
-  if (claimError && claimError.code !== '23505') {
-    console.error('[complete-storefront-order] claim failed', claimError.code || 'error');
-    return json({ error: 'fulfillment_table_missing' }, 500);
-  }
-  if (!claimed) return json({ ok: true, already_applied: true });
-
-  const { error: stockError } = await admin.rpc('decrement_owned_lines', {
-    p_owner_user_id: String(store.user_id),
+  const { error: stockError } = await admin.rpc('fulfill_legacy_storefront_lines', {
+    p_reference: reference,
+    p_owner: String(store.user_id),
     p_lines: lines.map((line) => ({
       product_id: line.product_id,
       variant_id: line.variant_id,
@@ -127,7 +116,9 @@ serve(async (req) => {
     })),
   });
   if (stockError) {
-    await admin.from('storefront_fulfillments').delete().eq('paystack_reference', reference);
+    const duplicate = stockError.code === '23505' || /duplicate key|storefront_fulfillments/i.test(stockError.message || '');
+    if (duplicate) return json({ ok: true, already_applied: true });
+    console.error('[complete-storefront-order] stock failed', stockError.code || 'error');
     return json({ error: 'stock_failed' }, 500);
   }
 

@@ -54,7 +54,7 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-function jsonResponse(body, status) {
+function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -190,7 +190,7 @@ serve(async (req) => {
   }
   const priced = priceCheckoutLines(String(store.user_id), items, catalogProducts || [], catalogVariants);
   if (!priced.ok) {
-    return jsonResponse({ error: priced.error }, 400);
+    return jsonResponse({ error: 'error' in priced ? priced.error : 'rejected' }, 400);
   }
   const catalogueKobo = priced.subtotalKobo;
   const promoCode = String(body.promo_code || '').trim().toUpperCase();
@@ -207,7 +207,7 @@ serve(async (req) => {
     promoRow = promoData;
   }
   const promo = applyPromoKobo(catalogueKobo, promoRow);
-  if (!promo.ok) return jsonResponse({ error: promo.error }, 400);
+  if (!promo.ok) return jsonResponse({ error: 'error' in promo ? promo.error : 'rejected' }, 400);
   const subtotalKobo = promo.payableKobo;
 
   // Customer absorbs Paystack's percentage + (above ₦2,500) flat ₦100.

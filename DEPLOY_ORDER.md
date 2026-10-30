@@ -32,6 +32,7 @@ These files are not applied by this pull request. Run them only after the 25 Oct
 2. `supabase/migrations/20261030_02_owned_inventory.sql` after `20261025_06`. Do not re-run `06` after this file.
 3. `supabase/migrations/20261030_03_names_discounts_queue.sql` after `20261025_09`, `20261025_12`, and `20261025_18`. A label that already belongs to two shops is recorded in `store_name_reservations`'s companion table `store_name_collisions`. Both shop URLs stay. The file does not abort.
 4. `supabase/migrations/20261030_04_flags_staff_affiliates_payments.sql` after step 3. Version `2026103004`, name `flags_staff_affiliates_payments`.
+4b. `supabase/migrations/20261030_05_fail_closed_and_status_checks.sql` after step 4. Version `2026103005`, name `fail_closed_and_status_checks`. This widens order and split status checks so a dispute and a reversal can be stored, keeps an expired staff session from reading or deleting sales, and makes the daily report job fail when a vault secret is missing.
 5. Deploy `initiate-storefront-payment` and `complete-storefront-order` only after step 2. Deploy `paystack-webhook-router` only after step 4, because charge success now checks the amount and the currency. Do not deploy `whatsapp-webhook`.
 6. Record each file in `supabase_migrations.schema_migrations` yourself. Do not `db push`.
 

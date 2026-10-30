@@ -19,7 +19,7 @@ const corsHeaders = {
 
 const NOTES_MAX_LENGTH = 2000;
 
-function jsonResponse(body, status) {
+function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

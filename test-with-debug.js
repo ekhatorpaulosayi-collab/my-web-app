@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+const SUPABASE_ANON_KEY = 'public-anon-placeholder';
 
 console.log('🔍 Testing edge function with debug info...\n');
 

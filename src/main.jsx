@@ -13,6 +13,7 @@ import './styles/floating-effects.css'
 import './styles/ds.css'
 import { installDialogs } from './components/ui/toastStore'
 import { ToastHost } from './components/ui/ToastHost.tsx'
+import { OperatorAlerts } from './components/OperatorAlerts.tsx'
 import AppRoutes from './AppRoutes.jsx'
 import './lib/set-vh.js'
 import { RootBoundary } from './components/RootBoundary.tsx'
@@ -132,6 +133,7 @@ createRoot(document.getElementById('root')).render(
               <BusinessProvider>
                 <AppRoutes />
                 <ToastHost />
+                <OperatorAlerts />
               </BusinessProvider>
             </StaffProvider>
           </AuthProvider>

@@ -47,7 +47,9 @@ export function dismissToast(id: number) {
 export function subscribeToasts(fn: (items: ToastItem[]) => void) {
   toastListeners.add(fn);
   fn(toasts);
-  return () => toastListeners.delete(fn);
+  return () => {
+    toastListeners.delete(fn);
+  };
 }
 
 export function askConfirm(options: {
@@ -83,7 +85,9 @@ export function settleConfirm(ok: boolean) {
 export function subscribeConfirm(fn: (req: ConfirmRequest | null) => void) {
   confirmListeners.add(fn);
   fn(confirmReq);
-  return () => confirmListeners.delete(fn);
+  return () => {
+    confirmListeners.delete(fn);
+  };
 }
 
 /** Route window.alert through toasts. confirm() stays native so existing if (confirm()) checks stay safe. */

@@ -12,7 +12,8 @@ CREATE SCHEMA IF NOT EXISTS cron;
 CREATE TABLE IF NOT EXISTS cron.job (
   jobid bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   jobname text,
-  schedule text
+  schedule text,
+  command text
 );
 INSERT INTO cron.job (jobname, schedule)
 SELECT 'send-daily-whatsapp-reports', '0 6 * * *'
@@ -28,7 +29,7 @@ DECLARE
   v_id bigint;
 BEGIN
   DELETE FROM cron.job WHERE jobname = p_jobname;
-  INSERT INTO cron.job (jobname, schedule) VALUES (p_jobname, p_schedule)
+  INSERT INTO cron.job (jobname, schedule, command) VALUES (p_jobname, p_schedule, p_command)
   RETURNING jobid INTO v_id;
   RETURN v_id;
 END $$;
@@ -189,7 +190,24 @@ CREATE TABLE IF NOT EXISTS public.promo_codes (
   code text,
   used_count integer DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS public.affiliates (id uuid PRIMARY KEY, user_id uuid);
+CREATE EXTENSION IF NOT EXISTS citext;
+CREATE TABLE IF NOT EXISTS public.affiliates (
+  id uuid PRIMARY KEY,
+  user_id uuid,
+  affiliate_code text,
+  bank_account_number text,
+  bank_name text,
+  account_name text,
+  total_earnings_kobo bigint NOT NULL DEFAULT 0,
+  pending_earnings_kobo bigint NOT NULL DEFAULT 0,
+  total_conversions integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  payouts_unlocked boolean NOT NULL DEFAULT false
+);
+ALTER TABLE public.affiliates ALTER COLUMN bank_account_number SET NOT NULL;
+ALTER TABLE public.affiliates ALTER COLUMN bank_name SET NOT NULL;
+ALTER TABLE public.affiliates ALTER COLUMN account_name SET NOT NULL;
+ALTER TABLE public.affiliates ALTER COLUMN affiliate_code SET NOT NULL;
 CREATE TABLE IF NOT EXISTS public.user_subscriptions (
   user_id uuid PRIMARY KEY,
   tier_id text,
@@ -248,3 +266,34 @@ CREATE TABLE IF NOT EXISTS public.chat_analytics (
   user_id text
 );
 CREATE TABLE IF NOT EXISTS public.login_attempts (id uuid);
+
+-- Live-shaped checks. The October repair files widen these; the tests run
+-- after that widening and must still satisfy every constraint that remains.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_email text;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_phone text;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_access_token uuid DEFAULT gen_random_uuid();
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_type text DEFAULT 'storefront';
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
+  CHECK (status IN ('pending', 'paid', 'failed', 'refunded', 'partially_refunded'));
+ALTER TABLE public.orders ALTER COLUMN customer_email SET NOT NULL;
+ALTER TABLE public.orders ALTER COLUMN customer_phone SET NOT NULL;
+ALTER TABLE public.orders ALTER COLUMN total_amount_kobo SET NOT NULL;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_total_amount_positive;
+ALTER TABLE public.orders ADD CONSTRAINT orders_total_amount_positive CHECK (total_amount_kobo > 0);
+
+CREATE TABLE IF NOT EXISTS public.paystack_split_transactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  store_id uuid NOT NULL,
+  paystack_reference text NOT NULL,
+  amount_total_kobo bigint NOT NULL,
+  amount_paystack_kobo bigint NOT NULL,
+  amount_storehouse_kobo bigint NOT NULL,
+  amount_vendor_kobo bigint NOT NULL,
+  status text NOT NULL DEFAULT 'pending',
+  CONSTRAINT paystack_split_transactions_status_check
+    CHECK (status IN ('pending', 'success', 'failed', 'disputed', 'refunded')),
+  CONSTRAINT split_tx_amount_invariant
+    CHECK (amount_total_kobo = amount_paystack_kobo + amount_storehouse_kobo + amount_vendor_kobo)
+);

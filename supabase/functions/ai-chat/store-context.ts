@@ -10,7 +10,10 @@ export interface StoreContext {
     address?: string;
     whatsappNumber?: string;
     businessHours?: string;
+    name?: string;
   };
+  conversationId?: string;
+  storeId?: string;
   policies: {
     delivery: {
       areas?: string;
@@ -187,10 +190,10 @@ export function isOffTopic(message: string): { isOffTopic: boolean; reason?: str
 
   // Check if message is a QUESTION but has NO shopping intent
   const isQuestion = /^(what|when|where|who|why|how|is|are|do|does|did|can|could|would|should|will)/i.test(message.trim());
+  const hasProductContext = /\b(this|that|these|those|it)\b/i.test(lower);
 
   if (isQuestion) {
     // If it's a question WITHOUT any shopping context, it's likely off-topic
-    const hasProductContext = /\b(this|that|these|those|it)\b/i.test(lower); // Removed "your" and "the" - too broad
     const hasGreeting = /^(hi|hello|hey|good morning|good afternoon|good evening)/i.test(lower);
 
     // EXCEPTION: "Do you have..." is ALWAYS shopping-related

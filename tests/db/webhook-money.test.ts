@@ -63,8 +63,10 @@ test('underpaid, wrong currency, and a failed order are not fulfilled', async ()
     [storeId, 'owner-pay', `pay-${storeId.slice(0, 8)}`],
   );
   await sql(
-    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo)
-     VALUES ($1, $2, $3, 'pending', 250000), ($4, $5, $3, 'pending', 250000), ($6, $7, $3, 'failed', 250000)`,
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'pending', 250000, 'buyer@example.com', '08030000000'),
+            ($4, $5, $3, 'pending', 250000, 'buyer@example.com', '08030000000'),
+            ($6, $7, $3, 'failed', 250000, 'buyer@example.com', '08030000000')`,
     [randomUUID(), under, storeId, randomUUID(), wrong, randomUUID(), failed],
   );
 
@@ -113,8 +115,8 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
   );
   const paidOrder = randomUUID();
   await sql(
-    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo)
-     VALUES ($1, $2, $3, 'paid', 1000)`,
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 1000, 'buyer@example.com', '08030000000')`,
     [paidOrder, paidRef, storeId],
   );
   await sql(
@@ -130,7 +132,7 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
 
   await sql(
     `INSERT INTO public.storefront_inventory_queue (paystack_reference, attempts, updated_at, last_error)
-     VALUES ($1, 1, now() - interval '2 minutes', 'missing')`,
+     VALUES ($1, 1, now() - interval '10 minutes', 'missing')`,
     [retryRef],
   );
   const crashed = await sql(`SELECT public.process_storefront_inventory_queue(10) AS result`);
@@ -138,8 +140,8 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
 
   const retryOrder = randomUUID();
   await sql(
-    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo)
-     VALUES ($1, $2, $3, 'paid', 2000)`,
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 2000, 'buyer@example.com', '08030000000')`,
     [retryOrder, retryRef, storeId],
   );
   await sql(
@@ -148,7 +150,7 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
     [randomUUID(), retryOrder, storeId, productId],
   );
   await sql(
-    `UPDATE public.storefront_inventory_queue SET updated_at = now() - interval '3 minutes' WHERE paystack_reference = $1`,
+    `UPDATE public.storefront_inventory_queue SET updated_at = now() - interval '10 minutes' WHERE paystack_reference = $1`,
     [retryRef],
   );
   await sql(`SELECT public.process_storefront_inventory_queue(10)`);
@@ -167,9 +169,11 @@ test('parallel commissions record once and parallel refunds deduct once', async 
   const customerId = randomUUID();
   const reference = `aff_${affiliateId.slice(0, 8)}`;
   await sql(
-    `INSERT INTO public.affiliates (id, user_id, total_earnings_kobo, pending_earnings_kobo, total_conversions, is_active)
-     VALUES ($1, $2, 0, 0, 0, true)`,
-    [affiliateId, customerId],
+    `INSERT INTO public.affiliates (
+       id, user_id, affiliate_code, bank_account_number, bank_name, account_name,
+       total_earnings_kobo, pending_earnings_kobo, total_conversions, is_active
+     ) VALUES ($1, $2, $3, '0123456789', 'Test Bank', 'Buyer', 0, 0, 0, true)`,
+    [affiliateId, customerId, `code-${affiliateId.slice(0, 8)}`],
   );
   const args = [affiliateId, customerId, 'buyer@example.com', 'Buyer', reference, 'starter', 10000, 3000];
   const call = `SELECT public.record_affiliate_commission($1,$2,$3,$4,$5,$6,$7,$8) AS recorded`;
@@ -239,8 +243,8 @@ test('a full refund restocks once and a dispute is recorded', async () => {
   );
   const orderId = randomUUID();
   await sql(
-    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo)
-     VALUES ($1, $2, $3, 'paid', 500)`,
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 500, 'buyer@example.com', '08030000000')`,
     [orderId, reference, storeId],
   );
   await sql(
@@ -273,8 +277,8 @@ test('a full refund restocks once and a dispute is recorded', async () => {
   assert.equal(fulfilled.rows[0].n, 0);
 
   await sql(
-    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo)
-     VALUES ($1, $2, $3, 'paid', 500)`,
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 500, 'buyer@example.com', '08030000000')`,
     [randomUUID(), disputeRef, storeId],
   );
   await sql(
@@ -362,8 +366,10 @@ test('an owner cannot write affiliate earnings', async () => {
   await sql(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [userId]);
   await sql(`SELECT set_config('request.jwt.claim.role', 'authenticated', false)`);
   await sql(
-    `INSERT INTO public.affiliates (id, user_id, total_earnings_kobo, bank_name) VALUES ($1, $2, 0, 'Old')`,
-    [affiliateId, userId],
+    `INSERT INTO public.affiliates (
+       id, user_id, affiliate_code, bank_account_number, bank_name, account_name, total_earnings_kobo
+     ) VALUES ($1, $2, $3, '0123456789', 'Old', 'Owner', 0)`,
+    [affiliateId, userId, `code-${affiliateId.slice(0, 8)}`],
   );
   await assert.rejects(
     sql(`UPDATE public.affiliates SET total_earnings_kobo = 900000 WHERE id = $1`, [affiliateId]),
@@ -407,6 +413,195 @@ test('a slug collision is recorded and both shop URLs remain', async () => {
     sql(`SELECT public.reserve_store_name($1, $2)`, [shared, randomUUID()]),
     /store_name_taken/,
   );
+});
+
+test('an expired staff session cannot delete a sale', async () => {
+  const owner = randomUUID();
+  const session = randomUUID();
+  const cashierId = randomUUID();
+  const saleId = randomUUID();
+  await sql(`SELECT set_config('request.jwt.claim.sub', '', false)`);
+  await sql(`SELECT set_config('request.jwt.claim.role', '', false)`);
+  await sql(`SELECT set_config('request.jwt.claims', '{}', false)`);
+  await sql(
+    `INSERT INTO public.staff_members (id, store_owner_uid, role, is_active, name)
+     VALUES ($1, $2, 'cashier', true, 'Ada')`,
+    [cashierId, owner],
+  );
+  await sql(
+    `INSERT INTO public.staff_active_sessions (owner_uid, session_id, staff_id, role, staff_name, expires_at)
+     VALUES ($1, $2, $3, 'cashier', 'Ada', now() - interval '1 hour')`,
+    [owner, session, cashierId],
+  );
+  await sql(
+    `INSERT INTO public.sales (id, user_id, discount_amount) VALUES ($1, $2, 0)`,
+    [saleId, owner],
+  );
+  await sql(`GRANT SELECT, DELETE ON public.sales TO authenticated`);
+  await sql(`DROP POLICY IF EXISTS sales_owner_test ON public.sales`);
+  await sql(`
+    CREATE POLICY sales_owner_test ON public.sales
+      FOR ALL TO authenticated
+      USING (user_id = auth.uid()::text)
+      WITH CHECK (user_id = auth.uid()::text)
+  `);
+  await sql(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [owner]);
+  await sql(`SELECT set_config('request.jwt.claim.role', 'authenticated', false)`);
+  await sql(`SELECT set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ session_id: session })]);
+  const role = await sql(`SELECT public.acting_staff_role() AS role`);
+  assert.equal(role.rows[0].role, 'expired');
+  try {
+    await sql(`SET ROLE authenticated`);
+    const deleted = await sql(`DELETE FROM public.sales WHERE id = $1`, [saleId]);
+    assert.equal(deleted.rowCount, 0);
+  } finally {
+    await sql(`RESET ROLE`);
+  }
+  const left = await sql(`SELECT count(*)::int AS n FROM public.sales WHERE id = $1`, [saleId]);
+  assert.equal(left.rows[0].n, 1);
+});
+
+test('a refund cancels queued stock and a dispute is allowed by the status check', async () => {
+  await sql(`SELECT set_config('request.jwt.claim.role', '', false)`);
+  await sql(`SELECT set_config('request.jwt.claim.sub', '', false)`);
+  const storeId = randomUUID();
+  const owner = `owner-q-${storeId.slice(0, 8)}`;
+  const productId = randomUUID();
+  const reference = `ord_q_${storeId.slice(0, 8)}`;
+  await sql(
+    `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, $2, $3, $3)`,
+    [storeId, owner, `q-${storeId.slice(0, 8)}`],
+  );
+  await sql(
+    `INSERT INTO public.products (id, user_id, name, quantity) VALUES ($1, $2, 'Plate', 8)`,
+    [productId, owner],
+  );
+  const orderId = randomUUID();
+  await sql(
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 800, 'buyer@example.com', '08030000000')`,
+    [orderId, reference, storeId],
+  );
+  await sql(
+    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name)
+     VALUES ($1, $2, $3, $4, 4, 'Plate')`,
+    [randomUUID(), orderId, storeId, productId],
+  );
+  await sql(
+    `INSERT INTO public.storefront_inventory_queue (paystack_reference, attempts, updated_at)
+     VALUES ($1, 1, now() - interval '10 minutes')`,
+    [reference],
+  );
+  await sql(
+    `INSERT INTO public.paystack_split_transactions (
+       order_id, store_id, paystack_reference, amount_total_kobo, amount_paystack_kobo,
+       amount_storehouse_kobo, amount_vendor_kobo, status
+     ) VALUES ($1, $2, $3, 800, 12, 8, 780, 'success')`,
+    [orderId, storeId, reference],
+  );
+  await sql(
+    `SELECT public.record_storefront_reversal($1, 'refund.processed', $2::jsonb, 'refund')`,
+    [`rf_${reference}`, JSON.stringify({
+      event: 'refund.processed',
+      data: { reference: `rf_${reference}`, transaction_reference: reference, amount: '800', currency: 'NGN' },
+    })],
+  );
+  const queued = await sql(
+    `SELECT count(*)::int AS n FROM public.storefront_inventory_queue WHERE paystack_reference = $1`,
+    [reference],
+  );
+  assert.equal(queued.rows[0].n, 0);
+  await sql(`SELECT public.process_storefront_inventory_queue(10)`);
+  const qty = await sql(`SELECT quantity FROM public.products WHERE id = $1`, [productId]);
+  assert.equal(Number(qty.rows[0].quantity), 8);
+
+  const disputeRef = `ord_d_${storeId.slice(0, 8)}`;
+  const disputeOrder = randomUUID();
+  await sql(
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 800, 'buyer@example.com', '08030000000')`,
+    [disputeOrder, disputeRef, storeId],
+  );
+  await sql(
+    `INSERT INTO public.paystack_split_transactions (
+       order_id, store_id, paystack_reference, amount_total_kobo, amount_paystack_kobo,
+       amount_storehouse_kobo, amount_vendor_kobo, status
+     ) VALUES ($1, $2, $3, 800, 12, 8, 780, 'success')`,
+    [disputeOrder, storeId, disputeRef],
+  );
+  await sql(
+    `SELECT public.record_storefront_reversal($1, 'charge.dispute.create', $2::jsonb, 'dispute')`,
+    [disputeRef, JSON.stringify({ event: 'charge.dispute.create', data: { reference: disputeRef } })],
+  );
+  const disputed = await sql(`SELECT status FROM public.orders WHERE paystack_reference = $1`, [disputeRef]);
+  assert.equal(disputed.rows[0].status, 'disputed');
+
+  const reverseRef = `ord_rv_${storeId.slice(0, 8)}`;
+  const reverseOrder = randomUUID();
+  await sql(
+    `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
+     VALUES ($1, $2, $3, 'paid', 800, 'buyer@example.com', '08030000000')`,
+    [reverseOrder, reverseRef, storeId],
+  );
+  await sql(
+    `INSERT INTO public.paystack_split_transactions (
+       order_id, store_id, paystack_reference, amount_total_kobo, amount_paystack_kobo,
+       amount_storehouse_kobo, amount_vendor_kobo, status
+     ) VALUES ($1, $2, $3, 800, 12, 8, 780, 'success')`,
+    [reverseOrder, storeId, reverseRef],
+  );
+  await sql(
+    `SELECT public.record_storefront_reversal($1, 'transfer.reversed', $2::jsonb, 'reversal')`,
+    [reverseRef, JSON.stringify({ event: 'transfer.reversed', data: { reference: reverseRef } })],
+  );
+  const reversed = await sql(
+    `SELECT o.status AS order_status, s.status AS split_status
+       FROM public.orders o
+       JOIN public.paystack_split_transactions s ON s.paystack_reference = o.paystack_reference
+      WHERE o.paystack_reference = $1`,
+    [reverseRef],
+  );
+  assert.equal(reversed.rows[0].order_status, 'reversed');
+  assert.equal(reversed.rows[0].split_status, 'reversed');
+});
+
+test('a forged affiliate insert is stored with a zero balance', async () => {
+  const affiliateId = randomUUID();
+  const userId = randomUUID();
+  await sql(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [userId]);
+  await sql(`SELECT set_config('request.jwt.claim.role', 'authenticated', false)`);
+  await sql(
+    `INSERT INTO public.affiliates (
+       id, user_id, affiliate_code, bank_account_number, bank_name, account_name,
+       pending_earnings_kobo, total_earnings_kobo, payouts_unlocked, total_conversions
+     ) VALUES ($1, $2, $3, '0123456789', 'Bank', 'Name', 999000000000, 999000000000, true, 50)`,
+    [affiliateId, userId, `forge-${affiliateId.slice(0, 8)}`],
+  );
+  const row = await sql(
+    `SELECT pending_earnings_kobo, payouts_unlocked, total_conversions
+       FROM public.affiliates WHERE id = $1`,
+    [affiliateId],
+  );
+  assert.equal(Number(row.rows[0].pending_earnings_kobo), 0);
+  assert.equal(row.rows[0].payouts_unlocked, false);
+  assert.equal(Number(row.rows[0].total_conversions), 0);
+});
+
+test('a closed-order charge writes an alert and the report job checks the vault', async () => {
+  const alertRef = `ord_closed_${randomUUID().slice(0, 8)}`;
+  await sql(
+    `SELECT public.note_storefront_payment_alert($1, 'closed_order_charge', 'money taken on a failed order')`,
+    [alertRef],
+  );
+  const alert = await sql(
+    `SELECT count(*)::int AS n FROM public.operator_alerts WHERE paystack_reference = $1`,
+    [alertRef],
+  );
+  assert.equal(alert.rows[0].n, 1);
+  const job = await sql(
+    `SELECT command FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports'`,
+  );
+  assert.match(job.rows[0].command, /cron_secret_missing/);
 });
 
 test('the retry queue is scheduled and platform_config exists', async () => {
