@@ -14,6 +14,8 @@ export default function SubmitTestimonial() {
     }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <button
+          type="button"
+          aria-label="Back to Home"
           onClick={() => navigate('/landing')}
           style={{
             display: 'flex',

@@ -282,11 +282,11 @@ export default function MasterDebugger() {
       try {
         const testResult = await test.test();
         result.status = (testResult as any).warning ? 'warning' : 'success';
-        result.message = testResult.message;
-        log(`✅ ${test.name}: ${testResult.message}`, 'success');
+        result.message = (testResult as { message?: string }).message;
+        log(`✅ ${test.name}: ${(testResult as any).message}`, 'success');
 
         if ((testResult as any).warning) {
-          log(`⚠️ ${test.name}: ${testResult.message}`, 'warning');
+          log(`⚠️ ${test.name}: ${(testResult as any).message}`, 'warning');
         }
       } catch (error: any) {
         result.status = 'error';

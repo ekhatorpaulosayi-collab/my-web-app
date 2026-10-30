@@ -29,7 +29,7 @@ export function shareProductToWhatsApp(product, storeUrl) {
     `\n👉 Shop here: ${storeUrl}\n\n` +
     `🛒 Click link to order via WhatsApp!`;
 
-  const fullMessage = message + '\n\n' + storeUrl;
+  const fullMessage = message; // URL is already in the message
 
   // If running in Capacitor app, use native share
   if (isCapacitorApp() && navigator.share) {
@@ -59,13 +59,11 @@ export function shareProductToWhatsApp(product, storeUrl) {
 export function shareStoreToWhatsApp(storeName, storeUrl, productCount) {
   const message = `🏪 *${storeName}*\n\n` +
     `🛍️ Shop ${productCount}+ amazing products!\n\n` +
-    `✨ Easy ordering via WhatsApp\n` +
-    `💳 Pay with card or bank transfer\n` +
-    `📦 Fast delivery across Nigeria\n\n` +
+    `✨ Easy ordering via WhatsApp\n\n` +
     `👉 Visit store: ${storeUrl}\n\n` +
     `🔥 Start shopping now!`;
 
-  const fullMessage = message + '\n\n' + storeUrl;
+  const fullMessage = message; // URL is already in the message
 
   // If running in Capacitor app, use native share
   if (isCapacitorApp() && navigator.share) {
@@ -170,7 +168,7 @@ function oldBrowserCopy(text, label = 'Message') {
       `✅ ${label} copied!\n\n` +
       'Now open WhatsApp and paste it to share with your contacts.'
     );
-  } catch (err) {
+  } catch (_err) {
     alert(`📋 Please copy this ${label.toLowerCase()} manually:\n\n` + text);
   }
 

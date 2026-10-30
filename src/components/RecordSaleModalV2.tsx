@@ -22,7 +22,12 @@ import {
   type PaymentData
 } from '../utils/paystackSettings';
 import { getProductVariants } from '../lib/supabase-variants';
+import { lagosTodayPlus } from '../utils/businessDate';
 import type { ProductVariant } from '../types/variants';
+import { useAuth } from '../contexts/AuthContext';
+import { useStaff } from '../contexts/StaffContext';
+import { canEditTillPrice } from '../utils/staffPermissions';
+import { useAllowStaffPriceChange } from '../hooks/useAllowStaffPriceChange';
 
 /**
  * Generate UUID with fallback for non-secure contexts
@@ -67,6 +72,11 @@ export default function RecordSaleModalV2({
   showSalesData = true,
   onShowToast
 }: RecordSaleModalV2Props) {
+  const { currentUser } = useAuth();
+  const { currentRole } = useStaff();
+  const allowStaffPriceChange = useAllowStaffPriceChange(currentUser?.uid, isOpen);
+  const editTillPrice = canEditTillPrice(currentRole, allowStaffPriceChange);
+
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
@@ -129,9 +139,7 @@ export default function RecordSaleModalV2({
   // Initialize due date
   useEffect(() => {
     if (isOpen && !dueDate) {
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
     }
   }, [isOpen, dueDate]);
 
@@ -228,9 +236,7 @@ export default function RecordSaleModalV2({
       setPhone('');
       setPhoneDisplay('');
       setPhoneValidation({ valid: true, message: '' });
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
       setMessage('');
       setCustomerEmail('');
       setShowMorePayments(false);
@@ -505,6 +511,15 @@ export default function RecordSaleModalV2({
 
     setCart(prev => prev.map(ci =>
       ci.id === cartItemId ? { ...ci, quantity: newQty } : ci
+    ));
+    setError('');
+  };
+
+  const handleUpdateCartPrice = (cartItemId: string, priceNaira: number) => {
+    if (!editTillPrice) return;
+    const price = Number.isFinite(priceNaira) && priceNaira >= 0 ? priceNaira : 0;
+    setCart(prev => prev.map(ci =>
+      ci.id === cartItemId ? { ...ci, price } : ci
     ));
     setError('');
   };
@@ -993,7 +1008,7 @@ export default function RecordSaleModalV2({
                       className="combobox-input"
                       value={dueDate}
                       onChange={e => setDueDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={new Date().toLocaleDateString('en-CA')}
                       required
                     />
                   </div>
@@ -1111,7 +1126,7 @@ export default function RecordSaleModalV2({
               style={{
                 flex: 1,
                 padding: '14px 24px',
-                backgroundColor: cart.length > 0 && !isProcessing && !collectingPayment ? '#2563eb' : '#9ca3af',
+                backgroundColor: cart.length > 0 && !isProcessing && !collectingPayment ? '#2563eb' : '#475569',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
@@ -1120,7 +1135,7 @@ export default function RecordSaleModalV2({
                 cursor: cart.length > 0 && !isProcessing && !collectingPayment ? 'pointer' : 'not-allowed'
               }}
             >
-              {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cart.length})`}
+              {collectingPayment ? 'Processing Payment...' : isProcessing ? 'Processing...' : `Complete Sale (${cartTotals.itemCount} item${cartTotals.itemCount === 1 ? '' : 's'})`}
             </button>
             <button
               type="button"
@@ -1151,6 +1166,7 @@ export default function RecordSaleModalV2({
               items={cart}
               onChangeQty={handleUpdateCartQty}
               onRemove={handleRemoveFromCart}
+              onChangePrice={editTillPrice ? handleUpdateCartPrice : undefined}
               onClose={() => setCartDrawerOpen(false)}
             />
           </div>

@@ -11,7 +11,7 @@ import { debtCreditMicroChunks } from './debtCreditMicroChunks';
 import { staffMicroChunks } from './staffMicroChunks';
 import { paystackDocumentation } from './paystackDocumentation';
 
-export const DOCUMENTATION: Documentation[] = [
+const DOCUMENTATION_RAW: Documentation[] = [
 
   // ============================================
   // GETTING STARTED (5 guides)
@@ -1071,7 +1071,7 @@ record sale, sell product, make sale, complete sale, record transaction, how to 
 4. Tap **"Create Store"**
 5. **Copy your store URL** and open it in a new tab!
 
-🎊 **Success!** You now have an online store at storehouse.ng/store/YOUR-SLUG
+🎊 **Success!** You now have an online store at YOUR-SLUG.storehouse.ng
 
 **What happened:**
 - Your products are now online
@@ -1188,7 +1188,7 @@ You've completed the basics! Now you can:
 - Beautiful online store in 3 minutes
 - Customers order via WhatsApp
 - Accept OPay, Moniepoint, Banks
-- Share one link: storehouse.ng/@yourstore
+- Share one link: yourstore.storehouse.ng
 
 **Excel:** No online store feature ❌
 
@@ -1274,7 +1274,7 @@ You've completed the basics! Now you can:
 - ✅ Unlimited products
 - ✅ Unlimited sales tracking
 - ✅ Customer management
-- ✅ Online store (storehouse.ng/@yourname)
+- ✅ Online store (yourname.storehouse.ng)
 - ✅ WhatsApp ordering
 - ✅ Accept OPay, Moniepoint, Banks
 - ✅ Sales reports & profit tracking
@@ -1632,7 +1632,7 @@ A: You control permissions. Cashiers can't export data. Audit logs track everyth
 - ❌ Programming knowledge
 - ❌ HTML/CSS/JavaScript
 - ❌ Graphic design software
-- ❌ Domain registration (we provide: storehouse.ng/@yourname)
+- ❌ Domain registration (we provide: yourname.storehouse.ng)
 - ❌ Hosting setup
 - ❌ SSL certificate installation
 - ❌ Payment gateway integration
@@ -1822,7 +1822,7 @@ The "Add New Item" modal opens with 10+ field sections.
 ### 7. LOW STOCK ALERT LEVEL (Optional)
 - Number input
 - Label: "🔔 Low Stock Alert Level"
-- Default: 10
+- Default: 3
 - **Purpose**: System notifies you when stock drops below this threshold
 - Help text: "You'll be notified when stock reaches this level"
 - **Nigerian Example**: Set to 20 for fast-moving items like soft drinks, 5 for slow movers like designer shoes
@@ -5731,7 +5731,7 @@ Storehouse gives you a FREE online store where customers can:
 - Pay online (via Paystack)
 - Contact you via WhatsApp
 
-Your store URL: **storehouse.ng/store/YOUR-STORE-SLUG**
+Your store URL: **YOUR-STORE-SLUG.storehouse.ng**
 
 **Benefits:**
 
@@ -5756,7 +5756,7 @@ Your store URL: **storehouse.ng/store/YOUR-STORE-SLUG**
 
 **Store URL (Slug):**
 - Choose a unique slug for your store
-- Example: storehouse.ng/store/mama-ngozi
+- Example: mama-ngozi.storehouse.ng
 - Must be unique across all Storehouse stores
 - Can use custom domain or subdomain (advanced)
 
@@ -5859,12 +5859,12 @@ Share your store URL:
 - In social media bio (Instagram, Facebook)
 - On business cards or flyers
 
-Example URL: storehouse.ng/store/mama-ngozi
+Example URL: mama-ngozi.storehouse.ng
 
 **Custom Domain (Advanced):**
 
 You can use your own domain:
-- Instead of: storehouse.ng/store/mama-ngozi
+- Instead of: mama-ngozi.storehouse.ng
 - Use: www.mamangozi.com
 
 Requires domain ownership and DNS configuration.
@@ -5896,7 +5896,7 @@ Your online store has a **green "Order Now" button** on every product that opens
 **How It Works (Customer Side):**
 
 **Step 1: Customer browses your store**
-- They visit: storehouse.ng/store/yourslug
+- They visit: yourslug.storehouse.ng
 - See all your public products
 
 **Step 2: Customer finds a product they want**
@@ -5942,7 +5942,7 @@ Your online store has a **green "Order Now" button** on every product that opens
 - Save
 
 **Step 3: Test It!**
-- Visit your store: storehouse.ng/store/yourslug
+- Visit your store: yourslug.storehouse.ng
 - Click **"Order Now"** on any product
 - Verify WhatsApp opens with correct message
 
@@ -6070,7 +6070,7 @@ A: Currently, button sends one product at a time. Customer can message you about
 4. ✅ Start getting WhatsApp orders!
 
 **Share Your Store:**
-- WhatsApp Status: "Shop online! storehouse.ng/store/yourslug"
+- WhatsApp Status: "Shop online! yourslug.storehouse.ng"
 - Instagram Bio: Add link
 - Facebook posts: Share store URL
 - Print on flyers/business cards`,
@@ -7589,7 +7589,7 @@ If you've tried everything and still can't find a payment:
 Channel Analytics helps you understand which sales channels are performing best:
 - **Instagram** - Sales from Instagram DMs/posts
 - **WhatsApp** - Sales via WhatsApp Business
-- **Online Store** - Sales from your storehouse.ng/store link
+- **Online Store** - Sales from your yourstore.storehouse.ng link
 - **Retail** - In-person walk-in sales
 - **Other** - Phone calls, referrals, etc.
 
@@ -8217,3 +8217,8 @@ Total: ₦125,000
   ...paystackDocumentation,
 
 ];
+
+export const DOCUMENTATION: Documentation[] = DOCUMENTATION_RAW.map((doc) => ({
+  ...doc,
+  category: (doc.category || 'getting-started') as Documentation['category'],
+}));

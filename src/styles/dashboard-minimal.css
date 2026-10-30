@@ -29,7 +29,7 @@ body {
   /* Text */
   --text-heading: #202223;
   --text-body: #6B7280;
-  --text-subtle: #9CA3AF;
+  --text-subtle: #475569;
 
   /* Borders */
   --border: #E5E7EB;
@@ -392,14 +392,14 @@ body {
 
 .sale-staff-info {
   font-size: 11px;
-  color: #9ca3af;
+  color: #475569;
   padding-left: 82px;
   font-style: italic;
 }
 
 .sale-time {
   font-size: 13px;
-  color: #9ca3af;
+  color: #475569;
   min-width: 70px;
 }
 
@@ -627,7 +627,7 @@ body {
 }
 
 .search-icon {
-  color: #9ca3af;
+  color: #475569;
   flex-shrink: 0;
 }
 
@@ -641,7 +641,7 @@ body {
 }
 
 .search-input::placeholder {
-  color: #9ca3af;
+  color: #475569;
 }
 
 /* Shopify-Grade Table */
@@ -748,7 +748,7 @@ body {
 .delete-item-btn {
   background: transparent;
   border: none;
-  color: #9ca3af;
+  color: #475569;
   cursor: pointer;
   padding: 6px;
   border-radius: 6px;
@@ -772,7 +772,7 @@ body {
 .empty-state {
   text-align: center;
   padding: 32px 20px;
-  color: #9ca3af;
+  color: #475569;
   font-size: 14px;
 }
 

@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSales } from '../lib/supabase-hooks';
 import { getDebts } from '../state/debts';
 import { openWhatsApp } from '../utils/wa';
+import { businessDayKey } from '../utils/businessDate';
+import { saleRevenueKobo } from '../utils/money';
 
 interface Customer {
   name: string;
@@ -76,7 +78,7 @@ export default function CustomersPage() {
       }
 
       const customer = customerMap[customerKey];
-      const saleAmount = (sale.sellKobo || 0) * (sale.qty || 0) / 100;
+      const saleAmount = saleRevenueKobo(sale) / 100;
 
       customer.totalSpent += saleAmount;
       customer.purchaseCount += 1;
@@ -100,7 +102,7 @@ export default function CustomersPage() {
 
     // Second, merge in debt data
     const debts = getDebts();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessDayKey();
 
     debts.forEach(debt => {
       const customerKey = debt.customerName.toLowerCase();
@@ -348,7 +350,7 @@ Thank you for your business! 🙏
             <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
               Debt Balance
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: selectedCustomer.debtBalance && selectedCustomer.debtBalance > 0 ? '#dc2626' : '#9ca3af' }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: selectedCustomer.debtBalance && selectedCustomer.debtBalance > 0 ? '#dc2626' : '#475569' }}>
               {selectedCustomer.debtBalance && selectedCustomer.debtBalance > 0
                 ? formatCurrency(selectedCustomer.debtBalance)
                 : '₦0'}
@@ -500,7 +502,7 @@ Thank you for your business! 🙏
                 {selectedCustomer.purchases
                   .sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime())
                   .map((purchase, index) => {
-                    const amount = (purchase.sellKobo || 0) * (purchase.qty || 0) / 100;
+                    const amount = saleRevenueKobo(purchase) / 100;
                     return (
                       <tr key={index} style={{ borderBottom: '1px solid #f3f4f6' }}>
                         <td style={{ padding: '12px', fontSize: '13px', color: '#374151' }}>
@@ -597,7 +599,7 @@ Thank you for your business! 🙏
             left: '12px',
             top: '50%',
             transform: 'translateY(-50%)',
-            color: '#9ca3af'
+            color: '#475569'
           }}
         />
         <input
@@ -765,7 +767,7 @@ Thank you for your business! 🙏
                           fontSize: '14px',
                           textAlign: 'right',
                           fontWeight: 600,
-                          color: hasDebt ? '#dc2626' : '#9ca3af',
+                          color: hasDebt ? '#dc2626' : '#475569',
                           cursor: 'pointer'
                         }}
                         onClick={() => setSelectedCustomer(customer)}
@@ -787,7 +789,7 @@ Thank you for your business! 🙏
                               gap: '6px',
                               padding: '8px 14px',
                               background: hasPhone ? (customer.hasOverdueDebt ? '#dc2626' : '#25D366') : '#e5e7eb',
-                              color: hasPhone ? 'white' : '#9ca3af',
+                              color: hasPhone ? 'white' : '#475569',
                               border: 'none',
                               borderRadius: '8px',
                               fontSize: '13px',

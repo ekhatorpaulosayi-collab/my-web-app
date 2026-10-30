@@ -8,13 +8,34 @@ import { NIGERIAN_BANKS, validateAccountNumber } from '../utils/nigerianBanks';
 import { ABOUT_TEMPLATES, isTemplateText, isMostlyTemplate } from '../utils/aboutTemplates';
 import { generateStoreQRCode, downloadQRCode } from '../utils/qrCode';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
+import { normalizeSlug, validateStoreSlug } from '../utils/storeSlug';
+import { storeHealthFlags } from '../utils/storeHealth';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
 import { shareStoreToWhatsApp } from '../utils/shareToWhatsApp';
+import { emptyNumberAsNull } from '../utils/emptyNumber.js';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
+import { socialUrlForSave } from '../utils/socialLinks.js';
 import { PromoCodesManager } from './PromoCodesManager';
 import { TabNav, STORE_TABS, type TabId } from './OnlineStore/TabNav';
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+function socialField(kind: 'instagram' | 'facebook' | 'tiktok' | 'x', value: string) {
+  return socialUrlForSave(kind, value);
+}
+
+function whatsappForSave(value: string) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+  }
+  const phone = normalizeNgWhatsApp(raw);
+  if (!phone) {
+    throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+  }
+  return phone;
+}
 
 interface StoreProfile {
   businessName: string;
@@ -53,6 +74,7 @@ export default function OnlineStoreSetup() {
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [storeSlug, setStoreSlug] = useState('');
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
+  const [slugMessage, setSlugMessage] = useState('');
   const [slugSuggestion, setSugSuggestion] = useState('');
 
   // Setup state
@@ -76,11 +98,15 @@ export default function OnlineStoreSetup() {
   const [aboutUs, setAboutUs] = useState('');
   const [instagramUrl, setInstagramUrl] = useState('');
   const [facebookUrl, setFacebookUrl] = useState('');
+  const [tiktokUrl, setTiktokUrl] = useState('');
+  const [twitterUrl, setTwitterUrl] = useState('');
+  const [showMoreSocial, setShowMoreSocial] = useState(false);
 
   // Paystack fields
   const [paystackEnabled, setPaystackEnabled] = useState(false);
   const [paystackPublicKey, setPaystackPublicKey] = useState('');
   const [paystackTestMode, setPaystackTestMode] = useState(true);
+  const [storeLive, setStoreLive] = useState(false);
 
   // Accordion state
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -94,7 +120,8 @@ export default function OnlineStoreSetup() {
 
     // Populate form fields from Supabase store data
     setBusinessName(store.business_name || '');
-    setWhatsappNumber(store.whatsapp_number || '');
+    const savedWhatsapp = String(store.whatsapp_number || '');
+    setWhatsappNumber(savedWhatsapp.includes('@') || savedWhatsapp === 'pending' ? '' : savedWhatsapp);
     setStoreSlug(store.store_slug || '');
     setLogoUrl(store.logo_url || '');
     setBankName(store.bank_name || '');
@@ -108,9 +135,12 @@ export default function OnlineStoreSetup() {
     setAboutUs(store.about_us || '');
     setInstagramUrl(store.instagram_url || '');
     setFacebookUrl(store.facebook_url || '');
+    setTiktokUrl(store.tiktok_url || '');
+    setTwitterUrl(store.twitter_url || '');
     setPaystackEnabled(store.paystack_enabled || false);
     setPaystackPublicKey(store.paystack_public_key || '');
     setPaystackTestMode(store.paystack_test_mode !== false);
+    setStoreLive(store.is_public === true);
 
     // If main fields are filled, consider setup complete
     if (store.business_name && store.whatsapp_number && store.store_slug) {
@@ -118,49 +148,57 @@ export default function OnlineStoreSetup() {
     }
   }, [store]);
 
-  // Slug availability check (Supabase)
+  // Slug shape, reserved words, and availability. An error is not "available".
   useEffect(() => {
-    if (!storeSlug || storeSlug.length < 3) {
+    const normalized = normalizeSlug(storeSlug);
+    const saved = store?.store_slug || '';
+    const validationError = validateStoreSlug(normalized, saved);
+    if (!normalized || normalized.length < 3) {
       setSlugStatus('idle');
+      setSlugMessage(validationError || '');
+      return;
+    }
+    if (validationError) {
+      setSlugStatus('taken');
+      setSlugMessage(validationError);
+      return;
+    }
+    if (normalized === saved) {
+      setSlugStatus('available');
+      setSlugMessage('');
       return;
     }
 
-    console.log('[OnlineStoreSetup] Starting slug check for:', storeSlug);
     setSlugStatus('checking');
+    setSlugMessage('');
     const timeoutId = setTimeout(async () => {
       try {
-        console.log('[OnlineStoreSetup] Checking Supabase for slug:', storeSlug);
-        const { data, error } = await supabase
-          .from('stores')
-          .select('user_id')
-          .eq('store_slug', storeSlug)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          throw error;
-        }
-
-        console.log('[OnlineStoreSetup] Slug check result:', data);
-
-        if (!data || data.user_id === currentUser?.uid) {
-          console.log('[OnlineStoreSetup] Slug is available!');
-          setSlugStatus('available');
-        } else {
-          console.log('[OnlineStoreSetup] Slug is taken');
+        const { data, error } = await supabase.rpc('store_slug_is_available', {
+          p_slug: normalized,
+          p_store_id: store?.id || null,
+        });
+        if (error || data !== true) {
           setSlugStatus('taken');
-          const timestamp = Date.now().toString().slice(-4);
-          setSugSuggestion(`${storeSlug}-${timestamp}`);
+          setSlugMessage(error
+            ? 'Could not check that store URL. Try again.'
+            : 'This URL is already taken');
+          if (!error) {
+            const stamp = Date.now().toString().slice(-4);
+            setSugSuggestion(`${normalized.slice(0, 24)}-${stamp}`.slice(0, 30));
+          }
+          return;
         }
+        setSlugStatus('available');
+        setSlugMessage('');
       } catch (error) {
         console.error('[OnlineStoreSetup] Error checking slug:', error);
-        // Default to available to allow user to proceed
-        console.warn('[OnlineStoreSetup] Defaulting to available due to error');
-        setSlugStatus('available');
+        setSlugStatus('taken');
+        setSlugMessage('Could not check that store URL. Try again.');
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [storeSlug, supabaseUser]);
+  }, [storeSlug, store?.store_slug, store?.id]);
 
   // Show loading state while user is being fetched/created
   if (userLoading) {
@@ -181,7 +219,7 @@ export default function OnlineStoreSetup() {
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 16px',
           }}></div>
-          <p style={{ color: '#6B7280' }}>Setting up your account...</p>
+          <p style={{ color: '#475569' }}>Setting up your account...</p>
         </div>
       </div>
     );
@@ -244,33 +282,45 @@ export default function OnlineStoreSetup() {
       return;
     }
 
+    const normalizedSlug = normalizeSlug(storeSlug);
+    const validationError = validateStoreSlug(normalizedSlug, store?.store_slug || '');
+    if (validationError || slugStatus !== 'available') {
+      alert(`❌ Store URL Error:\n\n${validationError || slugMessage || 'That store URL is not available.'}`);
+      return;
+    }
+
     setSaveStatus('saving');
 
     // Capture pre-save subdomain so we only fire Vercel provisioning
     // when the value actually changed. Numeric-only slugs save NULL
     // (Phase 4 invariant — see src/utils/reservedSubdomains.ts).
+    // The database records the previous slug. The client does not.
     const previousSubdomain = store?.subdomain ?? null;
-    const nextSubdomain = /^\d+$/.test(storeSlug) ? null : storeSlug;
+    const nextSubdomain = /^\d+$/.test(normalizedSlug) ? null : normalizedSlug;
 
     try {
       console.log('[OnlineStoreSetup] Saving store to Supabase...');
 
       const storeData = {
         business_name: businessName,
-        whatsapp_number: whatsappNumber,
-        store_slug: storeSlug,
+        whatsapp_number: whatsappForSave(whatsappNumber),
+        store_slug: normalizedSlug,
         subdomain: nextSubdomain,
-        is_public: true,
+        is_public: storeLive,
       };
 
       // Create or update store
+      let provisionNote = '';
       if (store?.id) {
         await updateStore(store.id, storeData);
         // createStore already fires provisionSubdomain inside the hook;
         // updateStore is a generic passthrough, so do it here when the
         // subdomain actually changed.
         if (nextSubdomain && nextSubdomain !== previousSubdomain) {
-          provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+          const provision = await provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+          if (provision.state !== 'active') {
+            provisionNote = ' The store link is saved. The web address is not confirmed yet.';
+          }
         }
       } else {
         await createStore(storeData);
@@ -290,6 +340,7 @@ export default function OnlineStoreSetup() {
         console.warn('[OnlineStoreSetup] Could not sync business_name to users table:', userSyncError);
       }
 
+      if (provisionNote) console.warn('[OnlineStoreSetup]', provisionNote.trim());
       console.log('[OnlineStoreSetup] Save successful!');
       setSaveStatus('saved');
       setMainSetupComplete(true);
@@ -336,6 +387,7 @@ export default function OnlineStoreSetup() {
           updateData.logo_url = logoUrl;
           break;
         case 'payment':
+          // updateStore writes these three onto store_bank_details.
           updateData.bank_name = bankName;
           updateData.account_number = accountNumber;
           updateData.account_name = accountName;
@@ -345,8 +397,8 @@ export default function OnlineStoreSetup() {
           break;
         case 'delivery':
           updateData.delivery_areas = deliveryAreas;
-          updateData.delivery_fee = deliveryFee;
-          updateData.minimum_order = minimumOrder;
+          updateData.delivery_fee = emptyNumberAsNull(deliveryFee);
+          updateData.minimum_order = emptyNumberAsNull(minimumOrder);
           break;
         case 'hours':
           updateData.business_hours = businessHours;
@@ -367,8 +419,10 @@ export default function OnlineStoreSetup() {
           updateData.about_us = aboutUs;
           break;
         case 'social':
-          updateData.instagram_url = instagramUrl;
-          updateData.facebook_url = facebookUrl;
+          updateData.instagram_url = socialField('instagram', instagramUrl);
+          updateData.facebook_url = socialField('facebook', facebookUrl);
+          updateData.tiktok_url = socialField('tiktok', tiktokUrl);
+          updateData.twitter_url = socialField('x', twitterUrl);
           break;
       }
 
@@ -479,20 +533,74 @@ export default function OnlineStoreSetup() {
         <h1 style={{
           fontSize: '28px',
           fontWeight: '700',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           marginBottom: '8px',
         }}>
           🛍️ Online Store Setup
         </h1>
-        <p style={{ color: '#6B7280', fontSize: '14px' }}>
+        <p style={{ color: '#475569', fontSize: '14px' }}>
           {mainSetupComplete
             ? 'Customize your store with additional settings below'
             : 'Create your online store in 3 simple steps'
           }
         </p>
       </div>
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap',
+        background: '#fff',
+        border: '1px solid #E2E8F0',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 16,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: '#0F172A' }}>{storeLive ? 'Store is live' : 'Store is hidden'}</div>
+          <div style={{ fontSize: 14, color: '#475569' }}>
+            {storeLive ? 'Customers with the link can see your shop.' : 'Customers cannot open your link while this is Hidden.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          aria-pressed={storeLive}
+          onClick={() => setStoreLive((v) => !v)}
+          style={{
+            minHeight: 48,
+            minWidth: 120,
+            borderRadius: 999,
+            border: '1px solid #E2E8F0',
+            background: storeLive ? '#F0FDF4' : '#F8FAFC',
+            color: storeLive ? '#15803D' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {storeLive ? 'Live' : 'Hidden'}
+        </button>
+      </div>
+      {storeHealthFlags({
+        businessName,
+        aboutUs,
+        logoUrl,
+        whatsappNumber,
+        paystackEnabled,
+      }).length > 0 && (
+        <ul style={{ margin: '0 0 16px', paddingLeft: '1.2rem', color: '#334155' }}>
+          {storeHealthFlags({
+            businessName,
+            aboutUs,
+            logoUrl,
+            whatsappNumber,
+            paystackEnabled,
+          }).map((flag) => <li key={flag}>{flag}</li>)}
+        </ul>
+      )}
 
       {/* Success Message */}
       {showSuccessMessage && (
@@ -510,7 +618,7 @@ export default function OnlineStoreSetup() {
             Store Created Successfully!
           </div>
           <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            Your store is live at: {buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug })}
+            {storeLive ? 'Your store is live at' : 'Saved. It stays hidden until you switch it to Live'}: {buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug })}
           </div>
         </div>
       )}
@@ -541,7 +649,7 @@ export default function OnlineStoreSetup() {
               fontSize: '14px',
               fontWeight: '600',
               color: 'white',
-              background: reconnecting ? '#9CA3AF' : '#DC2626',
+              background: reconnecting ? '#475569' : '#DC2626',
               border: 'none',
               borderRadius: '6px',
               cursor: reconnecting ? 'not-allowed' : 'pointer',
@@ -604,7 +712,6 @@ export default function OnlineStoreSetup() {
               backgroundColor: mainSetupComplete && !isEditingMain ? '#F3F4F6' : 'white',
               color: '#1F2937',
               WebkitTextFillColor: '#1F2937',
-              WebkitTextSecurity: 'none',
               WebkitAppearance: 'none',
             }}
           />
@@ -642,7 +749,6 @@ export default function OnlineStoreSetup() {
               backgroundColor: mainSetupComplete && !isEditingMain ? '#F3F4F6' : 'white',
               color: '#1F2937',
               WebkitTextFillColor: '#1F2937',
-              WebkitTextSecurity: 'none',
               WebkitAppearance: 'none',
             }}
           />
@@ -659,8 +765,8 @@ export default function OnlineStoreSetup() {
           }}>
             Store URL <span style={{ color: '#DC2626' }}>*</span>
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#6B7280', fontSize: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+            <span style={{ color: '#475569', fontSize: '14px', minWidth: 0, overflowWrap: 'anywhere' }}>
               {storefrontUrlPrefix({ subdomain: storeSlug, storeSlug })}
             </span>
             <input
@@ -676,7 +782,8 @@ export default function OnlineStoreSetup() {
               autoCapitalize="none"
               spellCheck="false"
               style={{
-                flex: 1,
+                flex: '1 1 160px',
+                minWidth: 0,
                 padding: '12px 16px',
                 fontSize: '16px',
                 border: '2px solid #E5E7EB',
@@ -685,28 +792,12 @@ export default function OnlineStoreSetup() {
                 backgroundColor: mainSetupComplete && !isEditingMain ? '#F3F4F6' : 'white',
                 color: '#1F2937',
                 WebkitTextFillColor: '#1F2937',
-                WebkitTextSecurity: 'none',
                 WebkitAppearance: 'none',
               }}
             />
             {slugStatus === 'checking' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>⏳</span>
-                <button
-                  type="button"
-                  onClick={() => setSlugStatus('available')}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '12px',
-                    background: '#667eea',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Use Anyway
-                </button>
               </div>
             )}
             {slugStatus === 'available' && <span style={{ color: '#10B981' }}>✅</span>}
@@ -714,19 +805,26 @@ export default function OnlineStoreSetup() {
           </div>
           {slugStatus === 'taken' && (
             <div style={{ marginTop: '8px', fontSize: '13px', color: '#DC2626' }}>
-              Already taken. Try: <button
-                onClick={() => setStoreSlug(slugSuggestion)}
-                style={{
-                  color: '#667eea',
-                  textDecoration: 'underline',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                {slugSuggestion}
-              </button>
+              {slugMessage || 'This URL is already taken'}
+              {slugMessage === 'This URL is already taken' && slugSuggestion ? (
+                <>
+                  {' Try: '}
+                  <button
+                    type="button"
+                    onClick={() => setStoreSlug(slugSuggestion)}
+                    style={{
+                      color: '#1d4ed8',
+                      textDecoration: 'underline',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {slugSuggestion}
+                  </button>
+                </>
+              ) : null}
             </div>
           )}
         </div>
@@ -759,7 +857,7 @@ export default function OnlineStoreSetup() {
                 fontWeight: '600',
                 color: 'white',
                 background: isMainSetupValid
-                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                  ? 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)'
                   : '#D1D5DB',
                 border: 'none',
                 borderRadius: '8px',
@@ -787,47 +885,13 @@ export default function OnlineStoreSetup() {
                 {!whatsappNumber.trim() && <div style={{ marginBottom: '4px' }}>• WhatsApp number is required</div>}
                 {storeSlug.trim().length < 3 && <div style={{ marginBottom: '4px' }}>• Store URL must be at least 3 characters</div>}
                 {storeSlug.trim().length >= 3 && slugStatus === 'checking' && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ marginRight: '8px', color: '#667eea' }}>• Checking URL availability...</span>
-                    <button
-                      type="button"
-                      onClick={() => setSlugStatus('available')}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: '12px',
-                        background: '#667eea',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                      }}
-                    >
-                      Skip Check
-                    </button>
-                  </div>
+                  <div style={{ marginBottom: '4px', color: '#1d4ed8' }}>• Checking URL availability...</div>
                 )}
-                {storeSlug.trim().length >= 3 && slugStatus === 'taken' && <div style={{ marginBottom: '4px', color: '#DC2626', fontWeight: '600' }}>• This URL is already taken</div>}
+                {storeSlug.trim().length >= 3 && slugStatus === 'taken' && (
+                  <div style={{ marginBottom: '4px', color: '#DC2626', fontWeight: '600' }}>• {slugMessage || 'This URL is already taken'}</div>
+                )}
                 {storeSlug.trim().length >= 3 && slugStatus === 'idle' && (
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ marginRight: '8px' }}>• Waiting for URL check...</span>
-                    <button
-                      type="button"
-                      onClick={() => setSlugStatus('available')}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: '12px',
-                        background: '#667eea',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                      }}
-                    >
-                      Skip Check
-                    </button>
-                  </div>
+                  <div style={{ marginBottom: '4px' }}>• Waiting for URL check...</div>
                 )}
               </div>
             )}
@@ -855,7 +919,7 @@ export default function OnlineStoreSetup() {
                     padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#667eea',
+                    color: '#1d4ed8',
                     background: 'white',
                     border: '2px solid #667eea',
                     borderRadius: '8px',
@@ -883,7 +947,7 @@ export default function OnlineStoreSetup() {
                     fontSize: '14px',
                     fontWeight: '600',
                     color: 'white',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
                     border: 'none',
                     borderRadius: '8px',
                     cursor: isEditingSlug ? 'not-allowed' : 'pointer',
@@ -943,7 +1007,7 @@ export default function OnlineStoreSetup() {
                     padding: '12px 16px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#6B7280',
+                    color: '#475569',
                     background: 'white',
                     border: '2px solid #E5E7EB',
                     borderRadius: '8px',
@@ -953,18 +1017,18 @@ export default function OnlineStoreSetup() {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#667eea';
-                    e.currentTarget.style.color = '#667eea';
+                    e.currentTarget.style.color = '#1d4ed8';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = '#E5E7EB';
-                    e.currentTarget.style.color = '#6B7280';
+                    e.currentTarget.style.color = '#475569';
                   }}
                 >
                   ✏️ Edit
                 </button>
               </div>
               {isEditingSlug && (
-                <p style={{ marginTop: '8px', fontSize: '13px', color: '#6B7280', textAlign: 'center' }}>
+                <p style={{ marginTop: '8px', fontSize: '13px', color: '#475569', textAlign: 'center' }}>
                   💡 Save changes to update your share links
                 </p>
               )}
@@ -975,19 +1039,30 @@ export default function OnlineStoreSetup() {
                   onClick={async () => {
                     // Save updated main fields (Supabase)
                     if (!store?.id) return;
+                    const normalizedSlug = normalizeSlug(storeSlug);
+                    const validationError = validateStoreSlug(normalizedSlug, store?.store_slug || '');
+                    if (validationError || slugStatus !== 'available') {
+                      alert(`❌ Store URL Error:\n\n${validationError || slugMessage || 'That store URL is not available.'}`);
+                      return;
+                    }
                     setSaveStatus('saving');
                     const previousSubdomain = store?.subdomain ?? null;
-                    const nextSubdomain = /^\d+$/.test(storeSlug) ? null : storeSlug;
+                    const nextSubdomain = /^\d+$/.test(normalizedSlug) ? null : normalizedSlug;
                     try {
                       await updateStore(store.id, {
                         business_name: businessName,
-                        whatsapp_number: whatsappNumber,
-                        store_slug: storeSlug,
+                        whatsapp_number: whatsappForSave(whatsappNumber),
+                        store_slug: normalizedSlug,
                         subdomain: nextSubdomain,
+                        is_public: storeLive,
                       });
 
+                      let provisionNote = '';
                       if (nextSubdomain && nextSubdomain !== previousSubdomain) {
-                        provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+                        const provision = await provisionSubdomain({ subdomain: nextSubdomain, storeId: store.id });
+                        if (provision.state !== 'active') {
+                          provisionNote = ' The store link is saved. The web address is not confirmed yet.';
+                        }
                       }
 
                       // Refresh the local store reference so isEditingSlug
@@ -1007,7 +1082,7 @@ export default function OnlineStoreSetup() {
 
                       setSaveStatus('saved');
                       setIsEditingMain(false);
-                      alert('✅ Details updated successfully!');
+                      alert(`✅ Details updated successfully!${provisionNote}`);
 
                       setTimeout(() => setSaveStatus('idle'), 2000);
                     } catch (error) {
@@ -1016,7 +1091,7 @@ export default function OnlineStoreSetup() {
                       alert(`❌ Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
                     }
                   }}
-                  disabled={saveStatus === 'saving'}
+                  disabled={saveStatus === 'saving' || slugStatus !== 'available'}
                   style={{
                     flex: 1,
                     padding: '12px 20px',
@@ -1038,7 +1113,7 @@ export default function OnlineStoreSetup() {
                     padding: '12px 20px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#6B7280',
+                    color: '#475569',
                     background: 'white',
                     border: '2px solid #E5E7EB',
                     borderRadius: '8px',
@@ -1132,7 +1207,7 @@ export default function OnlineStoreSetup() {
                 onClick={() => handleSaveSection('logo')}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1209,7 +1284,7 @@ export default function OnlineStoreSetup() {
                           style={{
                             width: '48px',
                             height: '24px',
-                            background: daysOfOperation.includes(day) ? '#667eea' : '#D1D5DB',
+                            background: daysOfOperation.includes(day) ? '#1d4ed8' : '#D1D5DB',
                             borderRadius: '12px',
                             position: 'relative',
                             cursor: 'pointer',
@@ -1235,7 +1310,7 @@ export default function OnlineStoreSetup() {
                     onClick={() => handleSaveSection('hours')}
                     style={{
                       padding: '10px 20px',
-                      background: '#667eea',
+                      background: '#1d4ed8',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -1426,7 +1501,7 @@ export default function OnlineStoreSetup() {
                         WebkitAppearance: 'none',
                       }}
                     />
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
                       {aboutUs.length}/1500 characters
                     </div>
                   </div>
@@ -1434,7 +1509,7 @@ export default function OnlineStoreSetup() {
                     onClick={() => handleSaveSection('about')}
                     style={{
                       padding: '10px 20px',
-                      background: '#667eea',
+                      background: '#1d4ed8',
                       color: 'white',
                       border: 'none',
                       borderRadius: '8px',
@@ -1595,7 +1670,7 @@ export default function OnlineStoreSetup() {
                     style={{
                       width: '48px',
                       height: '24px',
-                      background: paystackEnabled ? '#667eea' : '#D1D5DB',
+                      background: paystackEnabled ? '#1d4ed8' : '#D1D5DB',
                       borderRadius: '12px',
                       position: 'relative',
                       cursor: 'pointer',
@@ -1617,7 +1692,7 @@ export default function OnlineStoreSetup() {
                   </div>
                   Enable Paystack
                 </label>
-                <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px', marginLeft: '60px' }}>
+                <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', marginLeft: '60px' }}>
                   Accept card payments directly on your store
                 </div>
               </div>
@@ -1647,13 +1722,13 @@ export default function OnlineStoreSetup() {
                         borderRadius: '8px',
                       }}
                     />
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>
                       Get your key from{' '}
                       <a
                         href="https://dashboard.paystack.com/#/settings/developer"
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#667eea', textDecoration: 'underline' }}
+                        style={{ color: '#1d4ed8', textDecoration: 'underline' }}
                       >
                         Paystack Dashboard
                       </a>
@@ -1696,7 +1771,7 @@ export default function OnlineStoreSetup() {
                       </div>
                       Test Mode
                     </label>
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px', marginLeft: '60px' }}>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', marginLeft: '60px' }}>
                       {paystackTestMode
                         ? '⚠️ Using test mode - no real charges will be made'
                         : '✅ Live mode - real payments will be processed'
@@ -1712,7 +1787,7 @@ export default function OnlineStoreSetup() {
                 style={{
                   width: '100%',
                   padding: '10px 20px',
-                  background: ((bankName && validateAccountNumber(accountNumber)) || (paystackEnabled && paystackPublicKey)) ? '#667eea' : '#D1D5DB',
+                  background: ((bankName && validateAccountNumber(accountNumber)) || (paystackEnabled && paystackPublicKey)) ? '#1d4ed8' : '#D1D5DB',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1779,7 +1854,7 @@ export default function OnlineStoreSetup() {
                   type="text"
                   value={deliveryFee}
                   onChange={(e) => setDeliveryFee(e.target.value)}
-                  placeholder="e.g., ₦2,000 - ₦5,000"
+                  placeholder="e.g., 1500"
                   style={{
                     width: '100%',
                     padding: '12px 16px',
@@ -1825,7 +1900,7 @@ export default function OnlineStoreSetup() {
                 onClick={() => handleSaveSection('delivery')}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1850,7 +1925,7 @@ export default function OnlineStoreSetup() {
                 icon="📱"
                 title="Social Media"
                 description="Connect your social profiles"
-                completed={!!instagramUrl || !!facebookUrl}
+                completed={!!instagramUrl || !!facebookUrl || !!tiktokUrl || !!twitterUrl}
                 isOpen={openSection === 'social'}
                 onToggle={() => toggleSection('social')}
               >
@@ -1912,10 +1987,72 @@ export default function OnlineStoreSetup() {
                 />
               </div>
               <button
+                type="button"
+                onClick={() => setShowMoreSocial((open) => !open)}
+                aria-expanded={showMoreSocial}
+                style={{
+                  display: 'block',
+                  marginBottom: '16px',
+                  padding: 0,
+                  background: 'none',
+                  border: 'none',
+                  color: '#1d4ed8',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {showMoreSocial ? 'Hide TikTok and X' : 'More'}
+              </button>
+              {showMoreSocial && (
+                <>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                      TikTok
+                    </label>
+                    <input
+                      type="text"
+                      value={tiktokUrl}
+                      onChange={(e) => setTiktokUrl(e.target.value)}
+                      placeholder="@yourbusiness"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '8px',
+                        backgroundColor: 'white',
+                        color: '#1F2937',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                      X
+                    </label>
+                    <input
+                      type="text"
+                      value={twitterUrl}
+                      onChange={(e) => setTwitterUrl(e.target.value)}
+                      placeholder="@yourbusiness"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '16px',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '8px',
+                        backgroundColor: 'white',
+                        color: '#1F2937',
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+              <button
                 onClick={() => handleSaveSection('social')}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1972,7 +2109,7 @@ export default function OnlineStoreSetup() {
                 onClick={handleDownloadQR}
                 style={{
                   padding: '10px 20px',
-                  background: '#667eea',
+                  background: '#1d4ed8',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
@@ -1985,7 +2122,7 @@ export default function OnlineStoreSetup() {
               >
                 Download QR Code
               </button>
-              <p style={{ fontSize: '13px', color: '#6B7280', marginTop: '12px', textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', color: '#475569', marginTop: '12px', textAlign: 'center' }}>
                 Customers can scan this QR code to visit your store
               </p>
             </div>
@@ -1994,7 +2131,7 @@ export default function OnlineStoreSetup() {
             <p style={{
               marginTop: '24px',
               fontSize: '13px',
-              color: '#6B7280',
+              color: '#475569',
               textAlign: 'center',
             }}>
               💡 Save changes to generate a QR code for your new link
@@ -2058,7 +2195,7 @@ function AccordionSection({
             }}>
               {title}
             </div>
-            <div style={{ fontSize: '13px', color: '#6B7280' }}>
+            <div style={{ fontSize: '13px', color: '#475569' }}>
               {description}
             </div>
           </div>

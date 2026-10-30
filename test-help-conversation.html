@@ -6,18 +6,20 @@
 </head>
 <body>
   <h1>Test Help Chat Conversation</h1>
-  <button id="testBtn">Send Test Message to AI Chat</button>
+  <label for="pw">Password</label>
+        <input id="pw" type="password" autocomplete="current-password" />
+        <button id="testBtn">Send Test Message to AI Chat</button>
   <div id="result"></div>
 
   <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
     const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bG5pcXd6cWxzZnR4cnRhcGRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzOTkwMzAsImV4cCI6MjA3ODk3NTAzMH0.8Dt8HNYCtsD9GkMXGPe1UroCLD3TbqOmbEWdxO2chsQ';
+    const SUPABASE_ANON_KEY = (sessionStorage.getItem('storehouse_anon_key') || (() => { throw new Error("Set sessionStorage storehouse_anon_key to your project's anon key from the dashboard."); })());
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    document.getElementById('testBtn').addEventListener('click', async () => {
+    document.getElementById('pw') && document.getElementById('testBtn').addEventListener('click', async () => {
       const resultDiv = document.getElementById('result');
       resultDiv.innerHTML = '<p>Testing...</p>';
 
@@ -25,7 +27,7 @@
         // Sign in first
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: 'olaniyiekhator@gmail.com',
-          password: 'Godisgood1.'
+          password: document.getElementById('pw').value
         });
 
         if (authError) throw authError;

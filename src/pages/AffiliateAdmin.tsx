@@ -77,31 +77,17 @@ export default function AffiliateAdmin() {
     try {
       setLoading(true);
 
-      // Load all affiliates with stats
-      const { data: affiliatesData, error: affiliatesError } = await supabase
-        .from('affiliates')
-        .select('*')
-        .order('total_earnings_kobo', { ascending: false });
-
-      if (affiliatesError) throw affiliatesError;
+      // B1/B4: listing every affiliate is an admin read. The edge function
+      // checks app_metadata.role (or the reviewer account), not user_metadata.
+      const { data: overview, error: overviewError } = await supabase.functions.invoke(
+        'affiliate-ledger',
+        { body: { action: 'admin_overview' } },
+      );
+      if (overviewError) throw overviewError;
+      const affiliatesData = overview?.affiliates || [];
+      const salesData = overview?.sales || [];
 
       setAffiliates((affiliatesData || []).map(mapAffiliateFromDb));
-
-      // Load pending sales
-      const { data: salesData, error: salesError } = await supabase
-        .from('affiliate_sales')
-        .select(`
-          id,
-          commission_amount_kobo,
-          sale_date,
-          customer_email,
-          plan_name,
-          affiliates!inner(affiliate_code, account_name)
-        `)
-        .eq('status', 'pending')
-        .order('sale_date', { ascending: false });
-
-      if (salesError) throw salesError;
 
       const formattedSales = (salesData || []).map((sale: any) => {
         const saleDate = new Date(sale.sale_date);

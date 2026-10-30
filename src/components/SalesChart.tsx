@@ -57,7 +57,9 @@ export function SalesChart({ sales, days = 7 }: SalesChartProps) {
 
       if (dateStr in salesByDate) {
         // Convert to Naira (from kobo)
-        const amount = (sale.sellKobo || 0) * (sale.qty || 0) / 100;
+        const amount = ((sale.finalKobo ?? sale.final_amount) != null
+          ? Number(sale.finalKobo ?? sale.final_amount)
+          : Math.max(0, (sale.sellKobo || 0) * (sale.qty || 0) - (sale.discountKobo || sale.discount_amount || 0))) / 100;
         salesByDate[dateStr] += amount;
       }
     });

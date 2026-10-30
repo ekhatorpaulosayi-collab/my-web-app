@@ -189,7 +189,7 @@ You'll need all 6 live plan codes for the next phase.
 ### Step 1: Update Supabase Secret Key
 
 ```bash
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c \
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN \
 supabase secrets set PAYSTACK_SECRET_KEY=sk_live_YOUR_LIVE_SECRET_KEY
 ```
 
@@ -278,7 +278,7 @@ node check-paystack-ready.js
 
 **Check webhook received the payment:**
 ```bash
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c \
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN \
 supabase functions logs paystack-webhook
 ```
 

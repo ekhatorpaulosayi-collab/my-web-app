@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { InstallmentFrequency } from '../state/debts';
 import { generateInstallmentSchedule } from '../state/debts';
+import { lagosTodayPlus } from '../utils/businessDate';
 
 interface CreateDebtModalProps {
   isOpen: boolean;
@@ -51,9 +52,7 @@ export function CreateDebtModal({
       setNumInstallments('4');
       setFrequency('weekly');
       // Set start date to tomorrow
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      setStartDate(tomorrow.toISOString().split('T')[0]);
+      setStartDate(lagosTodayPlus(1));
       setError('');
     }
   }, [isOpen]);
@@ -463,7 +462,7 @@ export function CreateDebtModal({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={new Date().toLocaleDateString('en-CA')}
                     style={{
                       width: '100%',
                       padding: '10px',

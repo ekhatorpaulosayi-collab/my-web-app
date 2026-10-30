@@ -3,26 +3,68 @@
  * Mobile-first design optimized for Nigerian Android phones
  */
 
+.business-type-prompt {
+  margin: 0 0 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.business-type-prompt p {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.business-type-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.business-type-prompt button {
+  min-height: 48px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.business-type-prompt-actions button:first-child {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
 .business-selector-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  top: auto;
+  background: transparent;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  z-index: 9999;
-  overflow-y: auto;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0;
+  z-index: 30;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .business-selector-modal {
   background: white;
   border-radius: 16px;
-  max-width: 600px;
-  width: 100%;
+  max-width: 420px;
+  width: min(420px, 100%);
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  pointer-events: auto;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -291,8 +333,9 @@
 /* Mobile optimizations */
 @media (max-width: 479px) {
   .business-selector-modal {
-    border-radius: 0;
-    min-height: 100vh;
+    border-radius: 16px;
+    max-height: min(46vh, 360px);
+    min-height: 0;
   }
 
   .bts-header h1 {

@@ -1,5 +1,7 @@
 # WhatsApp AI Integration Instructions
 
+`api/whatsapp` has been removed. Do not recreate that route.
+
 ## ✅ Safe Integration Steps
 
 Follow these steps to add WhatsApp AI to your existing Storehouse dashboard WITHOUT breaking anything:

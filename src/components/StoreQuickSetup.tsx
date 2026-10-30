@@ -125,7 +125,7 @@ export default function StoreQuickSetup() {
         business_name: businessName.trim(),
         store_slug: storeSlug,
         whatsapp_number: formatPhoneForWhatsApp(whatsappNumber),
-        is_public: false, // Default to private, user can make public later
+        is_public: true, // Live so the link works. Hidden is a setting.
       });
 
       // Mirror business_name to users table so dashboard header survives logout/login
@@ -153,11 +153,14 @@ export default function StoreQuickSetup() {
       alignItems: 'center',
       justifyContent: 'center',
       background: '#ffffff',
-      padding: '20px',
+      padding: '16px',
+      overflowX: 'clip',
+      boxSizing: 'border-box',
     }}>
       <div style={{
         width: '100%',
         maxWidth: '500px',
+        minWidth: 0,
       }}>
         {/* Header */}
         <div style={{
@@ -174,7 +177,7 @@ export default function StoreQuickSetup() {
           </h1>
           <p style={{
             fontSize: '16px',
-            color: '#6B7280',
+            color: '#475569',
           }}>
             Just the essentials. Everything else is optional.
           </p>
@@ -185,12 +188,14 @@ export default function StoreQuickSetup() {
           background: '#ffffff',
           border: '1px solid #E5E7EB',
           borderRadius: '12px',
-          padding: '32px',
+          padding: '20px',
+          boxSizing: 'border-box',
+          maxWidth: '100%',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
         }}>
           {/* Business Name */}
           <div style={{ marginBottom: '24px' }}>
-            <label style={{
+            <label htmlFor="quick-setup-name" style={{
               display: 'block',
               fontSize: '14px',
               fontWeight: '600',
@@ -200,6 +205,7 @@ export default function StoreQuickSetup() {
               Business Name <span style={{ color: '#DC2626' }}>*</span>
             </label>
             <input
+              id="quick-setup-name"
               type="text"
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
@@ -228,7 +234,7 @@ export default function StoreQuickSetup() {
 
           {/* WhatsApp Number */}
           <div style={{ marginBottom: '24px' }}>
-            <label style={{
+            <label htmlFor="quick-setup-whatsapp" style={{
               display: 'block',
               fontSize: '14px',
               fontWeight: '600',
@@ -248,7 +254,9 @@ export default function StoreQuickSetup() {
                 💬
               </span>
               <input
+                id="quick-setup-whatsapp"
                 type="tel"
+                aria-label="WhatsApp number"
                 value={whatsappNumber}
                 onChange={handleWhatsAppChange}
                 placeholder="0801 234 5678"
@@ -288,7 +296,7 @@ export default function StoreQuickSetup() {
 
           {/* Store URL */}
           <div style={{ marginBottom: '32px' }}>
-            <label style={{
+            <label htmlFor="quick-setup-slug" style={{
               display: 'block',
               fontSize: '14px',
               fontWeight: '600',
@@ -300,6 +308,8 @@ export default function StoreQuickSetup() {
             <div style={{
               display: 'flex',
               alignItems: 'center',
+              minWidth: 0,
+              maxWidth: '100%',
               border: `1px solid ${slugStatus === 'taken' ? '#DC2626' : '#D1D5DB'}`,
               borderRadius: '8px',
               padding: '12px 16px',
@@ -308,19 +318,23 @@ export default function StoreQuickSetup() {
             }}>
               <span style={{
                 fontSize: '16px',
-                color: '#6B7280',
+                color: '#475569',
                 whiteSpace: 'nowrap',
               }}>
-                storehouse.ng/
+                https://
               </span>
               <input
+                id="quick-setup-slug"
                 type="text"
+                aria-label="Store URL slug"
                 value={storeSlug}
                 onChange={(e) => setStoreSlug(generateStoreSlug(e.target.value))}
                 placeholder="your-store"
                 required
                 style={{
-                  flex: 1,
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  width: 0,
                   border: 'none',
                   background: 'transparent',
                   outline: 'none',
@@ -329,12 +343,13 @@ export default function StoreQuickSetup() {
                   padding: '0 0 0 4px',
                 }}
               />
+              <span style={{ fontSize: '16px', color: '#475569', whiteSpace: 'nowrap' }}>.storehouse.ng</span>
             </div>
 
             {/* Slug Status */}
             <div style={{ marginTop: '8px', minHeight: '20px' }}>
               {slugStatus === 'checking' && (
-                <p style={{ fontSize: '13px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <p style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
                   Checking availability...
                 </p>
@@ -351,7 +366,7 @@ export default function StoreQuickSetup() {
                     type="button"
                     onClick={() => setStoreSlug(slugSuggestion)}
                     style={{
-                      color: '#667eea',
+                      color: '#1d4ed8',
                       textDecoration: 'underline',
                       background: 'none',
                       border: 'none',
@@ -391,8 +406,8 @@ export default function StoreQuickSetup() {
               padding: '14px 24px',
               fontSize: '16px',
               fontWeight: '600',
-              color: '#ffffff',
-              background: isFormValid ? '#667eea' : '#D1D5DB',
+              background: isFormValid ? '#1d4ed8' : '#e2e8f0',
+              color: isFormValid ? '#ffffff' : '#334155',
               border: 'none',
               borderRadius: '8px',
               cursor: isFormValid ? 'pointer' : 'not-allowed',
@@ -401,14 +416,14 @@ export default function StoreQuickSetup() {
             }}
             onMouseEnter={(e) => {
               if (isFormValid) {
-                e.currentTarget.style.background = '#5568d3';
+                e.currentTarget.style.background = '#1e40af';
                 e.currentTarget.style.transform = 'translateY(-1px)';
                 e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
               if (isFormValid) {
-                e.currentTarget.style.background = '#667eea';
+                e.currentTarget.style.background = '#1d4ed8';
                 e.currentTarget.style.transform = 'translateY(0)';
                 e.currentTarget.style.boxShadow = 'none';
               }
@@ -420,7 +435,7 @@ export default function StoreQuickSetup() {
           <p style={{
             textAlign: 'center',
             fontSize: '14px',
-            color: '#6B7280',
+            color: '#475569',
             marginTop: '16px',
             marginBottom: 0,
           }}>

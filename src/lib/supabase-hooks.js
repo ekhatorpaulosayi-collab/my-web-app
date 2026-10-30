@@ -6,7 +6,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
+import { OWNER_STORE_COLUMNS, PUBLIC_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { mergeBankDetails, readStoreBankDetails, splitBankDetails, writeStoreBankDetails } from './storeBankDetails.js';
 
 // =====================================================
 // CACHING LAYER
@@ -110,7 +112,9 @@ export function useUser(firebaseUser) {
           const newUser = {
             id: firebaseUser.uid,
             email: firebaseUser.email,
-            phone_number: firebaseUser.phone || firebaseUser.email, // Use email as fallback (now allowed by DB)
+            phone_number: firebaseUser.phone && !String(firebaseUser.phone).includes('@')
+              ? firebaseUser.phone
+              : `pending-${firebaseUser.uid}`,
             business_name: 'My Store', // Default business name
             device_type: 'web',
             is_active: true,
@@ -191,7 +195,7 @@ export function useStore(userId) {
 
       const { data, error: fetchError } = await supabase
         .from('stores')
-        .select('*')
+        .select(OWNER_STORE_COLUMNS)
         .eq('user_id', userId)
         .single();
 
@@ -199,8 +203,10 @@ export function useStore(userId) {
         throw fetchError;
       }
 
-      cache.set(cacheKey, data);
-      setStore(data);
+      const bank = data?.id ? await readStoreBankDetails(supabase, data.id) : null;
+      const withBank = mergeBankDetails(data, bank);
+      cache.set(cacheKey, withBank);
+      setStore(withBank);
       setError(null);
     } catch (err) {
       console.error('[Supabase] Store fetch error:', err);
@@ -250,18 +256,23 @@ export function useStoreActions(userId) {
         ? null
         : storeData.store_slug;
 
+      const { bank, rest } = splitBankDetails(storeData);
       const { data, error: createError } = await supabase
         .from('stores')
         .insert({
           user_id: userId,
           is_public: true,    // ✅ DEFAULT: Always public (database default as backup)
-          ...storeData,       // Caller can override if explicitly needed
+          ...rest,             // Caller can override if explicitly needed
           subdomain,          // Auto-generated subdomain (always last to prevent override)
         })
-        .select()
+        .select(OWNER_STORE_COLUMNS)
         .single();
 
       if (createError) throw createError;
+
+      if (data?.id && Object.keys(bank).length > 0) {
+        await writeStoreBankDetails(supabase, data.id, bank);
+      }
 
       // Log successful store creation
       console.log('[✅ Supabase] Store created successfully:', {
@@ -270,9 +281,11 @@ export function useStoreActions(userId) {
         subdomain: data.subdomain
       });
 
-      // Auto-register the subdomain with Vercel (fire-and-forget).
       if (data?.subdomain && data?.id) {
-        provisionSubdomain({ subdomain: data.subdomain, storeId: data.id });
+        const provision = await provisionSubdomain({ subdomain: data.subdomain, storeId: data.id });
+        if (provision.state !== 'active') {
+          console.warn('[Supabase] Store link saved. Web address is not confirmed yet.', provision.state);
+        }
       }
 
       // Invalidate cache
@@ -297,14 +310,32 @@ export function useStoreActions(userId) {
 
       console.log('[Supabase] Updating store:', { storeId, userId, updates });
 
-      const { data, error: updateError } = await supabase
-        .from('stores')
-        .update(updates)
-        .eq('id', storeId)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
+      const { bank, rest } = splitBankDetails(updates);
+      let data = null;
+      if (Object.keys(rest).length > 0) {
+        const { data: updated, error: updateError } = await supabase
+          .from('stores')
+          .update(rest)
+          .eq('id', storeId)
+          .select(OWNER_STORE_COLUMNS)
+          .single();
+        if (updateError) throw updateError;
+        data = updated;
+      }
+      if (Object.keys(bank).length > 0) {
+        const written = await writeStoreBankDetails(supabase, storeId, bank);
+        if (written.missing) {
+          const { error: legacyError } = await supabase
+            .from('stores')
+            .update(bank)
+            .eq('id', storeId);
+          if (legacyError) throw legacyError;
+        } else if (written.error) {
+          throw written.error;
+        } else {
+          data = mergeBankDetails(data || { id: storeId }, bank);
+        }
+      }
 
       // Invalidate cache
       cache.invalidate(`store:${userId}`);
@@ -355,7 +386,7 @@ export function usePublicStore(identifier, lookupType = 'slug') {
 
         let query = supabase
           .from('stores')
-          .select('*')
+          .select(PUBLIC_STORE_COLUMNS)
           .eq('is_public', true);
 
         // Determine which field to query based on lookup type

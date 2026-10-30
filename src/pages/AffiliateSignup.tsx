@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { DollarSign, Users, TrendingUp, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createAffiliate, getAffiliateByUserId } from '../services/affiliateService';
+import { RouteSkeleton } from '../components/RouteSkeleton';
 
 export default function AffiliateSignup() {
   const { currentUser } = useAuth();
@@ -39,7 +40,7 @@ export default function AffiliateSignup() {
   // Check if user already has affiliate account
   useEffect(() => {
     if (!currentUser) {
-      navigate('/login');
+      if (!window.location.pathname.startsWith('/dev/ux-preview')) navigate('/login');
       return;
     }
 
@@ -140,34 +141,7 @@ export default function AffiliateSignup() {
 
   // Loading state
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f9fafb'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '32px',
-          textAlign: 'center',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: '4px solid #e5e7eb',
-            borderTopColor: '#667eea',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 16px'
-          }} />
-          <p style={{ color: '#6b7280', margin: 0 }}>Loading...</p>
-        </div>
-      </div>
-    );
+    return <RouteSkeleton label="Affiliate signup" />;
   }
 
   // Already an affiliate
@@ -231,7 +205,7 @@ export default function AffiliateSignup() {
             fontSize: '36px',
             fontWeight: 700,
             margin: '0 0 12px 0',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text'
@@ -261,7 +235,7 @@ export default function AffiliateSignup() {
               width: '56px',
               height: '56px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -370,7 +344,7 @@ export default function AffiliateSignup() {
               <div style={{ display: 'grid', gap: '16px' }}>
                 {/* Full Name */}
                 <div>
-                  <label style={{
+                  <label htmlFor="affiliate-name" style={{
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: 500,
@@ -380,6 +354,7 @@ export default function AffiliateSignup() {
                     Full Name *
                   </label>
                   <input
+                    id="affiliate-name"
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -393,7 +368,7 @@ export default function AffiliateSignup() {
                       outline: 'none',
                       transition: 'border 0.2s'
                     }}
-                    onFocus={(e) => !formErrors.name && (e.target.style.borderColor = '#667eea')}
+                    onFocus={(e) => !formErrors.name && (e.target.style.borderColor = '#1d4ed8')}
                     onBlur={(e) => !formErrors.name && (e.target.style.borderColor = '#d1d5db')}
                   />
                   {formErrors.name && (
@@ -405,7 +380,7 @@ export default function AffiliateSignup() {
 
                 {/* Email */}
                 <div>
-                  <label style={{
+                  <label htmlFor="affiliate-email" style={{
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: 500,
@@ -415,6 +390,7 @@ export default function AffiliateSignup() {
                     Email *
                   </label>
                   <input
+                    id="affiliate-email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -428,7 +404,7 @@ export default function AffiliateSignup() {
                       outline: 'none',
                       transition: 'border 0.2s'
                     }}
-                    onFocus={(e) => !formErrors.email && (e.target.style.borderColor = '#667eea')}
+                    onFocus={(e) => !formErrors.email && (e.target.style.borderColor = '#1d4ed8')}
                     onBlur={(e) => !formErrors.email && (e.target.style.borderColor = '#d1d5db')}
                   />
                   {formErrors.email && (
@@ -440,7 +416,7 @@ export default function AffiliateSignup() {
 
                 {/* Phone */}
                 <div>
-                  <label style={{
+                  <label htmlFor="affiliate-phone" style={{
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: 500,
@@ -450,6 +426,7 @@ export default function AffiliateSignup() {
                     Phone Number *
                   </label>
                   <input
+                    id="affiliate-phone"
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -463,7 +440,7 @@ export default function AffiliateSignup() {
                       outline: 'none',
                       transition: 'border 0.2s'
                     }}
-                    onFocus={(e) => !formErrors.phone && (e.target.style.borderColor = '#667eea')}
+                    onFocus={(e) => !formErrors.phone && (e.target.style.borderColor = '#1d4ed8')}
                     onBlur={(e) => !formErrors.phone && (e.target.style.borderColor = '#d1d5db')}
                   />
                   {formErrors.phone && (
@@ -487,7 +464,7 @@ export default function AffiliateSignup() {
               <div style={{ display: 'grid', gap: '16px' }}>
                 {/* Bank Name */}
                 <div>
-                  <label style={{
+                  <label htmlFor="affiliate-bank" style={{
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: 500,
@@ -497,6 +474,7 @@ export default function AffiliateSignup() {
                     Bank Name *
                   </label>
                   <select
+                    id="affiliate-bank"
                     value={formData.bankName}
                     onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                     style={{
@@ -509,7 +487,7 @@ export default function AffiliateSignup() {
                       transition: 'border 0.2s',
                       background: 'white'
                     }}
-                    onFocus={(e) => !formErrors.bankName && (e.target.style.borderColor = '#667eea')}
+                    onFocus={(e) => !formErrors.bankName && (e.target.style.borderColor = '#1d4ed8')}
                     onBlur={(e) => !formErrors.bankName && (e.target.style.borderColor = '#d1d5db')}
                   >
                     <option value="">Select your bank</option>
@@ -546,7 +524,7 @@ export default function AffiliateSignup() {
 
                 {/* Account Number */}
                 <div>
-                  <label style={{
+                  <label htmlFor="affiliate-account-number" style={{
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: 500,
@@ -556,6 +534,7 @@ export default function AffiliateSignup() {
                     Account Number *
                   </label>
                   <input
+                    id="affiliate-account-number"
                     type="text"
                     value={formData.bankAccountNumber}
                     onChange={(e) => {
@@ -573,7 +552,7 @@ export default function AffiliateSignup() {
                       outline: 'none',
                       transition: 'border 0.2s'
                     }}
-                    onFocus={(e) => !formErrors.bankAccountNumber && (e.target.style.borderColor = '#667eea')}
+                    onFocus={(e) => !formErrors.bankAccountNumber && (e.target.style.borderColor = '#1d4ed8')}
                     onBlur={(e) => !formErrors.bankAccountNumber && (e.target.style.borderColor = '#d1d5db')}
                   />
                   {formErrors.bankAccountNumber && (
@@ -585,7 +564,7 @@ export default function AffiliateSignup() {
 
                 {/* Account Name */}
                 <div>
-                  <label style={{
+                  <label htmlFor="affiliate-account-name" style={{
                     display: 'block',
                     fontSize: '14px',
                     fontWeight: 500,
@@ -595,6 +574,7 @@ export default function AffiliateSignup() {
                     Account Name *
                   </label>
                   <input
+                    id="affiliate-account-name"
                     type="text"
                     value={formData.accountName}
                     onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
@@ -608,7 +588,7 @@ export default function AffiliateSignup() {
                       outline: 'none',
                       transition: 'border 0.2s'
                     }}
-                    onFocus={(e) => !formErrors.accountName && (e.target.style.borderColor = '#667eea')}
+                    onFocus={(e) => !formErrors.accountName && (e.target.style.borderColor = '#1d4ed8')}
                     onBlur={(e) => !formErrors.accountName && (e.target.style.borderColor = '#d1d5db')}
                   />
                   {formErrors.accountName && (
@@ -616,7 +596,7 @@ export default function AffiliateSignup() {
                       {formErrors.accountName}
                     </p>
                   )}
-                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#9ca3af' }}>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569' }}>
                     Must match exactly as registered with your bank
                   </p>
                 </div>
@@ -651,7 +631,7 @@ export default function AffiliateSignup() {
               style={{
                 width: '100%',
                 padding: '16px',
-                background: submitting ? '#9ca3af' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: submitting ? '#475569' : 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
@@ -686,7 +666,7 @@ export default function AffiliateSignup() {
         }}>
           <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>
             Questions? Email us at{' '}
-            <a href="mailto:support@storehouse.ng" style={{ color: '#667eea', textDecoration: 'none' }}>
+            <a href="mailto:support@storehouse.ng" style={{ color: '#1d4ed8', textDecoration: 'none' }}>
               support@storehouse.ng
             </a>
           </p>

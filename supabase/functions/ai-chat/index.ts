@@ -10,13 +10,13 @@ import {
   getLanguageFallback,
   isOffTopic,
   getOffTopicResponse,
-  isSpam,
   checkRateLimit,
   trackOffTopicAttempt,
   getRateLimitResponse,
   type StoreContext,
 } from './store-context.ts';
 import { cachedOpenAICall } from './cache-helper.ts';
+import { aiSpendGate, chatCallAllowed, customDomainIsVerified, isBuiltInChatOrigin, loggedInChatQuota, originsForVerifiedDomain, storefrontChatQuota } from '../_shared/moneyPolicies.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -568,7 +568,7 @@ async function logAbuseAttempt(
   supabase: any,
   userId: string | null,
   ipAddress: string,
-  messageType: 'off_topic' | 'jailbreak' | 'spam' | 'suspicious_response',
+  messageType: 'off_topic' | 'jailbreak' | 'spam' | 'suspicious_response' | 'dangerous_business_advice',
   message: string
 ) {
   try {
@@ -599,12 +599,109 @@ async function logAbuseAttempt(
   }
 }
 
+// CORS: only our own web origins may call this function from a browser (C1).
+const ALLOWED_ORIGINS = new Set([
+  'https://www.storehouse.ng',
+  'https://storehouse.ng',
+  ...((Deno.env.get('AI_CHAT_EXTRA_ORIGINS') || '').split(',').map((o) => o.trim()).filter(Boolean)),
+]);
+let currentOrigin = 'https://www.storehouse.ng';
+function corsOrigin(origin: string | null): string {
+  if (origin && (ALLOWED_ORIGINS.has(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^https:\/\/[a-z0-9-]+\.storehouse\.ng$/.test(origin))) return origin;
+  return 'https://www.storehouse.ng';
+}
+// Client IP: prefer headers set by the platform edge, not the client-controlled
+// left-most x-forwarded-for entry.
+function getClientIp(req: Request): string {
+  const cf = req.headers.get('cf-connecting-ip');
+  if (cf) return cf.trim();
+  const real = req.headers.get('x-real-ip');
+  if (real) return real.trim();
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) {
+    const parts = xff.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return 'unknown';
+}
+
+let spendClient: ReturnType<typeof createClient> | null = null;
+let customOriginCache: { at: number; origins: Set<string> } = { at: 0, origins: new Set() };
+
+function builtInOrigin(origin: string): boolean {
+  const extra = (Deno.env.get('AI_CHAT_EXTRA_ORIGINS') || '').split(',').map((o) => o.trim()).filter(Boolean);
+  return isBuiltInChatOrigin(origin, extra);
+}
+
+async function verifiedCustomOrigins(supabase: ReturnType<typeof createClient>): Promise<Set<string>> {
+  if (Date.now() - customOriginCache.at < 5 * 60 * 1000) return customOriginCache.origins;
+  const { data, error } = await supabase
+    .from('stores')
+    .select('custom_domain, custom_domain_verified')
+    .eq('custom_domain_verified', true)
+    .not('custom_domain', 'is', null);
+  const origins = new Set<string>();
+  if (!error) {
+    for (const row of data || []) {
+      const domainRow = row as { custom_domain?: string | null; custom_domain_verified?: boolean | null };
+      if (!customDomainIsVerified(domainRow)) continue;
+      for (const origin of originsForVerifiedDomain(String(domainRow.custom_domain || ''))) {
+        origins.add(origin);
+      }
+    }
+  }
+  customOriginCache = { at: Date.now(), origins };
+  return origins;
+}
+
+async function resolveAllowedOrigin(origin: string | null, supabase: ReturnType<typeof createClient>): Promise<string | null> {
+  if (!origin) return null;
+  if (builtInOrigin(origin)) return origin;
+  const custom = await verifiedCustomOrigins(supabase);
+  if (custom.has(origin)) return origin;
+  return null;
+}
+
+// Flat reserve per OpenAI call. AI_DAILY_COST_CAP_USD defaults to $20 (Lagos day).
+// Missing RPC (migration 11 not applied) does not call the model.
+async function reserveAiSpend(supabase: ReturnType<typeof createClient>): Promise<'ok' | 'capped' | 'uninstalled'> {
+  const cap = Number(Deno.env.get('AI_DAILY_COST_CAP_USD') || '20');
+  const perCall = Number(Deno.env.get('AI_CHAT_CALL_USD') || '0.01');
+  const { data, error } = await supabase.rpc('reserve_ai_chat_spend', { p_usd: perCall, p_cap: cap });
+  const rpcMissing = Boolean(error && /reserve_ai_chat_spend|PGRST202|42883|does not exist/i.test(error.message || ''));
+  if (rpcMissing) console.error('[ai-chat] daily cost cap is not installed');
+  return aiSpendGate({ rpcMissing, reserved: !error && data === true });
+}
+
+const BUDGET_REPLY = "We've reached today's help limit. Please try again tomorrow, or message the store on WhatsApp.";
+
+async function postChatCompletion(body: Record<string, unknown>): Promise<any> {
+  if (!spendClient) {
+    return { choices: [{ message: { content: BUDGET_REPLY } }], budgetExceeded: true };
+  }
+  const gate = await reserveAiSpend(spendClient);
+  if (gate !== 'ok') {
+    return { choices: [{ message: { content: BUDGET_REPLY } }], budgetExceeded: true };
+  }
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+  return response.json();
+}
+
 serve(async (req) => {
   // Handle CORS
+  currentOrigin = corsOrigin(req.headers.get('origin'));
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': currentOrigin,
+        'Vary': 'Origin',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
@@ -614,14 +711,14 @@ serve(async (req) => {
   try {
     console.log('[ai-chat] Request received');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    spendClient = supabase;
 
-    // Get user from auth header
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
     console.log('[ai-chat] Auth header present:', !!authHeader, 'Token length:', token?.length || 0);
 
     let userId: string | null = null;
-    let ipAddress = req.headers.get('x-forwarded-for') || 'unknown';
+    let ipAddress = getClientIp(req);
 
     if (token) {
       const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -630,6 +727,18 @@ serve(async (req) => {
       }
       console.log('[ai-chat] Auth check:', { hasUser: !!user, error: error?.message });
     }
+
+    const originHeader = req.headers.get('origin');
+    const allowedOrigin = await resolveAllowedOrigin(originHeader, supabase);
+    if (!chatCallAllowed({
+      origin: originHeader,
+      originAllowed: Boolean(allowedOrigin),
+      authenticated: Boolean(userId),
+    })) {
+      currentOrigin = 'https://www.storehouse.ng';
+      return jsonResponse({ error: 'origin_not_allowed' }, 403);
+    }
+    currentOrigin = allowedOrigin || 'https://www.storehouse.ng';
 
     // Parse request
     const body: ChatRequest = await req.json();
@@ -762,7 +871,7 @@ serve(async (req) => {
         );
 
         return jsonResponse({
-          response: `🎉 **You've used your 7 free AI chats for today!**\n\nYou're clearly interested in Storehouse - that's awesome!\n\n---\n\n## Ready to unlock unlimited help?\n\n**✨ Create your FREE account** (no credit card needed):\n**[Start Free - Setup in 3 Minutes →](https://www.storehouse.ng/signup)**\n\n**📧 Still have questions?**\nEmail us: **support@storehouse.ng**\nWe respond within 2 hours!\n\n**💬 Prefer to chat?**\nWhatsApp: **+234-XXX-XXX-XXXX**\n\nYour limit resets in 24 hours!`,
+          response: `🎉 **You've used your 7 free AI chats for today!**\n\nYou're clearly interested in Storehouse - that's awesome!\n\n---\n\n## Ready to unlock unlimited help?\n\n**✨ Create your FREE account** (no credit card needed):\n**[Start Free - Setup in 3 Minutes →](https://www.storehouse.ng/signup)**\n\n**📧 Still have questions?**\nEmail us: **support@storehouse.ng**\nWe respond within 2 hours!\n\nYour limit resets in 24 hours!`,
           limited: true,
           count: rateLimit.count,
         });
@@ -806,7 +915,20 @@ serve(async (req) => {
       });
     }
 
-    // Rate limiting - TEMPORARY DISABLED until check_rate_limit function is created
+    // C1: every unauthenticated request is rate limited, whatever userType/contextType
+    // the client claims (the 7/day landing limit above only ran for userType==='visitor').
+    if (!userId && userType !== 'visitor') {
+      const anonLimit = Number(Deno.env.get('AI_CHAT_ANON_DAILY_LIMIT') || '40');
+      const anonRate = await checkAndIncrementRateLimit(supabase, `anon:${ipAddress}`, anonLimit);
+      if (!anonRate.allowed) {
+        return jsonResponse({
+          error: 'Too many messages today. Please try again tomorrow.',
+          limited: true,
+        }, 429);
+      }
+    }
+
+    // (old) Rate limiting - TEMPORARY DISABLED until check_rate_limit function is created
     // UNLIMITED for authenticated users (business owners)
     // Only apply rate limiting to unauthenticated users (shoppers/visitors)
     /* if (!userId) {
@@ -835,7 +957,13 @@ serve(async (req) => {
         p_context_type: contextType, // Pass context type for quota tracking
       }).single();
 
-      if (quotaError) {
+      const decision = loggedInChatQuota({
+        hasUser: true,
+        isVisitor: false,
+        rpcError: Boolean(quotaError),
+        allowed: quota?.allowed ?? null,
+      });
+      if (decision === 'fail_open') {
         console.error('[ai-chat] Quota check error:', quotaError);
         // On error, allow the chat (fail open, not closed)
         quotaInfo = null;
@@ -843,7 +971,7 @@ serve(async (req) => {
         quotaInfo = quota;
 
         // Block if not allowed (limit exceeded)
-        if (!quota?.allowed) {
+        if (decision === 'refuse') {
           return jsonResponse({
             error: quota?.message || 'Chat limit exceeded',
             chatsUsed: quota?.chats_used,
@@ -1166,12 +1294,12 @@ function getEscalation(state: ConversationState): string | null {
 
   // PATH 3: SKEPTICISM → Human Contact
   if (skeptical >= 6 && messageCount >= 4) {
-    return `\n\n---\n\n🤝 **Talk to a real person?**\n\n**Real proof:**\n✅ 5,000+ Nigerian businesses use Storehouse\n✅ 99.9% uptime (bank-level infrastructure)\n✅ You own your data (export anytime)\n\n**Contact us:**\n📞 Book call: calendly.com/storehouse\n💬 WhatsApp: +234-XXX-XXX-XXXX\n📧 Email: hello@storehouse.ng\n\n**Or test risk-free:**\n**[Start Free →](https://www.storehouse.ng/signup)**`;
+    return `\n\n---\n\n🤝 **Talk to a real person?**\n\n**Real proof:**\n✅ 99.9% uptime (bank-level infrastructure)\n✅ You own your data (export anytime)\n\n**Contact us:**\n📧 Email: hello@storehouse.ng\n\n**Or test risk-free:**\n**[Start Free →](https://www.storehouse.ng/signup)**`;
   }
 
   // PATH 4: LOST/CONFUSED
   if (messageCount >= 8 && averageConfidence < 0.6) {
-    return `\n\n---\n\n🧭 **Let me help you find what you need!**\n\n**Most popular:**\n📺 [Watch 3-Min Demo](https://youtube.com/storehouse)\n💬 [Chat with Founder](https://wa.me/234XXXXXXXXX)\n🚀 [Just Try It Free](https://www.storehouse.ng/signup)\n\n**What sounds best?**`;
+    return `\n\n---\n\n🧭 **Let me help you find what you need!**\n\n**Most popular:**\n🚀 [Just Try It Free](https://www.storehouse.ng/signup)\n\n**What sounds best?**`;
   }
 
   return null;
@@ -1758,21 +1886,12 @@ async function generateAIResponse(
         userMessage,
         async () => {
           // The actual OpenAI API call
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            },
-            body: JSON.stringify({
+          const data = await postChatCompletion({
               model: 'gpt-4o-mini',
               messages: messages,
               max_tokens: 250,  // PHASE 2: Enough for complete multi-step instructions without cutoff
               temperature: 0.7,
-            }),
-          });
-
-          const data = await response.json();
+            });
 
           if (data.choices && data.choices[0]?.message?.content) {
             return data.choices[0].message.content.trim();
@@ -1784,21 +1903,12 @@ async function generateAIResponse(
       );
     } else {
       // No caching available, make direct call
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
+      const data = await postChatCompletion({
           model: 'gpt-4o-mini',
           messages: messages,
           max_tokens: 250,
           temperature: 0.7,
-        }),
-      });
-
-      const data = await response.json();
+        });
 
       if (data.choices && data.choices[0]?.message?.content) {
         aiResponseText = data.choices[0].message.content.trim();
@@ -2511,7 +2621,8 @@ async function handleStorefrontChat(
   console.log('[StorefrontChat] SessionId:', sessionId); // Debug log
 
   // Debug: Add tracking info to response for debugging
-  let trackingDebug = { attempted: true, success: false, error: null };
+  let trackingDebug: any = { attempted: true, success: false, error: null };
+  let storeRow: any = null;
 
   try {
     // Get store ID
@@ -2528,6 +2639,7 @@ async function handleStorefrontChat(
     }
 
     if (store) {
+      storeRow = store;
       console.log('[StorefrontChat] Found store ID:', store.id);
       trackingDebug.storeFound = true;
 
@@ -2605,13 +2717,7 @@ async function handleStorefrontChat(
 
           // Use GPT-4o Mini for translation
           try {
-            const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
+            const translationData = await postChatCompletion({
                 model: 'gpt-4o-mini',
                 messages: [
                   {
@@ -2629,10 +2735,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
                 ],
                 max_tokens: 200,
                 temperature: 0
-              })
-            });
-
-            const translationData = await translationResponse.json();
+              });
             const translationText = translationData.choices[0].message.content.trim();
 
             const parsed = JSON.parse(translationText);
@@ -2812,7 +2915,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
   let limitMessage = '';
 
   try {
-    const storeUserId = store?.user_id;
+    const storeUserId = storeRow?.user_id;
     const conversationId = storeContext?.conversationId;
 
     if (storeUserId && conversationId) {
@@ -2849,7 +2952,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
 
     if (aiResponseCount && aiResponseCount >= perConversationLimit) {
       // Find when the limit was hit
-      const { data: limitMessage } = await supabase
+      const { data: limitRows } = await supabase
         .from('ai_chat_messages')
         .select('created_at')
         .eq('conversation_id', conversationId)
@@ -2857,7 +2960,7 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
         .order('created_at', { ascending: true })
         .range(perConversationLimit - 1, perConversationLimit - 1);
 
-      const limitHitTime = limitMessage?.[0]?.created_at;
+      const limitHitTime = limitRows?.[0]?.created_at;
       const cooldownExpiry = new Date(Date.now() - (cooldownMinutes * 60000)).toISOString();
 
       if (limitHitTime && limitHitTime > cooldownExpiry) {
@@ -2900,18 +3003,24 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
   let quotaMessage = '';
 
   try {
-    const storeUserId = store?.user_id;
+    const storeUserId = storeRow?.user_id;
     const conversationId = storeContext?.conversationId;
 
     if (storeUserId && conversationId) {
       const { data: quotaResult, error: quotaError } = await supabase
         .rpc('check_ai_chat_quota', { p_user_id: storeUserId ? storeUserId.toString() : null });
 
+      const decision = storefrontChatQuota({
+        hasStoreUser: true,
+        hasConversation: true,
+        rpcError: Boolean(quotaError),
+        allowed: quotaResult?.allowed ?? null,
+      });
       // FAIL-OPEN: If quota check fails, allow the message (don't block customers)
-      if (quotaError) {
+      if (decision === 'fail_open') {
         console.error('[StorefrontChat] Quota check failed, allowing message:', quotaError);
         // Continue with the chat - don't block on quota check errors
-      } else if (quotaResult && !quotaResult.allowed) {
+      } else if (decision === 'refuse') {
       const whatsappNumber = storeContext?.profile?.whatsappNumber || '';
       const storeName = storeContext?.profile?.businessName || 'this store';
       const address = storeContext?.profile?.address || '';
@@ -3088,13 +3197,7 @@ ${languageInstruction}`;
 
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
+    const data = await postChatCompletion({
         model: 'gpt-4o-mini',  // Fast and good quality
         messages: [
           { role: 'system', content: systemPrompt },
@@ -3102,10 +3205,7 @@ ${languageInstruction}`;
         ],
         max_tokens: 300,  // INCREASED for detailed responses
         temperature: 0.8,  // INCREASED for more natural, conversational tone
-      }),
-    });
-
-    const data = await response.json();
+      });
 
     if (data.choices && data.choices[0]?.message?.content) {
       let aiResponse = data.choices[0].message.content.trim();
@@ -3292,7 +3392,8 @@ function jsonResponse(data: any, status: number = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': currentOrigin,
+      'Vary': 'Origin',
     },
   });
 }

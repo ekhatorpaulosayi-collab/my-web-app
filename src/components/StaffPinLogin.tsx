@@ -75,8 +75,8 @@ export function StaffPinLogin({ isOpen, onClose }: StaffPinLoginProps) {
         setPin('');
       }
     } catch (error) {
-      console.error('[StaffPinLogin] Error:', error);
-      setError('Login failed. Please try again.');
+      const message = error instanceof Error ? error.message : '';
+      setError(message.includes('15 minutes') ? message : 'Login failed. Please try again.');
       setPin('');
     } finally {
       setIsLoading(false);
@@ -308,7 +308,7 @@ export function StaffPinLogin({ isOpen, onClose }: StaffPinLoginProps) {
             width: '100%',
             padding: '16px',
             background: pin.length >= 4 ? '#00894F' : '#E5E7EB',
-            color: pin.length >= 4 ? 'white' : '#9CA3AF',
+            color: pin.length >= 4 ? 'white' : '#475569',
             border: 'none',
             borderRadius: '12px',
             fontSize: '16px',

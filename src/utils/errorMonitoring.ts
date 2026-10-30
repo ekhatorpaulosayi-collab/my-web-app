@@ -104,17 +104,10 @@ export async function logLoginAttempt(
       console.log('[LoginMonitoring]', loginAttempt);
     }
 
-    // Get recent failed attempts for this email (last 1 hour)
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data: recentAttempts } = await supabase
-      .from('login_attempts')
-      .select('*')
-      .eq('email', email)
-      .eq('success', false)
-      .gte('timestamp', oneHourAgo)
-      .order('timestamp', { ascending: false });
-
-    const attemptNumber = (recentAttempts?.length || 0) + 1;
+    // B5: login_attempts SELECT was a public list of emails and IPs.
+    // Migration 04 drops that policy, so this client can no longer count
+    // previous attempts. Supabase Auth rate-limits the sign-in itself.
+    const attemptNumber = 1;
 
     // Send to Supabase (non-blocking)
     supabase
@@ -135,7 +128,7 @@ export async function logLoginAttempt(
         new Error(`Multiple failed login attempts: ${attemptNumber} attempts`),
         'auth',
         'critical',
-        { email, attemptNumber, recentAttempts }
+        { email, attemptNumber }
       );
     }
   } catch (err) {

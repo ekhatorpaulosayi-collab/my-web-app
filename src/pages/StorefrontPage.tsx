@@ -3,12 +3,14 @@
  * Customer-facing product catalog
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart, Plus, Share2, ChevronDown, ChevronUp, Copy, Check, Heart } from 'lucide-react';
 import { currencyNGN } from '../utils/format';
-import { formatWhatsAppNumber } from '../utils/phone';
+import { isValidStoreWhatsApp, whatsappDigits } from '../utils/ngPhone.js';
+import { normalizeSocialUrl } from '../utils/socialLinks.js';
+import { historicHostTarget, withProductQuery } from '../utils/canonicalStoreUrl.js';
 import type { StoreProfile, PaymentMethod } from '../types';
 import type { ProductVariant } from '../types/variants';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -24,12 +26,12 @@ import ReviewList from '../components/ReviewList';
 import { getProductReviewStats, type ReviewStats } from '../services/reviewService';
 import AIChatWidget from '../components/AIChatWidget';
 import { ShareButton } from '../components/ProductShareMenu';
-import WhatsAppQuickReplies from '../components/WhatsAppQuickReplies';
 import { ImagePresets } from '../lib/imagekit';
 import { DebugConsole } from '../components/DebugConsole';
-import WhatsAppSupportButton from '../components/WhatsAppSupportButton';
 import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from '../utils/reservedSubdomains';
+import { PUBLIC_STORE_COLUMNS } from '../utils/publicStoreColumns';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
+import { formatBusinessHours } from '../utils/businessHours';
 import '../styles/storefront.css';
 import '../styles/whatsapp-support.css';
 
@@ -44,6 +46,7 @@ interface Product {
   image_url?: string;
   image_thumbnail?: string;
   attributes?: Record<string, any>;
+  specifications?: Record<string, any>;
 }
 
 // Payment method provider configurations
@@ -68,6 +71,8 @@ function StorefrontContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [modalQty, setModalQty] = useState(1);
+  const pushedProductUrl = useRef(false);
   const [selectedProductVariants, setSelectedProductVariants] = useState<ProductVariant[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
@@ -80,7 +85,7 @@ function StorefrontContent() {
   // Collapsible section states (default to collapsed for simpler UX)
   const [paymentExpanded, setPaymentExpanded] = useState(false);
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
-  const [hoursExpanded, setHoursExpanded] = useState(false);
+  const [hoursExpanded, setHoursExpanded] = useState(true);
   const [socialExpanded, setSocialExpanded] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [returnPolicyExpanded, setReturnPolicyExpanded] = useState(false);
@@ -106,6 +111,44 @@ function StorefrontContent() {
   // Load store data and products
   useEffect(() => {
     const loadStorefront = async () => {
+      if (import.meta.env.DEV && slug === 'preview') {
+        setStore({
+          id: 'preview-store',
+          businessName: 'Preview Fabrics',
+          whatsappNumber: '08030000000',
+          address: 'Lagos',
+          isPublic: true,
+          storeSlug: 'preview',
+          aboutUs: 'Ankara and lace, delivered in Lagos.',
+          returnPolicy: 'Unworn items can be returned within 3 days.',
+          deliveryFee: '₦1,500',
+          deliveryTime: '1–2 days in Lagos',
+          businessHours: '{"monday":{"open":"09:00","close":"17:00"},"sunday":"Closed"}',
+          instagramUrl: 'https://instagram.com/previewfabrics',
+        } as StoreProfile);
+        setProducts([
+          {
+            id: 'preview-ankara',
+            name: 'Ankara',
+            selling_price: 250000,
+            quantity: 4,
+            description: 'Six yards of cotton Ankara.',
+            is_public: true,
+            category: 'Fabric',
+          },
+          {
+            id: 'preview-lace',
+            name: 'Lace',
+            selling_price: 450000,
+            quantity: 20,
+            description: 'White lace.',
+            is_public: true,
+            category: 'Lace',
+          },
+        ]);
+        setLoading(false);
+        return;
+      }
       try {
         // Determine how to lookup the store based on URL
         const hostname = window.location.hostname;
@@ -120,11 +163,11 @@ function StorefrontContent() {
           console.log('[Storefront] Trying custom domain lookup:', hostname);
           const result = await supabase
             .from('stores')
-            .select('*')
+            .select(PUBLIC_STORE_COLUMNS)
             .eq('custom_domain', hostname)
             .eq('custom_domain_verified', true)
             .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
           storeData = result.data;
           storeError = result.error;
@@ -142,13 +185,39 @@ function StorefrontContent() {
           console.log('[Storefront] Trying subdomain lookup:', subdomainLabel);
           const result = await supabase
             .from('stores')
-            .select('*')
+            .select(PUBLIC_STORE_COLUMNS)
             .eq('subdomain', subdomainLabel)
             .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
           storeData = result.data;
           storeError = result.error;
+        }
+
+        if (!storeData
+            && isStorehouseNg
+            && hostname !== 'storehouse.ng'
+            && labels.length >= 3
+            && !RESERVED_SUBDOMAINS.has(subdomainLabel)
+            && !NUMERIC_ONLY_LABEL.test(subdomainLabel)) {
+          const { data: redirectedId } = await supabase.rpc('resolve_store_redirect', {
+            p_slug: subdomainLabel.toLowerCase(),
+          });
+          if (redirectedId) {
+            const followed = await supabase
+              .from('stores')
+              .select(PUBLIC_STORE_COLUMNS)
+              .eq('id', redirectedId)
+              .eq('is_public', true)
+              .maybeSingle();
+            const nextLabel = followed.data?.subdomain || followed.data?.store_slug;
+            const params = new URLSearchParams(window.location.search);
+            const target = historicHostTarget(subdomainLabel, nextLabel, params.get('product'));
+            if (target) {
+              window.location.replace(target);
+              return;
+            }
+          }
         }
 
         // Strategy 3: Path-based slug (e.g., /store/myshop) - fallback for localhost and default domain
@@ -156,13 +225,33 @@ function StorefrontContent() {
           console.log('[Storefront] Trying slug lookup:', slug);
           const result = await supabase
             .from('stores')
-            .select('*')
+            .select(PUBLIC_STORE_COLUMNS)
             .eq('store_slug', slug)
             .eq('is_public', true)
-            .single();
+            .maybeSingle();
 
           storeData = result.data;
           storeError = result.error;
+        }
+
+        if (!storeData && slug) {
+          const { data: redirectedId } = await supabase.rpc('resolve_store_redirect', {
+            p_slug: slug,
+          });
+          if (redirectedId) {
+            const followed = await supabase
+              .from('stores')
+              .select(PUBLIC_STORE_COLUMNS)
+              .eq('id', redirectedId)
+              .eq('is_public', true)
+              .maybeSingle();
+            if (followed.data?.store_slug && followed.data.store_slug !== slug) {
+              navigate(`/store/${followed.data.store_slug}${window.location.search}`, { replace: true });
+              return;
+            }
+            storeData = followed.data;
+            storeError = followed.error;
+          }
         }
 
         // Handle errors
@@ -183,20 +272,21 @@ function StorefrontContent() {
           whatsappNumber: storeData.whatsapp_number,
           address: storeData.address,
           logoUrl: storeData.logo_url,
-          primaryColor: storeData.primary_color,
           isPublic: storeData.is_public,
           storeSlug: storeData.store_slug,
           subdomain: storeData.subdomain,
           aboutUs: storeData.about_us,
           returnPolicy: storeData.return_policy,
           deliveryAreas: storeData.delivery_areas,
+          deliveryFee: storeData.delivery_fee,
           deliveryTime: storeData.delivery_time,
+          minimumOrder: storeData.minimum_order,
           businessHours: storeData.business_hours,
-          // Bank details for checkout
-          bankName: storeData.bank_name,
-          accountNumber: storeData.account_number,
-          accountName: storeData.account_name,
-          // Payment methods for checkout
+          instagramUrl: storeData.instagram_url,
+          facebookUrl: storeData.facebook_url,
+          tiktokUrl: storeData.tiktok_url,
+          twitterUrl: storeData.twitter_url,
+          // Payment methods for checkout. Settlement account columns are not loaded.
           payment_methods: storeData.payment_methods,
           // Paystack (legacy own-key flow)
           paystackEnabled: storeData.paystack_enabled,
@@ -242,6 +332,8 @@ function StorefrontContent() {
             selling_price: product.selling_price,
             quantity: product.quantity,
             category: product.category,
+            description: product.description,
+            attributes: product.attributes,
             is_public: product.is_public,
             image_url: primaryImage || product.image_url,
             image_thumbnail: primaryImage || product.image_thumbnail,
@@ -273,30 +365,68 @@ function StorefrontContent() {
     const productId = urlParams.get('product');
 
     if (productId && !selectedProduct) {
-      console.log('[Storefront] Auto-opening product from URL:', productId);
-
-      // Find the product by ID
       const product = products.find(p => p.id === productId);
-
       if (product) {
-        console.log('[Storefront] Product found, opening modal:', product.name);
         setSelectedProduct(product);
-
-        // Clean URL after opening product (optional - makes URL cleaner)
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-      } else {
-        console.warn('[Storefront] Product not found in store:', productId);
+        setModalQty(1);
       }
     }
   }, [products, loading, selectedProduct]);
+
+  const openProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setModalQty(1);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('product') === product.id) return;
+    url.searchParams.set('product', product.id);
+    window.history.pushState({ storefrontProduct: product.id }, '', `${url.pathname}${url.search}`);
+    pushedProductUrl.current = true;
+  };
+
+  const closeProduct = () => {
+    setSelectedProduct(null);
+    if (pushedProductUrl.current) {
+      pushedProductUrl.current = false;
+      window.history.back();
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('product');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+  };
+
+  useEffect(() => {
+    const onPop = () => {
+      pushedProductUrl.current = false;
+      const id = new URLSearchParams(window.location.search).get('product');
+      if (!id) {
+        setSelectedProduct(null);
+        return;
+      }
+      const product = products.find((item) => item.id === id);
+      if (product) setSelectedProduct(product);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [products]);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeProduct();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedProduct]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
     if (selectedProduct) {
       document.body.style.overflow = 'hidden';
+      document.body.dataset.modalOpen = 'true';
     } else {
       document.body.style.overflow = 'unset';
+      delete document.body.dataset.modalOpen;
     }
 
     return () => {
@@ -424,12 +554,11 @@ function StorefrontContent() {
 
   // WhatsApp contact
   const handleWhatsAppContact = () => {
-    if (!store?.whatsappNumber) {
-      alert('WhatsApp number not available');
+    const phone = whatsappDigits(store?.whatsappNumber);
+    if (!phone) {
       return;
     }
 
-    const phone = formatWhatsAppNumber(store.whatsappNumber);
 
     const message = `Hi ${store.businessName}, I'm interested in your products!`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -448,12 +577,14 @@ function StorefrontContent() {
       : `${store.businessName} | Online Store`;
 
     const metaDescription = selectedProduct
-      ? (selectedProduct.description || `${selectedProduct.name} available at ${store.businessName}`).slice(0, 155)
+      ? `${currencyNGN(selectedProduct.selling_price)} — ${selectedProduct.description || selectedProduct.name}`.slice(0, 155)
       : (store.description || `Shop quality products at ${store.businessName}`).slice(0, 155);
 
-    const metaImage = selectedProduct?.image_url
-      ? ImagePresets.productDetail(selectedProduct.image_url)
-      : (store.logoUrl ? ImagePresets.storeLogo(store.logoUrl) : 'https://www.storehouse.ng/og-image.png');
+    const productImage = String(selectedProduct?.image_url || '').trim();
+    const logoImage = String(store.logoUrl || '').trim();
+    const metaImage = productImage
+      ? ImagePresets.productDetail(productImage)
+      : (logoImage ? ImagePresets.storeLogo(logoImage) : 'https://www.storehouse.ng/og-image.png');
 
     // Update document title
     document.title = metaTitle;
@@ -531,11 +662,20 @@ function StorefrontContent() {
         <div className="storefront-error">
           <ShoppingBag size={64} strokeWidth={1} />
           <h2>{error || 'Store not found'}</h2>
-          <p>This store may be private or the link may be incorrect.</p>
-          <button onClick={() => navigate('/')} className="btn-back">
-            <ArrowLeft size={20} />
-            Go Back
-          </button>
+            <p>This store may be hidden, or the link may be old. If this is your shop, sign in and switch it to Live.</p>
+            <div className="storefront-error-actions">
+            <Link to="/signup" className="btn-back">Start your own store</Link>
+            <button type="button" onClick={() => navigate(-1)} className="btn-back">
+              <ArrowLeft size={20} />
+              Go back
+            </button>
+            <button type="button" onClick={() => navigate('/')} className="btn-back">
+              Browse Storehouse
+            </button>
+            <a className="btn-back btn-back-secondary" href="mailto:storehouseapp@outlook.com">
+              Contact seller
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -562,14 +702,16 @@ function StorefrontContent() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '60px',
-            height: '60px',
-            minWidth: '60px',
-            minHeight: '60px',
-            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-            color: 'white',
-            border: '3px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: '50%',
+            width: 'auto',
+            height: '48px',
+            minWidth: '48px',
+            minHeight: '48px',
+            gap: '8px',
+            padding: '0 16px',
+            background: '#ffffff',
+            color: '#111827',
+            border: '2px solid #ffffff',
+            borderRadius: '999px',
             cursor: 'pointer',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(37, 99, 235, 0)',
             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -584,16 +726,10 @@ function StorefrontContent() {
             e.currentTarget.style.transform = 'scale(1)';
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.15)';
-            e.currentTarget.style.boxShadow = '0 12px 32px rgba(37, 99, 235, 0.5), 0 0 0 6px rgba(37, 99, 235, 0.2)';
-            e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
-            e.currentTarget.style.border = '3px solid rgba(255, 255, 255, 0.4)';
+            e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.28)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(37, 99, 235, 0)';
-            e.currentTarget.style.background = 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)';
-            e.currentTarget.style.border = '3px solid rgba(255, 255, 255, 0.2)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4)';
           }}
           onFocus={(e) => {
             e.currentTarget.style.outline = '3px solid #3b82f6';
@@ -603,7 +739,8 @@ function StorefrontContent() {
             e.currentTarget.style.outline = 'none';
           }}
         >
-          <ShoppingCart size={28} strokeWidth={2.5} aria-hidden="true" />
+          <ShoppingCart size={22} strokeWidth={2.5} aria-hidden="true" />
+          <span style={{ fontWeight: 700, fontSize: '15px' }}>Cart</span>
           {itemCount > 0 && (
             <span
               style={{
@@ -649,7 +786,7 @@ function StorefrontContent() {
                 <span>{store.address}</span>
               </div>
             )}
-            {store.whatsappNumber && (
+            {isValidStoreWhatsApp(store.whatsappNumber) && (
               <button
                 onClick={handleWhatsAppContact}
                 className="btn-whatsapp"
@@ -658,6 +795,20 @@ function StorefrontContent() {
                 Contact on WhatsApp
               </button>
             )}
+            <ShareButton
+              product={{
+                id: store.storeSlug || 'store',
+                name: store.businessName,
+                price: 0,
+                description: store.aboutUs,
+              }}
+              variant="text"
+              shareKind="store"
+              className="storefront-share-store"
+              storeUrl={buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}
+              storeName={store.businessName}
+              whatsappNumber={store.whatsappNumber}
+            />
           </div>
         </div>
       </header>
@@ -675,6 +826,11 @@ function StorefrontContent() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
             />
+            {searchQuery && (
+              <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear search" className="search-clear">
+                Clear
+              </button>
+            )}
           </div>
 
           {categories.length > 1 && (
@@ -682,7 +838,10 @@ function StorefrontContent() {
               {categories.map(cat => (
                 <button
                   key={cat.name}
-                  onClick={() => setSelectedCategory(cat.name)}
+                  onClick={() => {
+                    setSelectedCategory(cat.name);
+                    setSearchQuery('');
+                  }}
                   className={`category-btn ${selectedCategory === cat.name ? 'active' : ''}`}
                 >
                   {cat.name === 'all' ? 'All Products' : cat.name} ({cat.count})
@@ -705,12 +864,9 @@ function StorefrontContent() {
               gap: '8px'
             }}>
               {filteredProducts.length === 0 ? (
-                <>
-                  <span>❌</span>
-                  <span>
-                    No products found for "<strong>{searchQuery}</strong>". Try different keywords or browse all products.
-                  </span>
-                </>
+                <span>
+                  No products found for "<strong>{searchQuery}</strong>".
+                </span>
               ) : (
                 <>
                   <span>✓</span>
@@ -725,22 +881,20 @@ function StorefrontContent() {
 
         {/* Product Grid */}
         {filteredProducts.length === 0 ? (
+          searchQuery ? null : (
           <div className="storefront-empty">
             <ShoppingBag size={64} strokeWidth={1} />
             <h3>No products available</h3>
-            <p>
-              {searchQuery
-                ? 'Try a different search term'
-                : 'Check back soon for new items!'}
-            </p>
+            <p>Check back soon for new items!</p>
           </div>
+          )
         ) : (
           <div className="product-grid">
             {filteredProducts.map(product => (
               <div key={product.id} className="product-card">
                 {/* Clickable area for product details */}
                 <div
-                  onClick={() => setSelectedProduct(product)}
+                  onClick={() => openProduct(product)}
                   style={{ cursor: 'pointer' }}
                 >
                   {/* Product Image - Click to open product detail modal */}
@@ -762,52 +916,6 @@ function StorefrontContent() {
                       }}
                     >
                       {/* Stock Badge Overlays - Industry Standard UX */}
-                      {product.quantity === 0 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: 'rgba(0, 0, 0, 0.7)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: '8px 8px 0 0',
-                          zIndex: 1
-                        }}>
-                          <span style={{
-                            background: '#ef4444',
-                            color: 'white',
-                            padding: '8px 16px',
-                            borderRadius: '6px',
-                            fontWeight: 600,
-                            fontSize: '14px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                          }}>
-                            OUT OF STOCK
-                          </span>
-                        </div>
-                      )}
-
-                      {product.quantity > 0 && product.quantity <= 10 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '8px',
-                          right: '8px',
-                          background: '#f59e0b',
-                          color: 'white',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontWeight: 600,
-                          fontSize: '12px',
-                          zIndex: 1,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                        }}>
-                          Only {product.quantity} left!
-                        </div>
-                      )}
-
                        {(product.image_url || product.image_thumbnail) ? (
                         <OptimizedImage
                           src={product.image_url || product.image_thumbnail}
@@ -826,10 +934,10 @@ function StorefrontContent() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: '#9ca3af'
+                            color: '#475569'
                           }}
                         >
-                          No image
+                          Photo coming soon
                         </div>
                       )}
                     </div>
@@ -846,12 +954,12 @@ function StorefrontContent() {
                       gap: '8px',
                       marginBottom: '12px'
                     }}>
-                      <Camera size={56} color="#9ca3af" strokeWidth={1.5} />
+                      <Camera size={56} color="#475569" strokeWidth={1.5} />
                       <span style={{
-                        fontSize: '13px',
-                        color: '#94a3b8',
-                        fontWeight: 500
-                      }}>No image</span>
+                        fontSize: '15px',
+                        color: '#334155',
+                        fontWeight: 600
+                      }}>Photo coming soon</span>
                     </div>
                   )}
 
@@ -963,9 +1071,10 @@ function StorefrontContent() {
                 {product.quantity > 0 && (
                   <div style={{
                     display: 'flex',
-                    flexDirection: 'column',
+                    flexDirection: 'row',
+                    alignItems: 'center',
                     gap: '0.5rem',
-                    padding: '0 1.5rem 1.5rem'
+                    padding: '0 1rem 1rem'
                   }}>
                     <button
                       onClick={async (e) => {
@@ -977,7 +1086,7 @@ function StorefrontContent() {
                           const variants = await getProductVariants(product.id);
                           if (variants.length > 0) {
                             // Product has variants - open detail modal
-                            setSelectedProduct(product);
+                            openProduct(product);
                             return;
                           }
 
@@ -1000,7 +1109,7 @@ function StorefrontContent() {
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                               <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
-                            <span>${product.name} added to cart!</span>
+                            <span>Added to cart</span>
                           `;
                           document.body.appendChild(toast);
                           setTimeout(() => toast.classList.add('show'), 10);
@@ -1016,57 +1125,15 @@ function StorefrontContent() {
                         }
                       }}
                       className="btn-add-to-cart"
+                      aria-label="Add to Cart"
+                      style={{ flex: '1 1 auto', width: 'auto', whiteSpace: 'nowrap' }}
                     >
-                      <Plus size={18} />
-                      Add to Cart
+                      <Plus size={18} aria-hidden="true" />
+                      <span>Add to Cart</span>
                     </button>
 
-                    {store.whatsappNumber && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const phone = formatWhatsAppNumber(store.whatsappNumber!);
-                          const message = `Hi, I'm interested in ordering *${product.name}* (${currencyNGN(product.selling_price)})`;
-                          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-                        }}
-                        className="btn-whatsapp"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.5rem',
-                          padding: '0.75rem 1rem',
-                          backgroundColor: '#25D366',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontWeight: 600,
-                          fontSize: '14px',
-                          transition: 'all 0.2s',
-                          boxShadow: '0 2px 4px rgba(37, 211, 102, 0.2)',
-                          width: '100%'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#20ba5a';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 211, 102, 0.3)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#25D366';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 211, 102, 0.2)';
-                        }}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                        </svg>
-                        Order via WhatsApp
-                      </button>
-                    )}
-
                     {/* Share Button - Instagram, WhatsApp, Facebook, TikTok */}
-                    <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ width: '48px', flex: '0 0 auto' }}>
                       <ShareButton
                         product={{
                           id: product.id,
@@ -1075,9 +1142,9 @@ function StorefrontContent() {
                           description: product.description,
                           imageUrl: product.image_url
                         }}
-                        variant="full"
+                        variant="icon"
                         className="storefront-share-button"
-                        storeUrl={`${buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}?product=${product.id}`}
+                        storeUrl={withProductQuery(buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug }), product.id)}
                         storeName={store?.businessName}
                         whatsappNumber={store?.whatsappNumber}
                       />
@@ -1091,7 +1158,7 @@ function StorefrontContent() {
       </main>
 
       {/* Payment Methods Section - NEW Multi-Payment Support */}
-      {(store.payment_methods?.filter(m => m.enabled).length || store.bankName || store.accountNumber) && (
+      {((store.payment_methods?.filter(m => m.enabled)?.length) || 0) > 0 && (
         <section style={{
           maxWidth: '1280px',
           margin: '0 auto',
@@ -1127,6 +1194,8 @@ function StorefrontContent() {
               Payment Methods
             </h2>
             <button
+              type="button"
+              aria-label="Show or hide this section"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1319,81 +1388,6 @@ function StorefrontContent() {
                 </div>
               )}
 
-              {/* Legacy Bank Account (Backward Compatibility) */}
-              {(store.bankName || store.accountNumber) && !store.payment_methods?.length && (
-                <div style={{
-                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                  padding: '1.5rem',
-                  borderRadius: '12px',
-                  marginBottom: '1.5rem',
-                  border: '2px solid #bae6fd'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '1rem'
-                  }}>
-                    <span style={{ fontSize: '1.75rem' }}>🏦</span>
-                    <h3 style={{
-                      fontSize: '1.125rem',
-                      fontWeight: 700,
-                      color: '#0369a1',
-                      margin: 0
-                    }}>
-                      Bank Account
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {store.bankName && (
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Bank Name</span>
-                        <div style={{ color: '#0c4a6e', fontSize: '1rem', fontWeight: 600, marginTop: '0.25rem' }}>{store.bankName}</div>
-                      </div>
-                    )}
-                    {store.accountNumber && (
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Account Number</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
-                          <strong style={{
-                            color: '#0c4a6e',
-                            fontSize: '1.25rem',
-                            fontFamily: 'monospace',
-                            letterSpacing: '2px'
-                          }}>
-                            {store.accountNumber}
-                          </strong>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(store.accountNumber || '');
-                              alert('Account number copied!');
-                            }}
-                            style={{
-                              padding: '8px',
-                              background: 'white',
-                              border: '2px solid #3b82f6',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center'
-                            }}
-                            title="Copy account number"
-                          >
-                            <Copy size={16} color="#3b82f6" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {store.accountName && (
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Account Name</span>
-                        <div style={{ color: '#0c4a6e', fontSize: '1rem', fontWeight: 600, marginTop: '0.25rem' }}>{store.accountName}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* General Payment Instructions */}
               {store.paymentInstructions && (
                 <div style={{
@@ -1416,7 +1410,7 @@ function StorefrontContent() {
 
       {/* Delivery Information Section */}
       {(store.deliveryAreas?.length || store.deliveryFee || store.deliveryTime) && (
-        <section style={{
+        <section id="store-delivery" style={{
           maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
@@ -1451,6 +1445,8 @@ function StorefrontContent() {
               Delivery Information
             </h2>
             <button
+              type="button"
+              aria-label="Show or hide this section"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1521,7 +1517,7 @@ function StorefrontContent() {
 
       {/* Business Hours Section */}
       {(store.businessHours || store.daysOfOperation?.length) && (
-        <section style={{
+        <section id="store-hours" style={{
           maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
@@ -1556,6 +1552,8 @@ function StorefrontContent() {
               Business Hours
             </h2>
             <button
+              type="button"
+              aria-label="Show or hide this section"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1585,7 +1583,7 @@ function StorefrontContent() {
                 fontWeight: 700,
                 color: '#5b21b6'
               }}>
-                {store.businessHours}
+                <span data-testid="business-hours" style={{ whiteSpace: 'pre-line' }}>{formatBusinessHours(store.businessHours)}</span>
               </div>
             </div>
           )}
@@ -1620,7 +1618,7 @@ function StorefrontContent() {
       )}
 
       {/* Social Media Section */}
-      {(store.instagramUrl || store.facebookUrl || store.tiktokUrl || store.twitterUrl) && (
+      {(normalizeSocialUrl('instagram', store.instagramUrl) || normalizeSocialUrl('facebook', store.facebookUrl) || normalizeSocialUrl('tiktok', store.tiktokUrl) || normalizeSocialUrl('x', store.twitterUrl)) && (
         <section style={{
           maxWidth: '1280px',
           margin: '0 auto',
@@ -1658,6 +1656,8 @@ function StorefrontContent() {
               Connect With Us
             </h2>
             <button
+              type="button"
+              aria-label="Show or hide this section"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1677,9 +1677,9 @@ function StorefrontContent() {
             <div style={{ paddingTop: '1rem' }}>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
-            {store.instagramUrl && (
+            {normalizeSocialUrl('instagram', store.instagramUrl) && (
               <a
-                href={store.instagramUrl.startsWith('http') ? store.instagramUrl : `https://instagram.com/${store.instagramUrl.replace('@', '')}`}
+                href={normalizeSocialUrl('instagram', store.instagramUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1714,9 +1714,9 @@ function StorefrontContent() {
               </a>
             )}
 
-            {store.facebookUrl && (
+            {normalizeSocialUrl('facebook', store.facebookUrl) && (
               <a
-                href={store.facebookUrl.startsWith('http') ? store.facebookUrl : `https://facebook.com/${store.facebookUrl}`}
+                href={normalizeSocialUrl('facebook', store.facebookUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1751,9 +1751,9 @@ function StorefrontContent() {
               </a>
             )}
 
-            {store.tiktokUrl && (
+            {normalizeSocialUrl('tiktok', store.tiktokUrl) && (
               <a
-                href={store.tiktokUrl.startsWith('http') ? store.tiktokUrl : `https://tiktok.com/@${store.tiktokUrl.replace('@', '')}`}
+                href={normalizeSocialUrl('tiktok', store.tiktokUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1788,9 +1788,9 @@ function StorefrontContent() {
               </a>
             )}
 
-            {store.twitterUrl && (
+            {normalizeSocialUrl('x', store.twitterUrl) && (
               <a
-                href={store.twitterUrl.startsWith('http') ? store.twitterUrl : `https://twitter.com/${store.twitterUrl.replace('@', '')}`}
+                href={normalizeSocialUrl('x', store.twitterUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -1867,6 +1867,8 @@ function StorefrontContent() {
               About Us
             </h2>
             <button
+              type="button"
+              aria-label="Show or hide this section"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1903,7 +1905,7 @@ function StorefrontContent() {
 
       {/* Return Policy Section */}
       {store.returnPolicy && (
-        <section style={{
+        <section id="store-returns" style={{
           maxWidth: '1280px',
           margin: '0 auto',
           padding: '1rem 1.5rem',
@@ -1938,6 +1940,8 @@ function StorefrontContent() {
               Return & Refund Policy
             </h2>
             <button
+              type="button"
+              aria-label="Show or hide this section"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1979,16 +1983,25 @@ function StorefrontContent() {
         <p className="footer-note">
           {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} available
         </p>
-        <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-          <a href="https://github.com/anthropics/storehouse/blob/main/TERMS_OF_SERVICE.md" target="_blank" rel="noopener noreferrer" style={{ color: '#64748b', textDecoration: 'underline' }}>Terms of Service</a>
-        </p>
+        <nav className="storefront-footer-links" aria-label="Store information">
+          {store.deliveryTime && <a href="#store-delivery">Delivery: {store.deliveryTime}{store.deliveryFee ? ` · ${store.deliveryFee}` : ''}</a>}
+          {store.returnPolicy && <a href="#store-returns">Returns</a>}
+          <Link to="/privacy">Privacy</Link>
+          {normalizeSocialUrl('instagram', store.instagramUrl) && <a href={normalizeSocialUrl('instagram', store.instagramUrl)} target="_blank" rel="noopener noreferrer">Instagram</a>}
+          {normalizeSocialUrl('facebook', store.facebookUrl) && <a href={normalizeSocialUrl('facebook', store.facebookUrl)} target="_blank" rel="noopener noreferrer">Facebook</a>}
+          {normalizeSocialUrl('tiktok', store.tiktokUrl) && <a href={normalizeSocialUrl('tiktok', store.tiktokUrl)} target="_blank" rel="noopener noreferrer">TikTok</a>}
+          {normalizeSocialUrl('x', store.twitterUrl) && <a href={normalizeSocialUrl('x', store.twitterUrl)} target="_blank" rel="noopener noreferrer">X</a>}
+        </nav>
       </footer>
 
       {/* Product Detail Modal */}
       {selectedProduct && (
         <div
           className="product-modal-overlay"
-          onClick={() => setSelectedProduct(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={selectedProduct.name}
+          onClick={() => closeProduct()}
           style={{
             position: 'fixed',
             top: 0,
@@ -2031,7 +2044,7 @@ function StorefrontContent() {
           >
             {/* Close Button - World-Class Design with Enhanced Desktop Visibility */}
             <button
-              onClick={() => setSelectedProduct(null)}
+              onClick={() => closeProduct()}
               aria-label="Close product details"
               type="button"
               style={{
@@ -2043,8 +2056,8 @@ function StorefrontContent() {
                 minWidth: '52px',
                 minHeight: '52px',
                 border: '2px solid rgba(71, 85, 105, 0.12)',
-                backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                color: '#64748b',
+                backgroundColor: '#ffffff',
+                color: '#111827',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -2189,7 +2202,7 @@ function StorefrontContent() {
 
               {/* Stock Status */}
               <div style={{ marginBottom: '24px' }}>
-                {selectedProduct.quantity > 10 ? (
+                {selectedProduct.quantity > 0 ? (
                   <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -2208,26 +2221,6 @@ function StorefrontContent() {
                       backgroundColor: '#16a34a'
                     }}></span>
                     In Stock
-                  </div>
-                ) : selectedProduct.quantity > 0 ? (
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 16px',
-                    backgroundColor: '#fef3c7',
-                    color: '#92400e',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 600
-                  }}>
-                    <span style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: '#f59e0b'
-                    }}></span>
-                    Only {selectedProduct.quantity} left
                   </div>
                 ) : (
                   <div style={{
@@ -2319,6 +2312,27 @@ function StorefrontContent() {
                 </div>
               )}
 
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <button
+                  type="button"
+                  aria-label="Decrease quantity"
+                  onClick={() => setModalQty((qty) => Math.max(1, qty - 1))}
+                  style={{ width: 44, height: 44, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 20 }}
+                >−</button>
+                <span aria-live="polite">{modalQty}</span>
+                <button
+                  type="button"
+                  aria-label="Increase quantity"
+                  disabled={modalQty >= (selectedVariant?.quantity || selectedProduct.quantity)}
+                  title={modalQty >= (selectedVariant?.quantity || selectedProduct.quantity) ? 'That is all we have in stock' : 'Increase quantity'}
+                  onClick={() => setModalQty((qty) => Math.min(qty + 1, selectedVariant?.quantity || selectedProduct.quantity))}
+                  style={{ width: 44, height: 44, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 20 }}
+                >+</button>
+                {modalQty >= (selectedVariant?.quantity || selectedProduct.quantity) && (
+                  <span style={{ color: '#334155', fontSize: 14 }}>That is all we have in stock.</span>
+                )}
+              </div>
+
               {/* Add to Cart Button */}
               {selectedProduct.quantity > 0 && (
                 <button
@@ -2358,9 +2372,9 @@ function StorefrontContent() {
                             attributes: selectedProduct.attributes || {},
                           };
 
-                      addItem(itemToAdd);
+                      for (let n = 0; n < modalQty; n += 1) addItem(itemToAdd);
                       openCart();
-                      setSelectedProduct(null); // Close modal
+                      closeProduct();
                     } catch (error) {
                       console.error('Error adding to cart:', error);
                       alert('Failed to add item to cart');
@@ -2371,7 +2385,7 @@ function StorefrontContent() {
                     width: '100%',
                     padding: '16px 24px',
                     backgroundColor: (selectedProductVariants.length > 0 && !selectedVariant)
-                      ? '#9ca3af'
+                      ? '#475569'
                       : store?.primaryColor || '#3b82f6',
                     color: 'white',
                     border: 'none',
@@ -2385,7 +2399,8 @@ function StorefrontContent() {
                     gap: '10px',
                     transition: 'all 0.2s',
                     boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                    marginBottom: '12px'
+                    marginBottom: '12px',
+                    whiteSpace: 'normal'
                   }}
                   onMouseEnter={(e) => {
                     if (!(selectedProductVariants.length > 0 && !selectedVariant)) {
@@ -2405,92 +2420,51 @@ function StorefrontContent() {
                 </button>
               )}
 
-              {/* PHASE 2A: WhatsApp Quick Replies */}
-              {store?.whatsappNumber && selectedProduct.quantity > 0 && store?.businessName && (
-                <div style={{
-                  marginBottom: '20px',
-                  padding: '16px',
-                  background: '#f9fafb',
-                  borderRadius: '12px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <WhatsAppQuickReplies
-                    product={{
-                      id: selectedProduct.id,
-                      name: selectedProduct.name,
-                      selling_price: selectedProduct.selling_price,
-                      quantity: selectedProduct.quantity,
-                      category: selectedProduct.category,
-                      description: selectedProduct.description
-                    }}
-                    storeInfo={{
-                      store_name: store.businessName || store.storeName || 'Store',
-                      whatsapp_number: store.whatsappNumber
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Order via WhatsApp Button */}
-              {store?.whatsappNumber && selectedProduct.quantity > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+              {isValidStoreWhatsApp(store?.whatsappNumber) && selectedProduct.quantity > 0 && (
                 <button
+                  type="button"
+                  aria-label="Order this product on WhatsApp"
                   onClick={() => {
-                    const phone = formatWhatsAppNumber(store.whatsappNumber!);
-
+                    const phone = whatsappDigits(store.whatsappNumber);
                     const variantInfo = selectedVariant ? ` - ${selectedVariant.variant_name}` : '';
                     const price = selectedVariant?.price_override || selectedProduct.selling_price;
                     const message = `Hi, I'm interested in ordering *${selectedProduct.name}${variantInfo}* (${currencyNGN(price)})`;
                     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
                   }}
                   style={{
-                    width: '100%',
-                    padding: '16px 24px',
+                    width: '48px',
+                    height: '48px',
                     backgroundColor: '#25D366',
                     color: 'white',
                     border: 'none',
                     borderRadius: '12px',
-                    fontSize: '16px',
-                    fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '10px',
-                    transition: 'all 0.2s',
-                    boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#20BA5A';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 211, 102, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#25D366';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 211, 102, 0.3)';
+                    flex: '0 0 auto'
                   }}
                 >
                   <Phone size={20} />
-                  Order via WhatsApp
                 </button>
               )}
-
-              {/* Share Button - Instagram, WhatsApp, Facebook, TikTok */}
-              <div style={{ marginTop: '12px' }}>
+              <div>
                 <ShareButton
                   product={{
                     id: selectedProduct.id,
                     name: selectedProduct.name,
-                    price: selectedProduct.selling_price,
+                    price: (selectedVariant?.price_override || selectedProduct.selling_price) / 100,
                     description: selectedProduct.description,
                     imageUrl: selectedProduct.image_url
                   }}
-                  variant="full"
+                  variant="icon"
                   className="storefront-share-button-modal"
-                  storeUrl={`${buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug })}?product=${selectedProduct.id}`}
+                  storeUrl={withProductQuery(buildStorefrontUrl({ subdomain: store?.subdomain, storeSlug: slug }), selectedProduct.id)}
                   storeName={store?.businessName}
                   whatsappNumber={store?.whatsappNumber}
                 />
+              </div>
               </div>
 
               {/* Customer Reviews Section */}
@@ -2669,7 +2643,6 @@ export default function StorefrontPage() {
   return (
     <CartProvider>
       <StorefrontContent />
-      <WhatsAppSupportButton />
       {/* <DebugConsole /> */}
       {/* DebugConsole temporarily disabled - uncomment to re-enable console debugging */}
     </CartProvider>

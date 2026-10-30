@@ -23,7 +23,7 @@ vercel env add VITE_PAYSTACK_PUBLIC_KEY production
 
 Run this command with your LIVE secret key:
 ```bash
-export SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c
+export SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN
 supabase secrets set PAYSTACK_SECRET_KEY=sk_live_YOUR_ACTUAL_SECRET_KEY
 ```
 

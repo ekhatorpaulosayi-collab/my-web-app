@@ -54,7 +54,7 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-function jsonResponse(body, status) {
+function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

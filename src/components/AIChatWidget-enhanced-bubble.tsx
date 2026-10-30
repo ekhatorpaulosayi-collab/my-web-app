@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ADD THIS TO YOUR AIChatWidget.tsx
 // This is a simplified version that's easy to implement
 

@@ -14,7 +14,8 @@ import { getSmartQuestionsForContext, getTopQuestions } from '../data/smartQuest
 interface Message {
   id?: string; // UUID from database for deduplication
   isLocal?: boolean; // Flag for optimistically added messages
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'ai';
+  is_agent_message?: boolean;
   content: string;
   translated_text?: string; // Translated version of content for multi-language support
   timestamp: Date;
@@ -141,7 +142,7 @@ function parseInlineMarkdown(text: string): React.ReactNode {
                 body: JSON.stringify({
                   eventType,
                   linkUrl,
-                  userType,
+                  userType: 'visitor',
                 }),
               }).catch(err => console.error('Analytics tracking failed:', err));
             } catch (err) {
@@ -190,7 +191,7 @@ interface AIChatWidgetProps {
     aboutUs?: string;
     address?: string;
     whatsappNumber?: string;
-    deliveryAreas?: string;
+    deliveryAreas?: string | string[];
     deliveryTime?: string;
     businessHours?: string;
     returnPolicy?: string;
@@ -218,6 +219,8 @@ export default function AIChatWidget({
   const [showSupport, setShowSupport] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(0); // Track escalation
+  const [chatError, setChatError] = useState<string | null>(null);
+  const failedMessageRef = useRef('');
   const [userType, setUserType] = useState<'visitor' | 'shopper' | 'user'>('visitor');
   const [shouldPulse, setShouldPulse] = useState(false); // For first-visit animation
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -299,6 +302,10 @@ export default function AIChatWidget({
       const hasBottomSheet = document.querySelector('.bottom-sheet') !== null;
       const hasActionSheet = document.querySelector('.action-sheet') !== null;
       const hasCartSidebar = document.querySelector('.cart-sidebar') !== null;
+      const hasRecordSale = document.querySelector('.rs-overlay, .rs-modal') !== null;
+      const hasBusinessSheet = document.querySelector('.business-selector-overlay') !== null;
+      const hasDialog = document.querySelector('dialog[open], [role="dialog"], .ds-overlay') !== null;
+      const flagged = document.body?.dataset?.modalOpen === 'true';
 
       // Check if any element has "Send EOD Report" or "Send via WhatsApp" text
       const hasEODReportText = Array.from(document.querySelectorAll('h2, button')).some(el =>
@@ -307,7 +314,8 @@ export default function AIChatWidget({
       );
 
       const hasAnyModal = hasEODModal || hasModalOverlay || hasSheetModal ||
-                         hasBottomSheet || hasActionSheet || hasCartSidebar || hasEODReportText;
+                         hasBottomSheet || hasActionSheet || hasCartSidebar || hasEODReportText ||
+                         hasRecordSale || hasBusinessSheet || hasDialog || flagged;
 
       if (hasAnyModal !== hasModalOpen) {
         console.log('[AIChatWidget] Modal state changed:', hasAnyModal, {
@@ -811,11 +819,12 @@ export default function AIChatWidget({
     const initializeConversation = async () => {
       try {
         // Get initial conversation state
-        const { data: convData, error: convError } = await supabase
-          .from('ai_chat_conversations')
-          .select('id, takeover_status, is_agent_active, chat_status')
-          .eq('id', conversationId)
-          .single();
+        const sessionId = sessionStorage.getItem('chat_session_id');
+        const { data: convRows, error: convError } = await supabase.rpc('visitor_get_conversation', {
+          p_conversation_id: conversationId,
+          p_session_id: sessionId,
+        });
+        const convData = Array.isArray(convRows) ? convRows[0] : convRows;
 
         if (convError) {
           console.error('[AIChatWidget] Error fetching conversation:', convError);
@@ -880,16 +889,12 @@ export default function AIChatWidget({
 
         // Poll for new messages (only those newer than last known)
         console.log('[AIChatWidget] Polling for messages after:', lastMessageTimestampRef.current);
-        const { data: newMessages, error: msgError } = await supabase
-          .from('ai_chat_messages')
-          .select('*, detected_language, translated_text')
-          .eq('conversation_id', conversationId)
-          // INCLUSIVE boundary: replies saved at the SAME microsecond as the cursor
-          // row would be excluded by .gt() and silently never render (proven
-          // user→assistant created_at ties). .gte() re-includes the boundary row;
-          // the id-based dedup in the merge below drops the re-fetched duplicate.
-          .gte('created_at', lastMessageTimestampRef.current)
-          .order('created_at', { ascending: true });
+        const sessionId = sessionStorage.getItem('chat_session_id');
+        const { data: newMessages, error: msgError } = await supabase.rpc('visitor_get_messages', {
+          p_conversation_id: conversationId,
+          p_session_id: sessionId,
+          p_after: lastMessageTimestampRef.current,
+        });
 
         // Debug: Log raw Supabase response
         console.log('[RAW-POLL-DATA]', JSON.stringify(newMessages?.[0]));
@@ -902,11 +907,11 @@ export default function AIChatWidget({
         if (!msgError && (!newMessages || newMessages.length === 0)) {
 
           console.log('[AIChatWidget] Fallback: Fetching all messages after 3 polls with no results');
-          const { data: allMessages, error: fallbackError } = await supabase
-            .from('ai_chat_messages')
-            .select('*, detected_language, translated_text')
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true });
+          const { data: allMessages, error: fallbackError } = await supabase.rpc('visitor_get_messages', {
+            p_conversation_id: conversationId,
+            p_session_id: sessionStorage.getItem('chat_session_id'),
+            p_after: null,
+          });
 
           // Debug: Log raw Supabase response from fallback query
           console.log('[RAW-FALLBACK-DATA]', JSON.stringify(allMessages?.[0]));
@@ -1001,11 +1006,11 @@ export default function AIChatWidget({
         }
 
         // Poll for conversation status changes
-        const { data: convData, error: convError } = await supabase
-          .from('ai_chat_conversations')
-          .select('is_agent_active, takeover_status, chat_status')
-          .eq('id', conversationId)
-          .single();
+        const { data: statusRows, error: convError } = await supabase.rpc('visitor_get_conversation', {
+          p_conversation_id: conversationId,
+          p_session_id: sessionStorage.getItem('chat_session_id'),
+        });
+        const convData = Array.isArray(statusRows) ? statusRows[0] : statusRows;
 
         if (!convError && convData) {
           // Check for status changes
@@ -1101,12 +1106,12 @@ export default function AIChatWidget({
       console.log('🚨 [CHAT-DEBUG-9] Setting is_agent_active to false');
       console.log('🚨 [CHAT-DEBUG-10] About to update conversation with data:', updateData);
 
-      const { error: updateError } = await supabase
-        .from('ai_chat_conversations')
-        .update(updateData)
-        .eq('id', conversationId);
+      const { data: requested, error: updateError } = await supabase.rpc('visitor_request_owner', {
+        p_conversation_id: conversationId,
+        p_session_id: sessionId,
+      });
 
-      if (updateError) {
+      if (updateError || requested !== true) {
         console.error('🚨 [CHAT-DEBUG-11] Error requesting agent:', updateError);
         return;
       }
@@ -1134,7 +1139,7 @@ export default function AIChatWidget({
           // Owner-notification relay fields (added 2026-05-01).
           requestOwnerNotification: true,
           conversationId,
-          customerName: customerName || 'Customer',
+          customerName: user?.email || 'Customer',
           messagePreview: lastCustomerMessage.substring(0, 100),
         };
 
@@ -1169,31 +1174,21 @@ export default function AIChatWidget({
       // Update local takeover status to trigger timer
       setTakeoverStatus('requested');
 
-      // Insert system message to database for tracking
-      const { error: msgError } = await supabase
-        .from('ai_chat_messages')
-        .insert({
-          conversation_id: conversationId,
-          role: 'system',
-          content: 'Customer requested to speak with store owner',
-          is_agent_message: false,
-          sender_type: 'customer'
-        });
-
-      if (msgError) {
-        console.error('[AIChatWidget] Error inserting system message:', msgError);
-      }
-
+      // visitor_request_owner inserts the system message. A second insert
+      // would duplicate it and fails once the open policies are dropped.
       console.log('[AIChatWidget] Human agent requested successfully');
     } catch (error) {
       console.error('[AIChatWidget] Error in requestHumanAgent:', error);
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || loading) return;
+  const handleSendMessage = async (override?: unknown) => {
+    const source = typeof override === 'string' ? override : inputMessage;
+    if (!source.trim() || loading) return;
 
-    const userMessage = inputMessage.trim();
+    const userMessage = source.trim();
+    setChatError(null);
+    failedMessageRef.current = userMessage;
     setInputMessage('');
 
     // ALWAYS add customer message optimistically with local flag
@@ -1281,7 +1276,7 @@ export default function AIChatWidget({
       // Generate or get sessionId for tracking conversations
       let sessionId = sessionStorage.getItem('chat_session_id');
       if (!sessionId) {
-        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        sessionId = crypto.randomUUID();
         sessionStorage.setItem('chat_session_id', sessionId);
       }
 
@@ -1411,11 +1406,11 @@ export default function AIChatWidget({
           // Fallback: fetch conversation ID from session
           const sessionId = sessionStorage.getItem('chat_session_id');
           if (sessionId) {
-            const { data: convData } = await supabase
-              .from('ai_chat_conversations')
-              .select('id')
-              .eq('session_id', sessionId)
-              .single();
+            const { data: foundRows } = await supabase.rpc('visitor_get_conversation', {
+              p_conversation_id: null,
+              p_session_id: sessionId,
+            });
+            const convData = Array.isArray(foundRows) ? foundRows[0] : foundRows;
 
             if (convData) {
               console.log('[AIChatWidget] Found conversation ID from session:', convData.id);
@@ -1431,8 +1426,7 @@ export default function AIChatWidget({
       // Track storefront conversations for visibility
       if (contextType === 'storefront' && storeSlug) {
         console.log('[AIChatWidget] Tracking storefront conversation...');
-        const sessionId = sessionStorage.getItem('chat_session_id') ||
-                         `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const sessionId = sessionStorage.getItem('chat_session_id') || crypto.randomUUID();
         sessionStorage.setItem('chat_session_id', sessionId);
 
         trackStorefrontChat({
@@ -1513,9 +1507,10 @@ export default function AIChatWidget({
         errorContent = error.message;
       }
 
-      // DO NOT add error message to local state - let it come from polling if saved to DB
-      // This prevents duplicates as the edge function may save errors to database
-      console.log('[AIChatWidget] Error occurred, not adding error message locally to avoid duplicates');
+      // Keep the error out of the message list so a saved row is not shown twice.
+      setChatError(error.isQuotaError
+        ? 'You have used this month’s AI chats. Upgrade to keep going, or try again later.'
+        : 'The assistant did not answer. Check your connection and try again.');
       console.log('[AIChatWidget] Error content would have been:', errorContent.substring(0, 100));
 
       // Auto-escalate after 2 failures (but not for quota errors)
@@ -1544,15 +1539,19 @@ export default function AIChatWidget({
     }, 100);
   };
 
+  const phoneOwnerBubble = !isDesktop && contextType !== 'storefront' && !isOpen;
+
   return (
     <div className="ai-chat-container" style={{
-      position: 'fixed',
-      bottom: isOpen && !isDesktop ? '0' : '20px', // Full bottom on mobile when open
-      right: contextType === 'storefront' && isDesktop ? '120px' : isDesktop ? '20px' : '0', // Full width on mobile
-      left: isOpen && !isDesktop ? '0' : 'auto', // Full width on mobile when open
-      zIndex: 99999, // High z-index to appear above everything
-      pointerEvents: 'none', // Allow clicks to pass through container
-      // Force fixed width container on desktop
+      // Closed owner phone: sit in the page, clear of Record Sale and the tab bar.
+      position: phoneOwnerBubble ? 'relative' : 'fixed',
+      bottom: phoneOwnerBubble ? 'auto' : (isOpen && !isDesktop ? '0' : '20px'),
+      right: phoneOwnerBubble ? 'auto' : (contextType === 'storefront' && isDesktop ? '120px' : isDesktop ? '20px' : '0'),
+      left: phoneOwnerBubble ? 'auto' : (isOpen && !isDesktop ? '0' : 'auto'),
+      zIndex: phoneOwnerBubble ? 1 : 99999,
+      pointerEvents: 'none',
+      margin: phoneOwnerBubble ? '16px 16px 24px' : undefined,
+      width: phoneOwnerBubble ? 'fit-content' : undefined,
       ...(isDesktop ? {
         width: '400px',
         maxWidth: '400px',
@@ -1840,23 +1839,60 @@ export default function AIChatWidget({
             )()}
 
             {loading && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'flex-start',
-              }}>
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-start',
+                }}
+              >
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: '12px',
                   background: '#f3f4f6',
-                  color: '#6b7280',
+                  color: '#374151',
                   fontSize: '0.9375rem',
                 }}>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                     <span style={{ animation: 'pulse 1.5s infinite' }}>●</span>
                     <span style={{ animation: 'pulse 1.5s infinite 0.2s' }}>●</span>
                     <span style={{ animation: 'pulse 1.5s infinite 0.4s' }}>●</span>
+                    <span style={{ marginLeft: '6px' }}>Typing…</span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {chatError && !loading && (
+              <div
+                role="alert"
+                style={{
+                  marginTop: '8px',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: '#FEF2F2',
+                  color: '#991B1B',
+                  fontSize: '0.9375rem',
+                }}
+              >
+                <p style={{ margin: '0 0 8px' }}>{chatError}</p>
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage(failedMessageRef.current)}
+                  style={{
+                    minHeight: '44px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#111827',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Try again
+                </button>
               </div>
             )}
 
@@ -2075,20 +2111,26 @@ export default function AIChatWidget({
 
       {/* Chat Bubble - Enhanced Visibility for Storefront */}
       {!isOpen && (
-        <div style={{
-          position: 'fixed',
-          bottom: !isDesktop && contextType === 'storefront' ? '80px' : '20px', // Higher on mobile storefront to avoid bottom nav
-          right: !isDesktop && contextType === 'storefront' ? '20px' : contextType === 'storefront' && isDesktop ? '120px' : '20px',
-          zIndex: 99999,
-          // Hide with animation when modal is open
+        <div className="need-help-fab" style={{
+          // Phone owner: in the page flow, so it cannot cover Record Sale,
+          // the shop-type card, or the tab bar. Storefront phone stays a
+          // header button. Desktop stays fixed at the corner.
+          position: !isDesktop && contextType !== 'storefront' ? 'relative' : 'fixed',
+          top: !isDesktop && contextType === 'storefront' ? '12px' : 'auto',
+          left: !isDesktop && contextType === 'storefront' ? '16px' : 'auto',
+          right: isDesktop ? '24px' : 'auto',
+          bottom: isDesktop ? '24px' : 'auto',
+          margin: !isDesktop && contextType !== 'storefront' ? '16px' : undefined,
+          width: !isDesktop && contextType !== 'storefront' ? 'fit-content' : undefined,
+          zIndex: 30,
           opacity: hasModalOpen ? 0 : 1,
           visibility: hasModalOpen ? 'hidden' : 'visible',
           transform: hasModalOpen ? 'scale(0.8)' : 'scale(1)',
           transition: 'opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease',
-          pointerEvents: hasModalOpen ? 'none' : 'auto', // Disable interactions when hidden
+          pointerEvents: hasModalOpen ? 'none' : 'auto',
         }}>
           {/* Pulsing ring animation for storefront */}
-          {contextType === 'storefront' && (
+          {contextType === 'storefront' && isDesktop && (
             <div
               className="pulse-ring"
               style={{
@@ -2113,9 +2155,13 @@ export default function AIChatWidget({
             }}
             className={shouldPulse ? 'first-visit-pulse' : ''}
             style={{
-              // Changed from circle to pill shape for text
-              borderRadius: '50px',
-              padding: '14px 24px',
+              borderRadius: !isDesktop && contextType === 'storefront' ? '50%' : '50px',
+              padding: !isDesktop && contextType === 'storefront' ? '0' : '12px 16px',
+              width: !isDesktop && contextType === 'storefront' ? '48px' : 'auto',
+              height: !isDesktop && contextType === 'storefront' ? '48px' : 'auto',
+              minWidth: !isDesktop && contextType === 'storefront' ? '48px' : 'fit-content',
+              minHeight: '48px',
+              boxSizing: 'border-box',
               background: contextType === 'storefront'
                 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' // Green for shopping
                 : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple for admin
@@ -2135,7 +2181,6 @@ export default function AIChatWidget({
               pointerEvents: 'auto',
               position: 'relative',
               zIndex: 1,
-              minWidth: 'fit-content',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'scale(1.08)';
@@ -2149,7 +2194,7 @@ export default function AIChatWidget({
                 ? '0 6px 24px rgba(16, 185, 129, 0.5)'
                 : '0 4px 16px rgba(102, 126, 234, 0.4)';
             }}
-            aria-label={contextType === 'storefront' ? 'Shop with AI Assistant' : 'Open AI Chat Assistant'}
+            aria-label={contextType === 'storefront' ? 'Ask about products' : 'Need Help?'}
           >
             <span style={{ fontSize: '1.5rem' }}>
               {contextType === 'storefront' ? '🛍️' : '🤖'}
@@ -2161,6 +2206,9 @@ export default function AIChatWidget({
               WebkitFontSmoothing: 'antialiased',
               MozOsxFontSmoothing: 'grayscale',
               textRendering: 'optimizeLegibility',
+              ...(!isDesktop && contextType === 'storefront'
+                ? { position: 'absolute' as const, width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap' as const, border: 0 }
+                : {}),
             }}>
               {/* Smart text that shows quota when low */}
               {(() => {
@@ -2208,40 +2256,6 @@ export default function AIChatWidget({
             )}
           </button>
 
-          {/* "Need Help?" tooltip for storefront - positioned to avoid cutoff */}
-          {contextType === 'storefront' && (
-            <>
-              {/* Tooltip above button (desktop) */}
-              {isDesktop && (
-                <div
-                  className="chat-tooltip"
-                  style={{
-                    position: 'absolute',
-                    bottom: '75px',
-                    right: 'auto',
-                    left: '50%',
-                    transform: 'translateX(-50%)', // Center it above the button
-                    background: 'white',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    color: '#059669',
-                    whiteSpace: 'nowrap',
-                    animation: 'bounce-tooltip 2s ease-in-out infinite',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  💬 Need help?
-                </div>
-              )}
-
-              {/* Label above button (mobile - more visible) */}
-              {/* REMOVED: "Chat Here" label was misleading users on storefront pages */}
-              {/* The button itself already says "Ask about products" which is clear enough */}
-            </>
-          )}
         </div>
       )}
 
@@ -2317,6 +2331,12 @@ export default function AIChatWidget({
 
         .chat-tooltip {
           animation: bounce-tooltip 2s ease-in-out infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .chat-tooltip {
+            animation: none;
+          }
         }
 
         @keyframes pulse-label {

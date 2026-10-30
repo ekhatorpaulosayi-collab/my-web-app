@@ -120,8 +120,19 @@ serve(async (req) => {
   if (!store) return json({ error: 'store_not_found' }, 404);
   if (String(store.user_id) !== callerId) return json({ error: 'forbidden' }, 403);
   if (store.subdomain !== label) {
-    return json({ error: 'subdomain_mismatch', expected: store.subdomain, got: label }, 409);
+    return json({ error: 'subdomain_mismatch', expected: store.subdomain, got: label }, 400);
   }
+
+  const remember = async (status: string, httpStatus: number, detail: string) => {
+    const { error } = await supa.rpc('record_store_provisioning', {
+      p_store_id: store_id,
+      p_subdomain: label,
+      p_status: status,
+      p_http_status: httpStatus,
+      p_detail: detail,
+    });
+    if (error) console.error('[provision-subdomain] state not saved', error.message);
+  };
 
   // 4. Vercel POST /domains with retry on 429/5xx
   const url = `${VERCEL_API_BASE}/projects/${VERCEL_PROJECT}/domains?teamId=${VERCEL_TEAM_ID}`;
@@ -156,22 +167,26 @@ serve(async (req) => {
 
     if (resp.status === 200 || resp.status === 201) {
       console.log('[provision-subdomain] registered', { name, status: resp.status });
+      await remember('pending', resp.status, 'registered');
       return json({ ok: true, status: 'registered', name }, 200);
     }
 
     const errCode = (lastBody as { error?: { code?: string } })?.error?.code;
-    if (
-      resp.status === 409 ||
-      errCode === 'domain_already_exists' ||
-      errCode === 'domain_already_in_use'
-    ) {
+    if (errCode === 'domain_already_in_use') {
+      console.log('[provision-subdomain] blocked, domain in use elsewhere', { name });
+      await remember('blocked', resp.status, 'domain_already_in_use');
+      return json({ ok: false, status: 'blocked', error: { code: 'domain_already_in_use' }, name }, 409);
+    }
+    if (resp.status === 409 || errCode === 'domain_already_exists') {
       console.log('[provision-subdomain] already registered', { name });
+      await remember('active', resp.status, 'already_registered');
       return json({ ok: true, status: 'already_registered', name }, 200);
     }
 
     // 4xx other than 429 are hard fails — do not retry
     if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
       console.error('[provision-subdomain] vercel hard 4xx', { name, status: resp.status, body: lastBody });
+      await remember('retryable_failure', resp.status, 'vercel_rejected');
       return json({ error: 'vercel_rejected', status: resp.status, detail: lastBody }, 502);
     }
 
@@ -182,5 +197,6 @@ serve(async (req) => {
   }
 
   console.error('[provision-subdomain] gave up after retries', { name, lastStatus, lastBody });
+  await remember('retryable_failure', lastStatus, 'vercel_unreachable');
   return json({ error: 'vercel_unreachable', last_status: lastStatus, last_body: lastBody }, 502);
 });

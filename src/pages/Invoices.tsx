@@ -19,6 +19,7 @@ import {
   Filter,
   Search,
 } from 'lucide-react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import {
   getInvoices,
   getInvoiceSummary,
@@ -162,9 +163,8 @@ export default function Invoices() {
   if (loading && !summary) {
     return (
       <div className="invoices-page">
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Loading invoices...</p>
+        <div className="loading-container" style={{ width: 'min(720px, 100%)' }}>
+          <SkeletonList rows={5} />
         </div>
       </div>
     );
@@ -428,7 +428,7 @@ export default function Invoices() {
               <p style={{
                 margin: '24px 0 0 0',
                 fontSize: '13px',
-                color: '#9ca3af'
+                color: '#475569'
               }}>
                 Free forever • No credit card required
               </p>

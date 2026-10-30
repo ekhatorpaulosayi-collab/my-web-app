@@ -42,14 +42,14 @@ export function BusinessProvider({ children }) {
   const setProfile = (patch) => {
     setProfileState((prev) => {
       const next = { ...prev, ...patch };
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
-      try { document.title = next.businessName?.trim() ? `${next.businessName} — Storehouse` : "Storehouse"; } catch {}
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      try { document.title = next.businessName?.trim() ? `${next.businessName} — Storehouse` : "Storehouse"; } catch { /* title is optional */ }
       return next;
     });
   };
 
   const resetProfile = () => {
-    try { localStorage.removeItem(KEY); } catch {}
+    try { localStorage.removeItem(KEY); } catch { /* private mode */ }
     setProfileState({
       businessName: "",
       ownerName: "",

@@ -2,7 +2,11 @@
 
 # Upload Landing Page Images to ImageKit via API (File Upload Method)
 
-PRIVATE_KEY="private_3aE43Ff8Wh96MBV47ri3Jp2zsIA="
+PRIVATE_KEY="${IMAGEKIT_PRIVATE_KEY:-}"
+if [ -z "$PRIVATE_KEY" ]; then
+  echo "Set IMAGEKIT_PRIVATE_KEY (ImageKit dashboard → Developer options)."
+  exit 1
+fi
 AUTH=$(echo -n "${PRIVATE_KEY}:" | base64)
 
 echo "🚀 Uploading Landing Page Images to ImageKit..."

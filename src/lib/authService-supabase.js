@@ -6,12 +6,15 @@
 import { supabase } from './supabase';
 import { logError } from '../utils/errorMonitoring';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { friendlyAuthError } from './authErrors';
+import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
 
 /**
  * Sign up a new user with email and password
  * Creates user profile in stores table
  */
-export async function signUp(email, password, storeName = null, storeType = null) {
+export async function signUp(email, password, storeName = null, storeType = null, phone = null) {
   try {
     console.debug('[Auth] Signing up user:', email);
 
@@ -21,6 +24,10 @@ export async function signUp(email, password, storeName = null, storeType = null
     const defaultStoreType = storeType || 'general';
 
     console.debug('[Auth] Using store name:', defaultStoreName, 'type:', defaultStoreType);
+    const whatsapp = normalizeNgWhatsApp(phone);
+    if (!whatsapp) {
+      throw new Error('Enter a valid WhatsApp number, for example 0803 123 4567.');
+    }
 
     // Create user in Supabase Auth
     const { data, error } = await supabase.auth.signUp({
@@ -34,7 +41,7 @@ export async function signUp(email, password, storeName = null, storeType = null
 
     if (error) {
       console.error('[Auth] Signup error:', error);
-      throw formatAuthError(error);
+      throw error;
     }
 
     const user = data.user;
@@ -60,7 +67,7 @@ export async function signUp(email, password, storeName = null, storeType = null
         const userRecord = {
           id: user.id, // Use same ID as auth.users
           email: user.email,
-          phone_number: user.phone || user.email, // Use email as fallback if phone not provided
+          phone_number: whatsapp,
           business_name: defaultStoreName,
           // store_type: defaultStoreType, // Column doesn't exist
           device_type: 'web',
@@ -86,42 +93,54 @@ export async function signUp(email, password, storeName = null, storeType = null
           console.debug('[Auth] User record created in public.users');
         }
 
-        // Step 2: Create store profile in stores table
-        const generatedSlug = generateSlug(defaultStoreName, user.id);
-        const storeProfile = {
-          user_id: user.id,
-          business_name: defaultStoreName,
-          store_slug: generatedSlug,
-          // Mirror store_slug onto subdomain so *.storehouse.ng resolves
-          // for new signups. Numeric-only slugs stay NULL — they cannot
-          // safely act as a subdomain label.
-          subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
-          whatsapp_number: user.phone || user.email || 'pending', // Required field
-          is_public: false, // Default to private
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+        // Step 2: Create store profile in stores table.
+        // A taken or reserved slug is retried. If it still fails, signup
+        // stops with a message the person can see.
+        let storeError = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const generatedSlug = await generateUniqueSlug(defaultStoreName);
+          const storeProfile = {
+            user_id: user.id,
+            business_name: defaultStoreName,
+            store_slug: generatedSlug,
+            // Mirror store_slug onto subdomain so *.storehouse.ng resolves
+            // for new signups. Numeric-only slugs stay NULL — they cannot
+            // safely act as a subdomain label.
+            subdomain: /^\d+$/.test(generatedSlug) ? null : generatedSlug,
+            whatsapp_number: whatsapp,
+            is_public: true, // Live so the link works. Hidden is a setting.
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
 
-        const { data, error: storeError } = await supabase
-          .from('stores')
-          .insert([storeProfile])
-          .select()
-          .single();
+          const inserted = await supabase
+            .from('stores')
+            .insert([storeProfile])
+            .select(OWNER_STORE_COLUMNS)
+            .single();
+          storeError = inserted.error;
+          if (!storeError) {
+            console.debug('[Auth] Store profile created');
+            storeData = inserted.data;
+            break;
+          }
+          const retryable = storeError.code === '23505'
+            || storeError.code === '23514'
+            || /invalid_store_slug|duplicate key|store_slug/i.test(`${storeError.message || ''} ${storeError.details || ''}`);
+          if (!retryable) break;
+        }
 
-        if (storeError) {
+        if (storeError || !storeData) {
           console.error('[Auth] Store profile creation error:', storeError);
-          // Auth user created but profile failed - this is a warning, not fatal
-          console.warn('[Auth] User created but store profile failed:', storeError.message);
-        } else {
-          console.debug('[Auth] Store profile created');
-          storeData = data;
+          throw new Error('Your account was created, but the store link could not be saved. Sign in and set your store link, or try signing up again.');
+        }
+        if (storeData) {
 
-          // Auto-register the subdomain with Vercel (fire-and-forget).
-          // Skipped silently if the session isn't ready yet (email-
-          // confirmation flow) — Path D (settings save) will fire it
-          // on the merchant's first save.
           if (storeData?.subdomain && storeData?.id) {
-            provisionSubdomain({ subdomain: storeData.subdomain, storeId: storeData.id });
+            const provision = await provisionSubdomain({ subdomain: storeData.subdomain, storeId: storeData.id });
+            if (provision.state !== 'active') {
+              console.warn('[Auth] Store link saved. Web address is not confirmed yet.', provision.state);
+            }
           }
         }
 
@@ -159,7 +178,9 @@ export async function signUp(email, password, storeName = null, storeType = null
         }
       } catch (error) {
         console.error('[Auth] Profile setup error:', error);
-        // Continue anyway - user can complete profile later
+        if (error instanceof Error && /store link/i.test(error.message)) {
+          throw error;
+        }
       }
     }
 
@@ -205,7 +226,7 @@ export async function signIn(email, password) {
         errorMessage: error.message,
       });
 
-      throw formatAuthError(error);
+      throw error;
     }
 
     const user = data.user;
@@ -224,7 +245,7 @@ export async function signIn(email, password) {
     // Fetch store profile
     const { data: storeData, error: storeError } = await supabase
       .from('stores')
-      .select('*')
+      .select(OWNER_STORE_COLUMNS)
       .eq('user_id', user.id)
       .single();
 
@@ -345,7 +366,7 @@ export async function getUserProfile(uid) {
     // Fetch from stores table
     const { data: storeData, error: storeError } = await supabase
       .from('stores')
-      .select('*')
+      .select(OWNER_STORE_COLUMNS)
       .eq('user_id', uid)
       .single();
 
@@ -419,40 +440,24 @@ function mapSupabaseUserToFirebase(supabaseUser) {
 }
 
 /**
- * Generate a unique store slug from business name and user ID
+ * Slug from generate_store_slug. That function sees private stores.
+ * A missing function is a failure, not a free slug.
  */
-function generateSlug(businessName, userId) {
-  const baseSlug = businessName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
-    .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
-    .substring(0, 40); // Limit length
-
-  // Add shortened user ID for uniqueness
-  const userIdShort = userId.substring(0, 8);
-  return `${baseSlug}-${userIdShort}`;
+async function generateUniqueSlug(businessName) {
+  const { data, error } = await supabase.rpc('generate_store_slug', {
+    business_name: businessName,
+  });
+  if (error || typeof data !== 'string' || !data) {
+    throw new Error('We could not reserve a store link. Please try again.');
+  }
+  return data;
 }
 
 /**
  * Format Supabase auth errors into user-friendly messages
  */
-function formatAuthError(error) {
-  const errorMessages = {
-    'User already registered': 'This email is already registered. Please log in instead.',
-    'Invalid login credentials': 'Invalid email or password. Please try again.',
-    'Email not confirmed': 'Please confirm your email address before signing in.',
-    'Invalid email': 'Please enter a valid email address.',
-    'Password should be at least 6 characters': 'Password must be at least 6 characters long.',
-    'User not found': 'No account found with this email.',
-    'Network request failed': 'Network error. Please check your connection.',
-  };
-
-  // Check if error message contains any of our known errors
-  const message = Object.keys(errorMessages).find(key =>
-    error.message?.includes(key)
-  );
-
-  const friendlyMessage = message ? errorMessages[message] : (error.message || 'An error occurred. Please try again.');
-
-  return new Error(friendlyMessage);
+export function formatAuthError(error) {
+  const message = friendlyAuthError(error);
+  if (error instanceof Error && error.message === message) return error;
+  return new Error(message);
 }

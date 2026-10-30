@@ -17,17 +17,17 @@ if ! command -v psql &> /dev/null; then
 fi
 
 # Database connection string
-DB_URL="postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+DB_URL="${DATABASE_URL:?Set DATABASE_URL to the Postgres connection string. Do not paste it into this file.}"
 
 # Run migration
-PGPASSWORD="Godisgood1." psql "$DB_URL" -f supabase/migrations/20250115_affiliate_program.sql
+psql "$DB_URL" -f supabase/migrations/20250115_affiliate_program.sql
 
 if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Migration deployed successfully!"
     echo ""
     echo "Verifying tables..."
-    PGPASSWORD="Godisgood1." psql "$DB_URL" -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'affiliate%';"
+    psql "$DB_URL" -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'affiliate%';"
 else
     echo ""
     echo "❌ Migration failed!"

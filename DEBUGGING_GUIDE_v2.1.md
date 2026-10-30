@@ -147,7 +147,7 @@ Complete list of all features accessible from the Getting Started Guide:
 ### Invoices Not Working
 ```bash
 # Check database
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM invoices ORDER BY created_at DESC LIMIT 5;"
+psql "$DATABASE_URL" -c "SELECT * FROM invoices ORDER BY created_at DESC LIMIT 5;"
 
 # Check component
 code src/pages/Invoices.tsx
@@ -179,16 +179,16 @@ Storehouse supports 3 types of store URLs (in priority order):
 
 ```bash
 # 1. Check if store slug exists in database
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, business_name, store_slug, custom_domain, subdomain FROM business_profiles WHERE store_slug IS NOT NULL;"
+psql "$DATABASE_URL" -c "SELECT id, business_name, store_slug, custom_domain, subdomain FROM business_profiles WHERE store_slug IS NOT NULL;"
 
 # 2. Check specific business
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT business_name, store_slug, storefront_enabled FROM business_profiles WHERE business_name = 'Your Business Name';"
+psql "$DATABASE_URL" -c "SELECT business_name, store_slug, storefront_enabled FROM business_profiles WHERE business_name = 'Your Business Name';"
 
 # 3. Verify slug is URL-friendly (lowercase, hyphens, no spaces)
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT store_slug FROM business_profiles WHERE store_slug ~ '[^a-z0-9-]';"  # Should return empty if all valid
+psql "$DATABASE_URL" -c "SELECT store_slug FROM business_profiles WHERE store_slug ~ '[^a-z0-9-]';"  # Should return empty if all valid
 
 # 4. Check for duplicate slugs (should be unique!)
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT store_slug, COUNT(*) FROM business_profiles WHERE store_slug IS NOT NULL GROUP BY store_slug HAVING COUNT(*) > 1;"
+psql "$DATABASE_URL" -c "SELECT store_slug, COUNT(*) FROM business_profiles WHERE store_slug IS NOT NULL GROUP BY store_slug HAVING COUNT(*) > 1;"
 
 # 5. Test the URL
 curl -I https://storehouse.ng/store/YOUR-SLUG
@@ -202,7 +202,7 @@ code src/pages/StorefrontPage.tsx
 **Issue: "Store not found"**
 ```bash
 # Check if slug exists
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM business_profiles WHERE store_slug = 'your-slug';"
+psql "$DATABASE_URL" -c "SELECT * FROM business_profiles WHERE store_slug = 'your-slug';"
 
 # If empty, user needs to set up their store slug:
 # Dashboard → Settings → Online Store → Store Slug
@@ -211,7 +211,7 @@ docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:God
 **Issue: "Store slug has spaces or special characters"**
 ```bash
 # Find invalid slugs
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT business_name, store_slug FROM business_profiles WHERE store_slug ~ '[^a-z0-9-]';"
+psql "$DATABASE_URL" -c "SELECT business_name, store_slug FROM business_profiles WHERE store_slug ~ '[^a-z0-9-]';"
 
 # Fix: Convert to lowercase with hyphens
 # Example: "Paul's Tech Shop" → "pauls-tech-shop"
@@ -220,7 +220,7 @@ docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:God
 ### Customer Reviews Not Appearing
 ```bash
 # Check reviews table
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM reviews ORDER BY created_at DESC LIMIT 10;"
+psql "$DATABASE_URL" -c "SELECT * FROM reviews ORDER BY created_at DESC LIMIT 10;"
 
 # Check component
 code src/components/ReviewManagement.tsx
@@ -229,7 +229,7 @@ code src/components/ReviewManagement.tsx
 ### Sales Channel Data Missing
 ```bash
 # Check sales channels
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM sales_channels;"
+psql "$DATABASE_URL" -c "SELECT * FROM sales_channels;"
 
 # Check analytics component
 code src/components/ChannelAnalytics.tsx
@@ -268,10 +268,10 @@ export async function deleteStaffMember(ownerUid: string, staffId: string): Prom
 **To deactivate staff**:
 ```bash
 # Check staff table
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM staff_members ORDER BY created_at DESC LIMIT 10;"
+psql "$DATABASE_URL" -c "SELECT * FROM staff_members ORDER BY created_at DESC LIMIT 10;"
 
 # Check who is active/inactive
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, name, role, is_active, last_login_at FROM staff_members WHERE store_owner_uid = 'YOUR_UID';"
+psql "$DATABASE_URL" -c "SELECT id, name, role, is_active, last_login_at FROM staff_members WHERE store_owner_uid = 'YOUR_UID';"
 ```
 
 **Staff Navigation**:
@@ -875,7 +875,7 @@ ORDER BY created_at DESC LIMIT 20;
 
 ### Connection String
 ```
-postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+`$DATABASE_URL`
 ```
 
 ---
@@ -1129,7 +1129,7 @@ vercel env pull .env.local
 # Check affiliate dashboard for updated earnings
 
 # Step 5: Verify in database
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM affiliate_commissions ORDER BY created_at DESC LIMIT 5;"
+psql "$DATABASE_URL" -c "SELECT * FROM affiliate_commissions ORDER BY created_at DESC LIMIT 5;"
 ```
 
 ### 2. Test Staff Management Flow
@@ -1160,7 +1160,7 @@ docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:God
 # Try logging in → Should work
 
 # Step 5: Verify in database
-docker run --rm postgres:15 psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT name, role, is_active, last_login_at FROM staff_members ORDER BY created_at DESC LIMIT 5;"
+psql "$DATABASE_URL" -c "SELECT name, role, is_active, last_login_at FROM staff_members ORDER BY created_at DESC LIMIT 5;"
 ```
 
 ### 3. Test AI Chatbot Accuracy

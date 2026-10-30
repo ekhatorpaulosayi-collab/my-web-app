@@ -133,7 +133,7 @@ Your environment variables (from `.env.local`):
 ```env
 VITE_IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/onelove431212341234
 VITE_IMAGEKIT_PUBLIC_KEY=public_QdLLjPTKH/+dRHxXqo0lSiOs310=
-VITE_IMAGEKIT_PRIVATE_KEY=private_3aE43Ff8Wh96MBV47ri3Jp2zsIA=
+VITE_IMAGEKIT_PRIVATE_KEY=YOUR_IMAGEKIT_PRIVATE_KEY
 ```
 
 Your Supabase Storage URL:

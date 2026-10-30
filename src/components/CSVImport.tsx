@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Papa from 'papaparse';
 import { addProduct } from '../services/supabaseProducts';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -8,10 +7,11 @@ export const CSVImport: React.FC = () => {
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<any[]>([]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const Papa = (await import('papaparse')).default;
     Papa.parse(file, {
       header: true,
       complete: (results) => {
@@ -120,14 +120,16 @@ export const CSVImport: React.FC = () => {
 
       {/* Upload CSV */}
       <div style={{ marginBottom: '20px' }}>
-        <label style={{
+        <label htmlFor="csv-import-file" style={{
           display: 'block',
-          marginBottom: '8px',
+          marginBottom: '6px',
           fontWeight: 500
         }}>
           Upload CSV/Excel File
         </label>
         <input
+          id="csv-import-file"
+          aria-label="Upload CSV or Excel file"
           type="file"
           accept=".csv,.xlsx,.xls"
           onChange={handleFileUpload}

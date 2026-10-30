@@ -124,7 +124,7 @@ class NotificationSound {
    */
   getAudioState(): 'suspended' | 'running' | 'closed' | 'not-initialized' {
     if (!this.audioContext) return 'not-initialized';
-    return this.audioContext.state;
+    return this.audioContext.state as 'suspended' | 'running' | 'closed';
   }
 
   /**

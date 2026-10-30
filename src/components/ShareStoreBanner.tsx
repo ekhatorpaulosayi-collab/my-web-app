@@ -26,9 +26,7 @@ export const ShareStoreBanner: React.FC<ShareStoreBannerProps> = ({
   const handleWhatsAppShare = () => {
     const message = `🏪 *${storeName}*\n\n` +
       `🛍️ Browse all my products!\n\n` +
-      `✨ Easy ordering via WhatsApp\n` +
-      `💳 Pay with card or bank transfer\n` +
-      `📦 Fast delivery across Nigeria\n\n` +
+      `✨ Easy ordering via WhatsApp\n\n` +
       `👉 Visit store: ${storeUrl}\n\n` +
       `🔥 Start shopping now!`;
 

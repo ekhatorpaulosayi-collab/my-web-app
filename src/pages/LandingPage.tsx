@@ -215,6 +215,7 @@ export default function LandingPage() {
 
           <button
             className="mobile-menu-btn"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -263,6 +264,7 @@ export default function LandingPage() {
           <div className="hero-image fade-up">
             <img
               src="/hero-professional-woman.jpg"
+              fetchPriority="high"
               alt="Professional woman using Storehouse app on mobile phone"
               className="hero-real-image"
               loading="eager"
@@ -1101,7 +1103,7 @@ export default function LandingPage() {
       {/* Affiliate Program CTA */}
       <section style={{
         padding: '80px 20px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
         color: 'white',
         textAlign: 'center'
       }}>
@@ -1109,7 +1111,7 @@ export default function LandingPage() {
           <h2 style={{ fontSize: '42px', fontWeight: 700, marginBottom: '16px' }}>
             💰 Earn 30% Commission as an Affiliate
           </h2>
-          <p style={{ fontSize: '20px', marginBottom: '32px', opacity: 0.95 }}>
+          <p style={{ fontSize: '20px', marginBottom: '32px', color: '#ffffff' }}>
             Refer businesses to Storehouse and earn recurring commission on every paid subscription
           </p>
 
@@ -1127,7 +1129,7 @@ export default function LandingPage() {
             }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>30%</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>Commission Rate</div>
-              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>On all paid plans</div>
+              <div style={{ fontSize: '14px', color: '#ffffff', marginTop: '4px' }}>On all paid plans</div>
             </div>
 
             <div style={{
@@ -1138,7 +1140,7 @@ export default function LandingPage() {
             }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>2</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>Conversions to Unlock</div>
-              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>Low barrier to start</div>
+              <div style={{ fontSize: '14px', color: '#ffffff', marginTop: '4px' }}>Low barrier to start</div>
             </div>
 
             <div style={{
@@ -1149,7 +1151,7 @@ export default function LandingPage() {
             }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>Weekly</div>
               <div style={{ fontSize: '16px', fontWeight: 600 }}>Payouts</div>
-              <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>Every Monday</div>
+              <div style={{ fontSize: '14px', color: '#ffffff', marginTop: '4px' }}>Every Monday</div>
             </div>
           </div>
 
@@ -1157,7 +1159,7 @@ export default function LandingPage() {
             onClick={() => navigate('/affiliate/signup')}
             style={{
               background: 'white',
-              color: '#667eea',
+              color: '#1d4ed8',
               border: 'none',
               borderRadius: '12px',
               padding: '18px 48px',
@@ -1179,7 +1181,7 @@ export default function LandingPage() {
             Become an Affiliate Partner →
           </button>
 
-          <p style={{ marginTop: '24px', fontSize: '14px', opacity: 0.85 }}>
+          <p style={{ marginTop: '24px', fontSize: '14px', color: '#ffffff' }}>
             Perfect for influencers, business coaches, consultants, and community leaders
           </p>
         </div>
@@ -1294,7 +1296,7 @@ export default function LandingPage() {
               <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Blog</a>
               <a onClick={() => scrollToSection('testimonials')} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Reviews</a>
               <a onClick={() => navigate('/submit-testimonial')} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Share Your Story</a>
-              <a onClick={() => navigate('/affiliate/signup')} style={{ pointerEvents: 'auto', cursor: 'pointer', fontWeight: 600, color: '#667eea' }}>
+              <a onClick={() => navigate('/affiliate/signup')} style={{ pointerEvents: 'auto', cursor: 'pointer', fontWeight: 600, color: '#e2e8f0' }}>
                 💰 Become an Affiliate
               </a>
             </div>
@@ -1325,8 +1327,8 @@ export default function LandingPage() {
 
             <div className="footer-col">
               <h4>Legal</h4>
-              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Privacy Policy</a>
-              <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Terms of Service</a>
+              <a href="/privacy" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Privacy Policy</a>
+              <a href="/terms" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Terms of Service</a>
               <a href="#" style={{ pointerEvents: 'auto', cursor: 'pointer' }}>Refund Policy</a>
             </div>
           </div>

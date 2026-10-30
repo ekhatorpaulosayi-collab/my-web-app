@@ -12,7 +12,7 @@
 ### VAPID Keys (Generated):
 ```env
 VITE_VAPID_PUBLIC_KEY=BJT0RJYTrJDZN70mYJH0NTFPKE4L9srwqSsdcpnEZeKXWupXpOOitwjmGT_wJ_Vznp-KpmZn57cOHEUx4QSmJcE
-VAPID_PRIVATE_KEY=-NVJTkPMeAe6r_MFuvZXSASf0VKAks_UG_ZJDcRJ0nE
+VAPID_PRIVATE_KEY=<edge secret VAPID_PRIVATE_KEY>
 VAPID_SUBJECT=mailto:paul@storehouse.ng
 ```
 
@@ -22,7 +22,7 @@ VAPID_SUBJECT=mailto:paul@storehouse.ng
 ```bash
 # Migration file already exists at: supabase/migrations/20260329_push_subscriptions.sql
 # Apply it to Supabase:
-psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -f supabase/migrations/20260329_push_subscriptions.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20260329_push_subscriptions.sql
 ```
 
 ### Step 2: Update Service Worker

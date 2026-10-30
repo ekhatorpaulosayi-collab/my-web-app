@@ -8,6 +8,7 @@ import { X, ShoppingCart, Plus, Minus, Trash2, Phone, CreditCard, Tag, Copy, Che
 import PaystackPop from '@paystack/inline-js';
 import { useCart } from '../contexts/CartContext';
 import { currencyNGN, currencyNGNExact } from '../utils/format';
+import { deliveryFeeKobo, orderTotalKobo } from '../utils/deliveryFee';
 import type { StoreProfile, PaymentMethod } from '../types';
 import { getDisplayFields, formatAttributeValue, getAttributeIcon } from '../config/categoryAttributes';
 import { supabase } from '../lib/supabase';
@@ -15,6 +16,9 @@ import { saveOnlineStoreOrder } from '../utils/onlineStoreSales';
 import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
 import { formatWhatsAppNumber } from '../utils/phone';
+import { buildStorefrontUrl } from '../utils/storefrontUrl';
+import { applyPromoKobo } from '../../supabase/functions/_shared/checkoutPrice.ts';
+import { ShareButton } from './ProductShareMenu';
 import '../styles/cart.css';
 
 // Build-time gate for the platform-split (subaccount) card flow. When
@@ -75,6 +79,8 @@ export function Cart({ store }: CartProps) {
   // Order confirmation state
   const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
   const [orderConfirmationData, setOrderConfirmationData] = useState<any>(null);
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; variantId?: string; name: string } | null>(null);
+  const [orderNotice, setOrderNotice] = useState<string | null>(null);
 
   // Check if Paystack is enabled
   const paystackEnabled = store.paystackEnabled && store.paystackPublicKey;
@@ -95,35 +101,15 @@ export function Cart({ store }: CartProps) {
   // buttons for the same store.
   const showLegacyPaystack = paystackEnabled && !subaccountCardEnabled;
 
-  // Get available payment methods (multi-payment + legacy bank details)
+  // Checkout shows payment_methods only. Legacy stores columns are owner-only.
   const availablePaymentMethods = store.payment_methods?.filter(m => m.enabled) || [];
 
-  // ALWAYS add legacy bank details if they exist (regardless of modern payment methods)
-  const hasLegacyBankDetails = store.bankName && store.accountNumber;
-  if (hasLegacyBankDetails) {
-    // Check if legacy bank not already in array
-    const hasLegacyInArray = availablePaymentMethods.some(m => m.id === 'legacy-bank');
-    if (!hasLegacyInArray) {
-      availablePaymentMethods.push({
-        id: 'legacy-bank',
-        type: 'bank',
-        enabled: true,
-        label: store.bankName || 'Bank Transfer',
-        account_name: store.accountName || store.businessName,
-        account_number: store.accountNumber || '',
-        bank_name: store.bankName || '',
-        created_at: new Date().toISOString()
-      });
-    }
-  }
-
   // Calculate discount and final total
-  const discount = appliedPromo
-    ? appliedPromo.discount_type === 'percentage'
-      ? Math.round((totalPrice * appliedPromo.discount_value) / 100)
-      : appliedPromo.discount_value * 100 // Convert NGN to kobo
-    : 0;
-  const finalTotal = Math.max(0, totalPrice - discount);
+  const promoQuote = applyPromoKobo(totalPrice, appliedPromo);
+  const discount = promoQuote.ok ? promoQuote.discountKobo : 0;
+  const finalTotal = promoQuote.ok ? promoQuote.payableKobo : totalPrice;
+  const deliveryKobo = deliveryFeeKobo(store.deliveryFee);
+  const payableTotal = orderTotalKobo(finalTotal, store.deliveryFee);
 
   // Legacy paystackEnabled (own-key) path still uses v1 inline.js loaded
   // dynamically via this script tag — see handlePaystackPayment.
@@ -220,179 +206,12 @@ export function Cart({ store }: CartProps) {
   };
 
   const handlePaystackPayment = () => {
-    if (!customerName || !customerPhone) {
-      alert('Please enter your name and phone number');
-      return;
-    }
-
-    if (!customerEmail || !customerEmail.includes('@')) {
-      alert('Please enter a valid email for your receipt');
-      return;
-    }
-
-    if (!paystackEnabled || !store.paystackPublicKey) {
-      alert('Payment system not configured');
-      return;
-    }
-
-    setProcessingPayment(true);
-
-    try {
-      // @ts-ignore - Paystack script loaded dynamically
-      const handler = window.PaystackPop.setup({
-        key: store.paystackPublicKey,
-        email: customerEmail,
-        amount: finalTotal, // Amount in kobo (Paystack uses smallest currency unit) - includes discount
-        currency: 'NGN',
-        ref: 'STORE_' + Date.now() + '_' + Math.random().toString(36).substring(7),
-        metadata: {
-          custom_fields: [
-            {
-              display_name: 'Customer Name',
-              variable_name: 'customer_name',
-              value: customerName
-            },
-            {
-              display_name: 'Phone Number',
-              variable_name: 'phone_number',
-              value: customerPhone
-            },
-            {
-              display_name: 'Delivery Address',
-              variable_name: 'delivery_address',
-              value: customerAddress || 'N/A'
-            },
-            {
-              display_name: 'Store',
-              variable_name: 'store',
-              value: store.businessName
-            }
-          ]
-        },
-        onClose: function() {
-          setProcessingPayment(false);
-          alert('Payment cancelled');
-        },
-        callback: async function(response: any) {
-          setProcessingPayment(false);
-
-          // Payment successful - show confirmation with receipt
-          const orderData = {
-            reference: response.reference,
-            items: items,
-            customerName: customerName,
-            customerPhone: customerPhone,
-            customerAddress: customerAddress,
-            subtotal: totalPrice,
-            discount: discount,
-            finalTotal: finalTotal,
-            paymentMethod: 'paystack',
-            promoCode: appliedPromo?.code,
-            timestamp: new Date()
-          };
-
-          setOrderConfirmationData(orderData);
-          setShowOrderConfirmation(true);
-          closeCart();
-
-          // Save order to sales database
-          if (store.user_id) {
-            try {
-              const orderResult = await saveOnlineStoreOrder({
-                storeUserId: store.user_id,
-                items: items,
-                customer: {
-                  name: customerName,
-                  phone: customerPhone,
-                  email: customerEmail || undefined,
-                  address: customerAddress || undefined,
-                },
-                subtotal: totalPrice,
-                discount: discount,
-                finalTotal: finalTotal,
-                paymentMethod: 'paystack',
-                paymentReference: response.reference,
-                promoCode: appliedPromo?.code,
-              });
-
-              if (orderResult.success) {
-                console.log('✅ Order saved to database');
-              } else {
-                console.error('⚠️ Order save failed:', orderResult.error);
-                // Don't fail checkout, merchant still got paid
-              }
-            } catch (error) {
-              console.error('⚠️ Order save error:', error);
-              // Don't fail checkout
-            }
-          }
-
-          // Track promo code usage if applied
-          if (appliedPromo) {
-            try {
-              // Record usage in promo_code_usage table
-              await supabase.from('promo_code_usage').insert([{
-                promo_code_id: appliedPromo.id,
-                order_total: totalPrice,
-                discount_amount: discount,
-                final_total: finalTotal,
-                customer_name: customerName,
-                customer_phone: customerPhone,
-              }]);
-
-              // Increment used_count in promo_codes table
-              await supabase
-                .from('promo_codes')
-                .update({ used_count: appliedPromo.used_count + 1 })
-                .eq('id', appliedPromo.id);
-            } catch (error) {
-              console.error('Error tracking promo usage:', error);
-              // Don't fail the checkout if tracking fails
-            }
-          }
-
-          // Send order confirmation via WhatsApp if number is available
-          if (store.whatsappNumber) {
-            const phone = formatWhatsAppNumber(store.whatsappNumber);
-
-            const orderItems = items.map(item =>
-              `\n• ${item.name} (x${item.quantity}) - ${currencyNGN(item.price * item.quantity)}`
-            ).join('');
-
-            const message = `✅ *PAID ORDER - ${store.businessName}*\n\n` +
-              `👤 Customer: ${customerName}\n` +
-              `📱 Phone: ${customerPhone}` +
-              (customerAddress ? `\n📍 Address: ${customerAddress}` : '') +
-              `\n\n📦 *Order Details:*${orderItems}\n\n` +
-              `💰 *Subtotal: ${currencyNGN(totalPrice)}*\n` +
-              (appliedPromo ? `🎁 *Discount (${appliedPromo.code}): -${currencyNGN(discount)}*\n` : '') +
-              `💵 *Total Paid: ${currencyNGN(finalTotal)}*\n\n` +
-              `✅ *Payment Status: PAID*\n` +
-              `🔖 *Reference: ${response.reference}*`;
-
-            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-          }
-
-          // Clear cart and close
-          clearCart();
-          setCustomerName('');
-          setCustomerPhone('');
-          setCustomerEmail('');
-          setCustomerAddress('');
-          setAppliedPromo(null);
-          setPromoCode('');
-          setPromoError('');
-          setIsCheckingOut(false);
-          closeCart();
-        }
-      });
-
-      handler.openIframe();
-    } catch (error) {
-      console.error('Paystack payment error:', error);
-      alert('Failed to initiate payment. Please try again.');
-      setProcessingPayment(false);
-    }
+    // Retired. The merchant-key popup charged a card and then wrote a paid
+    // sale that complete-storefront-order could not fulfil. Card payments
+    // go through initiate-storefront-payment, which creates the server order.
+    setProcessingPayment(false);
+    setFriendlyError("This store's old card button cannot record the order. Use WhatsApp, or ask the store to turn on Storehouse card payments.");
+    setShowWhatsAppFallback(!!store.whatsappNumber);
   };
 
   // Map an F3 error code to a customer-facing message. Codes 412/403 plus
@@ -442,6 +261,10 @@ export function Cart({ store }: CartProps) {
           text: serverMessage || "Checkout is busy. Please try again in a moment.",
           canFallbackToWhatsApp: false,
         };
+      case 'invalid_promo':
+      case 'promo_expired':
+      case 'promo_exhausted':
+        return { text: serverMessage || 'That promo code cannot be used on this order.', canFallbackToWhatsApp: false };
       case 'zero_subtotal':
         return { text: "Your cart appears to be empty.", canFallbackToWhatsApp: false };
       case 'invalid_item':
@@ -506,6 +329,7 @@ export function Cart({ store }: CartProps) {
     // product UUID is the cart item id (see StorefrontPage addItem).
     const f3Items = items.map((it) => ({
       product_id: it.id,
+      variant_id: it.variantId || null,
       product_name: it.variantName ? `${it.name} (${it.variantName})` : it.name,
       quantity: it.quantity,
       unit_price_kobo: it.price,
@@ -520,6 +344,7 @@ export function Cart({ store }: CartProps) {
           customer_email: customerEmail,
           customer_phone: customerPhone,
           customer_name: customerName || undefined,
+          promo_code: appliedPromo?.code || undefined,
         },
       });
     } catch (networkErr) {
@@ -712,12 +537,12 @@ export function Cart({ store }: CartProps) {
           customer: {
             name: customerName,
             phone: customerPhone,
-            email: undefined,
+            email: customerEmail || undefined,
             address: customerAddress || undefined,
           },
           subtotal: totalPrice,
           discount: discount,
-          finalTotal: finalTotal,
+          finalTotal: payableTotal,
           paymentMethod: 'whatsapp',
           paymentReference: undefined,
           promoCode: appliedPromo?.code,
@@ -756,15 +581,20 @@ export function Cart({ store }: CartProps) {
         (selectedPaymentDetails.instructions ? `\n\n📝 ${selectedPaymentDetails.instructions}` : '');
     }
 
+    const storeLink = buildStorefrontUrl({ subdomain: store.subdomain, storeSlug: store.storeSlug });
     const message = `🛒 *New Order - ${store.businessName}*\n\n` +
       `👤 Customer: ${customerName}\n` +
       `📱 Phone: ${customerPhone}` +
+      (customerEmail ? `\n✉️ Email: ${customerEmail}` : '') +
       (customerAddress ? `\n📍 Address: ${customerAddress}` : '') +
       `\n\n📦 *Order Details:*${orderItems}\n\n` +
       `💰 *Subtotal: ${currencyNGN(totalPrice)}*\n` +
       (appliedPromo ? `🎁 *Discount (${appliedPromo.code}): -${currencyNGN(discount)}*\n` : '') +
-      `💵 *Total: ${currencyNGN(finalTotal)}*` +
-      paymentInfo;
+      (deliveryKobo > 0 ? `🚚 *Delivery: ${currencyNGN(deliveryKobo)}*\n` : '') +
+      (store.deliveryTime ? `⏱ *Estimate: ${store.deliveryTime}*\n` : '') +
+      `💵 *Total: ${currencyNGN(payableTotal)}*` +
+      paymentInfo +
+      `\n\n🔗 ${storeLink}`;
 
     // Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -782,7 +612,7 @@ export function Cart({ store }: CartProps) {
     closeCart();
 
     // Show simple confirmation message
-    alert('✅ Order sent!\n\nYour order has been sent to ' + store.businessName + '.\nThey will contact you to confirm payment and delivery.');
+    setOrderNotice(`Your order was sent to ${store.businessName}. They will contact you to confirm payment and delivery.`);
   };
 
   const handleCheckout = () => {
@@ -808,6 +638,21 @@ export function Cart({ store }: CartProps) {
             <ShoppingCart size={24} />
             <h2>Your Cart</h2>
             {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
+            {itemCount > 0 && (
+              <ShareButton
+                product={{
+                  id: 'cart',
+                  name: `${store.businessName} cart`,
+                  price: totalPrice / 100,
+                  description: items.map((item) => `${item.name} × ${item.quantity}`).join(', '),
+                }}
+                variant="text"
+                shareKind="cart"
+                storeUrl={buildStorefrontUrl({ subdomain: store.subdomain, storeSlug: store.storeSlug })}
+                storeName={store.businessName}
+                whatsappNumber={store.whatsappNumber}
+              />
+            )}
           </div>
           <button
             onClick={closeCart}
@@ -844,6 +689,7 @@ export function Cart({ store }: CartProps) {
             ×
           </button>
         </div>
+        <p className="cart-powered">Powered by Storehouse</p>
 
         {/* Cart Content */}
         {items.length === 0 ? (
@@ -961,6 +807,7 @@ export function Cart({ store }: CartProps) {
                         className="cart-qty-btn"
                         disabled={item.quantity >= item.maxQty}
                         aria-label="Increase quantity"
+                        title={item.quantity >= item.maxQty ? 'That is all we have in stock' : 'Increase quantity'}
                         style={{
                           fontSize: '28px',
                           fontWeight: 'bold',
@@ -970,13 +817,14 @@ export function Cart({ store }: CartProps) {
                         +
                       </button>
                     </div>
+                    {item.quantity >= item.maxQty && (
+                      <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#334155' }}>
+                        That is all we have in stock.
+                      </p>
+                    )}
 
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Remove ${item.name} from cart?`)) {
-                          removeItem(item.id, item.variantId);
-                        }
-                      }}
+                      onClick={() => setPendingRemove({ id: item.id, variantId: item.variantId, name: item.name })}
                       className="cart-remove-btn"
                       aria-label="Remove item from cart"
                     >
@@ -1001,15 +849,27 @@ export function Cart({ store }: CartProps) {
                       <span>Discount ({appliedPromo.code}):</span>
                       <span>-{currencyNGN(discount)}</span>
                     </div>
+                    {deliveryKobo > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', color: '#374151' }}>
+                        <span>Delivery:</span>
+                        <span>{currencyNGN(deliveryKobo)}</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 700, paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
                       <span>Total:</span>
-                      <span>{currencyNGN(finalTotal)}</span>
+                      <span>{currencyNGN(payableTotal)}</span>
                     </div>
                   </>
                 ) : (
                   <>
+                    {deliveryKobo > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '8px', fontSize: '14px', color: '#374151' }}>
+                        <span>Delivery:</span>
+                        <span>{currencyNGN(deliveryKobo)}</span>
+                      </div>
+                    )}
                     <span>Total:</span>
-                    <span className="cart-total-price">{currencyNGN(totalPrice)}</span>
+                    <span className="cart-total-price">{currencyNGN(payableTotal)}</span>
                   </>
                 )}
               </div>
@@ -1086,7 +946,7 @@ export function Cart({ store }: CartProps) {
                         disabled={checkingPromo || !promoCode.trim()}
                         style={{
                           padding: '10px 16px',
-                          background: checkingPromo || !promoCode.trim() ? '#9ca3af' : '#3b82f6',
+                          background: checkingPromo || !promoCode.trim() ? '#475569' : '#3b82f6',
                           color: 'white',
                           border: 'none',
                           borderRadius: '6px',
@@ -1111,7 +971,31 @@ export function Cart({ store }: CartProps) {
               {/* Checkout Form */}
               {isCheckingOut ? (
                 <div className="cart-checkout-form">
-                  <h3>Checkout Details</h3>
+                  <h3>Checkout</h3>
+                  <div data-testid="order-summary" style={{
+                    marginBottom: '16px',
+                    padding: '12px 14px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    color: '#1e293b'
+                  }}>
+                    {items.map((item) => (
+                      <div key={`${item.id}-${item.variantId || ''}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px' }}>
+                        <span>{item.name}{item.variantName ? ` (${item.variantName})` : ''} × {item.quantity}</span>
+                        <span>{currencyNGN(item.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+                      <span>Delivery fee</span>
+                      <span>{deliveryKobo > 0 ? currencyNGN(deliveryKobo) : (/free/i.test(String(store.deliveryFee || '')) ? 'Free' : 'The store will confirm')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                      <span>Delivery estimate</span>
+                      <span>{store.deliveryTime || 'The store will confirm'}</span>
+                    </div>
+                  </div>
 
                   {/* Payment Method Selection - Multi-Payment Support */}
                   <div style={{ marginBottom: '1.5rem' }}>
@@ -1415,16 +1299,15 @@ export function Cart({ store }: CartProps) {
                     className="cart-input"
                     required
                   />
-                  {(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') && (
-                    <input
-                      type="email"
-                      placeholder="Email for receipt *"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="cart-input"
-                      required
-                    />
-                  )}
+                  <input
+                    type="email"
+                    placeholder={(paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount') ? 'Email for receipt *' : 'Email (optional)'}
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="cart-input"
+                    required={paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount'}
+                    aria-required={paymentMethod === 'paystack' || paymentMethod === 'paystack_subaccount'}
+                  />
                   <textarea
                     placeholder="Delivery address (optional)"
                     value={customerAddress}
@@ -1592,7 +1475,7 @@ export function Cart({ store }: CartProps) {
                     {store.whatsappNumber && (
                       <div style={{
                         fontSize: '11px',
-                        color: '#9ca3af'
+                        color: '#475569'
                       }}>
                         Questions? Contact: {store.whatsappNumber}
                       </div>
@@ -1613,6 +1496,41 @@ export function Cart({ store }: CartProps) {
           </>
         )}
       </div>}
+
+      {pendingRemove && (
+        <div role="dialog" aria-modal="true" aria-label="Remove item" style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px'
+        }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', maxWidth: '360px', width: '100%' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '18px', color: '#111827' }}>Remove {pendingRemove.name}?</h2>
+            <p style={{ margin: '0 0 16px', color: '#334155' }}>This takes it out of your cart.</p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" onClick={() => setPendingRemove(null)} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600 }}>
+                Keep it
+              </button>
+              <button type="button" onClick={() => { removeItem(pendingRemove.id, pendingRemove.variantId); setPendingRemove(null); }} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: 'none', background: '#b91c1c', color: '#fff', fontWeight: 700 }}>
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {orderNotice && (
+        <div role="dialog" aria-modal="true" aria-label="Order sent" style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px'
+        }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', maxWidth: '380px', width: '100%' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '18px', color: '#111827' }}>Order sent</h2>
+            <p style={{ margin: '0 0 16px', color: '#334155' }}>{orderNotice}</p>
+            <button type="button" onClick={() => setOrderNotice(null)} style={{ width: '100%', minHeight: 44, borderRadius: 8, border: 'none', background: '#166534', color: '#fff', fontWeight: 700 }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Order Confirmation Modal */}
       {showOrderConfirmation && orderConfirmationData && (

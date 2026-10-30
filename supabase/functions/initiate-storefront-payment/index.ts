@@ -18,6 +18,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { applyPromoKobo, customerChargeKobo, priceCheckoutLines } from '../_shared/checkoutPrice.ts';
 import { logPaystackInteraction } from '../_shared/paystack-logger.ts';
 import { resolveActiveTier, TierResolverError } from '../_shared/tier-resolver.ts';
 
@@ -29,14 +30,6 @@ const corsHeaders = {
 
 const PAYSTACK_INITIALIZE_URL = 'https://api.paystack.co/transaction/initialize';
 const PAYSTACK_TIMEOUT_MS = 5000;
-
-// Paystack pricing knobs. Customer absorbs Paystack's fee on top of
-// subtotal; closed-form solves the self-reference between
-// paystack_take (% of customer_total) and customer_total (subtotal +
-// paystack_take + flat). See worked examples in PAYSTACK-DEBUG.md §11.
-const FLAT_FEE_KOBO = 10000;             // ₦100 in kobo
-const FLAT_FEE_THRESHOLD_KOBO = 250000;  // Paystack waives the flat fee below ₦2,500
-const PAYSTACK_RATE = 0.015;             // 1.5% wholesale
 
 // In-memory IP rate limiter: 20 requests per 60s window per IP.
 // Higher than F1/F2 because customers hit this endpoint multiple
@@ -61,7 +54,7 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-function jsonResponse(body, status) {
+function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -171,42 +164,64 @@ serve(async (req) => {
     return jsonResponse({ error: 'no_active_subaccount' }, 412);
   }
 
-  // 5. Compute totals — IN THIS EXACT ORDER. Each take is computed (and capped
-  // where applicable) BEFORE the customer total. See §4.2 step 5 of the design
-  // doc; deviating from this ordering re-introduces the cap-hit windfall bug.
-  let subtotalKobo = 0;
-  for (const it of items) {
-    if (typeof it.quantity !== 'number' || typeof it.unit_price_kobo !== 'number'
-        || it.quantity <= 0 || it.unit_price_kobo < 0 || !it.product_name) {
-      return jsonResponse({ error: 'invalid_item', item: it }, 400);
+  // 5. Price from the catalogue. The shopper's unit_price_kobo is ignored.
+  const productIds = [...new Set(items.map((it) => String(it?.product_id || '').trim()).filter(Boolean))];
+  if (productIds.length === 0) {
+    return jsonResponse({ error: 'bad_items' }, 400);
+  }
+  const { data: catalogProducts, error: catalogError } = await admin
+    .from('products')
+    .select('id, user_id, name, selling_price, quantity, is_active')
+    .in('id', productIds);
+  if (catalogError) {
+    return jsonResponse({ error: 'catalog_unavailable' }, 500);
+  }
+  const variantIds = [...new Set(items.map((it) => String(it?.variant_id || '').trim()).filter(Boolean))];
+  let catalogVariants = [];
+  if (variantIds.length > 0) {
+    const { data: variantRows, error: variantError } = await admin
+      .from('product_variants')
+      .select('id, product_id, user_id, price_override, quantity, is_active')
+      .in('id', variantIds);
+    if (variantError) {
+      return jsonResponse({ error: 'catalog_unavailable' }, 500);
     }
-    subtotalKobo += it.quantity * it.unit_price_kobo;
+    catalogVariants = variantRows || [];
   }
-  if (subtotalKobo <= 0) {
-    return jsonResponse({ error: 'zero_subtotal' }, 400);
+  const priced = priceCheckoutLines(String(store.user_id), items, catalogProducts || [], catalogVariants);
+  if (!priced.ok) {
+    return jsonResponse({ error: 'error' in priced ? priced.error : 'rejected' }, 400);
   }
+  const catalogueKobo = priced.subtotalKobo;
+  const promoCode = String(body.promo_code || '').trim().toUpperCase();
+  let promoRow = null;
+  if (promoCode) {
+    const { data: promoData, error: promoError } = await admin
+      .from('promo_codes')
+      .select('id, code, discount_type, discount_value, is_active, expires_at, max_uses, used_count')
+      .eq('user_id', store.user_id)
+      .eq('code', promoCode)
+      .maybeSingle();
+    if (promoError) return jsonResponse({ error: 'promo_unavailable' }, 500);
+    if (!promoData) return jsonResponse({ error: 'invalid_promo' }, 400);
+    promoRow = promoData;
+  }
+  const promo = applyPromoKobo(catalogueKobo, promoRow);
+  if (!promo.ok) return jsonResponse({ error: 'error' in promo ? promo.error : 'rejected' }, 400);
+  const subtotalKobo = promo.payableKobo;
 
   // Customer absorbs Paystack's percentage + (above ₦2,500) flat ₦100.
-  // Closed-form: customer_total × (1 − rate) = subtotal + flat
-  //              ⇒ customer_total = (subtotal + flat) / (1 − rate)
-  // Storehouse take comes from vendor's share, capped per fee config.
-  // feeConfig.paystack_wholesale_bps is intentionally NOT read here —
-  // the closed-form embeds the 1.5% rate directly because the algebraic
-  // identity below ties the formula to that specific constant.
-  const flatKobo = subtotalKobo >= FLAT_FEE_THRESHOLD_KOBO ? FLAT_FEE_KOBO : 0;
-  const customerTotalKobo = Math.round((subtotalKobo + flatKobo) / (1 - PAYSTACK_RATE));
-  const paystackTakeKobo = customerTotalKobo - subtotalKobo;
+  // Storehouse take comes from the vendor's share, capped per fee config.
+  const charge = customerChargeKobo(subtotalKobo);
+  if (!charge) {
+    return jsonResponse({ error: 'fee_math_drift' }, 500);
+  }
+  const { customerTotalKobo, paystackTakeKobo, flatKobo } = charge;
 
   const storehouseTakeUncapped = Math.floor(subtotalKobo * feeConfig.basis_points / 10000);
   const storehouseTakeKobo = Math.min(storehouseTakeUncapped, Number(feeConfig.cap_kobo));
   const vendorNetKobo = subtotalKobo - storehouseTakeKobo;
-
-  // Sanity invariant: the closed-form must have actually solved.
-  // paystack_take should equal customer_total × rate + flat (within 1
-  // kobo for Math.round error). If this fails, the algebra above is
-  // wrong — fail closed rather than over/undercharge the customer.
-  const expectedPaystackTakeKobo = Math.round(customerTotalKobo * PAYSTACK_RATE + flatKobo);
-  if (Math.abs(paystackTakeKobo - expectedPaystackTakeKobo) > 1) {
+  if (vendorNetKobo < 0 || storehouseTakeKobo < 0) {
     return jsonResponse({ error: 'fee_math_drift' }, 500);
   }
 
@@ -318,6 +333,22 @@ serve(async (req) => {
       customer_email,
       customer_phone,
       customer_name: customer_name || null,
+      // B6: webhook apply_storefront_inventory reads this. Promo is not
+      // included — this charge is the full subtotal, so a discount row would lie.
+      notes: JSON.stringify({
+        inventory: priced.lines.map((it) => ({
+          product_id: it.product_id,
+          variant_id: it.variant_id,
+          quantity: it.quantity,
+        })),
+        promo: promo.discountKobo > 0 && promoRow ? {
+          promo_code_id: promoRow.id,
+          code: promoRow.code,
+          order_total: catalogueKobo,
+          discount_amount: promo.discountKobo,
+          final_total: promo.payableKobo,
+        } : null,
+      }),
       total_amount_kobo: customerTotalKobo,
       paystack_reference: reference,
       order_type: 'storefront',
@@ -331,14 +362,15 @@ serve(async (req) => {
   }
 
   // 10. Insert order_items.
-  const itemRows = items.map((it) => ({
+  const itemRows = priced.lines.map((it) => ({
     order_id: order.id,
     store_id,
-    product_id: it.product_id || null,
+    product_id: it.product_id,
+    variant_id: it.variant_id,
     product_name: it.product_name,
     quantity: it.quantity,
     unit_price_kobo: it.unit_price_kobo,
-    total_price_kobo: it.quantity * it.unit_price_kobo,
+    total_price_kobo: it.total_price_kobo,
     vendor_can_fulfill: !requiresReview,
   }));
   const { error: itemsError } = await admin.from('order_items').insert(itemRows);
@@ -628,6 +660,8 @@ serve(async (req) => {
       storehouse_take_kobo: storehouseTakeKobo,
       paystack_take_kobo: paystackTakeKobo,
       paystack_flat_kobo: flatKobo,
+      discount_kobo: promo.discountKobo,
+      catalogue_kobo: catalogueKobo,
       customer_total_kobo: customerTotalKobo,
       vendor_net_kobo: vendorNetKobo,
       transaction_charge_kobo: transactionChargeKobo,

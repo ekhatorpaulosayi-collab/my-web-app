@@ -12,7 +12,15 @@ import { useAutoSave, getSaveStatusMessage, getSaveStatusColor } from '../hooks/
 import { showFriendlyError } from '../utils/friendlyErrors';
 import { validateTikTokUrl, normalizeTikTokUrl } from '../utils/socialShare';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { provisioningReaderText } from '../utils/provisionStatus.js';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
+import { validateStoreSlug } from '../utils/storeSlug';
+import { storeHealthFlags } from '../utils/storeHealth';
+import { mergeBankDetails, readStoreBankDetails, writeStoreBankDetails } from '../lib/storeBankDetails.js';
+import { OWNER_STORE_COLUMNS } from '../utils/publicStoreColumns.js';
+import { emptyNumberAsNull } from '../utils/emptyNumber.js';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
+import { socialUrlForSave } from '../utils/socialLinks.js';
 import '../styles/store-settings.css';
 
 export const StoreSettings: React.FC = () => {
@@ -37,14 +45,15 @@ export const StoreSettings: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('stores')
-        .select('*')
+        .select(OWNER_STORE_COLUMNS)
         .eq('user_id', String(user.uid))
         .maybeSingle();
       if (error) {
         console.error('[StoreSettings] Store load error:', error);
         setStore(null);
       } else {
-        setStore(data);
+        const bank = data?.id ? await readStoreBankDetails(supabase, data.id) : null;
+        setStore(mergeBankDetails(data, bank));
       }
     } catch (err) {
       console.error('[StoreSettings] Store load threw:', err);
@@ -62,6 +71,7 @@ export const StoreSettings: React.FC = () => {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [storeSlug, setStoreSlug] = useState('');
+  const [storeLive, setStoreLive] = useState(true);
   const [businessName, setBusinessName] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [address, setAddress] = useState('');
@@ -73,6 +83,7 @@ export const StoreSettings: React.FC = () => {
   // Custom domain state
   const [customDomain, setCustomDomain] = useState('');
   const [customDomainVerified, setCustomDomainVerified] = useState(false);
+  const [domainToken, setDomainToken] = useState('');
   const [subdomain, setSubdomain] = useState('');
   const [verifyingDomain, setVerifyingDomain] = useState(false);
 
@@ -108,6 +119,8 @@ export const StoreSettings: React.FC = () => {
   // About & Policies state
   const [aboutUs, setAboutUs] = useState('');
   const [returnPolicy, setReturnPolicy] = useState('');
+  const [allowStaffPriceChange, setAllowStaffPriceChange] = useState(false);
+  const [provisionStatus, setProvisionStatus] = useState<string | null>(null);
 
   // Slug normalization function
   const normalizeSlug = (s: string): string => {
@@ -119,18 +132,7 @@ export const StoreSettings: React.FC = () => {
 
   // Slug validation
   const validateSlug = (slug: string, existingSlug?: string): string | null => {
-    if (!slug || slug.length < 3) return 'Store URL must be at least 3 characters';
-    if (slug.length > 30) return 'Store URL must be less than 30 characters';
-    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug)) {
-      return 'Store URL must start and end with letter or number';
-    }
-    // Numeric-only labels collide with future subdomain routing.
-    // Grandfather an unchanged existing all-numeric slug so the lone
-    // pre-existing merchant (slug "234") isn't locked out on save.
-    if (/^\d+$/.test(slug) && slug !== existingSlug) {
-      return 'Store URL cannot be all numbers — please include at least one letter';
-    }
-    return null;
+    return validateStoreSlug(slug, existingSlug);
   };
 
   // Load existing store profile from Supabase hook
@@ -141,12 +143,13 @@ export const StoreSettings: React.FC = () => {
     const data: any = {
       storeSlug: store.store_slug,
       businessName: store.business_name,
-      whatsappNumber: store.whatsapp_number,
+      // M2: legacy rows stored the email or 'pending' here; don't prefill those
+      whatsappNumber: store.whatsapp_number && !String(store.whatsapp_number).includes('@') && store.whatsapp_number !== 'pending' ? store.whatsapp_number : '',
       address: store.address,
       logoUrl: store.logo_url,
       subdomain: store.subdomain,
       customDomain: store.custom_domain,
-      customDomainVerified: store.custom_domain_verified,
+      customDomainVerified: store.custom_domain_verified === true,
       bankName: store.bank_name,
       accountNumber: store.account_number,
       accountName: store.account_name,
@@ -171,6 +174,7 @@ export const StoreSettings: React.FC = () => {
 
     setStoreProfile(data as StoreProfile);
     setStoreSlug(data.storeSlug || '');
+    setStoreLive(store.is_public !== false);
     setBusinessName(data.businessName || '');
     setWhatsappNumber(data.whatsappNumber || '');
     setAddress(data.address || '');
@@ -180,6 +184,7 @@ export const StoreSettings: React.FC = () => {
     setSubdomain(data.subdomain || '');
     setCustomDomain(data.customDomain || '');
     setCustomDomainVerified(data.customDomainVerified || false);
+    setDomainToken(store.domain_verification_token || '');
 
     // Load payment details
     setBankName(data.bankName || '');
@@ -212,6 +217,19 @@ export const StoreSettings: React.FC = () => {
     // Load about & policies
     setAboutUs(data.aboutUs || '');
     setReturnPolicy(data.returnPolicy || '');
+    setAllowStaffPriceChange(store.allow_staff_price_change === true);
+    let stop = false;
+    void (async () => {
+      const { data: provisionRow } = await supabase
+        .from('store_provisioning')
+        .select('status')
+        .eq('store_id', store.id)
+        .maybeSingle();
+      if (!stop) setProvisionStatus(provisionRow?.status || null);
+    })();
+    return () => {
+      stop = true;
+    };
   }, [store]);
 
   // Check slug availability (Supabase)
@@ -227,19 +245,18 @@ export const StoreSettings: React.FC = () => {
 
     setSlugError('');
 
+    if (normalized === (store?.store_slug || '')) {
+      setSlugAvailable(true);
+      return;
+    }
+
     try {
-      const { data, error: queryError } = await supabase
-        .from('stores')
-        .select('user_id')
-        .eq('store_slug', normalized)
-        .maybeSingle();
-
-      if (queryError && queryError.code !== 'PGRST116') {
-        throw queryError;
-      }
-
-      const available = !data || data.user_id === user?.uid;
-      setSlugAvailable(available);
+      const { data, error: queryError } = await supabase.rpc('store_slug_is_available', {
+        p_slug: normalized,
+        p_store_id: store?.id || null,
+      });
+      if (queryError) throw queryError;
+      setSlugAvailable(data === true);
     } catch (error) {
       console.error('Error checking slug:', error);
       setSlugAvailable(null);
@@ -318,6 +335,7 @@ export const StoreSettings: React.FC = () => {
         logoUrl = await uploadStoreLogo(logoFile, user.uid, storeProfile?.logoUrl);
       }
 
+      // The database trigger records this store's previous slug.
       // Update store profile in Supabase
       const profileData = {
         business_name: businessName.trim(),
@@ -326,15 +344,16 @@ export const StoreSettings: React.FC = () => {
         // grandfathered "234" case) stay NULL so 234.storehouse.ng
         // never resolves as a storefront.
         subdomain: /^\d+$/.test(normalizedSlug) ? null : normalizedSlug,
-        custom_domain: customDomain.trim() || null,
         logo_url: logoUrl || '',
-        whatsapp_number: whatsappNumber.trim(),
+        whatsapp_number: (() => {
+          const raw = whatsappNumber.trim();
+          if (!raw) throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+          const phone = normalizeNgWhatsApp(raw);
+          if (!phone) throw new Error('Enter a WhatsApp number like 0803 123 4567.');
+          return phone;
+        })(),
         address: address.trim(),
-        is_public: true,
-        // Payment details
-        bank_name: bankName.trim(),
-        account_number: accountNumber.trim(),
-        account_name: accountName.trim(),
+        is_public: storeLive,
         accepted_payment_methods: paymentMethods,
         payment_instructions: paymentInstructions.trim(),
         // Paystack integration
@@ -343,20 +362,23 @@ export const StoreSettings: React.FC = () => {
         paystack_test_mode: paystackTestMode,
         // Delivery information
         delivery_areas: deliveryAreas,
-        delivery_fee: deliveryFee.trim(),
+        delivery_fee: emptyNumberAsNull(deliveryFee),
         delivery_time: deliveryTime.trim(),
-        minimum_order: minimumOrder.trim(),
+        minimum_order: emptyNumberAsNull(minimumOrder),
         // Business hours
         business_hours: businessHours.trim(),
         days_of_operation: daysOfOperation,
         // Social media
-        instagram_url: instagramUrl.trim(),
-        facebook_url: facebookUrl.trim(),
-        tiktok_url: normalizeTikTokUrl(tiktokUrl), // Normalize to full URL format
-        twitter_url: twitterUrl.trim(),
+        instagram_url: socialUrlForSave('instagram', instagramUrl),
+        facebook_url: socialUrlForSave('facebook', facebookUrl),
+        tiktok_url: socialUrlForSave('tiktok', tiktokUrl),
+        twitter_url: socialUrlForSave('x', twitterUrl),
         // About & Policies
         about_us: aboutUs.trim(),
-        return_policy: returnPolicy.trim()
+        return_policy: returnPolicy.trim(),
+        ...(Object.prototype.hasOwnProperty.call(store, 'allow_staff_price_change')
+          ? { allow_staff_price_change: allowStaffPriceChange }
+          : {}),
       };
 
       // Verify the auth session is alive *right before* the write. An expired
@@ -389,7 +411,7 @@ export const StoreSettings: React.FC = () => {
         .update(profileData)
         .eq('id', store.id)
         .eq('user_id', String(user.uid))
-        .select()
+        .select(OWNER_STORE_COLUMNS)
         .maybeSingle();
 
       if (updateError) {
@@ -413,6 +435,26 @@ export const StoreSettings: React.FC = () => {
         business_name: updatedStore.business_name,
       });
 
+      const bankWrite = await writeStoreBankDetails(supabase, store.id, {
+        bank_name: bankName.trim(),
+        account_number: accountNumber.trim(),
+        account_name: accountName.trim(),
+      });
+      if (bankWrite.missing) {
+        const { error: legacyBankError } = await supabase
+          .from('stores')
+          .update({
+            bank_name: bankName.trim(),
+            account_number: accountNumber.trim(),
+            account_name: accountName.trim(),
+          })
+          .eq('id', store.id)
+          .eq('user_id', String(user.uid));
+        if (legacyBankError) throw legacyBankError;
+      } else if (bankWrite.error) {
+        throw bankWrite.error;
+      }
+
       // Mirror business_name to users table so dashboard header survives logout/login
       const { error: userSyncError } = await supabase
         .from('users')
@@ -429,15 +471,54 @@ export const StoreSettings: React.FC = () => {
       // the canonical server value (and so any subsequent save sees store.id).
       setStore(updatedStore);
 
+      const previousDomain = String(store.custom_domain || '').trim().toLowerCase();
+      const nextDomain = customDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '');
+      let domainNote = '';
+      if (previousDomain !== nextDomain) {
+        const { data: domainRow, error: domainError } = await supabase.rpc('set_store_custom_domain', {
+          p_domain: nextDomain || null,
+        });
+        if (domainError) {
+          const missing = domainError.code === 'PGRST202' || domainError.code === '42883' || /does not exist|could not find the function/i.test(domainError.message || '');
+          domainNote = missing
+            ? 'The rest of your settings were saved. The custom domain was not changed because that function is not installed yet.'
+            : `The rest of your settings were saved. The custom domain was not changed (${domainError.message || 'error'}).`;
+        } else {
+          const saved = domainRow as { custom_domain?: string | null; domain_verification_token?: string | null; custom_domain_verified?: boolean } | null;
+          setCustomDomain(saved?.custom_domain || '');
+          setDomainToken(saved?.domain_verification_token || '');
+          setCustomDomainVerified(false);
+          setStore({
+            ...updatedStore,
+            custom_domain: saved?.custom_domain || null,
+            domain_verification_token: saved?.domain_verification_token || null,
+            custom_domain_verified: false,
+          });
+        }
+      }
+
       // If the subdomain actually changed on this save, register the
       // new value with Vercel. The previous Vercel domain is left in
       // place (no charge, harmless stale cert).
       const newSubdomain = (updatedStore?.subdomain ?? null) as string | null;
-      if (newSubdomain && newSubdomain !== previousSubdomain && updatedStore?.id) {
-        provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
+      let provisionNote = '';
+      const needsProvision = Boolean(
+        newSubdomain && updatedStore?.id && (
+          newSubdomain !== previousSubdomain || provisionStatus !== 'active'
+        ),
+      );
+      if (needsProvision && newSubdomain && updatedStore?.id) {
+        const provision = await provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
+        setProvisionStatus(provision.state);
+        if (provision.state !== 'active') {
+          provisionNote = provisioningReaderText(provision.state);
+        }
       }
 
-      alert('Store settings saved successfully!');
+      const priceNote = allowStaffPriceChange && !Object.prototype.hasOwnProperty.call(store, 'allow_staff_price_change')
+        ? 'The rest of your settings were saved. Staff till prices stay on the catalogue price until the database update that adds that setting.'
+        : '';
+      alert(domainNote || priceNote || provisionNote || 'Store settings saved successfully!');
 
     } catch (error: any) {
       console.error('[StoreSettings] Save error:', error);
@@ -534,6 +615,70 @@ export const StoreSettings: React.FC = () => {
     <div className="store-settings">
       <h2>Store Settings</h2>
 
+      <div className="form-group" style={cleanCardStyle}>
+        <label style={{ fontSize: '1rem', fontWeight: 600, color: '#202223', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+          <input
+            type="checkbox"
+            checked={allowStaffPriceChange}
+            onChange={(e) => setAllowStaffPriceChange(e.target.checked)}
+            style={{ marginTop: '0.2rem' }}
+          />
+          <span>Allow staff to change the price at the till</span>
+        </label>
+        <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '0.75rem 0 0' }}>
+          Cashiers use the catalogue price. Turn this on and a cashier can type a different price, down to the product's cost price. By design, a manager may set any price that is not negative, including below cost, and you may sell below cost.
+        </p>
+      </div>
+
+      <div className="form-group" style={{ ...cleanCardStyle, marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 700, color: '#0F172A' }}>{storeLive ? 'Your store is Live' : 'Your store is Hidden'}</div>
+            <p style={{ margin: '6px 0 0', color: '#334155', fontSize: '0.95rem' }}>
+              {storeLive
+                ? 'Customers with the link can open your shop.'
+                : 'Customers cannot open your link until you switch this to Live.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-pressed={storeLive}
+            onClick={() => setStoreLive((value) => !value)}
+            style={{
+              minWidth: 108,
+              minHeight: 48,
+              borderRadius: 999,
+              border: '2px solid #0F172A',
+              background: storeLive ? '#166534' : '#FFFFFF',
+              color: storeLive ? '#FFFFFF' : '#0F172A',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {storeLive ? 'Live' : 'Hidden'}
+          </button>
+        </div>
+        {storeHealthFlags({
+          businessName,
+          aboutUs,
+          logoUrl: logoPreview || storeProfile?.logoUrl,
+          whatsappNumber,
+          paystackEnabled,
+          acceptedPaymentMethods: paymentMethods,
+        }).length > 0 && (
+          <ul style={{ margin: '16px 0 0', paddingLeft: '1.2rem', color: '#334155' }}>
+            {storeHealthFlags({
+              businessName,
+              aboutUs,
+              logoUrl: logoPreview || storeProfile?.logoUrl,
+              whatsappNumber,
+              paystackEnabled,
+              acceptedPaymentMethods: paymentMethods,
+            }).map((flag) => <li key={flag}>{flag}</li>)}
+          </ul>
+        )}
+      </div>
+
       {/* Store URL - Clean white card */}
       <div className="form-group" style={{
         ...cleanCardStyle,
@@ -560,8 +705,14 @@ export const StoreSettings: React.FC = () => {
           )}
         </div>
         {slugError && <span className="error-text">{slugError}</span>}
+        {provisioningReaderText(provisionStatus) && (
+          <p role="status">{provisioningReaderText(provisionStatus)}</p>
+        )}
         {slugAvailable === false && !slugError && (
           <span className="error-text">This URL is already taken</span>
+        )}
+        {slugAvailable === true && (
+          <span style={{ color: '#166534', fontSize: '0.875rem' }}>Available</span>
         )}
 
         {/* Share Preview */}
@@ -808,9 +959,54 @@ export const StoreSettings: React.FC = () => {
                 <div><strong>Name:</strong> www (or @)</div>
                 <div><strong>Value:</strong> {subdomain || storeSlug}.storehouse.ng</div>
               </div>
-              <div style={{ fontSize: '12px', color: '#78350F' }}>
-                After adding the DNS record, save your settings. Verification can take up to 24 hours.
+              <div style={{ marginBottom: '8px' }}>
+                Add this TXT record as well. The domain stays off until it matches.
               </div>
+              <div style={{
+                background: 'white',
+                padding: '8px',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                marginBottom: '8px'
+              }}>
+                <div><strong>Type:</strong> TXT</div>
+                <div><strong>Name:</strong> _storehouse.{customDomain.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}</div>
+                <div><strong>Value:</strong> {domainToken || 'Save settings to get a verification value'}</div>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setVerifyingDomain(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke('verify-custom-domain', { body: {} });
+                    if (error) throw error;
+                    if (data?.verified) {
+                      setCustomDomainVerified(true);
+                      alert('Domain verified.');
+                    } else {
+                      alert(data?.message || 'The TXT record was not found yet. Add it and try again in a few minutes.');
+                    }
+                  } catch {
+                    alert('Could not verify the domain yet. Add the TXT record, wait a few minutes, and try again.');
+                  } finally {
+                    setVerifyingDomain(false);
+                  }
+                }}
+                disabled={verifyingDomain || !domainToken}
+                style={{
+                  marginTop: '8px',
+                  background: '#1d4ed8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontWeight: 600,
+                  cursor: verifyingDomain || !domainToken ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {verifyingDomain ? 'Checking DNS…' : 'Check DNS'}
+              </button>
             </div>
           )}
         </div>
@@ -1296,7 +1492,7 @@ export const StoreSettings: React.FC = () => {
             type="text"
             value={deliveryFee}
             onChange={(e) => setDeliveryFee(e.target.value)}
-            placeholder="e.g., ₦2,000 within Lagos, ₦3,500 outside Lagos"
+            placeholder="e.g., 1500"
           />
         </div>
 
@@ -2164,7 +2360,7 @@ export const StoreSettings: React.FC = () => {
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: '8px',
-                color: '#9CA3AF',
+                color: '#475569',
               }}>
                 <Camera size={40} />
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>No Logo</span>

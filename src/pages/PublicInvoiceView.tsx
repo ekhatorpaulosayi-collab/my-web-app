@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { userFacingError } from '../utils/userFacingError';
 import { formatCurrency } from '../services/invoiceService';
 import '../styles/PublicInvoiceView.css';
 
@@ -39,33 +40,18 @@ export default function PublicInvoiceView() {
       setLoading(true);
       setError('');
 
-      // Get invoice (public access - no RLS check)
-      const { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('id', id)
-        .single();
+      // Public access via SECURITY DEFINER RPC (no blanket public SELECT on invoices)
+      const { data: res, error: rpcError } = await supabase.rpc('get_public_invoice', {
+        p_invoice_id: id,
+      });
+      if (rpcError) throw rpcError;
+      if (!res || !res.invoice) throw new Error('Invoice not found');
+      const invoice = res.invoice;
+      const items = res.items || [];
 
-      if (invoiceError) throw invoiceError;
-
-      // Get items
-      const { data: items, error: itemsError } = await supabase
-        .from('invoice_items')
-        .select('*')
-        .eq('invoice_id', id)
-        .order('line_order', { ascending: true });
-
-      if (itemsError) throw itemsError;
-
-      // Track view (update viewed_at if first time viewing)
+      // Track first view
       if (invoice.status === 'sent' && !invoice.viewed_at) {
-        await supabase
-          .from('invoices')
-          .update({
-            status: 'viewed',
-            viewed_at: new Date().toISOString(),
-          })
-          .eq('id', id);
+        await supabase.rpc('mark_invoice_viewed', { p_invoice_id: id });
       }
 
       setInvoice({
@@ -74,7 +60,7 @@ export default function PublicInvoiceView() {
       });
     } catch (err: any) {
       console.error('[PublicInvoiceView] Error:', err);
-      setError(err.message || 'Invoice not found');
+      setError(userFacingError(err));
     } finally {
       setLoading(false);
     }

@@ -187,7 +187,7 @@ export const MarketplaceSettings: React.FC = () => {
         <label htmlFor="store-slug">
           <strong>Store URL</strong>
           <span className="setting-description">
-            Your unique marketplace URL: storehouse.ng/@{storeSlug || 'yourstore'}
+            Your store link: {(storeSlug || 'yourstore').toLowerCase()}.storehouse.ng
           </span>
         </label>
         <div className="input-with-button">

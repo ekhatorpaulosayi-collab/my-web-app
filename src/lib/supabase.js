@@ -52,7 +52,7 @@ console.log('[Supabase] Project URL:', supabaseUrl);
 // Helper function to check connection
 export async function testSupabaseConnection() {
   try {
-    const { data, error } = await supabase.from('_test').select('*').limit(1);
+    const { error } = await supabase.from('_test').select('*').limit(1);
     if (error && error.code !== 'PGRST116') {
       // PGRST116 = table doesn't exist, which is fine for test
       throw error;

@@ -129,6 +129,7 @@ export default function SubaccountWizard() {
           body: {
             store_id: storeId,
             bank_code: bank.code,
+            bank_name: bank.name,
             account_number: accountNumber,
           },
         });
@@ -906,7 +907,7 @@ function Step5({
         <PrimaryButton onClick={onBackToSettings}>{s.cta}</PrimaryButton>
       </div>
       {subaccountRef && (
-        <div style={{ marginTop: 32, fontSize: 12, color: '#9CA3AF' }}>
+        <div style={{ marginTop: 32, fontSize: 12, color: '#475569' }}>
           {s.referencePrefix} {subaccountRef}
         </div>
       )}

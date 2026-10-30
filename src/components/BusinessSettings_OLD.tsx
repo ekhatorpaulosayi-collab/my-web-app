@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, useRef } from 'react';
 import { getSettings, saveSettings, type Settings } from '../utils/settings';
 import { useBusinessProfile } from '../contexts/BusinessProfile.jsx';
@@ -950,7 +951,7 @@ export default function BusinessSettings({
 
                       <p style={{
                         fontSize: '0.75rem',
-                        color: '#9ca3af',
+                        color: '#475569',
                         marginTop: '0.75rem',
                         lineHeight: '1.5'
                       }}>

@@ -30,7 +30,7 @@ export const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ onSubmit, onCa
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly');
   const [collectionDay, setCollectionDay] = useState('Monday');
   // Stage 4: capture the rotation start date (position 1 collects on this date). Default to today.
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
   const [members, setMembers] = useState<{ name: string; phone: string }[]>([
     { name: '', phone: '' }
   ]);
@@ -931,7 +931,7 @@ export const CreateGroupForm: React.FC<CreateGroupFormProps> = ({ onSubmit, onCa
                 padding: '14px',
                 minHeight: '52px',
                 background: isLoading
-                  ? 'linear-gradient(135deg, #9ca3af, #6b7280)'
+                  ? 'linear-gradient(135deg, #475569, #6b7280)'
                   : 'linear-gradient(135deg, #10b981, #059669)',
                 border: 'none',
                 borderRadius: '12px',

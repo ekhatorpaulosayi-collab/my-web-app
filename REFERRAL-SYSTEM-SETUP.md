@@ -6,7 +6,7 @@ Your additive referral system is now fully implemented! Users can invite friends
 
 ## ✅ What's Been Completed
 
-### 1. Database Schema (`referral-system-schema.sql`)
+### 1. Database Schema (`sql-archive/root-scripts/referral-system-schema.sql`)
 **Tables Created:**
 - `referrals` - Tracks referral relationships and conversion status
 - `referral_rewards` - Stores all rewards earned (credits, free months, etc.)
@@ -90,7 +90,7 @@ Every referral: ₦500 credit (stackable toward subscription)
    - Click "New Query"
 
 3. **Copy & Execute Schema**
-   - Open the file: `referral-system-schema.sql`
+   - Open the file: `sql-archive/root-scripts/referral-system-schema.sql`
    - Copy the entire contents
    - Paste into Supabase SQL Editor
    - Click "Run" or press Cmd/Ctrl + Enter
@@ -284,5 +284,5 @@ Let me know how it goes! 🚀
 
 For questions or issues, check:
 - Service layer: `src/services/referralService.ts`
-- Database schema: `referral-system-schema.sql`
+- Database schema: `sql-archive/root-scripts/referral-system-schema.sql`
 - UI components: `src/components/Referral*.tsx`

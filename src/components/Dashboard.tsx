@@ -3,24 +3,27 @@
  * Only 5 visible elements: Share banner, Actions, Today's Sales, Quick Sell, Search
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { Search, MoreHorizontal, Eye, EyeOff, ChevronDown, ChevronUp, Trash2, Edit2, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, MoreVertical } from 'lucide-react';
 import { getTodayRange, filterSalesByTimestamp } from '../lib/dateUtils';
+import { saleRevenueKobo } from '../utils/money';
 import { ShareStoreBanner } from './ShareStoreBanner';
 import { PaymentStatusIndicator } from './PaymentStatusIndicator';
-import { PaymentSetupNudge } from './PaymentSetupNudge';
 import { loadSettings, saveSettings } from '../state/settingsSchema';
 import { MoreMenu } from './MoreMenu';
+import { BusinessTypePrompt } from './BusinessTypeSelector';
 import { ChannelAnalytics } from './ChannelAnalytics';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
+import { SetupChecklist } from './SetupChecklist';
 import { StaffPinLogin } from './StaffPinLogin';
 import { StaffPerformanceWidget } from './StaffPerformanceWidget';
 import { ReferralRewardsWidget } from './ReferralRewardsWidget';
 import { useStaff } from '../contexts/StaffContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import { currencyNGN } from '../utils/format';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
 import { useStore, useUser } from '../lib/supabase-hooks';
-import { SalesChart } from './SalesChart';
+const SalesChart = lazy(() => import('./SalesChart').then((m) => ({ default: m.SalesChart })));
 import { useNavigate } from 'react-router-dom';
 import '../styles/dashboard-minimal.css';
 
@@ -42,9 +45,11 @@ interface DashboardProps {
   onEditItem?: (item: any) => void;
   onShowCSVImport?: () => void;
   onSendDailySummary?: () => void;
-  onExportData?: () => void;
+  onExportData?: (kind?: 'inventory' | 'sales' | 'customers' | 'zip') => void;
   hasOpenModal?: boolean;
   userId?: string;
+  profileComplete?: boolean;
+  onSetupProfile?: () => void;
 }
 
 export function Dashboard({
@@ -65,6 +70,7 @@ export function Dashboard({
   onSendDailySummary,
   onExportData,
   userId,
+  onSetupProfile,
 }: DashboardProps) {
   const navigate = useNavigate();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -72,6 +78,9 @@ export function Dashboard({
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showShareBanner, setShowShareBanner] = useState(false);
+  const [checklistDismissed, setChecklistDismissed] = useState(
+    () => localStorage.getItem('storehouse:setup-checklist:dismissed') === 'true'
+  );
 
   // Three-dot menu state
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -98,6 +107,7 @@ export function Dashboard({
 
   // Staff permissions
   const { canEditProducts, canDeleteProducts, canAddProducts, canViewReports, isStaffMode, exitStaffMode, currentRole } = useStaff();
+  const { isFirstTimeSetup, businessType, businessTypePromptDismissed, shopTypeReady } = usePreferences();
 
   // Load store from Supabase
   const { store, loading: storeLoading } = useStore(userId);
@@ -224,11 +234,20 @@ export function Dashboard({
     if (items.length < 3) return false;
 
     // Only show if no payment methods are set up
-    const hasBank = !!(store.bank_name && store.account_number);
+    const hasBank = !!(
+      (store.bank_name && store.account_number)
+      || store.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+    );
     const hasOnlinePayments = store.payment_methods?.some((pm: any) => pm.enabled && pm.type !== 'bank') || false;
 
     return !hasBank && !hasOnlinePayments;
   }, [paymentNudgeDismissed, store, items.length]);
+
+  useEffect(() => {
+    const openMore = () => setShowMoreMenu(true);
+    window.addEventListener('storehouse:open-more', openMore);
+    return () => window.removeEventListener('storehouse:open-more', openMore);
+  }, []);
 
   // Listen for hero re-enable from settings
   useEffect(() => {
@@ -242,10 +261,7 @@ export function Dashboard({
     const todayRange = getTodayRange();
     const filtered = filterSalesByTimestamp(sales, todayRange);
     // Calculate total from sellKobo * qty (sales don't have pre-calculated totalKobo)
-    const total = filtered.reduce((sum, s) => {
-      const saleTotal = (s.sellKobo || 0) * (s.qty || 0);
-      return sum + saleTotal;
-    }, 0);
+    const total = filtered.reduce((sum, s) => sum + saleRevenueKobo(s), 0);
 
     return {
       total,
@@ -267,7 +283,7 @@ export function Dashboard({
               minute: '2-digit',
               hour12: true
             }),
-            amount: (s.sellKobo || 0) * (s.qty || 0),
+            amount: saleRevenueKobo(s),
             itemName: itemName || 'Unknown',
             staffName: s.recorded_by_staff_name || null,
             staffRole: s.recorded_by_staff_role || null
@@ -285,7 +301,7 @@ export function Dashboard({
     let totalCost = 0;
 
     filtered.forEach(sale => {
-      const revenue = (sale.sellKobo || 0) * (sale.qty || 0);
+      const revenue = saleRevenueKobo(sale);
       totalRevenue += revenue;
 
       // Look up cost price from items
@@ -403,7 +419,7 @@ export function Dashboard({
         }
 
         // Numeric comparison (for qty and price)
-        if (sortConfig.key !== 'name') {
+        if ((sortConfig.key as string) !== 'name') {
           if (sortConfig.direction === 'asc') {
             return aValue - bValue;
           } else {
@@ -507,10 +523,22 @@ export function Dashboard({
     day: 'numeric'
   });
 
+  const hasStoreName = Boolean((businessName || '').trim()) && businessName !== 'My Store';
+  const hasPayments = Boolean(
+    (store?.bank_name && store?.account_number)
+    || store?.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+  );
+  const setupStillOpen = !checklistDismissed && !(
+    hasStoreName && items.length > 0 && sales.length > 0 && hasPayments
+  );
+  const shopTypePending = !shopTypeReady && !setupStillOpen && isFirstTimeSetup && !businessType && !businessTypePromptDismissed;
+  const showShopType = shopTypeReady && !setupStillOpen && isFirstTimeSetup && !businessType && !businessTypePromptDismissed;
+
   return (
     <div className="dashboard-minimal">
       {/* Date Display */}
       <div className="dashboard-date">{dateString}</div>
+      {showShopType && <BusinessTypePrompt />}
 
       {/* Getting Started Checklist - DISABLED to match localhost appearance */}
       {/* <GettingStartedChecklist
@@ -532,50 +560,30 @@ export function Dashboard({
         />
       )}
 
-      {/* Payment Setup Nudge - Shows after 3+ products added, no payment methods */}
-      {shouldShowPaymentNudge && (
-        <PaymentSetupNudge
-          productCount={items.length}
-          onSetupClick={() => {
-            if (onViewSettings) {
-              onViewSettings();
-              // Scroll to payment section AND open Paystack modal
-              setTimeout(() => {
-                const paymentSection = document.querySelector('[data-section="payment"]');
-                if (paymentSection) {
-                  // Expand the section first if collapsed
-                  const sectionHeader = paymentSection.querySelector('.bs-section-header');
-                  if (sectionHeader) {
-                    const isExpanded = paymentSection.querySelector('.bs-section-content');
-                    if (!isExpanded) {
-                      (sectionHeader as HTMLElement).click();
-                    }
-                  }
-
-                  // Scroll to the section
-                  setTimeout(() => {
-                    paymentSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-                    // After scrolling, click the Paystack button to open modal
-                    setTimeout(() => {
-                      const addPaystackBtn = document.querySelector('[data-action="add-paystack"]');
-                      if (addPaystackBtn) {
-                        (addPaystackBtn as HTMLElement).click();
-                      }
-                    }, 500);
-                  }, 100);
-                }
-              }, 300);
-            }
+      {setupStillOpen && (
+        <SetupChecklist
+          profileComplete={hasStoreName}
+          hasItems={items.length > 0}
+          hasSales={sales.length > 0}
+          hasPayments={hasPayments}
+          onProfile={onSetupProfile || onViewSettings || (() => {})}
+          onAddItem={onAddItem}
+          onRecordSale={onRecordSale}
+          onPayments={() => navigate('/settings/payments')}
+          onDismiss={() => {
+            localStorage.setItem('storehouse:setup-checklist:dismissed', 'true');
+            setChecklistDismissed(true);
           }}
-          onDismiss={handleDismissPaymentNudge}
         />
       )}
 
       {/* Payment Status Indicator */}
-      {store && !shouldShowPaymentNudge && (
+      {store && !shouldShowPaymentNudge && !setupStillOpen && !showShopType && !shopTypePending && (
         <PaymentStatusIndicator
-          hasBank={!!(store.bank_name && store.account_number)}
+          hasBank={!!(
+            (store.bank_name && store.account_number)
+            || store.payment_methods?.some((pm: any) => pm.enabled && pm.type === 'bank' && pm.account_number)
+          )}
           onlinePaymentMethods={store.payment_methods?.filter((pm: any) => pm.enabled && pm.type !== 'bank').length || 0}
           onSetupClick={() => {
             if (onViewSettings) {
@@ -649,8 +657,11 @@ export function Dashboard({
             </div>
           </div>
           <button
-            onClick={() => {
-              exitStaffMode();
+            onClick={async () => {
+              const pw = window.prompt('Owner password required to exit staff mode');
+              if (pw === null) return;
+              const res = await exitStaffMode(pw);
+              if (!res.ok) { alert(res.error); return; }
               window.location.reload();
             }}
             style={{
@@ -789,7 +800,7 @@ export function Dashboard({
           <div className="sales-total" style={{ color: todaysProfit.profit >= 0 ? '#10b981' : '#ef4444' }}>
             {showProfitData ? currencyNGN(todaysProfit.profit) : '******'}
           </div>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '14px', color: '#475569' }}>
             <div>
               Margin: {showProfitData ? `${todaysProfit.profitMargin.toFixed(1)}%` : '**%'}
             </div>
@@ -843,7 +854,9 @@ export function Dashboard({
 
           {salesTrendExpanded && (
             <div style={{ padding: '16px 0 0 0' }}>
-              <SalesChart sales={sales} days={7} />
+              <Suspense fallback={null}>
+                <SalesChart sales={sales} days={7} />
+              </Suspense>
             </div>
           )}
         </div>
@@ -864,8 +877,8 @@ export function Dashboard({
         onOpenFullDashboard={() => navigate('/referrals')}
       />
 
-      {/* Partner Program Widget - Compact Collapsible Version */}
-      <div className="partner-widget-compact">
+      {/* Partner Program stays off a new dashboard so one setup card is the next step. */}
+      {!setupStillOpen && !showShopType && !shopTypePending && <div className="partner-widget-compact">
         <div
           className="partner-compact-header"
           onClick={() => {
@@ -915,7 +928,7 @@ export function Dashboard({
             🎯 127 partners earning recurring income
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* 4. Quick Sell Grid */}
       <div className="quick-sell-card">
@@ -939,7 +952,7 @@ export function Dashboard({
               <>
                 <p style={{
                   fontSize: '14px',
-                  color: '#6b7280',
+                  color: '#475569',
                   marginBottom: '16px',
                   textAlign: 'center'
                 }}>
@@ -971,7 +984,7 @@ export function Dashboard({
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600, color: '#374151' }}>
                   No Items Yet
                 </h4>
-                <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#6b7280' }}>
+                <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#475569' }}>
                   Add products to your inventory first.<br />
                   They'll appear here for quick selling!
                 </p>
@@ -1159,7 +1172,7 @@ export function Dashboard({
                               </span>
                             )}
                             {/* Low Stock Badge */}
-                            {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 10) && (
+                            {!hasVariants && (item.qty ?? 0) <= (item.low_stock_threshold || item.reorderLevel || 3) && (
                               <span style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1199,7 +1212,7 @@ export function Dashboard({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#6b7280',
+                                color: '#475569',
                                 transition: 'all 0.2s',
                                 borderRadius: '4px',
                                 minWidth: '36px',
@@ -1210,7 +1223,7 @@ export function Dashboard({
                                 e.currentTarget.style.background = '#f3f4f6';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#6b7280';
+                                e.currentTarget.style.color = '#475569';
                                 e.currentTarget.style.background = 'none';
                               }}
                             >
@@ -1358,12 +1371,26 @@ export function Dashboard({
           onViewSettings={onViewSettings}
           onShowOnlineStore={() => {
             setShowMoreMenu(false);
-            setShowShareBanner(true);
+            // C3: a private/unfinished store can't be shared yet — send the owner
+            // to the setup flow (where "Make store public" lives) instead.
+            if ((store as any)?.is_public) {
+              setShowShareBanner(true);
+            } else {
+              navigate('/online-store');
+            }
           }}
           onSendDailySummary={onSendDailySummary}
           onExportData={onExportData}
+          onAddProduct={onAddItem}
+          onSetStoreName={onViewSettings}
+          onPublishStore={() => navigate('/online-store')}
+          checklist={{
+            hasProduct: items.length > 0,
+            hasName: Boolean((businessName || '').trim()) && businessName !== 'My Store',
+            isLive: (store as any)?.is_public === true,
+          }}
           storeUrl={storeUrl}
-          storeName={store?.store_name || 'My Store'}
+          storeName={businessName}
           onStaffModeToggle={() => {
             setShowMoreMenu(false);
             setShowStaffLogin(true);

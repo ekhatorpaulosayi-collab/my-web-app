@@ -2,6 +2,15 @@
 
 # Storehouse Quick Debug Commands
 # Run with: chmod +x DEBUG_COMMANDS.sh && ./DEBUG_COMMANDS.sh [command]
+# Database commands read DATABASE_URL from the environment. Never paste the password here.
+
+db() {
+  if [ -z "${DATABASE_URL:-}" ]; then
+    echo "DATABASE_URL is not set. Do not paste a connection string into this file."
+    exit 1
+  fi
+  command psql "$DATABASE_URL" "$@"
+}
 
 case "$1" in
 
@@ -24,22 +33,22 @@ case "$1" in
   # Database
   db-affiliates)
     echo "📊 Fetching latest affiliates..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, payout_email, referral_code, status, created_at FROM affiliates ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, payout_email, referral_code, status, created_at FROM affiliates ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-commissions)
     echo "💰 Fetching latest commissions..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT ac.amount, ac.status, ac.created_at, a.payout_email FROM affiliate_commissions ac JOIN affiliates a ON ac.affiliate_id = a.id ORDER BY ac.created_at DESC LIMIT 10;"
+    db -c "SELECT ac.amount, ac.status, ac.created_at, a.payout_email FROM affiliate_commissions ac JOIN affiliates a ON ac.affiliate_id = a.id ORDER BY ac.created_at DESC LIMIT 10;"
     ;;
 
   db-referrals)
     echo "🔗 Fetching latest referrals..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, referral_code, referred_user_id, created_at FROM referrals ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, referral_code, referred_user_id, created_at FROM referrals ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-stats)
     echo "📈 Affiliate program stats..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "
+    db -c "
       SELECT
         COUNT(DISTINCT a.id) as total_affiliates,
         COUNT(DISTINCT r.id) as total_referrals,
@@ -53,52 +62,52 @@ case "$1" in
 
   db-products)
     echo "📦 Fetching latest products..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, name, price, user_id, created_at FROM products ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, name, price, user_id, created_at FROM products ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-invoices)
     echo "🧾 Fetching latest invoices..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, invoice_number, customer_name, total, status, created_at FROM invoices ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, invoice_number, customer_name, total, status, created_at FROM invoices ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-customers)
     echo "👥 Fetching latest customers..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, name, phone, email, total_purchases, created_at FROM customers ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, name, phone, email, total_purchases, created_at FROM customers ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-reviews)
     echo "⭐ Fetching latest reviews..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, rating, comment, reviewer_name, created_at FROM reviews ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, rating, comment, reviewer_name, created_at FROM reviews ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-staff)
     echo "👨‍💼 Fetching staff members..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, name, email, role, status, created_at FROM staff ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, name, email, role, status, created_at FROM staff ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-stores)
     echo "🏪 Fetching online stores..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, business_name, store_slug, custom_domain, subdomain, storefront_enabled FROM business_profiles WHERE storefront_enabled = true ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, business_name, store_slug, custom_domain, subdomain, storefront_enabled FROM business_profiles WHERE storefront_enabled = true ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-check-slug)
     echo "🔍 Checking store slug: $2"
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, business_name, store_slug, storefront_enabled FROM business_profiles WHERE store_slug = '$2';"
+    db -c "SELECT id, business_name, store_slug, storefront_enabled FROM business_profiles WHERE store_slug = '$2';"
     ;;
 
   db-chat-history)
     echo "💬 Fetching AI chat history..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT id, message, response, created_at FROM ai_chat_history ORDER BY created_at DESC LIMIT 10;"
+    db -c "SELECT id, message, response, created_at FROM ai_chat_history ORDER BY created_at DESC LIMIT 10;"
     ;;
 
   db-errors)
     echo "🔴 Fetching recent errors..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT error_type, COUNT(*) as count, MAX(created_at) as last_seen FROM error_logs GROUP BY error_type ORDER BY count DESC LIMIT 10;"
+    db -c "SELECT error_type, COUNT(*) as count, MAX(created_at) as last_seen FROM error_logs GROUP BY error_type ORDER BY count DESC LIMIT 10;"
     ;;
 
   db-query)
     echo "🔍 Running custom query..."
-    PGPASSWORD="Godisgood1." psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "$2"
+    db -c "$2"
     ;;
 
   # Logs

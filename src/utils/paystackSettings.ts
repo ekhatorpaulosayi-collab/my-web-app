@@ -118,7 +118,7 @@ export type PaymentMethod = 'Cash' | 'Card' | 'Transfer' | 'POS';
 /**
  * Payment status types
  */
-export type PaymentStatus = 'PAID' | 'PENDING' | 'FAILED';
+export type PaymentStatus = 'PAID' | 'PENDING' | 'FAILED' | 'success';
 
 /**
  * Payment data structure
@@ -130,6 +130,7 @@ export interface PaymentData {
   paystackData?: any;       // Full Paystack response data
   paidAt?: string;          // ISO timestamp
   amount?: number;          // Amount paid
+  email?: string;
 }
 
 /**

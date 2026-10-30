@@ -1,0 +1,56 @@
+title = "Storehouse working tree"
+
+[extend]
+useDefault = true
+
+# Default rules do not flag a Postgres URL. This one does.
+[[rules]]
+id = "postgres-url-with-password"
+description = "Postgres connection string that includes a password"
+regex = '''(?i)postgres(?:ql)?://[^\s'\"$]+:[^\s'\"$@]+@[^\s'\"$]+'''
+keywords = ["postgres"]
+
+[[rules]]
+id = "pgpassword-assignment"
+description = "Hard-coded PGPASSWORD"
+regex = '''(?i)PGPASSWORD\s*=\s*['\"][^'\"]{6,}['\"]'''
+keywords = ["pgpassword"]
+
+[[rules]]
+id = "supabase-access-token"
+description = "Supabase personal access token"
+regex = '''sbp_[A-Za-z0-9]{20,}'''
+keywords = ["sbp_"]
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''(?:^|[^A-Za-z0-9_])re_[A-Za-z0-9]{20,}'''
+keywords = ["re_"]
+
+[[rules]]
+id = "paystack-secret-key"
+description = "Paystack secret key"
+regex = '''sk_(?:live|test)_[A-Za-z0-9]{8,}'''
+keywords = ["sk_"]
+
+# Scan the current files only. Git history is not scanned: old commits still
+# contain a database password, and that history must not be rewritten.
+# Reset the database password (DEPLOY_ORDER.md step 0) instead.
+[allowlist]
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)package-lock\.json''',
+]
+regexes = [
+  '''\[PASSWORD\]''',
+  '''\[PROJECT''',
+  '''your-password''',
+  '''YOUR_PASSWORD''',
+  '''YOUR_[A-Z0-9_]+''',
+  '''sk_(?:live|test)_x{8,}''',
+  '''pk_(?:live|test)_x{8,}''',
+  '''sk-proj-ABC123''',
+  '''\$\{PRIVATE_KEY\}''',
+]

@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 // MIGRATION: Using Supabase auth
 import { signUp } from '../lib/authService-supabase';
+import { normalizeNgWhatsApp } from '../utils/ngPhone.js';
 import { checkSignupRateLimit, recordSignupAttempt, getRateLimitMessage } from '../utils/rateLimiter';
 import '../styles/Auth.css';
 
 export default function Signup() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
+    storeName: '',
     email: '',
+    phone: '',
     password: ''
   });
   const [error, setError] = useState('');
@@ -35,12 +38,24 @@ export default function Signup() {
     setError('');
 
     // Trim and normalize inputs
+    const storeName = formData.storeName.trim();
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
+    const phone = normalizeNgWhatsApp(formData.phone);
 
     // Validation
+    if (storeName.length < 2) {
+      setError('Please enter your store name');
+      return;
+    }
+
     if (!email) {
       setError('Please enter your email');
+      return;
+    }
+
+    if (!phone) {
+      setError('Enter a valid WhatsApp number, for example 0803 123 4567.');
       return;
     }
 
@@ -51,8 +66,8 @@ export default function Signup() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
 
@@ -68,8 +83,7 @@ export default function Signup() {
       console.debug('[Signup] Attempting signup:', email);
       console.debug('[Signup] Rate limit remaining:', rateLimit.remaining - 1);
 
-      // No storeName or storeType - authService will generate defaults
-      const result = await signUp(email, password);
+      const result = await signUp(email, password, storeName, null, phone);
 
       // Record successful signup attempt for rate limiting
       recordSignupAttempt(email);
@@ -93,8 +107,8 @@ export default function Signup() {
         setError('This email is already registered. Want to log in instead?');
       } else if (err.message?.includes('Invalid email')) {
         setError('Please enter a valid email address');
-      } else if (err.message?.includes('6 characters')) {
-        setError('Password should be at least 6 characters');
+      } else if (err.message?.includes("characters")) {
+        setError('Password must be at least 8 characters');
       } else {
         setError(err.message || 'Failed to create account. Please try again.');
       }
@@ -205,6 +219,23 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
+            <label htmlFor="storeName" className="form-label">
+              Store name *
+            </label>
+            <input
+              id="storeName"
+              name="storeName"
+              type="text"
+              autoComplete="organization"
+              value={formData.storeName}
+              onChange={handleChange}
+              className="form-input"
+              placeholder="Ada's Fabrics"
+              required
+            />
+          </div>
+
+          <div className="form-group">
             <label htmlFor="email" className="form-label">
               Email Address *
             </label>
@@ -224,6 +255,26 @@ export default function Signup() {
           </div>
 
           <div className="form-group">
+            <label htmlFor="phone" className="form-label">
+              WhatsApp number *
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              value={formData.phone}
+              onChange={handleChange}
+              className="form-input"
+              placeholder="0803 123 4567"
+              required
+              disabled={loading}
+            />
+            <p className="form-hint">Customers use this to message the store</p>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="password" className="form-label">
               Password *
             </label>
@@ -237,7 +288,7 @@ export default function Signup() {
                 className="form-input"
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={8}
                 disabled={loading}
                 style={{ paddingRight: '45px' }}
               />
@@ -265,7 +316,7 @@ export default function Signup() {
                 {showPassword ? '👁️' : '👁️‍🗨️'}
               </button>
             </div>
-            <p className="form-hint">Minimum 6 characters</p>
+            <p className="form-hint">Minimum 8 characters</p>
           </div>
 
           <button
@@ -284,6 +335,9 @@ export default function Signup() {
           </button>
         </form>
 
+        <p style={{ fontSize: 14, color: '#475569', textAlign: 'center' }}>
+          By creating an account you agree to the <Link to="/terms">terms</Link> and <Link to="/privacy">privacy policy</Link>.
+        </p>
         <div className="auth-footer">
           <p>
             Already have an account?{' '}

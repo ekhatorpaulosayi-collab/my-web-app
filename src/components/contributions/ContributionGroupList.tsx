@@ -19,6 +19,12 @@ interface ContributionGroup {
     paymentDate?: string;
   }[];
   currentRecipientId: string;
+  currentRecipient?: { id?: string };
+  current_cycle?: number;
+  totalMembers?: number;
+  total_members?: number;
+  collection_day?: string;
+  contribution_members?: unknown;
   cycleNumber: number;
   totalCycles: number;
   createdAt: string;

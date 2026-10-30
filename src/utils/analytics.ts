@@ -12,6 +12,7 @@ export interface SaleEventData {
   is_credit?: boolean;
   error?: string;
   item_id?: string;
+  variant_id?: string;
 }
 
 export const logSaleEvent = (event: SaleEvent, data?: SaleEventData): void => {

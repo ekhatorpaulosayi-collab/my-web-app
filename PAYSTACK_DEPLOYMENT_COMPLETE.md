@@ -64,7 +64,7 @@ These steps **MUST** be done before Paystack will work:
 
 ```bash
 # Set Paystack secret key for webhook function
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c supabase secrets set PAYSTACK_SECRET_KEY=sk_test_your_secret_key_here
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN supabase secrets set PAYSTACK_SECRET_KEY=sk_test_your_secret_key_here
 ```
 
 ---
@@ -259,7 +259,7 @@ SELECT * FROM payment_transactions WHERE user_id = 'YOUR_USER_ID';
 
 ### **Check Webhook Logs:**
 ```bash
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c supabase functions logs paystack-webhook
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN supabase functions logs paystack-webhook
 ```
 
 ---
@@ -286,10 +286,10 @@ Before going live:
 
 ```bash
 # 1. Set Supabase secret (replace with your key)
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c supabase secrets set PAYSTACK_SECRET_KEY=sk_test_YOUR_KEY
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN supabase secrets set PAYSTACK_SECRET_KEY=sk_test_YOUR_KEY
 
 # 2. Check webhook logs
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c supabase functions logs paystack-webhook
+SUPABASE_ACCESS_TOKEN=YOUR_SUPABASE_ACCESS_TOKEN supabase functions logs paystack-webhook
 
 # 3. Check current status
 node check-paystack-status.js

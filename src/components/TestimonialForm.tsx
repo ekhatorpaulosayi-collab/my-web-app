@@ -146,14 +146,16 @@ export function TestimonialForm({ onClose, embedded = false }: TestimonialFormPr
         </div>
 
         <div className="form-group">
-          <label>Rating *</label>
-          <div className="rating-selector">
+          <label id="rating-label">Rating *</label>
+          <div className="rating-selector" role="group" aria-labelledby="rating-label">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
                 type="button"
                 onClick={() => setFormData({ ...formData, rating: star })}
                 className={`star-btn ${star <= formData.rating ? 'active' : ''}`}
+                aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                aria-pressed={star === formData.rating}
                 disabled={loading}
               >
                 <Star size={32} fill={star <= formData.rating ? '#FCD34D' : 'none'} />

@@ -16,6 +16,7 @@ import {
   toggleStaffActive,
   getStaffSalesStats
 } from '../services/staffService';
+import { askConfirm, pushToast } from '../components/ui/toastStore';
 
 export default function StaffManagement() {
   const navigate = useNavigate();
@@ -78,11 +79,16 @@ export default function StaffManagement() {
   const handleToggleActive = async (staffMember: StaffMember) => {
     if (!currentUser?.uid) return;
 
-    const confirm = window.confirm(
-      `Are you sure you want to ${staffMember.is_active ? 'deactivate' : 'activate'} ${staffMember.name}?`
-    );
+    const confirmed = await askConfirm({
+      title: staffMember.is_active ? `Deactivate ${staffMember.name}?` : `Activate ${staffMember.name}?`,
+      message: staffMember.is_active
+        ? `${staffMember.name} will not be able to record sales until you activate them again.`
+        : `${staffMember.name} will be able to record sales again.`,
+      confirmLabel: staffMember.is_active ? 'Deactivate' : 'Activate',
+      danger: staffMember.is_active,
+    });
 
-    if (!confirm) return;
+    if (!confirmed) return;
 
     try {
       await toggleStaffActive(currentUser.uid, staffMember.id, !staffMember.is_active);
@@ -100,7 +106,7 @@ export default function StaffManagement() {
       await resetStaffPin(currentUser.uid, selectedStaff.id, newPin);
       setShowResetPinModal(false);
       setSelectedStaff(null);
-      alert('PIN reset successfully');
+      pushToast(`PIN reset for ${selectedStaff.name}`, 'success');
     } catch (error) {
       console.error('[StaffManagement] Error resetting PIN:', error);
       alert('Failed to reset PIN');
@@ -153,6 +159,8 @@ export default function StaffManagement() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 12,
         marginBottom: '24px'
       }}>
         <div>
@@ -170,7 +178,7 @@ export default function StaffManagement() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             onClick={() => setShowAddModal(true)}
             style={{
@@ -401,6 +409,8 @@ function StaffCard({
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 12,
       opacity: member.is_active ? 1 : 0.6
     }}>
       <div style={{ flex: 1 }}>
@@ -439,11 +449,9 @@ function StaffCard({
           {member.email && <span>📧 {member.email}</span>}
         </div>
 
-        {member.last_login_at && (
-          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '4px' }}>
-            Last login: {new Date(member.last_login_at).toLocaleDateString()}
-          </div>
-        )}
+        <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>
+          Last login: {member.last_login_at ? new Date(member.last_login_at).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }) : 'Not yet'}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '8px' }}>
@@ -546,10 +554,11 @@ function AddStaffModal({
         <form onSubmit={onSubmit}>
           <div style={{ padding: '24px' }}>
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-name" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Name *
               </label>
               <input
+                id="staff-name"
                 type="text"
                 required
                 value={formData.name}
@@ -565,10 +574,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-phone" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Phone
               </label>
               <input
+                id="staff-phone"
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => onChange({ ...formData, phone: e.target.value })}
@@ -583,10 +593,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-email" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Email
               </label>
               <input
+                id="staff-email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => onChange({ ...formData, email: e.target.value })}
@@ -601,10 +612,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-pin" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 PIN Code (4-6 digits) *
               </label>
               <input
+                id="staff-pin"
                 type="text"
                 required
                 pattern="[0-9]{4,6}"
@@ -624,10 +636,11 @@ function AddStaffModal({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
+              <label htmlFor="staff-role" style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500 }}>
                 Role *
               </label>
               <select
+                id="staff-role"
                 value={formData.role}
                 onChange={(e) => onChange({ ...formData, role: e.target.value })}
                 style={{
@@ -734,10 +747,11 @@ function ResetPinModal({
 
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+            <label htmlFor="staff-new-pin" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
               New PIN (4-6 digits)
             </label>
             <input
+              id="staff-new-pin"
               type="text"
               required
               pattern="[0-9]{4,6}"
@@ -784,7 +798,7 @@ function ResetPinModal({
               style={{
                 padding: '10px 20px',
                 background: newPin.length >= 4 ? '#00894F' : '#E5E7EB',
-                color: newPin.length >= 4 ? 'white' : '#9CA3AF',
+                color: newPin.length >= 4 ? 'white' : '#475569',
                 border: 'none',
                 borderRadius: '8px',
                 cursor: newPin.length >= 4 ? 'pointer' : 'not-allowed',

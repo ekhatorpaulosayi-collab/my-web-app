@@ -1,0 +1,57 @@
+/**
+ * Columns a shopper is allowed to read from public.stores.
+ * Settlement fields stay off this list: bank_name, account_number,
+ * account_name, and any secret or subaccount code.
+ */
+export const PUBLIC_STORE_COLUMNS = [
+  'id',
+  'user_id',
+  'business_name',
+  'whatsapp_number',
+  'address',
+  'logo_url',
+  'is_public',
+  'store_slug',
+  'subdomain',
+  'custom_domain',
+  'custom_domain_verified',
+  'about_us',
+  'return_policy',
+  'delivery_areas',
+  'delivery_fee',
+  'delivery_time',
+  'minimum_order',
+  'business_hours',
+  'days_of_operation',
+  'instagram_url',
+  'facebook_url',
+  'tiktok_url',
+  'twitter_url',
+  'payment_methods',
+  'accepted_payment_methods',
+  'payment_instructions',
+  'paystack_enabled',
+  'paystack_public_key',
+  'paystack_test_mode',
+  'paystack_subaccounts_enabled',
+  'kyc_status',
+  'frozen',
+].join(',');
+
+/**
+ * Columns a signed-in owner can read and return after insert or update.
+ * bank_name, account_number, and account_name are revoked by step 21b.
+ * PostgREST select('*') asks for those columns and the whole read fails,
+ * so every owner query names this list and loads the bank row separately.
+ */
+export const OWNER_STORE_COLUMNS = [
+  ...PUBLIC_STORE_COLUMNS.split(','),
+  'created_at',
+  'updated_at',
+  'is_verified',
+  'allow_staff_price_change',
+  'domain_verification_token',
+  'custom_domain_added_at',
+  'custom_domain_verified_at',
+  'wa_fallback_minutes',
+].join(',');

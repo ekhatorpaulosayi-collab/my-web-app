@@ -19,6 +19,13 @@ serve(async (req) => {
       throw new Error('Transaction reference is required');
     }
 
+    // Storefront orders (ord_) are confirmed by the Paystack webhook, which
+    // decrements stock. This function grants a subscription and must not
+    // treat a customer checkout as the merchant's plan payment.
+    if (String(reference).startsWith('ord_')) {
+      throw new Error('Storefront payments are confirmed by the webhook');
+    }
+
     // Get Paystack secret key from environment
     const paystackSecretKey = Deno.env.get('PAYSTACK_SECRET_KEY');
     if (!paystackSecretKey) {

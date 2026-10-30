@@ -12,13 +12,11 @@ export default function QuickDebugger() {
 
   const { currentUser } = useAuth();
 
-  // Show for store owners on conversations page
-  const isAdmin = currentUser?.email === 'ekhatorpaul57@gmail.com' ||
-                  currentUser?.role === 'admin' ||
-                  currentUser?.role === 'super_admin';
-
-  // Show if user is authenticated and on conversations page
-  const shouldShow = currentUser && window.location.pathname.includes('conversations');
+  // B4: never ship this panel. user_metadata.role is editable by the user,
+  // so it is not an admin check. Production builds return null.
+  const shouldShow = import.meta.env.DEV
+    && currentUser
+    && window.location.pathname.includes('conversations');
 
   // Don't render if not authorized
   if (!shouldShow) {
@@ -621,7 +619,7 @@ export default function QuickDebugger() {
               disabled={status !== 'idle'}
               style={{
                 flex: 1,
-                backgroundColor: status !== 'idle' ? '#9ca3af' : '#3b82f6',
+                backgroundColor: status !== 'idle' ? '#475569' : '#3b82f6',
                 color: 'white',
                 padding: '8px 12px',
                 borderRadius: '4px',
@@ -653,7 +651,7 @@ export default function QuickDebugger() {
               disabled={status !== 'idle'}
               style={{
                 flex: 1,
-                backgroundColor: status !== 'idle' ? '#9ca3af' : '#a855f7',
+                backgroundColor: status !== 'idle' ? '#475569' : '#a855f7',
                 color: 'white',
                 padding: '8px 12px',
                 borderRadius: '4px',

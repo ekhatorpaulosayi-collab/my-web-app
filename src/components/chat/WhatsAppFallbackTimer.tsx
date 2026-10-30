@@ -353,7 +353,7 @@ export default function WhatsAppFallbackTimer({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#f9fafb';
-              e.currentTarget.style.borderColor = '#9ca3af';
+              e.currentTarget.style.borderColor = '#475569';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent';
@@ -442,14 +442,10 @@ export default function WhatsAppFallbackTimer({
                   justifyContent: 'center',
                   gap: '8px',
                   transition: 'all 0.2s',
-                  ':hover': {
-                    backgroundColor: '#f9fafb',
-                    borderColor: '#9ca3af'
-                  }
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = '#f9fafb';
-                  e.currentTarget.style.borderColor = '#9ca3af';
+                  e.currentTarget.style.borderColor = '#475569';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = 'white';
@@ -478,9 +474,6 @@ export default function WhatsAppFallbackTimer({
                     justifyContent: 'center',
                     gap: '8px',
                     transition: 'all 0.2s',
-                    ':hover': {
-                      backgroundColor: '#22c55e'
-                    }
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = '#22c55e';

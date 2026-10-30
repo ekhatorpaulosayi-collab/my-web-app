@@ -2,7 +2,11 @@
 import fetch from 'node-fetch';
 
 const SUPABASE_PROJECT_ID = 'yzlniqwzqlsftxrtapdl';
-const SUPABASE_ACCESS_TOKEN = 'sbp_0e49aecc340f38054a0a937101177d76f7b3574c'; // Your access token
+const SUPABASE_ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
+if (!SUPABASE_ACCESS_TOKEN) {
+  console.error('Set SUPABASE_ACCESS_TOKEN (Supabase dashboard → Account → Access Tokens).');
+  process.exit(1);
+}
 
 async function runMigrationViaAPI() {
   console.log('🚀 Applying migration via Supabase API...\n');
@@ -264,7 +268,7 @@ async function alternativeApproach() {
   console.log('OPTION 2 (Via Supabase CLI):');
   console.log('============================');
   console.log('If you have Supabase CLI installed:');
-  console.log('npx supabase db push --db-url "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"\n');
+  console.log('Use the Supabase SQL editor. Do not pass a database URL on the command line.');
   console.log('After applying the migration, validate with:');
   console.log('node validate-migration.js');
 }

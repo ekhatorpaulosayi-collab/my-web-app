@@ -35,6 +35,7 @@ interface OnlineOrderData {
   paymentMethod: 'paystack' | 'whatsapp';
   paymentReference?: string;
   promoCode?: string;
+  promoCodeId?: string;
 }
 
 /**
@@ -52,6 +53,7 @@ export async function saveOnlineStoreOrder(orderData: OnlineOrderData) {
     paymentMethod,
     paymentReference,
     promoCode,
+    promoCodeId,
   } = orderData;
 
   try {
@@ -99,6 +101,10 @@ export async function saveOnlineStoreOrder(orderData: OnlineOrderData) {
       };
     });
 
+    if (orderData.paymentMethod === 'paystack' && !String(orderData.paymentReference || '').startsWith('ord_')) {
+      return { success: false, error: 'legacy_card_retired' };
+    }
+
     // Insert all sales in one batch
     const { data: salesData, error: salesError } = await supabase
       .from('sales')
@@ -112,48 +118,10 @@ export async function saveOnlineStoreOrder(orderData: OnlineOrderData) {
 
     console.log('[Online Store] Sales saved:', salesData?.length);
 
-    // Update inventory for each product/variant
-    for (const item of items) {
-      try {
-        // If item has a variant, decrement variant quantity
-        // Otherwise, decrement product quantity
-        if (item.variantId) {
-          const { error: variantError } = await supabase.rpc('decrement_variant_quantity', {
-            p_variant_id: item.variantId,
-            p_quantity: item.quantity,
-          });
-
-          if (variantError) {
-            console.warn('[Online Store] Variant inventory update failed for', item.variantName, variantError);
-          }
-        } else {
-          const { error: productError } = await supabase.rpc('decrement_product_quantity', {
-            p_product_id: item.id,
-            p_quantity: item.quantity,
-          });
-
-          if (productError) {
-            console.warn('[Online Store] Product inventory update failed for', item.name, productError);
-          }
-        }
-      } catch (err) {
-        console.warn('[Online Store] Inventory update error:', err);
-      }
-    }
-
-    // Save/update customer in customer database
-    try {
-      await supabase.rpc('upsert_customer', {
-        p_user_id: storeUserId,
-        p_customer_name: customer.name,
-        p_customer_phone: customer.phone,
-        p_customer_email: customer.email || null,
-        p_order_amount: finalTotal,
-        p_order_date: new Date().toISOString().split('T')[0],
-      });
-    } catch (err) {
-      console.warn('[Online Store] Customer save failed:', err);
-      // Don't fail the order if customer save fails
+    // ord_ payments are fulfilled by the webhook. A merchant-key reference
+    // has no server order, so this function does not call the legacy fulfil path.
+    if (paymentReference && paymentMethod === 'paystack' && paymentReference.startsWith('ord_')) {
+      return { success: true, salesIds: salesData?.map((s) => s.id) || [] };
     }
 
     return {

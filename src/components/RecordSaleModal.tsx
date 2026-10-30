@@ -22,6 +22,11 @@ import { ensureQty, ensurePrice } from '../utils/validators';
 // SINGLE-PATH (Option b): offlineQueue import removed — offline sales now go to IndexedDB.
 import { logSaleEvent } from '../utils/analytics';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { lagosTodayPlus } from '../utils/businessDate';
+import { useAuth } from '../contexts/AuthContext';
+import { useStaff } from '../contexts/StaffContext';
+import { canEditTillPrice } from '../utils/staffPermissions';
+import { useAllowStaffPriceChange } from '../hooks/useAllowStaffPriceChange';
 
 interface RecordSaleModalProps {
   isOpen: boolean;
@@ -46,6 +51,11 @@ export default function RecordSaleModal({
   showSalesData = true,
   onShowToast
 }: RecordSaleModalProps) {
+  const { currentUser } = useAuth();
+  const { currentRole } = useStaff();
+  const allowStaffPriceChange = useAllowStaffPriceChange(currentUser?.uid, isOpen);
+  const editTillPrice = canEditTillPrice(currentRole, allowStaffPriceChange);
+
   // Controlled state for all form fields
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItemId, setSelectedItemId] = useState('');
@@ -110,9 +120,7 @@ export default function RecordSaleModal({
   // Initialize due date to today + 7 days
   useEffect(() => {
     if (isOpen && !dueDate) {
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
     }
   }, [isOpen, dueDate]);
 
@@ -217,9 +225,7 @@ export default function RecordSaleModal({
       setPhone('');
       setPhoneDisplay('');
       setPhoneValidation({ valid: true, message: '' });
-      const today = new Date();
-      today.setDate(today.getDate() + 7);
-      setDueDate(today.toISOString().split('T')[0]);
+      setDueDate(lagosTodayPlus(7));
       setMessage('');
       setSendWhatsApp(false);
       setHasConsent(false);
@@ -1125,9 +1131,10 @@ Powered by Storehouse
                       value={price}
                       onChange={e => handlePriceChange(e.target.value)}
                       placeholder="0"
+                      readOnly={!editTillPrice}
                     />
                     {/* Margin Indicator for Shop Owners */}
-                    {showMarginHint && selectedItem && price && (() => {
+                    {showMarginHint && currentRole !== 'cashier' && selectedItem && price && (() => {
                       try {
                         const priceNum = parseFloat(price.replace(/,/g, ''));
                         const costKobo = selectedItem.costKobo ?? selectedItem.costPrice ?? 0;
@@ -1352,7 +1359,7 @@ Powered by Storehouse
                         className="rs-input"
                         value={dueDate}
                         onChange={e => setDueDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={new Date().toLocaleDateString('en-CA')}
                         required
                       />
                       {dueDate && (
@@ -1419,7 +1426,7 @@ Powered by Storehouse
                       />
                       <span>
                         Send WhatsApp receipt for entire order
-                        {!phone && <span style={{ color: '#9ca3af', fontSize: '13px', display: 'block', marginTop: '4px' }}>
+                        {!phone && <span style={{ color: '#475569', fontSize: '13px', display: 'block', marginTop: '4px' }}>
                           (Enter phone number above to enable)
                         </span>}
                       </span>

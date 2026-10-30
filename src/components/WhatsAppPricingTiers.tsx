@@ -28,7 +28,7 @@ const TIERS: Tier[] = [
       'Multilingual AI (Hausa, Yoruba, Igbo, Pidgin)',
       'Store owner takeover',
     ],
-    color: '#9ca3af',
+    color: '#475569',
   },
   {
     id: 'starter',

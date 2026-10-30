@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { addCalendarDays, businessDayKey } from '../utils/businessDate';
 import { TrendingUp, MessageSquare, Users, Clock, Hash, Bot, UserCheck, AlertCircle } from 'lucide-react';
 
 interface AnalyticsData {
@@ -45,28 +46,26 @@ export const ConversationAnalytics: React.FC<Props> = ({ storeId, dateRange }) =
     setLoading(true);
     try {
       // Calculate date range based on selected period
-      const endDate = new Date();
-      const startDate = new Date();
-
-      switch (selectedPeriod) {
-        case 'today':
-          startDate.setHours(0, 0, 0, 0);
-          break;
-        case 'week':
-          startDate.setDate(startDate.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(startDate.getMonth() - 1);
-          break;
-      }
+      const endKey = businessDayKey();
+      const endDate = new Date(`${endKey}T23:59:59+01:00`);
+      const startDate = new Date(`${(selectedPeriod === 'week'
+        ? addCalendarDays(endKey, -7)
+        : selectedPeriod === 'month'
+          ? addCalendarDays(endKey, -30)
+          : endKey)}T00:00:00+01:00`);
+      const startKey = selectedPeriod === 'week'
+        ? addCalendarDays(endKey, -7)
+        : selectedPeriod === 'month'
+          ? addCalendarDays(endKey, -30)
+          : endKey;
 
       // Fetch analytics data
       const { data: analyticsData, error: analyticsError } = await supabase
         .from('conversation_analytics')
         .select('*')
         .eq('store_id', storeId)
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0]);
+        .gte('date', startKey)
+        .lte('date', endKey);
 
       if (analyticsError) throw analyticsError;
 

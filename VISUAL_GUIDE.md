@@ -138,7 +138,7 @@ After you toggle it ON, you'll see:
 │                                                     │
 │ Password (optional)                                 │
 │ ┌─────────────────────────────────────────────┐   │
-│ │ re_XPVQSN5h_LiRBx7v2HE7uUQWTswAKavrN      │   │ ◄── Paste your API key
+│ │ YOUR_RESEND_API_KEY      │   │ ◄── Paste your API key
 │ └─────────────────────────────────────────────┘   │
 │                                                     │
 │ Sender email *                                      │

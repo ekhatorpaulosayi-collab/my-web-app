@@ -196,8 +196,49 @@ export function BusinessTypeSelector({ onComplete }: BusinessTypeSelectorProps) 
           >
             Continue
           </button>
+          <button
+            type="button"
+            className="bts-btn bts-btn-large"
+            onClick={() => {
+              setBusinessType('general');
+              onComplete();
+            }}
+          >
+            Skip for now
+          </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/** In-flow card. The full sheet opens only after Choose. */
+export function BusinessTypePrompt() {
+  const {
+    isFirstTimeSetup,
+    businessType,
+    completeSetup,
+    businessTypePromptDismissed,
+    dismissBusinessTypePrompt,
+    shopTypeReady,
+  } = usePreferences();
+  const [open, setOpen] = useState(false);
+
+  if (!shopTypeReady || !isFirstTimeSetup || businessType || businessTypePromptDismissed) return null;
+  if (open) return <BusinessTypeSelector onComplete={completeSetup} />;
+
+  return (
+    <section className="business-type-prompt" aria-label="Shop type">
+      <p>What kind of shop is this? Pick a type when you are ready.</p>
+      <div className="business-type-prompt-actions">
+        <button type="button" onClick={() => setOpen(true)}>Choose shop type</button>
+        <button
+          type="button"
+          onClick={() => dismissBusinessTypePrompt()}
+        >
+          Not now
+        </button>
+      </div>
+    </section>
   );
 }

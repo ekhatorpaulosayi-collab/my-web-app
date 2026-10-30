@@ -5,6 +5,43 @@
 
 import { supabase } from '../lib/supabase';
 import bcrypt from 'bcryptjs';
+import { saleRevenueKobo } from '../utils/money';
+import { nextPinFailure, PinLockState } from '../utils/pinLockout';
+
+const PIN_LOCK_KEY = 'storehouse:pin-lock';
+const PIN_LOCK_MESSAGE = 'Too many PIN attempts. Try again in 15 minutes.';
+
+function readPinLock(ownerUid: string): PinLockState {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(PIN_LOCK_KEY) || '{}');
+    const row = all[ownerUid];
+    if (!row || typeof row.attempts !== 'number') return { attempts: 0, lockedUntil: 0 };
+    return { attempts: row.attempts, lockedUntil: Number(row.lockedUntil) || 0 };
+  } catch {
+    return { attempts: 0, lockedUntil: 0 };
+  }
+}
+
+function writePinLock(ownerUid: string, state: PinLockState) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(PIN_LOCK_KEY) || '{}');
+    all[ownerUid] = state;
+    sessionStorage.setItem(PIN_LOCK_KEY, JSON.stringify(all));
+  } catch {
+    // The server lock in migration 09 is the real control.
+  }
+}
+
+function clearPinLock(ownerUid: string) {
+  writePinLock(ownerUid, { attempts: 0, lockedUntil: 0 });
+}
+
+const STAFF_COLUMNS = 'id, store_owner_uid, name, phone, email, role, is_active, created_at, updated_at, last_login_at';
+
+function missingRpc(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST202' || error.code === '42883' || /does not exist|could not find the function/i.test(error.message || '');
+}
 
 export interface StaffMember {
   id: string;
@@ -65,12 +102,12 @@ export async function createStaffMember(
       store_owner_uid: ownerUid,
       name: data.name,
       phone: data.phone,
-      email: data.email,
+      email: data.email?.trim() ? data.email.trim() : null, // M4: '' collided with UNIQUE(owner,email)
       pin: hashedPin,
       role: data.role,
       is_active: true
     })
-    .select()
+    .select(STAFF_COLUMNS)
     .single();
 
   if (error) {
@@ -95,7 +132,7 @@ export async function createStaffMember(
 export async function fetchStaffMembers(ownerUid: string): Promise<StaffMember[]> {
   const { data, error } = await supabase
     .from('staff_members')
-    .select('*')
+    .select(STAFF_COLUMNS)
     .eq('store_owner_uid', ownerUid)
     .order('created_at', { ascending: false });
 
@@ -114,10 +151,39 @@ export async function authenticateStaffWithPin(
   ownerUid: string,
   pin: string
 ): Promise<StaffMember | null> {
-  // Fetch all active staff for this owner
+  // Server session (migration 09). The PIN is checked in Postgres and the
+  // JWT session is locked to this role until end_staff_session.
+  const { data: started, error: rpcError } = await supabase.rpc('begin_staff_session', { p_pin: pin });
+  const sessionError = String(started?.error || '');
+  if (!rpcError && sessionError === 'pin_locked') throw new Error(PIN_LOCK_MESSAGE);
+  if (!rpcError && sessionError === 'invalid_pin') return null;
+  if (!rpcError && started?.staff_id) {
+    clearPinLock(ownerUid);
+    return {
+      id: started.staff_id,
+      store_owner_uid: ownerUid,
+      name: started.name || 'Staff',
+      role: started.role === 'manager' ? 'manager' : 'cashier',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+  if (rpcError && !missingRpc(rpcError)) {
+    if (/pin_locked/i.test(rpcError.message || '')) throw new Error(PIN_LOCK_MESSAGE);
+    if (/invalid_pin/i.test(rpcError.message || '')) return null;
+    console.error('[staffService] begin_staff_session failed:', rpcError.code || 'error');
+    throw new Error('Could not start staff session');
+  }
+
+  const existingLock = readPinLock(ownerUid);
+  if (existingLock.lockedUntil > Date.now()) throw new Error(PIN_LOCK_MESSAGE);
+
+  // Migration 09 not applied yet. Client check still works, but clearing
+  // localStorage restores the owner until the SQL is run.
   const { data: staffMembers, error } = await supabase
     .from('staff_members')
-    .select('*')
+    .select(`${STAFF_COLUMNS}, pin`)
     .eq('store_owner_uid', ownerUid)
     .eq('is_active', true);
 
@@ -145,11 +211,15 @@ export async function authenticateStaffWithPin(
         staff_name: staff.name
       });
 
-      console.log('[staffService] ✅ Staff authenticated:', staff.name);
+      clearPinLock(ownerUid);
+      console.log('[staffService] Staff authenticated:', staff.name);
       return staff;
     }
   }
 
+  const next = nextPinFailure(readPinLock(ownerUid), Date.now());
+  writePinLock(ownerUid, next);
+  if (next.locked) throw new Error(PIN_LOCK_MESSAGE);
   return null;
 }
 
@@ -172,7 +242,7 @@ export async function updateStaffMember(
     .update(updates)
     .eq('id', staffId)
     .eq('store_owner_uid', ownerUid)
-    .select()
+    .select(STAFF_COLUMNS)
     .single();
 
   if (error) {
@@ -314,7 +384,7 @@ export async function getStaffMember(
 ): Promise<StaffMember | null> {
   const { data, error } = await supabase
     .from('staff_members')
-    .select('*')
+    .select(STAFF_COLUMNS)
     .eq('id', staffId)
     .eq('store_owner_uid', ownerUid)
     .single();
@@ -364,7 +434,7 @@ export async function getStaffSalesStats(
   const sales = data || [];
   const totalSales = sales.length;
   const totalRevenue = sales.reduce((sum, sale) => {
-    return sum + ((sale.sellKobo || 0) * (sale.qty || 0) / 100);
+    return sum + saleRevenueKobo(sale) / 100;
   }, 0);
   const averageSaleAmount = totalSales > 0 ? totalRevenue / totalSales : 0;
 

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { businessDayKey } from '../utils/businessDate';
 
 // ============================================
 // TYPES & INTERFACES
@@ -449,72 +450,9 @@ export async function getInvoicePayments(
   }
 }
 
-/**
- * Generate Paystack payment link for an invoice
- */
-export async function generatePaystackLink(
-  invoiceId: string,
-  userId: string,
-  paystackSecretKey: string
-): Promise<{ success: boolean; paymentLink?: string; error?: string }> {
-  try {
-    // Get invoice
-    const { data: invoice, error: invoiceError } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('id', invoiceId)
-      .eq('user_id', userId)
-      .single();
-
-    if (invoiceError) throw invoiceError;
-
-    // Generate unique reference
-    const reference = `INV-${invoice.invoice_number}-${Date.now()}`;
-
-    // Call Paystack API to create payment link
-    const response = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: invoice.customer_email,
-        amount: invoice.balance_due_kobo / 100, // Convert kobo to naira for Paystack
-        reference: reference,
-        metadata: {
-          invoice_id: invoiceId,
-          invoice_number: invoice.invoice_number,
-          customer_name: invoice.customer_name,
-        },
-        callback_url: `${window.location.origin}/invoices/${invoiceId}/payment-success`,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!data.status) {
-      throw new Error(data.message || 'Failed to create payment link');
-    }
-
-    // Update invoice with payment link
-    await supabase
-      .from('invoices')
-      .update({
-        payment_link: data.data.authorization_url,
-        paystack_reference: reference,
-      })
-      .eq('id', invoiceId);
-
-    return {
-      success: true,
-      paymentLink: data.data.authorization_url,
-    };
-  } catch (error: any) {
-    console.error('[generatePaystackLink] Error:', error);
-    return { success: false, error: error.message };
-  }
-}
+// L8: removed generatePaystackLink(): it called Paystack from the browser with a
+// SECRET key argument (secret keys must never reach the client) and had no callers.
+// Invoice payment links should be created by a server-side edge function.
 
 // ============================================
 // STATUS MANAGEMENT
@@ -724,6 +662,25 @@ Thank you for your business! 🙏`;
 /**
  * Calculate payment terms due date
  */
+export function dueDateKey(issueDate: string, paymentTerms: PaymentTerms): string {
+  const match = String(issueDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const base = match ? `${match[1]}-${match[2]}-${match[3]}` : businessDayKey();
+  const extra: Record<string, number> = {
+    DUE_ON_RECEIPT: 0,
+    NET_7: 7,
+    NET_15: 15,
+    NET_30: 30,
+    NET_60: 60,
+  };
+  const days = extra[paymentTerms] ?? 0;
+  const [year, month, day] = base.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day + days));
+  const y = utc.getUTCFullYear();
+  const m = String(utc.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(utc.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function calculateDueDate(issueDate: Date, paymentTerms: PaymentTerms): Date {
   const dueDate = new Date(issueDate);
 

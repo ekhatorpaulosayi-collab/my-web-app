@@ -189,7 +189,7 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
           style={{
             padding: '8px 16px',
             background: isDirty ? '#10b981' : '#e5e7eb',
-            color: isDirty ? 'white' : '#9ca3af',
+            color: isDirty ? 'white' : '#475569',
             border: 'none',
             borderRadius: '6px',
             fontSize: '14px',

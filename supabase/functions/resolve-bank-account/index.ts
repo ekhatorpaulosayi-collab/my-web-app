@@ -51,7 +51,7 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-function jsonResponse(body, status) {
+function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -341,6 +341,9 @@ serve(async (req) => {
     return jsonResponse({ error: 'busy', message: 'Bank lookup is busy. Please try again in a moment.' }, 503);
   }
 
+  // Paystack payout verification stays on bank_accounts. The manual
+  // transfer account the customer sees lives on store_bank_details and
+  // payment_methods, and is saved by the owner. Do not overwrite it here.
   console.log('bank_account_resolve', {
     store_id,
     user_id: user.id,

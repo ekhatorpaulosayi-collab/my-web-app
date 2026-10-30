@@ -1,14 +1,20 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './utils/reservedSubdomains';
-import App from './App.jsx';
-import Login from './pages/Login.jsx';
-import Signup from './pages/Signup.jsx';
-import ForgotPassword from './pages/ForgotPassword.jsx';
 import AuthConfirm from './pages/AuthConfirm.jsx';
 import UpdatePassword from './pages/UpdatePassword.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { RouteSkeleton } from './components/RouteSkeleton';
+import { AppShell } from './components/layout/AppShell';
+
+const App = lazy(() => import('./App.jsx'));
+const Login = lazy(() => import('./pages/Login.jsx'));
+const Signup = lazy(() => import('./pages/Signup.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
+const NotFound = lazy(() => import('./pages/NotFound.tsx'));
+const Terms = lazy(() => import('./pages/Terms.tsx'));
+const Privacy = lazy(() => import('./pages/Privacy.tsx'));
 
 // Lazy load non-critical routes for better performance
 const Settings = lazy(() => import('./pages/Settings.jsx'));
@@ -50,6 +56,7 @@ const PaymentSetup = lazy(() => import('./pages/PaymentSetup.tsx'));
 const SubaccountWizard = lazy(() => import('./components/payments/SubaccountWizard.tsx'));
 const KycWizard = lazy(() => import('./components/payments/KycWizard.tsx'));
 const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
+const DevPhoneNavPreview = lazy(() => import('./pages/DevPhoneNavPreview.tsx').then((m) => ({ default: m.DevPhoneNavPreview })));
 
 /**
  * Host-aware element for the root path "/".
@@ -59,8 +66,50 @@ const KycEditForm = lazy(() => import('./components/payments/KycEditForm.tsx'));
  *   - custom domain (not storehouse.ng, not vercel preview,
  *     not localhost)                                          → StorefrontPage (Strategy 1)
  *   - storehouse.ng, www.storehouse.ng, localhost,
- *     *.vercel.app, reserved/numeric subdomains              → LandingPage
+ *     *.vercel.app                                            → LandingPage
+ *   - reserved or numeric subdomains                          → store not found
  */
+function StoreMissing() {
+  return (
+    <main style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '32px 16px',
+      background: '#f8fafc',
+    }}>
+      <div style={{ maxWidth: 480, textAlign: 'center' }}>
+        <h1 style={{ fontSize: 32, color: '#111827', marginBottom: 12 }}>Store not found</h1>
+        <p style={{ fontSize: 16, color: '#334155', lineHeight: 1.6, marginBottom: 20 }}>
+          This address is not a live Storehouse shop. The link may be old, or the store may be hidden.
+        </p>
+        <Link to="/signup" style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 48,
+          padding: '12px 20px',
+          background: '#1d4ed8',
+          color: '#ffffff',
+          borderRadius: 10,
+          fontWeight: 700,
+          textDecoration: 'none',
+        }}>
+          Start your own store
+        </Link>
+      </div>
+    </main>
+  );
+}
+
+function CatchAllRoute() {
+  const { currentUser, loading } = useAuth();
+  if (loading) return null;
+  const page = <NotFound />;
+  return currentUser ? <AppShell>{page}</AppShell> : page;
+}
+
 function RootRoute() {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
@@ -82,6 +131,14 @@ function RootRoute() {
     !isStorehouseNg &&
     hostname !== '';
 
+  const isReservedHost =
+    isStorehouseNg &&
+    hostname !== 'storehouse.ng' &&
+    hostname !== 'www.storehouse.ng' &&
+    labels.length >= 3 &&
+    (RESERVED_SUBDOMAINS.has(subdomainLabel) || NUMERIC_ONLY_LABEL.test(subdomainLabel));
+
+  if (isReservedHost) return <StoreMissing />;
   return (isStorefrontSubdomain || isCustomDomain) ? <StorefrontPage /> : <LandingPage />;
 }
 
@@ -92,8 +149,15 @@ function RootRoute() {
 export default function AppRoutes() {
   const { currentUser, loading } = useAuth();
 
-  // Show loading spinner while checking auth state
+  // Show loading spinner while checking auth state.
+  // Reviews, affiliate signup, and Upgrade open on the route skeleton.
   if (loading) {
+    const directSkeleton = {
+      '/reviews': 'Reviews',
+      '/affiliate/signup': 'Affiliate signup',
+      '/upgrade': 'Subscription plans',
+    }[window.location.pathname];
+    if (directSkeleton) return <RouteSkeleton label={directSkeleton} />;
     return (
       <div style={{
         display: 'flex',
@@ -193,7 +257,7 @@ export default function AppRoutes() {
         <Route
           path="/settings"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <Settings />
             </ProtectedRoute>
           }
@@ -204,7 +268,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <PaymentSetup />
             </ProtectedRoute>
           }
@@ -216,7 +280,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments/bank-setup"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <SubaccountWizard />
             </ProtectedRoute>
           }
@@ -229,7 +293,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments/identity-verification"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <KycWizard />
             </ProtectedRoute>
           }
@@ -241,7 +305,7 @@ export default function AppRoutes() {
         <Route
           path="/settings/payments/identity-verification/edit"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <KycEditForm />
             </ProtectedRoute>
           }
@@ -251,7 +315,7 @@ export default function AppRoutes() {
         <Route
           path="/customers"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <CustomersPage />
             </ProtectedRoute>
           }
@@ -271,7 +335,7 @@ export default function AppRoutes() {
         <Route
           path="/debug/agent-takeover"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <AgentTakeoverDebugger />
             </ProtectedRoute>
           }
@@ -281,7 +345,7 @@ export default function AppRoutes() {
         <Route
           path="/staff"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <StaffManagement />
             </ProtectedRoute>
           }
@@ -291,7 +355,7 @@ export default function AppRoutes() {
         <Route
           path="/referrals"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <ReferralDashboard />
             </ProtectedRoute>
           }
@@ -301,9 +365,11 @@ export default function AppRoutes() {
         <Route
           path="/upgrade"
           element={
-            <ProtectedRoute>
-              <SubscriptionUpgrade />
-            </ProtectedRoute>
+            <Suspense fallback={<RouteSkeleton label="Subscription plans" />}>
+              <ProtectedRoute ownerOnly skeleton={<RouteSkeleton label="Subscription plans" />}>
+                <SubscriptionUpgrade />
+              </ProtectedRoute>
+            </Suspense>
           }
         />
 
@@ -311,9 +377,11 @@ export default function AppRoutes() {
         <Route
           path="/affiliate/signup"
           element={
-            <ProtectedRoute>
-              <AffiliateSignup />
-            </ProtectedRoute>
+            <Suspense fallback={<RouteSkeleton label="Affiliate signup" />}>
+              <ProtectedRoute skeleton={<RouteSkeleton label="Affiliate signup" />}>
+                <AffiliateSignup />
+              </ProtectedRoute>
+            </Suspense>
           }
         />
 
@@ -321,7 +389,7 @@ export default function AppRoutes() {
         <Route
           path="/affiliate/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <AffiliateDashboard />
             </ProtectedRoute>
           }
@@ -331,7 +399,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/affiliates"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <AffiliateAdmin />
             </ProtectedRoute>
           }
@@ -341,7 +409,7 @@ export default function AppRoutes() {
         <Route
           path="/admin/monitoring"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <ErrorMonitoringDashboard />
             </ProtectedRoute>
           }
@@ -351,7 +419,7 @@ export default function AppRoutes() {
         <Route
           path="/sentry-test"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <SentryTest />
             </ProtectedRoute>
           }
@@ -361,7 +429,7 @@ export default function AppRoutes() {
         <Route
           path="/whatsapp-ai"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <WhatsAppAI />
             </ProtectedRoute>
           }
@@ -381,7 +449,7 @@ export default function AppRoutes() {
         <Route
           path="/debug-center"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <DebugCenter />
             </ProtectedRoute>
           }
@@ -403,7 +471,7 @@ export default function AppRoutes() {
         <Route
           path="/invoices"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <Invoices />
             </ProtectedRoute>
           }
@@ -412,7 +480,7 @@ export default function AppRoutes() {
         <Route
           path="/invoices/create"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <CreateInvoice />
             </ProtectedRoute>
           }
@@ -421,7 +489,7 @@ export default function AppRoutes() {
         <Route
           path="/invoices/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute blockCashier>
               <InvoiceDetail />
             </ProtectedRoute>
           }
@@ -431,9 +499,11 @@ export default function AppRoutes() {
         <Route
           path="/reviews"
           element={
-            <ProtectedRoute>
-              <ReviewManagement />
-            </ProtectedRoute>
+            <Suspense fallback={<RouteSkeleton label="Reviews" />}>
+              <ProtectedRoute skeleton={<RouteSkeleton label="Reviews" />}>
+                <ReviewManagement />
+              </ProtectedRoute>
+            </Suspense>
           }
         />
 
@@ -441,7 +511,7 @@ export default function AppRoutes() {
         <Route
           path="/image-test"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <ImageTest />
             </ProtectedRoute>
           }
@@ -450,7 +520,7 @@ export default function AppRoutes() {
         <Route
           path="/direct-test"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <DirectImageTest />
             </ProtectedRoute>
           }
@@ -459,7 +529,7 @@ export default function AppRoutes() {
         <Route
           path="/all-variants"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <AllVariantsTest />
             </ProtectedRoute>
           }
@@ -469,14 +539,22 @@ export default function AppRoutes() {
         <Route
           path="/test-variants"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute devOnly>
               <TestVariants />
             </ProtectedRoute>
           }
         />
 
         {/* Dev preview route for Sale Modal V2 - Public for testing */}
-        <Route path="/dev/sale-modal" element={<DevSaleModal />} />
+        {import.meta.env.DEV && <Route path="/dev/sale-modal" element={<DevSaleModal />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/help" element={<HelpCenter />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/upgrade" element={<SubscriptionUpgrade />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/reviews" element={<ReviewManagement />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/affiliate" element={<AffiliateSignup />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/referrals" element={<ReferralDashboard />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/quick-setup" element={<StoreQuickSetup />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/dashboard" element={<DevPhoneNavPreview />} />}
+        {import.meta.env.DEV && <Route path="/dev/ux-preview/more" element={<DevPhoneNavPreview openMore />} />}
 
         {/* Store Setup - Clean minimal design for quick store creation */}
         <Route path="/store-setup" element={<StoreSetup />} />
@@ -498,7 +576,7 @@ export default function AppRoutes() {
         <Route
           path="/online-store"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute ownerOnly>
               <OnlineStoreSetup />
             </ProtectedRoute>
           }
@@ -545,14 +623,16 @@ export default function AppRoutes() {
             authoritative for actual order completion. */}
         <Route path="/store/:slug/order/return" element={<OrderReturn />} />
 
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+
         {/* Public invoice view - accessible without login */}
         <Route path="/invoice/:id" element={<PublicInvoiceView />} />
 
         {/* Public contribution group view - accessible without login */}
         <Route path="/a/:shareCode" element={<ContributionPublicView />} />
 
-        {/* Catch-all - redirect to landing page */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<CatchAllRoute />} />
       </Routes>
     </Suspense>
   );

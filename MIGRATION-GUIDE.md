@@ -34,7 +34,7 @@ This guide will walk you through migrating your Storehouse app from Firebase to 
 
 3. Click **New Query**
 
-4. Open the file `supabase-schema.sql` from your project root
+4. Open `sql-archive/root-scripts/supabase-schema.sql` (historical copy; current schema changes live in `supabase/migrations/`)
 
 5. Copy ALL the contents (440 lines)
 
@@ -52,7 +52,7 @@ Success. No rows returned
 
 1. In the same SQL Editor, click **New Query** again
 
-2. Open the file `supabase-functions.sql`
+2. Open `sql-archive/root-scripts/supabase-functions.sql` (historical copy)
 
 3. Copy all contents
 

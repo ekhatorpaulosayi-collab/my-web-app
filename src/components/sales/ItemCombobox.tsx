@@ -10,6 +10,7 @@ export interface ItemOption {
   price: number;
   stock: number;
   thumbnailUrl?: string;
+  category?: string;
 }
 
 interface ItemComboboxProps {

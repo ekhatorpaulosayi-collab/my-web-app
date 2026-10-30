@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Check, X, Loader2, CreditCard, XCircle } from 'lucide-react';
+import { RouteSkeleton } from './RouteSkeleton';
 
 // Hardcoded tier display data — keeps the in-app subscription page in lock-step
 // with the landing page pricing section. DB drives prices/limits; this drives
@@ -215,7 +216,10 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
   };
 
   const loadData = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
 
     console.log('[SubscriptionUpgrade] Starting to load data...');
     setLoading(true);
@@ -732,13 +736,10 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
     return isDifferentTier || isDifferentCycle;
   };
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <Loader2 size={32} className="spin" style={{ margin: '0 auto' }} />
-        <p style={{ marginTop: '16px', color: '#6b7280' }}>Loading subscription plans...</p>
-      </div>
-    );
+  const previewSkeleton = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('skeleton') === '1';
+  if (loading || previewSkeleton) {
+    return <RouteSkeleton label="Subscription plans" />;
   }
 
   return (
@@ -746,7 +747,40 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       {/* Header */}
       <div className="upgrade-header">
         <h2>Choose Your Plan</h2>
-        <p>Unlock more features and grow your business</p>
+        <p>Unlock more features and grow your business. Pro is the recommended plan for shops taking card payments.</p>
+      </div>
+
+      <div className="plan-compare-wrap">
+      <table className="plan-compare">
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th>Subscription</th>
+            <th>Customer fee</th>
+            <th>Your share of the fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-label="Plan">Free</td>
+            <td data-label="Subscription" className="ds-money">₦0</td>
+            <td data-label="Customer fee">2.5%</td>
+            <td data-label="Your share of the fee">1.0% (cap ₦500,000/mo)</td>
+          </tr>
+          <tr>
+            <td data-label="Plan">Starter</td>
+            <td data-label="Subscription" className="ds-money">₦5,000</td>
+            <td data-label="Customer fee">2.0%</td>
+            <td data-label="Your share of the fee">0.5%</td>
+          </tr>
+          <tr className="recommended">
+            <td data-label="Plan">Pro · Recommended</td>
+            <td data-label="Subscription" className="ds-money">₦10,000</td>
+            <td data-label="Customer fee">1.5%</td>
+            <td data-label="Your share of the fee">0%</td>
+          </tr>
+        </tbody>
+      </table>
       </div>
 
       {/* Current Subscription Info */}
@@ -824,13 +858,17 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
       <div className="billing-toggle-wrapper">
         <div className="billing-toggle">
           <button
+            type="button"
             className={billingCycle === 'monthly' ? 'active' : ''}
+            aria-pressed={billingCycle === 'monthly'}
             onClick={() => setBillingCycle('monthly')}
           >
             Monthly
           </button>
           <button
+            type="button"
             className={billingCycle === 'annual' ? 'active' : ''}
+            aria-pressed={billingCycle === 'annual'}
             onClick={() => setBillingCycle('annual')}
           >
             Annual
@@ -970,6 +1008,8 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           max-width: 1200px;
           margin: 0 auto;
           padding: 24px;
+          overflow-x: clip;
+          box-sizing: border-box;
         }
 
         .upgrade-header {
@@ -978,7 +1018,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         }
 
         .current-subscription-banner {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #1d4ed8 0%, #764ba2 100%);
           color: white;
           border-radius: 12px;
           padding: 20px 24px;
@@ -1051,7 +1091,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .upgrade-header p {
           font-size: 1.125rem;
-          color: #6b7280;
+          color: #475569;
         }
 
         .billing-toggle-wrapper {
@@ -1099,7 +1139,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           padding: 12px 24px;
           border: none;
           background: transparent;
-          color: #6b7280;
+          color: #475569;
           font-weight: 600;
           border-radius: 8px;
           cursor: pointer;
@@ -1109,7 +1149,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .billing-toggle button.active {
           background: white;
-          color: #667eea;
+          color: #1d4ed8;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
@@ -1117,7 +1157,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           position: absolute;
           top: -8px;
           right: -8px;
-          background: #10b981;
+          background: #15803d;
           color: white;
           font-size: 0.625rem;
           padding: 2px 6px;
@@ -1127,7 +1167,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .pricing-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
           gap: 24px;
           margin-bottom: 24px;
         }
@@ -1142,18 +1182,18 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         }
 
         .pricing-card:hover {
-          border-color: #667eea;
+          border-color: #1d4ed8;
           box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
           transform: translateY(-4px);
         }
 
         .pricing-card.popular {
-          border-color: #667eea;
+          border-color: #1d4ed8;
           box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
         }
 
         .pricing-card.current {
-          border-color: #10b981;
+          border-color: #15803d;
         }
 
         .popular-badge,
@@ -1162,7 +1202,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           top: -12px;
           left: 50%;
           transform: translateX(-50%);
-          background: #667eea;
+          background: #1d4ed8;
           color: white;
           padding: 4px 16px;
           border-radius: 12px;
@@ -1172,7 +1212,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         }
 
         .current-badge {
-          background: #10b981;
+          background: #15803d;
         }
 
         .tier-header {
@@ -1189,7 +1229,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .tier-description {
           font-size: 0.875rem;
-          color: #6b7280;
+          color: #475569;
         }
 
         .tier-pricing {
@@ -1207,7 +1247,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .currency {
           font-size: 1.25rem;
-          color: #6b7280;
+          color: #475569;
         }
 
         .amount {
@@ -1218,16 +1258,16 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .period {
           font-size: 1rem;
-          color: #6b7280;
+          color: #475569;
         }
 
         .billing-info {
           font-size: 0.875rem;
-          color: #6b7280;
+          color: #475569;
         }
 
         .savings {
-          color: #10b981;
+          color: #15803d;
           font-weight: 600;
           margin-top: 4px;
         }
@@ -1254,7 +1294,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.04em;
-          color: #6b7280;
+          color: #475569;
           margin: 16px 0 4px 0;
         }
 
@@ -1280,23 +1320,57 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
 
         .not-included-heading {
           margin-top: 20px;
-          color: #94a3b8;
+          color: #475569;
           font-size: 0.75rem;
           letter-spacing: 0.08em;
         }
+
+        .plan-compare-wrap { max-width: 100%; }
+        .plan-compare {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 0 0 24px;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+        @media (max-width: 720px) {
+          .subscription-upgrade { padding: 16px; }
+          .pricing-grid { grid-template-columns: 1fr; }
+          .plan-compare, .plan-compare tbody, .plan-compare tr, .plan-compare td { display: block; width: 100%; }
+          .plan-compare thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+          .plan-compare td { border-bottom: none; padding: 4px 12px; }
+          .plan-compare tr { border-bottom: 1px solid #e2e8f0; padding: 8px 0; }
+          .plan-compare td::before {
+            content: attr(data-label);
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #475569;
+          }
+        }
+        .plan-compare th, .plan-compare td {
+          padding: 12px 16px;
+          text-align: left;
+          border-bottom: 1px solid #e2e8f0;
+          color: #0f172a;
+        }
+        .plan-compare th { font-size: 14px; color: #475569; }
+        .plan-compare .recommended { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
 
         .locked-feature {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 8px;
-          opacity: 0.5;
+          opacity: 1;
           padding: 4px 0;
         }
 
         .locked-text {
-          color: #64748b;
-          text-decoration: line-through;
+          color: #475569;
+          text-decoration: none;
           font-size: 0.875rem;
         }
 
@@ -1304,7 +1378,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           display: inline-block;
           padding: 2px 8px;
           background: rgba(148, 163, 184, 0.15);
-          color: #64748b;
+          color: #334155;
           border: 1px solid rgba(148, 163, 184, 0.3);
           border-radius: 999px;
           font-size: 0.625rem;
@@ -1319,20 +1393,20 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
           text-align: center;
           font-size: 0.8125rem;
           font-weight: 600;
-          color: #6366f1;
+          color: #4338ca;
           margin: 8px 0 0 0;
           font-style: italic;
         }
 
         .check-icon {
-          color: #10b981;
+          color: #15803d;
           flex-shrink: 0;
         }
 
         .upgrade-btn {
           width: 100%;
           padding: 14px 24px;
-          background: #667eea;
+          background: #1d4ed8;
           color: white;
           border: none;
           border-radius: 8px;
@@ -1353,7 +1427,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         }
 
         .upgrade-btn.current {
-          background: #10b981;
+          background: #15803d;
           cursor: default;
         }
 
@@ -1365,7 +1439,7 @@ export default function SubscriptionUpgrade({ onClose }: { onClose?: () => void 
         .close-btn {
           background: #f3f4f6;
           border: none;
-          color: #6b7280;
+          color: #475569;
           padding: 12px 32px;
           border-radius: 8px;
           font-weight: 600;

@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "useUnknownInCatchVariables": false,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "types": ["vite/client"]
+  },
+  "exclude": [
+    "supabase/functions/ai-chat/handleStorefrontChat-NEW.ts",
+    "supabase/functions/ai-chat/handleStorefrontChat-QUALITY.ts",
+    "supabase/functions/ai-chat/index-with-tracking.ts",
+    "supabase/functions/ai-chat/add-tracking-patch.ts"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "supabase/functions/_shared/checkoutPrice.ts",
+    "supabase/functions/_shared/adminGate.ts",
+    "supabase/functions/_shared/affiliateDecision.ts",
+    "supabase/functions/_shared/paidOrder.ts",
+    "supabase/functions/_shared/moneyPolicies.ts",
+    "supabase/functions/_shared/errorLog.ts",
+    "supabase/functions/**/*.ts"
+  ]
+}

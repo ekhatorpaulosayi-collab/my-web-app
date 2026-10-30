@@ -10,6 +10,10 @@ import './styles/modern-buttons.css'
 import './styles/animations.css'
 import './styles/forced-improvements.css'
 import './styles/floating-effects.css'
+import './styles/ds.css'
+import { installDialogs } from './components/ui/toastStore'
+import { ToastHost } from './components/ui/ToastHost.tsx'
+import { OperatorAlerts } from './components/OperatorAlerts.tsx'
 import AppRoutes from './AppRoutes.jsx'
 import './lib/set-vh.js'
 import { RootBoundary } from './components/RootBoundary.tsx'
@@ -111,6 +115,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+installDialogs();
+
 // Initialize error monitoring
 initializeErrorMonitoring();
 if (import.meta.env.DEV) {
@@ -126,6 +132,8 @@ createRoot(document.getElementById('root')).render(
             <StaffProvider>
               <BusinessProvider>
                 <AppRoutes />
+                <ToastHost />
+                <OperatorAlerts />
               </BusinessProvider>
             </StaffProvider>
           </AuthProvider>

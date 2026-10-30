@@ -143,9 +143,9 @@ export function PaystackHelp({ context = 'general', isVisible = true, onClose }:
               <div className="flex-1">
                 <div className="font-medium text-gray-900">{step.title}</div>
                 <div className="text-sm text-gray-600">{step.content}</div>
-                {step.link && (
+                {(step as { link?: string }).link && (
                   <a
-                    href={step.link}
+                    href={(step as { link?: string }).link}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"

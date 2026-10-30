@@ -59,34 +59,42 @@ export default function HelpCenter() {
       .slice(0, 6);
   }, []);
 
-  const getDifficultyColor = (difficulty: string) => {
+  const difficultyStyle = (difficulty: string): { background: string; color: string } => {
     switch (difficulty) {
-      case 'beginner': return '#10b981'; // green
-      case 'intermediate': return '#f59e0b'; // orange
-      case 'advanced': return '#ef4444'; // red
-      default: return '#6b7280'; // gray
+      case 'beginner': return { background: '#dcfce7', color: '#166534' };
+      case 'intermediate': return { background: '#ffedd5', color: '#9a3412' };
+      case 'advanced': return { background: '#fee2e2', color: '#991b1b' };
+      default: return { background: '#f1f5f9', color: '#334155' };
     }
   };
 
-  const getCategoryColor = (category: string) => {
+  const categoryLabel = (category?: string) => (category ? category.replace(/-/g, ' ') : 'General');
+
+  const getCategoryColor = (category?: string) => {
     const colors: Record<string, string> = {
-      'getting-started': '#8b5cf6',
-      'products': '#3b82f6',
-      'sales': '#10b981',
-      'staff': '#f59e0b',
-      'reports': '#06b6d4',
-      'settings': '#6b7280',
-      'troubleshooting': '#ef4444',
-      'advanced': '#ec4899',
+      'getting-started': '#1d4ed8',
+      'products': '#1d4ed8',
+      'sales': '#15803d',
+      'staff': '#b45309',
+      'reports': '#0e7490',
+      'settings': '#475569',
+      'troubleshooting': '#b91c1c',
+      'advanced': '#1d4ed8',
+      'marketing': '#1d4ed8',
+      'invoices': '#1d4ed8',
+      'customers': '#1d4ed8',
+      'credit-sales': '#b45309',
+      'payments': '#15803d',
+      'general': '#475569',
     };
-    return colors[category] || '#6b7280';
+    return colors[category || ''] || '#475569';
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+    <div style={{ minHeight: '100vh', background: '#f9fafb', overflowX: 'clip' }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%)',
         padding: '24px 16px',
         color: '#fff'
       }}>
@@ -98,9 +106,9 @@ export default function HelpCenter() {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              background: 'rgba(255, 255, 255, 0.2)',
+              background: '#1e3a8a',
               color: '#fff',
-              border: 'none',
+              border: '1px solid rgba(255,255,255,0.85)',
               borderRadius: '8px',
               padding: '8px 16px',
               fontSize: '14px',
@@ -108,14 +116,14 @@ export default function HelpCenter() {
               marginBottom: '24px'
             }}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} aria-hidden="true" />
             Back
           </button>
 
           <h1 style={{ fontSize: '32px', fontWeight: '700', margin: '0 0 8px 0' }}>
             Help Center
           </h1>
-          <p style={{ fontSize: '16px', opacity: 0.9, margin: 0 }}>
+          <p style={{ fontSize: '16px', opacity: 1, margin: 0 }}>
             Everything you need to succeed with Storehouse
           </p>
 
@@ -123,16 +131,18 @@ export default function HelpCenter() {
           <div style={{ marginTop: '24px', position: 'relative' }}>
             <Search
               size={20}
+              aria-hidden="true"
               style={{
                 position: 'absolute',
                 left: '16px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: '#9ca3af'
+                color: '#475569'
               }}
             />
             <input
-              type="text"
+              type="search"
+              aria-label="Search help"
               placeholder="Search for help... (e.g., 'add product', 'record sale')"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -155,20 +165,29 @@ export default function HelpCenter() {
         {!searchQuery && selectedCategory === 'all' && (
           <div style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <Star size={20} color="#f59e0b" fill="#f59e0b" />
+              <Star size={20} color="#b45309" fill="#b45309" aria-hidden="true" />
               <h2 style={{ fontSize: '20px', fontWeight: '600', margin: 0 }}>
                 Popular Guides
               </h2>
             </div>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
               gap: '16px'
             }}>
               {popularGuides.map(doc => (
                 <div
                   key={doc.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={doc.title}
                   onClick={() => setSelectedDoc(doc)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedDoc(doc);
+                    }
+                  }}
                   style={{
                     background: '#fff',
                     borderRadius: '12px',
@@ -203,7 +222,7 @@ export default function HelpCenter() {
                     fontWeight: '600',
                     textTransform: 'uppercase'
                   }}>
-                    {doc.category.replace('-', ' ')}
+                    {categoryLabel(doc.category)}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -212,10 +231,10 @@ export default function HelpCenter() {
                       {doc.title}
                     </h3>
                   </div>
-                  <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 12px 0', lineHeight: '1.5' }}>
+                  <p style={{ fontSize: '14px', color: '#475569', margin: '0 0 12px 0', lineHeight: '1.5' }}>
                     {doc.subtitle}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#9ca3af' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#475569' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Clock size={14} />
                       {doc.estimatedTime}
@@ -223,8 +242,8 @@ export default function HelpCenter() {
                     <span style={{
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      background: `${getDifficultyColor(doc.difficulty)}22`,
-                      color: getDifficultyColor(doc.difficulty),
+                      background: difficultyStyle(doc.difficulty).background,
+                      color: difficultyStyle(doc.difficulty).color,
                       fontWeight: '600'
                     }}>
                       {doc.difficulty}
@@ -239,8 +258,10 @@ export default function HelpCenter() {
         {/* Category Tabs */}
         <div style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: '8px',
-          overflowX: 'auto',
+          overflowX: 'clip',
+          maxWidth: '100%',
           marginBottom: '24px',
           paddingBottom: '8px'
         }}>
@@ -255,12 +276,12 @@ export default function HelpCenter() {
                 padding: '10px 16px',
                 borderRadius: '8px',
                 border: 'none',
-                background: selectedCategory === cat.id ? '#667eea' : '#fff',
+                background: selectedCategory === cat.id ? '#1d4ed8' : '#fff',
                 color: selectedCategory === cat.id ? '#fff' : '#374151',
                 fontSize: '14px',
                 fontWeight: '500',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap',
+                whiteSpace: 'normal',
                 transition: 'all 0.2s',
                 boxShadow: selectedCategory === cat.id ? '0 4px 6px rgba(102, 126, 234, 0.3)' : '0 1px 3px rgba(0, 0, 0, 0.1)'
               }}
@@ -268,7 +289,8 @@ export default function HelpCenter() {
               <span>{cat.icon}</span>
               <span>{cat.label}</span>
               <span style={{
-                background: selectedCategory === cat.id ? 'rgba(255, 255, 255, 0.3)' : '#f3f4f6',
+                background: selectedCategory === cat.id ? '#1e3a8a' : '#f3f4f6',
+                color: selectedCategory === cat.id ? '#fff' : '#334155',
                 padding: '2px 8px',
                 borderRadius: '12px',
                 fontSize: '12px',
@@ -282,7 +304,7 @@ export default function HelpCenter() {
 
         {/* Results count */}
         <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>
+          <p style={{ fontSize: '14px', color: '#475569', margin: 0 }}>
             {filteredDocs.length} {filteredDocs.length === 1 ? 'guide' : 'guides'} found
           </p>
         </div>
@@ -290,13 +312,22 @@ export default function HelpCenter() {
         {/* Documentation List */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
           gap: '16px'
         }}>
           {filteredDocs.map(doc => (
             <div
               key={doc.id}
+              role="button"
+              tabIndex={0}
+              aria-label={doc.title}
               onClick={() => setSelectedDoc(doc)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedDoc(doc);
+                }
+              }}
               style={{
                 background: '#fff',
                 borderRadius: '12px',
@@ -327,7 +358,7 @@ export default function HelpCenter() {
                     color: getCategoryColor(doc.category),
                     textTransform: 'uppercase'
                   }}>
-                    {doc.category.replace('-', ' ')}
+                    {categoryLabel(doc.category)}
                   </span>
                 </div>
                 <ChevronRight size={20} color="#d1d5db" />
@@ -338,14 +369,14 @@ export default function HelpCenter() {
                 <h3 style={{ fontSize: '18px', fontWeight: '600', margin: '0 0 6px 0', color: '#111827' }}>
                   {doc.title}
                 </h3>
-                <p style={{ fontSize: '14px', color: '#6b7280', margin: 0, lineHeight: '1.6' }}>
+                <p style={{ fontSize: '14px', color: '#475569', margin: 0, lineHeight: '1.6' }}>
                   {doc.description}
                 </p>
               </div>
 
               {/* Footer */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#9ca3af' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#475569' }}>
                   <Clock size={14} />
                   {doc.estimatedTime}
                 </div>
@@ -354,8 +385,8 @@ export default function HelpCenter() {
                   borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: '600',
-                  background: `${getDifficultyColor(doc.difficulty)}22`,
-                  color: getDifficultyColor(doc.difficulty)
+                  background: difficultyStyle(doc.difficulty).background,
+                  color: difficultyStyle(doc.difficulty).color
                 }}>
                   {doc.difficulty}
                 </span>
@@ -377,7 +408,7 @@ export default function HelpCenter() {
             <h3 style={{ fontSize: '18px', fontWeight: '600', margin: '0 0 8px 0', color: '#374151' }}>
               No guides found
             </h3>
-            <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>
+            <p style={{ fontSize: '14px', color: '#475569', margin: 0 }}>
               Try adjusting your search or category filter
             </p>
           </div>

@@ -252,7 +252,7 @@ SELECT * FROM user_subscriptions ORDER BY created_at DESC LIMIT 10;
 
 ### Connection String
 ```
-postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+`$DATABASE_URL`
 ```
 
 ---
@@ -411,7 +411,7 @@ vercel env pull .env.local
 # Check affiliate dashboard for updated earnings
 
 # Step 5: Verify in database
-psql "postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" -c "SELECT * FROM affiliate_commissions ORDER BY created_at DESC LIMIT 5;"
+psql "`$DATABASE_URL`" -c "SELECT * FROM affiliate_commissions ORDER BY created_at DESC LIMIT 5;"
 ```
 
 ### 2. Test Image Loading
@@ -570,7 +570,7 @@ vercel alias set PREVIOUS_DEPLOYMENT_URL storehouse.ng
 | Build production | `npm run build` |
 | Deploy to production | `vercel --prod --yes` |
 | Check deployment logs | `vercel logs storehouse.ng --follow` |
-| Run database migration | `PGPASSWORD="Godisgood1." psql "postgresql://..." -f migration.sql` |
+| Run database migration | `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migration.sql` |
 | Clear service worker | DevTools > Application > Service Workers > Unregister |
 | View affiliate stats | See "Affiliate Analytics" SQL above |
 | Test referral flow | Open incognito + use `?ref=CODE` |

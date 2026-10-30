@@ -8,9 +8,12 @@ async function runMigration() {
   console.log('🚀 Running Migration Directly...\n');
 
   // PostgreSQL connection
-  const pgClient = new Client({
-    connectionString: 'postgresql://postgres.yzlniqwzqlsftxrtapdl:Godisgood1.@aws-0-eu-central-1.pooler.supabase.com:6543/postgres'
-  });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error('DATABASE_URL is not set. Do not paste a connection string into this file.');
+    process.exit(1);
+  }
+  const pgClient = new Client({ connectionString });
 
   try {
     await pgClient.connect();

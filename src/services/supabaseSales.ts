@@ -6,6 +6,12 @@
 
 import { supabase } from '../lib/supabase';
 import { getDB, initDB, localDayKey } from '../db/idb';
+import { isPermanentSaleError } from '../utils/saleSync';
+
+function missingSaleRpc(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST202' || error.code === '42883' || /does not exist|could not find the function/i.test(error.message || '');
+}
 
 export interface Sale {
   id?: string;
@@ -47,139 +53,117 @@ export interface Sale {
 /**
  * Create a new sale in Supabase
  */
-export async function createSale(sale: Sale, userId?: string): Promise<Sale | null> {
-  console.log('[supabaseSales] ========= CREATE SALE START =========');
-  console.log('[supabaseSales] Sale data received:', sale);
-
+export async function createSale(sale: Sale, _userId?: string): Promise<Sale | null> {
   try {
-    // ALWAYS get the authenticated user ID
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
     if (authError || !authUser) {
       console.error('[SALES_DEBUG] No authenticated user!', authError);
       return null;
     }
-
-    // Always use auth user ID, ignore passed parameter
-    const actualUserId = authUser.id;
-    console.log('[SALES_DEBUG] Using auth UID:', actualUserId);
-    console.log('[SALES_DEBUG] User email:', authUser.email);
-
-    // Check if Supabase client is initialized
     if (!supabase) {
-      console.error('[supabaseSales] ❌ CRITICAL: Supabase client not initialized!');
+      console.error('[supabaseSales] Supabase client not initialized');
       return null;
     }
 
-    // Validate product_id is present
     const productId = sale.product_id || sale.itemId;
     if (!productId) {
-      console.error('[supabaseSales] ❌ VALIDATION ERROR: Product ID is required for sales');
-      console.error('[supabaseSales] Sale data that failed validation:', sale);
-      throw new Error('Product selection is required to record a sale');
+      const validation = new Error('Product selection is required to record a sale') as Error & { permanent?: boolean; code?: string };
+      validation.permanent = true;
+      validation.code = '23502';
+      throw validation;
     }
 
-    // Ensure we have required fields
+    const quantity = sale.quantity || 1;
+    const unitPrice = sale.unit_price || 0;
+    const discount = sale.discount_amount || 0;
+    const total = sale.total_amount || quantity * unitPrice;
+    const finalAmount = sale.final_amount || sale.total_amount || (quantity * unitPrice - discount);
+    const clientSaleId = sale.client_sale_id ?? sale.id ?? null;
     const saleData = {
-      user_id: actualUserId,  // ALWAYS use auth user ID
-      product_id: productId,  // Validated to be non-null
+      user_id: authUser.id,
+      product_id: productId,
       product_name: sale.product_name || sale.itemName || 'Unknown Product',
-      quantity: sale.quantity || 1,
-      unit_price: sale.unit_price || 0,
-      total_amount: sale.total_amount || (sale.quantity * (sale.unit_price || 0)),
-      discount_amount: sale.discount_amount || 0,
-      final_amount: sale.final_amount || sale.total_amount || (sale.quantity * (sale.unit_price || 0)),
+      quantity,
+      unit_price: unitPrice,
+      total_amount: total,
+      discount_amount: discount,
+      final_amount: finalAmount,
       customer_name: sale.customer_name || null,
       customer_phone: sale.customer_phone || null,
       customer_email: sale.customer_email || null,
       payment_method: sale.payment_method || 'cash',
       payment_status: sale.payment_status || 'paid',
-      amount_paid: sale.amount_paid || sale.final_amount || sale.total_amount,
+      amount_paid: sale.amount_paid || finalAmount,
       amount_due: sale.amount_due || 0,
       notes: sale.notes || null,
-      sale_date: sale.sale_date || new Date().toISOString().split('T')[0],
+      sale_date: sale.sale_date || new Date().toLocaleDateString('en-CA'),
       sale_time: sale.sale_time || new Date().toTimeString().split(' ')[0],
-      // OFF-01 idempotency key. Populated ONLY by the offline/manual paths.
-      // Every other caller passes nothing => NULL => behaves exactly as before.
-      client_sale_id: sale.client_sale_id ?? sale.id ?? null,
-      // Include sale_channel ONLY when the caller sets one so every existing
-      // caller keeps the DB default ('in-person').
-      ...(sale.sale_channel ? { sale_channel: sale.sale_channel } : {})
+      client_sale_id: clientSaleId,
+      ...(sale.sale_channel ? { sale_channel: sale.sale_channel } : {}),
     };
 
-    console.log('[supabaseSales] Formatted sale data for Supabase:', saleData);
+    // record_sale (migration 12) inserts the line, decrements stock, and
+    // returns the id. The client must not SELECT the row or UPDATE products:
+    // migration 09 blocks both for a cashier session.
+    const { data, error } = await supabase.rpc('record_sale', {
+      p_product_id: saleData.product_id,
+      p_product_name: saleData.product_name,
+      p_quantity: saleData.quantity,
+      p_unit_price: saleData.unit_price,
+      p_discount_amount: saleData.discount_amount,
+      p_client_sale_id: saleData.client_sale_id,
+      p_payment_method: saleData.payment_method,
+      p_payment_status: saleData.payment_status,
+      p_customer_name: saleData.customer_name,
+      p_customer_phone: saleData.customer_phone,
+      p_customer_email: saleData.customer_email,
+      p_notes: saleData.notes,
+      p_sale_date: saleData.sale_date,
+      p_sale_time: saleData.sale_time,
+      p_sale_channel: sale.sale_channel || null,
+      p_amount_paid: saleData.amount_paid,
+      p_amount_due: saleData.amount_due,
+    });
 
-    // OFF-01: when a client_sale_id is present, use upsert with ignoreDuplicates so
-    // a replayed offline sale (same client_sale_id) is a silent no-op at the DB
-    // (INSERT ... ON CONFLICT (client_sale_id) DO NOTHING) instead of a second row.
-    // supabase-js@2.81.1: .upsert(payload, { onConflict, ignoreDuplicates: true }).
-    // Binds to the FULL unique index sales_client_sale_id_uniq (migration 20260611b).
-    // With NO client_sale_id, fall back to a plain insert so behaviour is unchanged.
-    const hasClientId = saleData.client_sale_id != null;
-    const { data, error } = hasClientId
-      ? await supabase
-          .from('sales')
-          .upsert([saleData], { onConflict: 'client_sale_id', ignoreDuplicates: true })
-          .select()
-          .maybeSingle()
-      : await supabase
-          .from('sales')
-          .insert([saleData])
-          .select()
-          .single();
+    if (error && missingSaleRpc(error)) {
+      return insertSaleWithoutReadback(saleData);
+    }
+    // A real RPC error (wrong types, unknown product, price, stock) must
+    // reach the caller. Swallowing it as null looked like a dropped network.
+    if (error) throw error;
 
-    if (error) {
-      console.error('[supabaseSales] ❌ ERROR creating sale:', error);
-      console.error('[supabaseSales] Error code:', error.code);
-      console.error('[supabaseSales] Error message:', error.message);
-      console.error('[supabaseSales] Error details:', error.details);
-      console.error('[supabaseSales] Error hint:', error.hint);
-
-      // Log specific error types
-      if (error.code === '42501') {
-        console.error('[supabaseSales] ⚠️ PERMISSION DENIED - Check RLS policies!');
-      } else if (error.code === '23502') {
-        console.error('[supabaseSales] ⚠️ NOT NULL VIOLATION - Missing required field!');
-      } else if (error.code === '23503') {
-        console.error('[supabaseSales] ⚠️ FOREIGN KEY VIOLATION - Invalid reference!');
-      }
-
+    const row = data as { id?: string; client_sale_id?: string; already_recorded?: boolean } | null;
+    if (!row?.id) {
+      throw new Error('Sale was not recorded');
+    }
+    return { ...saleData, id: row.id, client_sale_id: row.client_sale_id || saleData.client_sale_id || undefined };
+  } catch (error) {
+    const coded = error as { code?: string; message?: string; permanent?: boolean };
+    console.error('[supabaseSales] Failed to create sale:', coded?.code || coded?.message);
+    // Postgres and PostgREST codes are answers from the server. Only a
+    // failure with no code (offline, failed fetch) stays retryable.
+    if (coded?.code || isPermanentSaleError(coded)) {
       throw error;
     }
-
-    // CONFIRMED-PERSISTED guard.
-    // Plain insert: a row MUST come back, else it didn't persist -> failure.
-    // OFF-01 dedup upsert (ignoreDuplicates): a CONFLICT returns NO row even though
-    // the sale IS already persisted (a prior run inserted it). That is SUCCESS, not
-    // failure -> re-select by client_sale_id and return the existing row so the
-    // caller can mark it synced. Only treat as failure if it's truly absent.
-    if (!data || !data.id) {
-      if (hasClientId) {
-        const { data: existing } = await supabase
-          .from('sales')
-          .select()
-          .eq('client_sale_id', saleData.client_sale_id as string)
-          .maybeSingle();
-        if (existing && existing.id) {
-          console.log('[supabaseSales] ✅ Idempotent no-op: sale already persisted (client_sale_id match).');
-          return existing;
-        }
-      }
-      throw new Error('Sale insert returned no row (not persisted)');
-    }
-
-    console.log('[supabaseSales] ✅ Sale created successfully!');
-    console.log('[supabaseSales] Created sale ID:', data?.id);
-    console.log('[supabaseSales] Full response:', data);
-    console.log('[supabaseSales] ========= CREATE SALE END =========');
-
-    return data;
-  } catch (error) {
-    console.error('[supabaseSales] ❌ FAILED to create sale - Exception caught:', error);
-    console.error('[supabaseSales] Stack trace:', (error as any)?.stack);
-    console.log('[supabaseSales] ========= CREATE SALE END (ERROR) =========');
     return null;
   }
+}
+
+/**
+ * Used only when record_sale is not installed yet. No .select() and no
+ * product update. Stock does not move on the server until migration 12 runs,
+ * so deploy that file before this frontend (see DEPLOY_ORDER.md).
+ */
+async function insertSaleWithoutReadback(saleData: {
+  client_sale_id: string | null;
+  [key: string]: unknown;
+}): Promise<Sale> {
+  const hasClientId = saleData.client_sale_id != null;
+  const { error } = hasClientId
+    ? await supabase.from('sales').upsert([saleData], { onConflict: 'client_sale_id', ignoreDuplicates: true })
+    : await supabase.from('sales').insert([saleData]);
+  if (error) throw error;
+  return { ...(saleData as unknown as Sale), id: saleData.client_sale_id || undefined };
 }
 
 /**
@@ -334,7 +318,7 @@ export async function getSalesByDateRange(
  * Get today's sales
  */
 export async function getTodaySales(userId: string): Promise<Sale[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
   return getSalesByDateRange(userId, today, today);
 }
 
@@ -602,7 +586,7 @@ export async function syncOfflineSales(userId: string): Promise<SyncResult> {
           sale_channel: 'offline-sync'
         }, userId);
 
-        if (cloudSale) {
+        if (cloudSale && cloudSale.id) {
           // Mark as synced in IndexedDB so it never re-inserts (idempotency).
           sale.syncedToCloud = true;
           sale.cloudId = cloudSale.id;
@@ -622,13 +606,25 @@ export async function syncOfflineSales(userId: string): Promise<SyncResult> {
 
           result.synced++;
         } else {
-          // createSale returned null (auth missing / insert rejected) — leave
-          // unsynced for retry; do NOT flag (transient).
+          // null with no throw: auth missing or a network failure. Retry later.
           result.failed++;
         }
       } catch (error) {
-        console.error('[supabaseSales] Error syncing sale:', error, sale);
-        result.failed++;
+        const coded = error as { code?: string; message?: string; permanent?: boolean };
+        if (isPermanentSaleError(coded)) {
+          console.error('[supabaseSales] Permanent sync error, will not retry:', coded.code || coded.message);
+          try {
+            sale.syncError = coded.code || 'permanent';
+            const flagTx = db.transaction(['sales'], 'readwrite');
+            flagTx.objectStore('sales').put(sale);
+          } catch (flagErr) {
+            console.warn('[supabaseSales] Could not flag permanent sync error:', flagErr);
+          }
+          result.skipped++;
+        } else {
+          console.error('[supabaseSales] Transient sync error, will retry:', coded?.message || error);
+          result.failed++;
+        }
       }
     }
 

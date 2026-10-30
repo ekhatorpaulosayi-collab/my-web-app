@@ -6,16 +6,18 @@ import fs from 'fs';
 
 const { Client } = pg;
 
-// Connection with direct host (not pooler)
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set. Do not paste a connection string into this file.');
+  process.exit(1);
+}
+
 const connectionConfig = {
-  host: 'aws-0-eu-central-1.pooler.supabase.com',
-  port: 6543,
-  database: 'postgres',
-  user: 'postgres.yzlniqwzqlsftxrtapdl',
-  password: 'Godisgood1.',
+  connectionString,
   ssl: { rejectUnauthorized: false },
   connectionTimeoutMillis: 30000
 };
+
 
 async function runMigration() {
   console.log('🚀 FINAL MIGRATION ATTEMPT\n');

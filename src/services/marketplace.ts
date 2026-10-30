@@ -59,17 +59,12 @@ export async function generateStoreSlug(businessName: string): Promise<string> {
     business_name: businessName
   });
 
-  if (error) {
+  if (error || !data) {
     console.error('[Marketplace] Error generating slug:', error);
-    // Fallback: simple slug generation
-    return businessName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .substring(0, 50);
+    throw new Error('We could not reserve a store link. Please try again.');
   }
 
-  return data || businessName.toLowerCase().replace(/\s+/g, '-');
+  return data;
 }
 
 /**

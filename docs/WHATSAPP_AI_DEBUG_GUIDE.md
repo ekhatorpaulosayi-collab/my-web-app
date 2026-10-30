@@ -1,5 +1,7 @@
 # 🔧 WhatsApp AI Debug & Troubleshooting Guide
 
+`api/whatsapp` has been removed. Do not recreate that route.
+
 ## Quick Debug Checklist
 
 If WhatsApp AI is not working, check these in order:

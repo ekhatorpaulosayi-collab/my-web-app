@@ -57,29 +57,54 @@ export async function submitReview(reviewData: SubmitReviewData) {
   try {
     console.log('[ReviewService] Submitting review:', { product_id: reviewData.product_id, rating: reviewData.rating });
 
-    // Validate review text length
-    if (reviewData.review_text.length < 10) {
+    const reviewText = (reviewData.review_text || '').trim();
+    const rating = Number(reviewData.rating);
+    if (reviewText.length < 10 || reviewText.length > 5000) {
       return {
         success: false,
-        error: 'Review must be at least 10 characters long'
+        error: 'Review must be between 10 and 5000 characters'
+      };
+    }
+    if (![1, 2, 3, 4, 5].includes(rating)) {
+      return {
+        success: false,
+        error: 'Rating must be between 1 and 5'
       };
     }
 
-    const { data, error } = await supabase
+    // store_user_id must be the product owner. The client value is not trusted.
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('user_id, is_public')
+      .eq('id', reviewData.product_id)
+      .maybeSingle();
+
+    if (productError || !product?.user_id || product.is_public !== true) {
+      return {
+        success: false,
+        error: 'This product is not open for reviews'
+      };
+    }
+
+    // Do not .select() after insert. Migration 04 section 8 drops the open
+    // SELECT on product_reviews, so a returning read of a pending row fails
+    // and the storefront treats a saved review as an error.
+    const { error } = await supabase
       .from('product_reviews')
       .insert({
         product_id: reviewData.product_id,
-        store_user_id: reviewData.store_user_id,
-        customer_name: reviewData.customer_name,
+        store_user_id: product.user_id,
+        customer_name: (reviewData.customer_name || '').trim().slice(0, 200),
         customer_email: reviewData.customer_email,
         customer_phone: reviewData.customer_phone,
-        rating: reviewData.rating,
+        rating,
         review_title: reviewData.review_title,
-        review_text: reviewData.review_text,
-        status: 'pending' // All reviews start as pending
-      })
-      .select()
-      .single();
+        review_text: reviewText,
+        status: 'pending',
+        helpful_count: 0,
+        not_helpful_count: 0,
+        store_response: null
+      });
 
     if (error) {
       console.error('[ReviewService] Error submitting review:', error);
@@ -92,7 +117,7 @@ export async function submitReview(reviewData: SubmitReviewData) {
     console.log('[ReviewService] Review submitted successfully');
     return {
       success: true,
-      review: data as ProductReview
+      review: null
     };
   } catch (error: any) {
     console.error('[ReviewService] Unexpected error:', error);

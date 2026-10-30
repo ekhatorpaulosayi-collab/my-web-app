@@ -319,7 +319,7 @@ export function PromoCodesManager({ userId }: PromoCodesManagerProps) {
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                min={new Date().toLocaleDateString('en-CA')}
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -337,7 +337,7 @@ export function PromoCodesManager({ userId }: PromoCodesManagerProps) {
               disabled={saving}
               style={{
                 padding: '10px 20px',
-                backgroundColor: saving ? '#9ca3af' : '#3b82f6',
+                backgroundColor: saving ? '#475569' : '#3b82f6',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -370,7 +370,7 @@ export function PromoCodesManager({ userId }: PromoCodesManagerProps) {
 
       {/* Promo Codes List */}
       {promoCodes.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+        <div style={{ textAlign: 'center', padding: '40px', color: '#475569' }}>
           <TrendingUp size={48} strokeWidth={1} style={{ margin: '0 auto 16px' }} />
           <p style={{ fontSize: '16px', fontWeight: 500 }}>No promo codes yet</p>
           <p style={{ fontSize: '14px', marginTop: '8px' }}>Create your first promo code to boost sales!</p>
@@ -400,7 +400,7 @@ export function PromoCodesManager({ userId }: PromoCodesManagerProps) {
                         style={{
                           fontSize: '20px',
                           fontWeight: 700,
-                          color: inactive ? '#9ca3af' : '#1f2937',
+                          color: inactive ? '#475569' : '#1f2937',
                           fontFamily: 'monospace',
                         }}
                       >

@@ -212,8 +212,20 @@
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: #64748b;
   font-weight: 400;
+}
+
+.search-clear {
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 4px;
+  white-space: nowrap;
 }
 
 .category-filter {
@@ -441,6 +453,7 @@
 /* Add to Cart - Primary Action (Vibrant Blue) */
 .btn-add-to-cart {
   width: 100%;
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -453,7 +466,10 @@
   font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: 0.025em;
-  text-transform: uppercase;
+  text-transform: none;
+  white-space: nowrap;
+  line-height: 1.15;
+  text-align: center;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
@@ -610,10 +626,24 @@
 /* ==================== FOOTER ==================== */
 .storefront-footer {
   background: #1e293b;
-  color: #94a3b8;
-  padding: 2rem 1rem;
+  color: #e2e8f0;
+  padding: 2rem 1rem 7rem;
   text-align: center;
   margin-top: 4rem;
+}
+
+.storefront-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.storefront-footer-links a {
+  color: #f8fafc;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .storefront-footer p {
@@ -636,7 +666,7 @@
 /* Mobile-first optimizations for touch devices */
 @media (max-width: 639px) {
   .storefront-header {
-    padding: 2rem 1rem 3rem;
+    padding: 4.75rem 1rem 3rem;
   }
 
   .storefront-title {
@@ -716,8 +746,15 @@
   .btn-quick-order,
   .btn-order {
     min-height: 48px;
-    font-size: 0.875rem !important;
-    padding: 0.75rem 0.875rem !important;
+    font-size: 0.8125rem !important;
+    padding: 0.5rem 0.45rem !important;
+    white-space: nowrap !important;
+    letter-spacing: 0;
+    gap: 0.25rem;
+  }
+
+  .btn-add-to-cart svg {
+    display: none;
   }
 
   .btn-quick-order {
@@ -769,6 +806,12 @@
 @media (min-width: 768px) and (max-width: 1023px) {
   .product-grid {
     gap: 1.5rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .storefront-header {
+    padding-top: 4.75rem;
   }
 }
 
@@ -942,5 +985,22 @@
     padding: 12px 20px;
     font-size: 14px;
     max-width: calc(100% - 32px);
+  }
+}
+
+/* A phone cart keeps the name field in the lower half. The toast sits at the top. */
+@media (max-width: 480px) {
+  .add-to-cart-toast {
+    top: 12px;
+    bottom: auto;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.2;
+    max-width: calc(100% - 24px);
+    transform: translateX(-50%) translateY(-24px);
+  }
+
+  .add-to-cart-toast.show {
+    transform: translateX(-50%) translateY(0);
   }
 }

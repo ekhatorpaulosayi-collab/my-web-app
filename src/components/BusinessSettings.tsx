@@ -246,9 +246,19 @@ export default function BusinessSettings({
           Promise.resolve()
         ]);
 
-        setHasPinEnabled(hasPinSet());
+        const pinOn = await hasPinSet();
+        setHasPinEnabled(pinOn);
+        let storedName = profile.businessName || '';
+        if (!storedName.trim() && currentUser?.uid) {
+          const { data: nameRow } = await supabase
+            .from('stores')
+            .select('business_name')
+            .eq('user_id', String(currentUser.uid))
+            .maybeSingle();
+          storedName = nameRow?.business_name || '';
+        }
         setFormData({
-          businessName: profile.businessName || '',
+          businessName: storedName,
           ownerName: profile.ownerName || '',
           phone: profile.phone || '',
           whatsappNumber: profile.whatsappNumber || '',
@@ -493,6 +503,7 @@ export default function BusinessSettings({
 
       console.debug('[Settings] Saved successfully');
       showToast('Settings saved successfully!', 'success');
+      onClose();
 
       // Reset success state after 2 seconds
       setTimeout(() => {
@@ -567,11 +578,12 @@ export default function BusinessSettings({
   };
 
   const handleDiscard = () => {
-    setFormData({
+    setFormData((prev) => ({
+      ...prev,
       businessName: profile.businessName || '',
       ownerName: profile.ownerName || '',
       phone: profile.phone || ''
-    });
+    }));
     markClean();
     setShowDiscardDialog(false);
     onClose();
@@ -803,7 +815,7 @@ export default function BusinessSettings({
                         </label>
                         <WhatsAppFallbackSettings
                           value={formData.waFallbackMinutes}
-                          onChange={(value) => handleInputChange('waFallbackMinutes', value)}
+                          onChange={(value) => handleInputChange('waFallbackMinutes', String(value))}
                           whatsappNumber={formData.whatsappNumber}
                         />
                         <small style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px', display: 'block' }}>
@@ -1349,7 +1361,7 @@ export default function BusinessSettings({
               </button>
               <p style={{
                 fontSize: '12px',
-                color: '#9ca3af',
+                color: '#475569',
                 textAlign: 'center',
                 marginTop: '8px',
                 marginBottom: '0'

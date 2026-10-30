@@ -1,3 +1,11 @@
+# Storehouse
+
+This checkout is the Storehouse app (`www.storehouse.ng`). The rest of this file is the Supabase CLI readme that ships with the local CLI.
+
+**Till prices, by design.** A manager may record any price that is not negative, including a price below cost. The owner may sell below cost. The cost floor applies only to a cashier, and only when **Allow staff to change the price at the till** is on. A cashier who changes that switch gets `staff_price_setting_locked`. See `DEPLOY_ORDER.md` Step 11.
+
+---
+
 # Supabase CLI
 
 [![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)

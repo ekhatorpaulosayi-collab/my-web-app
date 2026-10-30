@@ -24,7 +24,7 @@ import {
 
 // Debug logger
 const debugLog = (event, data) => {
-  if (process.env.NODE_ENV === 'development' || window.WHATSAPP_DEBUG) {
+  if (import.meta.env?.DEV || window.WHATSAPP_DEBUG) {
     console.log(`[WhatsApp AI] ${event}:`, data);
   }
 };
@@ -121,44 +121,9 @@ const WhatsAppAISetup = ({ storeId }) => {
   };
 
   const activateWhatsApp = async (tier) => {
-    try {
-      setConnecting(true);
-      debugLog('Activating WhatsApp', { tier });
-
-      // Call backend to initiate connection
-      const response = await fetch('/api/whatsapp/activate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser.token}`
-        },
-        body: JSON.stringify({
-          storeId,
-          tier,
-          phoneNumber: null // Will be set during QR scan
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        if (result.qrCode) {
-          setQrCode(result.qrCode);
-          toast.success('Scan QR code with your WhatsApp');
-        } else {
-          toast.success('WhatsApp AI activated!');
-          await loadWhatsAppConfig();
-        }
-      } else {
-        throw new Error(result.error || 'Activation failed');
-      }
-    } catch (err) {
-      debugLog('Activation error', err);
-      setError(err.message);
-      toast.error(`Failed to activate: ${err.message}`);
-    } finally {
-      setConnecting(false);
-    }
+    setError('WhatsApp activation from this screen is turned off.');
+    toast.error('WhatsApp activation from this screen is turned off.');
+    debugLog('Activation refused', { tier, storeId });
   };
 
   const updateSettings = async (newSettings) => {

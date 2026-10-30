@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { useUser, useStore } from '../lib/supabase-hooks';
 import type { StoreProfile } from '../types';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
+import { mergeBankDetails, readStoreBankDetails } from '../lib/storeBankDetails.js';
 
 interface OptionalSection {
   id: string;
@@ -25,15 +27,29 @@ export default function StoreSetupComplete() {
   const { user: supabaseUser } = useUser(currentUser);
   const { store } = useStore(supabaseUser?.id);
   const [copied, setCopied] = useState(false);
+  const [bankDetails, setBankDetails] = useState<{ bank_name?: string | null; account_number?: string | null; account_name?: string | null } | null>(null);
 
-  // Convert snake_case from Supabase to camelCase for StoreProfile compatibility
-  const storeProfile: StoreProfile | null = store ? {
-    id: store.id,
-    storeSlug: store.store_slug,
-    subdomain: store.subdomain,
-    logoUrl: store.logo_url,
-    bankName: store.bank_name,
-    accountNumber: store.account_number,
+  useEffect(() => {
+    let cancelled = false;
+    if (!store?.id) return;
+    readStoreBankDetails(supabase, store.id).then((row) => {
+      if (!cancelled) setBankDetails(row);
+    });
+    return () => { cancelled = true; };
+  }, [store?.id]);
+
+  const settled = mergeBankDetails(store, bankDetails);
+
+  // Convert snake_case from Supabase to camelCase for StoreProfile compatibility.
+  // Bank fields come from store_bank_details, not the public stores columns.
+  const storeProfile: StoreProfile | null = settled ? {
+    id: settled.id,
+    businessName: settled.business_name || 'Your store',
+    storeSlug: settled.store_slug,
+    subdomain: settled.subdomain,
+    logoUrl: settled.logo_url,
+    bankName: settled.bank_name,
+    accountNumber: settled.account_number,
     deliveryAreas: store.delivery_areas,
     businessHours: store.business_hours,
     aboutUs: store.about_us,
@@ -402,7 +418,7 @@ export default function StoreSetupComplete() {
                 </div>
                 <div style={{
                   fontSize: '20px',
-                  color: '#9CA3AF',
+                  color: '#475569',
                   flexShrink: 0,
                 }}>
                   →

@@ -4,7 +4,50 @@
  * Generates unique, URL-safe slugs from business names
  */
 
+import { RESERVED_SUBDOMAINS, NUMERIC_ONLY_LABEL } from './reservedSubdomains';
+
 const STORAGE_KEY = 'storehouse-store-slug';
+
+export function normalizeSlug(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * A slug already saved on the store is accepted as-is, including the
+ * live slugs that are longer than 30 characters. A new choice is 3–30
+ * characters and must not be a reserved label.
+ */
+export function validateStoreSlug(slug: string, existingSlug?: string | null): string | null {
+  if (existingSlug && slug === existingSlug) return null;
+  if (!slug || slug.length < 3) return 'Store URL must be at least 3 characters';
+  if (slug.length > 30) return 'Store URL must be 30 characters or fewer';
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && slug.length > 1) {
+    return 'Store URL must start and end with a letter or number';
+  }
+  if (NUMERIC_ONLY_LABEL.test(slug)) {
+    return 'Store URL cannot be all numbers — please include at least one letter';
+  }
+  if (RESERVED_SUBDOMAINS.has(slug)) {
+    return 'That store URL is reserved. Pick another name.';
+  }
+  return null;
+}
+
+/** Short slug from a business name. No user-id suffix. Max 20 characters. */
+export function shortSlugFromName(businessName: string): string {
+  let base = normalizeSlug(businessName).slice(0, 20).replace(/-+$/g, '');
+  if (base.length < 3) base = 'shop';
+  if (NUMERIC_ONLY_LABEL.test(base) || RESERVED_SUBDOMAINS.has(base)) {
+    base = `${base}-shop`.slice(0, 20).replace(/-+$/g, '');
+  }
+  return base;
+}
 
 /**
  * Generate a URL-safe slug from a business name
@@ -13,17 +56,9 @@ const STORAGE_KEY = 'storehouse-store-slug';
  */
 export function generateStoreSlug(businessName: string): string {
   if (!businessName || businessName.trim() === '') {
-    return 'store'; // Default if no name
+    return 'store';
   }
-
-  return businessName
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')  // Remove special chars (!@#$%^&*()+=[]{}|;:'",.<>?/)
-    .replace(/\s+/g, '-')           // Convert spaces to hyphens
-    .replace(/-+/g, '-')            // Replace multiple hyphens with single hyphen
-    .replace(/^-+|-+$/g, '')        // Remove leading/trailing hyphens
-    .slice(0, 50);                  // Maximum 50 characters
+  return shortSlugFromName(businessName);
 }
 
 /**

@@ -487,7 +487,7 @@ export default function ReviewForm({
               padding: '1rem',
               background: isValid && !submitting
                 ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-                : '#9ca3af',
+                : '#475569',
               color: 'white',
               border: 'none',
               borderRadius: '8px',

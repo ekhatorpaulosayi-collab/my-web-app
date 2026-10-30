@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Save, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { normalizeNgWhatsApp } from '../../utils/ngPhone.js';
 
 interface StoreWhatsAppSettingsProps {
   storeId: string;
@@ -11,6 +12,7 @@ export function StoreWhatsAppSettings({ storeId }: StoreWhatsAppSettingsProps) {
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     loadStoreSettings();
@@ -37,14 +39,21 @@ export function StoreWhatsAppSettings({ storeId }: StoreWhatsAppSettingsProps) {
     if (!whatsappNumber.trim()) return;
 
     setSaving(true);
+    setFormError('');
     try {
+      const phone = normalizeNgWhatsApp(whatsappNumber);
+      if (!phone) {
+        setFormError('Enter a WhatsApp number like 0803 123 4567.');
+        return;
+      }
       const { error } = await supabase
         .from('stores')
-        .update({ whatsapp_number: whatsappNumber })
+        .update({ whatsapp_number: phone })
         .eq('id', storeId);
 
       if (error) throw error;
 
+      setWhatsappNumber(phone);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
@@ -84,6 +93,7 @@ export function StoreWhatsAppSettings({ storeId }: StoreWhatsAppSettingsProps) {
           <p className="text-xs text-gray-500 mt-1">
             Include country code (e.g., +234 for Nigeria)
           </p>
+          {formError && <p className="text-sm text-red-700 mt-2">{formError}</p>}
         </div>
 
         <button

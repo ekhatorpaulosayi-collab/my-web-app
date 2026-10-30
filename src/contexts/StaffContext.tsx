@@ -6,6 +6,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { StaffMember } from '../services/staffService';
+import { supabase } from '../lib/supabase';
+import {
+  canAccessSettings as roleCanAccessSettings,
+  canAddProducts as roleCanAddProducts,
+  canDeleteProducts as roleCanDeleteProducts,
+  canEditProducts as roleCanEditProducts,
+  canManageCustomers as roleCanManageCustomers,
+  canManageStaff as roleCanManageStaff,
+  canRecordSales as roleCanRecordSales,
+  canViewReports as roleCanViewReports,
+  normalizeStaffRole,
+} from '../utils/staffPermissions';
+
+const STAFF_SESSION_KEY = 'staff_session';
 
 interface StaffContextType {
   // Current staff member (null if owner is logged in as owner)
@@ -18,7 +32,8 @@ interface StaffContextType {
   setStaffMode: (staff: StaffMember | null) => void;
 
   // Logout from staff mode (back to owner mode)
-  exitStaffMode: () => void;
+  /** H1: leaving staff mode requires the OWNER's password. */
+  exitStaffMode: (ownerPassword: string) => Promise<{ ok: boolean; error?: string }>;
 
   // Permission checks
   canAddProducts: () => boolean;
@@ -32,6 +47,9 @@ interface StaffContextType {
 
   // Role getter
   currentRole: 'owner' | 'manager' | 'cashier';
+
+  /** False until the server session (or the pre-migration fallback) has loaded. */
+  roleReady: boolean;
 }
 
 const StaffContext = createContext<StaffContextType | undefined>(undefined);
@@ -39,23 +57,77 @@ const StaffContext = createContext<StaffContextType | undefined>(undefined);
 export function StaffProvider({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
+  const [roleReady, setRoleReady] = useState(false);
 
-  // Clear any old staff sessions on mount - owner should always start as owner
+  // The role comes from get_acting_staff (migration 09), keyed to this JWT
+  // session. Clearing localStorage does not clear the server row, so the next
+  // load puts the cashier back. Until that function exists, fall back to the
+  // saved session so the app still works before the SQL is applied.
   useEffect(() => {
-    console.log('[StaffContext] 🚀 Initializing StaffContext...');
-
-    // Always clear staff session on page load
-    // Staff mode should only activate via explicit PIN login, not persist
-    const savedStaff = localStorage.getItem('staff_session');
-    console.log('[StaffContext] Checking for old staff session:', savedStaff ? 'FOUND' : 'NONE');
-
-    if (savedStaff) {
-      localStorage.removeItem('staff_session');
-      console.log('[StaffContext] 🧹 Cleared old staff session - owner mode by default');
+    if (loading) return;
+    if (!currentUser) {
+      setCurrentStaff(null);
+      setRoleReady(true);
+      return;
     }
 
-    console.log('[StaffContext] ✅ Owner mode active - all permissions granted');
-  }, []);
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('get_acting_staff');
+      if (cancelled) return;
+      const missing = error && (
+        error.code === 'PGRST202' ||
+        error.code === '42883' ||
+        /does not exist|could not find the function/i.test(error.message || '')
+      );
+      if (!error && data) {
+        if (data.role === 'manager' || data.role === 'cashier' || data.role === 'expired') {
+          const staff = {
+            id: data.staff_id,
+            store_owner_uid: currentUser.uid,
+            name: data.name || 'Staff',
+            role: data.role === 'manager' ? 'manager' : 'cashier',
+            is_active: true,
+            created_at: '',
+            updated_at: '',
+          } as StaffMember;
+          setCurrentStaff(staff);
+          const { pin: _pin, ...safeStaff } = staff as any;
+          localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify({ ownerUid: currentUser.uid, staff: safeStaff }));
+        } else {
+          setCurrentStaff(null);
+          localStorage.removeItem(STAFF_SESSION_KEY);
+        }
+        setRoleReady(true);
+        return;
+      }
+      if (!missing && error) {
+        console.warn('[StaffContext] get_acting_staff failed', error.message);
+      }
+      try {
+        const raw = localStorage.getItem(STAFF_SESSION_KEY);
+        if (!raw) {
+          setCurrentStaff(null);
+        } else {
+          const saved = JSON.parse(raw);
+          if (saved?.ownerUid === currentUser.uid && saved?.staff?.id) {
+            setCurrentStaff(saved.staff);
+          } else {
+            localStorage.removeItem(STAFF_SESSION_KEY);
+            setCurrentStaff(null);
+          }
+        }
+      } catch {
+        localStorage.removeItem(STAFF_SESSION_KEY);
+        setCurrentStaff(null);
+      }
+      setRoleReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, loading]);
 
   // Clear staff mode when owner logs out
   useEffect(() => {
@@ -64,6 +136,7 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
     // If user logged out, clear staff mode
     if (!currentUser) {
       setCurrentStaff(null);
+      localStorage.removeItem(STAFF_SESSION_KEY);
       console.log('[StaffContext] Staff mode cleared - owner logged out');
     }
   }, [currentUser, loading]);
@@ -71,15 +144,40 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   const setStaffMode = (staff: StaffMember | null) => {
     setCurrentStaff(staff);
     if (staff) {
-      // Don't persist staff sessions - they should only last for current session
+      // Persist (without the PIN hash) so a refresh keeps staff mode on
+      const { pin: _pin, ...safeStaff } = staff as any;
+      localStorage.setItem(
+        STAFF_SESSION_KEY,
+        JSON.stringify({ ownerUid: currentUser?.uid, staff: safeStaff })
+      );
       console.log('[StaffContext] Staff mode activated:', staff.name, '-', staff.role);
     } else {
+      localStorage.removeItem(STAFF_SESSION_KEY);
       console.log('[StaffContext] Staff mode deactivated');
     }
   };
 
-  const exitStaffMode = () => {
+  const exitStaffMode = async (ownerPassword: string) => {
+    const email = currentUser?.email;
+    if (!email) return { ok: false, error: 'Owner account not found' };
+    if (!ownerPassword) return { ok: false, error: 'Owner password is required' };
+    const { data, error } = await supabase.rpc('end_staff_session', { p_password: ownerPassword });
+    const missing = error && (
+      error.code === 'PGRST202' ||
+      error.code === '42883' ||
+      /does not exist|could not find the function/i.test(error.message || '')
+    );
+    if (!error && data) {
+      setStaffMode(null);
+      return { ok: true };
+    }
+    if (error && !missing) {
+      return { ok: false, error: 'Wrong owner password' };
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: ownerPassword });
+    if (signInError) return { ok: false, error: 'Wrong owner password' };
     setStaffMode(null);
+    return { ok: true };
   };
 
   const isStaffMode = currentStaff !== null;
@@ -93,76 +191,17 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   // PERMISSION CHECKS
   // ============================================
 
-  /**
-   * Can add new products
-   * Owner: YES | Manager: YES | Cashier: NO
-   * SIMPLIFIED: Always return true - permissions work, no restrictions
-   */
-  const canAddProducts = (): boolean => {
-    return true; // Everyone can add products (simplified for better UX)
-  };
-
-  /**
-   * Can edit existing products (prices, quantities, names)
-   * Owner: YES | Manager: NO | Cashier: NO
-   * SIMPLIFIED: Always return true - no restrictions for owners
-   */
-  const canEditProducts = (): boolean => {
-    return true; // Everyone can edit (simplified for better UX)
-  };
-
-  /**
-   * Can delete products
-   * Owner: YES | Manager: NO | Cashier: NO
-   * SIMPLIFIED: Always return true - no restrictions
-   */
-  const canDeleteProducts = (): boolean => {
-    return true; // Everyone can delete (simplified for better UX)
-  };
-
-  /**
-   * Can record sales
-   * Owner: YES | Manager: YES | Cashier: YES
-   */
-  const canRecordSales = (): boolean => {
-    return true; // Everyone can record sales
-  };
-
-  /**
-   * Can view financial reports
-   * Owner: YES | Manager: YES | Cashier: NO
-   */
-  const canViewReports = (): boolean => {
-    if (!isStaffMode) return true; // Owner has full access
-    return currentStaff.role === 'manager';
-  };
-
-  /**
-   * Can manage staff accounts
-   * Owner: YES | Manager: NO | Cashier: NO
-   */
-  const canManageStaff = (): boolean => {
-    if (!isStaffMode) return true; // Only owner can manage staff
-    return false;
-  };
-
-  /**
-   * Can access settings
-   * Owner: YES | Manager: NO | Cashier: NO
-   */
-  const canAccessSettings = (): boolean => {
-    if (!isStaffMode) return true; // Only owner can access settings
-    return false;
-  };
-
-  /**
-   * Can manage customer debts/credits
-   * Owner: YES | Manager: YES | Cashier: NO
-   */
-  const canManageCustomers = (): boolean => {
-    if (!isStaffMode) return true; // Owner has full access
-    return currentStaff.role === 'manager';
-  };
+  // Cashiers and managers cannot edit or delete products. Managers may add.
+  // Everyone, including cashiers, can record sales.
+  const role = normalizeStaffRole(currentRole, isStaffMode);
+  const canAddProducts = (): boolean => roleCanAddProducts(role);
+  const canEditProducts = (): boolean => roleCanEditProducts(role);
+  const canDeleteProducts = (): boolean => roleCanDeleteProducts(role);
+  const canRecordSales = (): boolean => roleCanRecordSales(role);
+  const canViewReports = (): boolean => roleCanViewReports(role);
+  const canManageStaff = (): boolean => roleCanManageStaff(role);
+  const canAccessSettings = (): boolean => roleCanAccessSettings(role);
+  const canManageCustomers = (): boolean => roleCanManageCustomers(role);
 
   const value: StaffContextType = {
     currentStaff,
@@ -177,7 +216,8 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
     canManageStaff,
     canAccessSettings,
     canManageCustomers,
-    currentRole
+    currentRole,
+    roleReady,
   };
 
   return (

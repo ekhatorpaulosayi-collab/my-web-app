@@ -37,7 +37,11 @@ echo ""
 echo "📝 Step 1: Updating Supabase secret key..."
 echo ""
 
-SUPABASE_ACCESS_TOKEN=sbp_0e49aecc340f38054a0a937101177d76f7b3574c \
+if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+    echo "Set SUPABASE_ACCESS_TOKEN (Supabase dashboard → Account → Access Tokens)."
+    exit 1
+fi
+
 supabase secrets set PAYSTACK_SECRET_KEY="$LIVE_SECRET_KEY"
 
 if [ $? -eq 0 ]; then

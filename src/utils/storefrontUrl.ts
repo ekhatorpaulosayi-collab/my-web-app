@@ -11,6 +11,13 @@
  *
  * Inputs come from the store DB row — never hardcode merchant identifiers.
  */
+import { canonicalStoreUrl, isLegalStoreSubdomain } from './canonicalStoreUrl.js';
+
+/**
+ * Customer-facing store link. A legal name is always
+ * https://<name>.storehouse.ng. Localhost and Vercel previews keep a
+ * path on the current origin so the preview can open.
+ */
 export function buildStorefrontUrl(args: {
   subdomain?: string | null;
   storeSlug?: string | null;
@@ -21,39 +28,22 @@ export function buildStorefrontUrl(args: {
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname.endsWith('.vercel.app');
+  const label = String(args.subdomain || args.storeSlug || '').trim().toLowerCase();
 
   if (isLocalOrPreview) {
-    return args.storeSlug ? `${origin}/store/${args.storeSlug}` : origin;
+    return label ? `${origin}/store/${encodeURIComponent(label)}` : origin;
   }
-
-  if (args.subdomain) {
-    return `https://${args.subdomain}.storehouse.ng`;
-  }
-  if (args.storeSlug) {
-    return `https://storehouse.ng/store/${args.storeSlug}`;
-  }
-  return 'https://storehouse.ng';
+  if (!label) return 'https://www.storehouse.ng';
+  return canonicalStoreUrl(label);
 }
 
-/**
- * Human-readable host shown next to a slug input (no protocol, no path).
- *   - subdomain set         → "{slug}.storehouse.ng"
- *   - subdomain null/empty  → "storehouse.ng/store/" (the grandfather case
- *                              or while typing a yet-unsaved numeric slug)
- *
- * For the live merchant edit-buffer case where `subdomain` from the DB
- * row is stale, pass the in-progress slug for the subdomain arg too —
- * the live preview matches what the merchant will see once they save.
- */
+/** The host shown beside a slug field: name.storehouse.ng */
 export function storefrontUrlPrefix(args: {
   subdomain?: string | null;
   storeSlug?: string | null;
 }): string {
-  if (args.subdomain) {
-    return `${args.subdomain}.storehouse.ng`;
-  }
-  if (args.storeSlug && !/^\d+$/.test(args.storeSlug)) {
-    return `${args.storeSlug}.storehouse.ng`;
-  }
-  return 'storehouse.ng/store/';
+  const label = String(args.subdomain || args.storeSlug || '').trim().toLowerCase();
+  if (isLegalStoreSubdomain(label)) return `${label}.storehouse.ng`;
+  return 'your-store.storehouse.ng';
 }
+

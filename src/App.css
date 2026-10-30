@@ -445,7 +445,7 @@ body {
 
 .kpi-subtitle {
   font-size: 12px;
-  color: #9ca3af;
+  color: #475569;
   margin: 0;
 }
 
@@ -569,7 +569,7 @@ body {
 
 .modal-footer .btn-secondary:hover {
   background: #f9fafb;
-  border-color: #9ca3af;
+  border-color: #475569;
 }
 
 @media (max-width: 480px) {
@@ -3882,6 +3882,17 @@ body {
   font-weight: 500;
 }
 
+@media (max-width: 1023px) {
+  .app-footer {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    z-index: auto;
+    margin: 16px 16px 8px;
+  }
+}
+
 @media (max-width: 768px) {
   .app-footer {
     padding: 10px 16px;
@@ -3890,6 +3901,19 @@ body {
   .app-footer p {
     font-size: 12px;
   }
+}
+
+/* A sheet covers the page, including a fixed "Powered by Storehouse" bar. */
+body[data-modal-open] .app-footer,
+body:has(dialog[open]) .app-footer,
+body:has(.modal-overlay) .app-footer,
+body:has(.drawer-backdrop) .app-footer,
+body:has(.ds-overlay) .app-footer,
+body:has(.rs-overlay) .app-footer,
+body:has(.business-selector-overlay) .app-footer,
+body:has(.cart-drawer-overlay) .app-footer,
+body:has(.product-modal-overlay) .app-footer {
+  display: none;
 }
 
 /* ==================== CREDITS DRAWER ==================== */
@@ -4327,9 +4351,16 @@ textarea:-webkit-autofill:active {
   border-radius: 8px;
 }
 
-/* Fix select dropdowns specifically */
 .form-input[type="text"],
-.calc-input[type="text"],
+.calc-input[type="text"] {
+  -webkit-text-fill-color: #0F172A !important;
+  background-color: #fff !important;
+  color: #0F172A !important;
+  font-size: 16px !important;
+  min-height: 44px;
+}
+
+/* Fix select dropdowns specifically */
 select.form-input,
 select.calc-input,
 .sale-form select,
@@ -5775,7 +5806,7 @@ select.calc-input,
 
 .widget-action-btn:hover {
   background: #f9fafb;
-  border-color: #9ca3af;
+  border-color: #475569;
   transform: translateY(-1px);
 }
 
@@ -6001,7 +6032,7 @@ select.calc-input,
 
 .expense-form .form-input::placeholder,
 .expense-form .form-textarea::placeholder {
-  color: #9ca3af;
+  color: #475569;
 }
 
 .expense-form .amount-input-wrapper {
@@ -6033,7 +6064,7 @@ select.calc-input,
   display: block;
   text-align: right;
   font-size: 12px;
-  color: #9ca3af;
+  color: #475569;
   margin-top: 4px;
 }
 
@@ -6328,7 +6359,7 @@ select.calc-input,
 
 .expense-date {
   font-size: 13px;
-  color: #9ca3af;
+  color: #475569;
   margin: 0;
 }
 
@@ -6824,7 +6855,7 @@ select.calc-input,
 .info-icon-small {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: #475569;
   font-size: 14px;
   cursor: pointer;
   padding: 0 4px;

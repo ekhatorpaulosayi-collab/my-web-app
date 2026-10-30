@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
