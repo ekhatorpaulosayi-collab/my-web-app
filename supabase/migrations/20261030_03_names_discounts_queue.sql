@@ -214,6 +214,9 @@ BEGIN
         INSERT INTO public.storefront_inventory_alerts (paystack_reference, attempts, last_error)
         VALUES (r.paystack_reference, v_attempts, left(v_err, 500));
       END IF;
+      IF v_attempts >= 8 THEN
+        PERFORM pg_notify('storefront_inventory_dead', r.paystack_reference);
+      END IF;
     END;
   END LOOP;
 

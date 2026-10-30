@@ -125,6 +125,9 @@ DECLARE
   v_inserted int;
   v_count int;
   v_item record;
+  v_notes text;
+  v_notes_json jsonb;
+  v_promo jsonb;
 BEGIN
   IF p_reference IS NULL OR length(p_reference) < 6 THEN
     RAISE EXCEPTION 'bad reference';
@@ -172,6 +175,29 @@ BEGIN
       ))
     );
   END LOOP;
+
+  -- Promo was priced on the server and stored on the order. Count it once,
+  -- only when the code still belongs to this store's owner.
+  SELECT o.notes INTO v_notes
+    FROM public.orders o
+   WHERE o.paystack_reference = p_reference
+   LIMIT 1;
+  IF v_notes IS NOT NULL AND left(btrim(v_notes), 1) = '{' THEN
+    v_notes_json := v_notes::jsonb;
+  END IF;
+  v_promo := v_notes_json -> 'promo';
+  IF v_promo IS NOT NULL AND jsonb_typeof(v_promo) = 'object' AND (v_promo ->> 'promo_code_id') IS NOT NULL THEN
+    UPDATE public.promo_codes
+       SET used_count = coalesce(used_count, 0) + 1
+     WHERE id = (v_promo ->> 'promo_code_id')::uuid
+       AND EXISTS (
+         SELECT 1
+           FROM public.orders o
+           JOIN public.stores s ON s.id = o.primary_store_id
+          WHERE o.paystack_reference = p_reference
+            AND s.user_id::text = public.promo_codes.user_id::text
+       );
+  END IF;
 
   RETURN jsonb_build_object('ok', true, 'lines', v_count);
 END;

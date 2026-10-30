@@ -136,3 +136,42 @@ export function customerChargeKobo(subtotalKobo: number): {
   if (!Number.isSafeInteger(customerTotalKobo) || Math.abs(paystackTakeKobo - expected) > 1) return null;
   return { customerTotalKobo, paystackTakeKobo, flatKobo };
 }
+
+export type PromoInput = {
+  discount_type: string;
+  discount_value: number;
+  is_active?: boolean | null;
+  expires_at?: string | null;
+  max_uses?: number | null;
+  used_count?: number | null;
+};
+
+/** Fixed discounts are stored in naira. Percentage is 1–100. The charge uses the payable kobo. */
+export function applyPromoKobo(
+  subtotalKobo: number,
+  promo: PromoInput | null,
+  now = Date.now(),
+): { ok: true; discountKobo: number; payableKobo: number } | { ok: false; error: string } {
+  if (!promo) return { ok: true, discountKobo: 0, payableKobo: subtotalKobo };
+  if (!Number.isInteger(subtotalKobo) || subtotalKobo <= 0) return { ok: false, error: 'zero_subtotal' };
+  if (promo.is_active === false) return { ok: false, error: 'invalid_promo' };
+  if (promo.expires_at && Number.isFinite(Date.parse(promo.expires_at)) && Date.parse(promo.expires_at) < now) {
+    return { ok: false, error: 'promo_expired' };
+  }
+  if (promo.max_uses != null && (promo.used_count || 0) >= promo.max_uses) {
+    return { ok: false, error: 'promo_exhausted' };
+  }
+  const value = promo.discount_value;
+  if (!Number.isInteger(value) || value <= 0) return { ok: false, error: 'invalid_promo' };
+  let discountKobo = 0;
+  if (promo.discount_type === 'percentage') {
+    if (value > 100) return { ok: false, error: 'invalid_promo' };
+    discountKobo = Math.floor((subtotalKobo * value) / 100);
+  } else if (promo.discount_type === 'fixed') {
+    discountKobo = value * 100;
+  } else {
+    return { ok: false, error: 'invalid_promo' };
+  }
+  if (discountKobo <= 0 || discountKobo >= subtotalKobo) return { ok: false, error: 'invalid_promo' };
+  return { ok: true, discountKobo, payableKobo: subtotalKobo - discountKobo };
+}

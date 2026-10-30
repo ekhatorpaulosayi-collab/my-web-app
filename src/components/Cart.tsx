@@ -17,6 +17,7 @@ import { OptimizedImage } from './OptimizedImage';
 import { OrderConfirmation } from './OrderConfirmation';
 import { formatWhatsAppNumber } from '../utils/phone';
 import { buildStorefrontUrl } from '../utils/storefrontUrl';
+import { applyPromoKobo } from '../../supabase/functions/_shared/checkoutPrice.ts';
 import { ShareButton } from './ProductShareMenu';
 import '../styles/cart.css';
 
@@ -104,12 +105,9 @@ export function Cart({ store }: CartProps) {
   const availablePaymentMethods = store.payment_methods?.filter(m => m.enabled) || [];
 
   // Calculate discount and final total
-  const discount = appliedPromo
-    ? appliedPromo.discount_type === 'percentage'
-      ? Math.round((totalPrice * appliedPromo.discount_value) / 100)
-      : appliedPromo.discount_value * 100 // Convert NGN to kobo
-    : 0;
-  const finalTotal = Math.max(0, totalPrice - discount);
+  const promoQuote = applyPromoKobo(totalPrice, appliedPromo);
+  const discount = promoQuote.ok ? promoQuote.discountKobo : 0;
+  const finalTotal = promoQuote.ok ? promoQuote.payableKobo : totalPrice;
   const deliveryKobo = deliveryFeeKobo(store.deliveryFee);
   const payableTotal = orderTotalKobo(finalTotal, store.deliveryFee);
 
@@ -208,159 +206,12 @@ export function Cart({ store }: CartProps) {
   };
 
   const handlePaystackPayment = () => {
-    if (!customerName || !customerPhone) {
-      alert('Please enter your name and phone number');
-      return;
-    }
-
-    if (!customerEmail || !customerEmail.includes('@')) {
-      alert('Please enter a valid email for your receipt');
-      return;
-    }
-
-    if (!paystackEnabled || !store.paystackPublicKey) {
-      alert('Payment system not configured');
-      return;
-    }
-
-    setProcessingPayment(true);
-
-    try {
-      // @ts-ignore - Paystack script loaded dynamically
-      const handler = window.PaystackPop.setup({
-        key: store.paystackPublicKey,
-        email: customerEmail,
-        amount: finalTotal, // Amount in kobo (Paystack uses smallest currency unit) - includes discount
-        currency: 'NGN',
-        ref: 'STORE_' + Date.now() + '_' + Math.random().toString(36).substring(7),
-        metadata: {
-          custom_fields: [
-            {
-              display_name: 'Customer Name',
-              variable_name: 'customer_name',
-              value: customerName
-            },
-            {
-              display_name: 'Phone Number',
-              variable_name: 'phone_number',
-              value: customerPhone
-            },
-            {
-              display_name: 'Delivery Address',
-              variable_name: 'delivery_address',
-              value: customerAddress || 'N/A'
-            },
-            {
-              display_name: 'Store',
-              variable_name: 'store',
-              value: store.businessName
-            }
-          ]
-        },
-        onClose: function() {
-          setProcessingPayment(false);
-          alert('Payment cancelled');
-        },
-        callback: async function(response: any) {
-          setProcessingPayment(false);
-
-          // Payment successful - show confirmation with receipt
-          const orderData = {
-            reference: response.reference,
-            items: items,
-            customerName: customerName,
-            customerPhone: customerPhone,
-            customerAddress: customerAddress,
-            subtotal: totalPrice,
-            discount: discount,
-            finalTotal: finalTotal,
-            paymentMethod: 'paystack',
-            promoCode: appliedPromo?.code,
-            timestamp: new Date()
-          };
-
-          setOrderConfirmationData(orderData);
-          setShowOrderConfirmation(true);
-          closeCart();
-
-          // Save order to sales database
-          if (store.user_id) {
-            try {
-              const orderResult = await saveOnlineStoreOrder({
-                storeUserId: store.user_id,
-                items: items,
-                customer: {
-                  name: customerName,
-                  phone: customerPhone,
-                  email: customerEmail || undefined,
-                  address: customerAddress || undefined,
-                },
-                subtotal: totalPrice,
-                discount: discount,
-                finalTotal: finalTotal,
-                paymentMethod: 'paystack',
-                paymentReference: response.reference,
-                promoCode: appliedPromo?.code,
-                promoCodeId: appliedPromo?.id,
-              });
-
-              if (orderResult.success) {
-                console.log('✅ Order saved to database');
-              } else {
-                console.error('⚠️ Order save failed:', orderResult.error);
-                // Don't fail checkout, merchant still got paid
-              }
-            } catch (error) {
-              console.error('⚠️ Order save error:', error);
-              // Don't fail checkout
-            }
-          }
-
-          // Promo usage is recorded by complete-storefront-order after Paystack
-          // verifies the reference (B6). The browser insert was open to anyone.
-
-          // Send order confirmation via WhatsApp if number is available
-          if (store.whatsappNumber) {
-            const phone = formatWhatsAppNumber(store.whatsappNumber);
-
-            const orderItems = items.map(item =>
-              `\n• ${item.name} (x${item.quantity}) - ${currencyNGN(item.price * item.quantity)}`
-            ).join('');
-
-            const message = `✅ *PAID ORDER - ${store.businessName}*\n\n` +
-              `👤 Customer: ${customerName}\n` +
-              `📱 Phone: ${customerPhone}` +
-              (customerAddress ? `\n📍 Address: ${customerAddress}` : '') +
-              `\n\n📦 *Order Details:*${orderItems}\n\n` +
-              `💰 *Subtotal: ${currencyNGN(totalPrice)}*\n` +
-              (appliedPromo ? `🎁 *Discount (${appliedPromo.code}): -${currencyNGN(discount)}*\n` : '') +
-              `💵 *Total Paid: ${currencyNGN(finalTotal)}*\n\n` +
-              `✅ *Payment Status: PAID*\n` +
-              `🔖 *Reference: ${response.reference}*`;
-
-            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-          }
-
-          // Clear cart and close
-          clearCart();
-          setCustomerName('');
-          setCustomerPhone('');
-          setCustomerEmail('');
-          setCustomerAddress('');
-          setAppliedPromo(null);
-          setPromoCode('');
-          setPromoError('');
-          setIsCheckingOut(false);
-          closeCart();
-        }
-      });
-
-      handler.openIframe();
-    } catch (error) {
-      console.error('Paystack payment error:', error);
-      alert('Failed to initiate payment. Please try again.');
-      setProcessingPayment(false);
-    }
+    // Retired. The merchant-key popup charged a card and then wrote a paid
+    // sale that complete-storefront-order could not fulfil. Card payments
+    // go through initiate-storefront-payment, which creates the server order.
+    setProcessingPayment(false);
+    setFriendlyError("This store's old card button cannot record the order. Use WhatsApp, or ask the store to turn on Storehouse card payments.");
+    setShowWhatsAppFallback(!!store.whatsappNumber);
   };
 
   // Map an F3 error code to a customer-facing message. Codes 412/403 plus
@@ -410,6 +261,10 @@ export function Cart({ store }: CartProps) {
           text: serverMessage || "Checkout is busy. Please try again in a moment.",
           canFallbackToWhatsApp: false,
         };
+      case 'invalid_promo':
+      case 'promo_expired':
+      case 'promo_exhausted':
+        return { text: serverMessage || 'That promo code cannot be used on this order.', canFallbackToWhatsApp: false };
       case 'zero_subtotal':
         return { text: "Your cart appears to be empty.", canFallbackToWhatsApp: false };
       case 'invalid_item':
@@ -489,6 +344,7 @@ export function Cart({ store }: CartProps) {
           customer_email: customerEmail,
           customer_phone: customerPhone,
           customer_name: customerName || undefined,
+          promo_code: appliedPromo?.code || undefined,
         },
       });
     } catch (networkErr) {

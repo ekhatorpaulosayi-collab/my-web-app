@@ -26,9 +26,36 @@ jobs:
       - name: Secret scan
         run: ./gitleaks detect --no-git --source . --redact --config .gitleaks.toml --baseline-path .gitleaks-baseline.json --exit-code 1
       - run: npm run test:unit
+      - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ux
         env:
           CI: 'true'
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_ANON_KEY: public-anon-placeholder
+
+  migrations:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: storehouse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply release migrations on a fresh database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/storehouse
+          PGPASSWORD: postgres
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          bash scripts/rehearse-migrations.sh

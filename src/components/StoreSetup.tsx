@@ -281,7 +281,7 @@ export default function StoreSetup({ onComplete }: StoreSetupProps) {
           <div className="form-group">
             <label htmlFor="storeSlug" className="form-label">Choose your store link</label>
             <div className="slug-input-wrapper">
-              <span className="slug-prefix">storehouse.ng/</span>
+              <span className="slug-prefix">https://</span>
               <input
                 id="storeSlug"
                 type="text"
@@ -291,6 +291,7 @@ export default function StoreSetup({ onComplete }: StoreSetupProps) {
                 className="slug-input"
                 required
               />
+              <span className="slug-prefix">.storehouse.ng</span>
               {storeSlug.length >= 3 && (
                 <span className="slug-status">
                   {slugStatus === 'checking' && (

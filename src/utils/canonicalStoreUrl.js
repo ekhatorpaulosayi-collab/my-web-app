@@ -22,7 +22,8 @@ const BLOCKED = RESERVED_SUBDOMAINS;
 
 export function isLegalStoreSubdomain(slug) {
   const label = String(slug || '').toLowerCase();
-  if (!label || BLOCKED.has(label) || NUMERIC_ONLY_LABEL.test(label)) return false;
+  if (!label || label.length > 63 || label.startsWith('xn--')) return false;
+  if (BLOCKED.has(label) || NUMERIC_ONLY_LABEL.test(label)) return false;
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label);
 }
 

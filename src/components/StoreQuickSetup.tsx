@@ -321,7 +321,7 @@ export default function StoreQuickSetup() {
                 color: '#475569',
                 whiteSpace: 'nowrap',
               }}>
-                storehouse.ng/
+                https://
               </span>
               <input
                 id="quick-setup-slug"
@@ -343,6 +343,7 @@ export default function StoreQuickSetup() {
                   padding: '0 0 0 4px',
                 }}
               />
+              <span style={{ fontSize: '16px', color: '#475569', whiteSpace: 'nowrap' }}>.storehouse.ng</span>
             </div>
 
             {/* Slug Status */}

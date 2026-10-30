@@ -85,6 +85,13 @@ REVOKE UPDATE (
   paystack_subaccounts_enabled, paystack_subaccount_id
 ) ON TABLE public.stores FROM PUBLIC, anon, authenticated;
 
+-- The live function may return a different type. CREATE OR REPLACE cannot
+-- change a return type, so drop the known signatures first.
+DROP FUNCTION IF EXISTS public.initiate_agent_takeover(uuid, uuid, text);
+DROP FUNCTION IF EXISTS public.end_agent_takeover(uuid, uuid);
+DROP FUNCTION IF EXISTS public.end_agent_takeover(uuid, text);
+DROP FUNCTION IF EXISTS public.send_agent_message(uuid, text, uuid);
+
 CREATE OR REPLACE FUNCTION public.initiate_agent_takeover(
   p_conversation_id uuid,
   p_agent_id uuid,
@@ -103,13 +110,28 @@ BEGIN
     RAISE EXCEPTION 'not_allowed' USING ERRCODE = '42501';
   END IF;
 
-  UPDATE public.ai_chat_conversations
-     SET takeover_status = 'agent',
-         is_agent_active = true,
-         agent_id = auth.uid(),
-         requested_at = COALESCE(requested_at, now()),
-         updated_at = now()
-   WHERE id = p_conversation_id;
+  IF EXISTS (
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'ai_chat_conversations'
+       AND column_name = 'requested_at'
+  ) THEN
+    UPDATE public.ai_chat_conversations
+       SET takeover_status = 'agent',
+           is_agent_active = true,
+           agent_id = auth.uid(),
+           requested_at = COALESCE(requested_at, now()),
+           updated_at = now()
+     WHERE id = p_conversation_id;
+  ELSE
+    UPDATE public.ai_chat_conversations
+       SET takeover_status = 'agent',
+           is_agent_active = true,
+           agent_id = auth.uid(),
+           updated_at = now()
+     WHERE id = p_conversation_id;
+  END IF;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'not_allowed' USING ERRCODE = '42501';

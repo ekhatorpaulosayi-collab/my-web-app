@@ -18,7 +18,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { customerChargeKobo, priceCheckoutLines } from '../_shared/checkoutPrice.ts';
+import { applyPromoKobo, customerChargeKobo, priceCheckoutLines } from '../_shared/checkoutPrice.ts';
 import { logPaystackInteraction } from '../_shared/paystack-logger.ts';
 import { resolveActiveTier, TierResolverError } from '../_shared/tier-resolver.ts';
 
@@ -192,7 +192,23 @@ serve(async (req) => {
   if (!priced.ok) {
     return jsonResponse({ error: priced.error }, 400);
   }
-  const subtotalKobo = priced.subtotalKobo;
+  const catalogueKobo = priced.subtotalKobo;
+  const promoCode = String(body.promo_code || '').trim().toUpperCase();
+  let promoRow = null;
+  if (promoCode) {
+    const { data: promoData, error: promoError } = await admin
+      .from('promo_codes')
+      .select('id, code, discount_type, discount_value, is_active, expires_at, max_uses, used_count')
+      .eq('user_id', store.user_id)
+      .eq('code', promoCode)
+      .maybeSingle();
+    if (promoError) return jsonResponse({ error: 'promo_unavailable' }, 500);
+    if (!promoData) return jsonResponse({ error: 'invalid_promo' }, 400);
+    promoRow = promoData;
+  }
+  const promo = applyPromoKobo(catalogueKobo, promoRow);
+  if (!promo.ok) return jsonResponse({ error: promo.error }, 400);
+  const subtotalKobo = promo.payableKobo;
 
   // Customer absorbs Paystack's percentage + (above ₦2,500) flat ₦100.
   // Storehouse take comes from the vendor's share, capped per fee config.
@@ -200,7 +216,7 @@ serve(async (req) => {
   if (!charge) {
     return jsonResponse({ error: 'fee_math_drift' }, 500);
   }
-  const { customerTotalKobo, paystackTakeKobo } = charge;
+  const { customerTotalKobo, paystackTakeKobo, flatKobo } = charge;
 
   const storehouseTakeUncapped = Math.floor(subtotalKobo * feeConfig.basis_points / 10000);
   const storehouseTakeKobo = Math.min(storehouseTakeUncapped, Number(feeConfig.cap_kobo));
@@ -325,6 +341,13 @@ serve(async (req) => {
           variant_id: it.variant_id,
           quantity: it.quantity,
         })),
+        promo: promo.discountKobo > 0 && promoRow ? {
+          promo_code_id: promoRow.id,
+          code: promoRow.code,
+          order_total: catalogueKobo,
+          discount_amount: promo.discountKobo,
+          final_total: promo.payableKobo,
+        } : null,
       }),
       total_amount_kobo: customerTotalKobo,
       paystack_reference: reference,
@@ -637,6 +660,8 @@ serve(async (req) => {
       storehouse_take_kobo: storehouseTakeKobo,
       paystack_take_kobo: paystackTakeKobo,
       paystack_flat_kobo: flatKobo,
+      discount_kobo: promo.discountKobo,
+      catalogue_kobo: catalogueKobo,
       customer_total_kobo: customerTotalKobo,
       vendor_net_kobo: vendorNetKobo,
       transaction_charge_kobo: transactionChargeKobo,

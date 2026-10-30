@@ -3227,7 +3227,7 @@ Storehouse gives you a FREE online store where customers can:
 - Pay online (via Paystack)
 - Get delivery
 
-Your store URL: **storehouse.ng/shop/YOUR-BUSINESS-NAME**
+Your store URL: **YOUR-BUSINESS-NAME.storehouse.ng**
 
 **Benefits:**
 
@@ -3251,8 +3251,8 @@ Your store URL: **storehouse.ng/shop/YOUR-BUSINESS-NAME**
 
 **Store URL:**
 - Auto-generated from business name
-- Example: storehouse.ng/shop/mama-ngozi-store
-- Can customize: storehouse.ng/shop/YOUR-CUSTOM-NAME
+- Example: mama-ngozi-store.storehouse.ng
+- Can customize: YOUR-CUSTOM-NAME.storehouse.ng
 
 **Store Logo:**
 - Upload your business logo
@@ -3374,7 +3374,7 @@ Message example:
 Browse all our products and order from home.
 Fast delivery across Nigeria! 🚚
 
-Visit: storehouse.ng/shop/mama-ngozi-store
+Visit: mama-ngozi-store.storehouse.ng
 \`\`\`
 
 **Facebook/Instagram:**
@@ -3384,12 +3384,12 @@ Visit: storehouse.ng/shop/mama-ngozi-store
 
 **SMS/Email:**
 - Send to customer database
-- "Shop online at storehouse.ng/shop/YOUR-STORE"
+- "Shop online at YOUR-STORE.storehouse.ng"
 
 **Custom Domain (Pro Feature):**
 
 Upgrade to Pro for custom domain:
-- Instead of: storehouse.ng/shop/mama-ngozi
+- Instead of: mama-ngozi.storehouse.ng
 - Use: www.mamangozi.com
 
 Steps:

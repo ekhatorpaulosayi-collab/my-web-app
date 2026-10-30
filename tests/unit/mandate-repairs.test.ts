@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { customerChargeKobo, priceCheckoutLines } from '../../supabase/functions/_shared/checkoutPrice.ts';
+import { applyPromoKobo, customerChargeKobo, priceCheckoutLines } from '../../supabase/functions/_shared/checkoutPrice.ts';
 import { adminCallAllowed } from '../../supabase/functions/_shared/adminGate.ts';
 import { decideAffiliateCommission } from '../../supabase/functions/_shared/affiliateDecision.ts';
 import { bindPaidOrder } from '../../supabase/functions/_shared/paidOrder.ts';
@@ -149,6 +149,50 @@ test('an old subdomain label resolves to the current store host', () => {
   assert.equal(historicHostTarget('old-shop', 'https://evil.test', null), null);
   assert.equal(historicHostTarget('234', 'new-shop', null), 'https://new-shop.storehouse.ng');
   assert.equal(historicHostTarget('old-shop', '234', 'ankara'), 'https://www.storehouse.ng/store/234/?product=ankara');
+});
+
+test('the card response includes the flat fee and a promo reduces the charge', () => {
+  const full = customerChargeKobo(1_000_000);
+  assert.ok(full);
+  assert.equal(typeof full.flatKobo, 'number');
+  assert.equal(full.flatKobo, 10_000);
+  const promo = applyPromoKobo(1_000_000, { discount_type: 'percentage', discount_value: 10, is_active: true });
+  assert.equal(promo.ok, true);
+  if (!promo.ok) return;
+  assert.equal(promo.discountKobo, 100_000);
+  assert.equal(promo.payableKobo, 900_000);
+  const charged = customerChargeKobo(promo.payableKobo);
+  assert.ok(charged);
+  assert.ok(charged.customerTotalKobo < full.customerTotalKobo);
+  const fixed = applyPromoKobo(500_000, { discount_type: 'fixed', discount_value: 1500, is_active: true });
+  assert.equal(fixed.ok && fixed.payableKobo, 350_000);
+  const expired = applyPromoKobo(500_000, {
+    discount_type: 'percentage', discount_value: 10, is_active: true, expires_at: '2020-01-01T00:00:00Z',
+  });
+  assert.equal(expired.ok ? '' : expired.error, 'promo_expired');
+  const checkout = readFileSync(new URL('../../supabase/functions/initiate-storefront-payment/index.ts', import.meta.url), 'utf8');
+  assert.match(checkout, /const \{ customerTotalKobo, paystackTakeKobo, flatKobo \} = charge/);
+  assert.match(checkout, /promo_code/);
+  const legacy = readFileSync(new URL('../../src/utils/onlineStoreSales.ts', import.meta.url), 'utf8');
+  assert.match(legacy, /legacy_card_retired/);
+  assert.equal(legacy.includes('complete-storefront-order'), false);
+});
+
+test('a legal store link is the store subdomain', async () => {
+  const { buildStorefrontUrl, storefrontUrlPrefix } = await import('../../src/utils/storefrontUrl.ts');
+  assert.equal(buildStorefrontUrl({ storeSlug: 'ada-fabrics' }), 'https://ada-fabrics.storehouse.ng');
+  assert.equal(buildStorefrontUrl({ subdomain: 'ada-fabrics' }), 'https://ada-fabrics.storehouse.ng');
+  assert.equal(storefrontUrlPrefix({ storeSlug: 'ada-fabrics' }), 'ada-fabrics.storehouse.ng');
+  assert.equal(storefrontUrlPrefix({ storeSlug: '234' }), 'your-store.storehouse.ng');
+  const { isLegalStoreSubdomain } = await import('../../src/utils/canonicalStoreUrl.js');
+  assert.equal(isLegalStoreSubdomain('a'.repeat(64)), false);
+  assert.equal(isLegalStoreSubdomain('a'.repeat(63)), true);
+  const docs = readFileSync(new URL('../../src/data/documentation.ts', import.meta.url), 'utf8');
+  assert.equal(docs.includes('storehouse.ng/store/'), false);
+  assert.equal(docs.includes('storehouse.ng/@'), false);
+  const setup = readFileSync(new URL('../../src/components/StoreSetup.tsx', import.meta.url), 'utf8');
+  assert.match(setup, /\.storehouse\.ng/);
+  assert.equal(setup.includes('slug-prefix">storehouse.ng/</'), false);
 });
 
 test('the repair SQL and checkout source keep the tenant boundaries', () => {

@@ -89,6 +89,7 @@ serve(async (req) => {
       : null,
   });
   if (!decision.ok) return json({ error: decision.error }, 400);
+  if (!order?.primary_store_id) return json({ error: 'missing_store' }, 400);
 
   const { data: store, error: storeError } = await admin
     .from('stores')

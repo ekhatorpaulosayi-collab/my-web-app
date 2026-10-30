@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2022",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "files": [
+    "supabase/functions/_shared/checkoutPrice.ts",
+    "supabase/functions/_shared/adminGate.ts",
+    "supabase/functions/_shared/affiliateDecision.ts",
+    "supabase/functions/_shared/paidOrder.ts",
+    "src/utils/storefrontUrl.ts"
+  ]
+}

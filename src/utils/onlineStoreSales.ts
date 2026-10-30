@@ -101,6 +101,10 @@ export async function saveOnlineStoreOrder(orderData: OnlineOrderData) {
       };
     });
 
+    if (orderData.paymentMethod === 'paystack' && !String(orderData.paymentReference || '').startsWith('ord_')) {
+      return { success: false, error: 'legacy_card_retired' };
+    }
+
     // Insert all sales in one batch
     const { data: salesData, error: salesError } = await supabase
       .from('sales')
@@ -114,27 +118,10 @@ export async function saveOnlineStoreOrder(orderData: OnlineOrderData) {
 
     console.log('[Online Store] Sales saved:', salesData?.length);
 
-    // B6: stock, customer and promo are written by complete-storefront-order
-    // after Paystack confirms the reference. No browser fallback — a missing
-    // function leaves stock unchanged rather than using the anon RPCs.
-    // ord_ payments are fulfilled by the webhook instead.
-    if (paymentReference && paymentMethod === 'paystack' && !paymentReference.startsWith('ord_')) {
-      const { error: fulfillError } = await supabase.functions.invoke('complete-storefront-order', {
-        body: {
-          reference: paymentReference,
-          promo_code_id: promoCodeId || null,
-          customer,
-          items: items.map((item) => ({
-            product_id: item.id,
-            variant_id: item.variantId || null,
-            quantity: item.quantity,
-            unit_price_kobo: item.price,
-          })),
-        },
-      });
-      if (fulfillError) {
-        console.warn('[Online Store] Server fulfillment failed:', fulfillError);
-      }
+    // ord_ payments are fulfilled by the webhook. A merchant-key reference
+    // has no server order, so this function does not call the legacy fulfil path.
+    if (paymentReference && paymentMethod === 'paystack' && paymentReference.startsWith('ord_')) {
+      return { success: true, salesIds: salesData?.map((s) => s.id) || [] };
     }
 
     return {
