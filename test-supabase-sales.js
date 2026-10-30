@@ -1,3 +1,12 @@
+function requireAnonKey() {
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) {
+    console.error("Set SUPABASE_ANON_KEY to your project's anon key from the dashboard.");
+    process.exit(1);
+  }
+  return key;
+}
+
 /**
  * Test script to verify Supabase sales save/load functionality
  */
@@ -9,7 +18,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'public-anon-placeholder';
+const SUPABASE_ANON_KEY = requireAnonKey();
 
 console.log('=== SUPABASE SALES TEST ===');
 console.log('URL:', SUPABASE_URL);

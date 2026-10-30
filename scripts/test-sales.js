@@ -1,9 +1,18 @@
+function requireAnonKey() {
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) {
+    console.error("Set SUPABASE_ANON_KEY to your project's anon key from the dashboard.");
+    process.exit(1);
+  }
+  return key;
+}
+
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || 'public-anon-placeholder';
+const supabaseAnonKey = requireAnonKey();
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

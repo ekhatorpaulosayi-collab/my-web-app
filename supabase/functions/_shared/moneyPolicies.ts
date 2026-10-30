@@ -79,6 +79,32 @@ export function aiSpendGate(input: { rpcMissing: boolean; reserved: boolean }): 
   return input.reserved ? 'ok' : 'capped';
 }
 
+/** Logged-in owner chat. Visitors skip the quota. An RPC error stays fail-open. */
+export function loggedInChatQuota(input: {
+  hasUser: boolean;
+  isVisitor: boolean;
+  rpcError: boolean;
+  allowed: boolean | null;
+}): 'skip' | 'allow' | 'refuse' | 'fail_open' {
+  if (!input.hasUser || input.isVisitor) return 'skip';
+  if (input.rpcError) return 'fail_open';
+  if (input.allowed !== true) return 'refuse';
+  return 'allow';
+}
+
+/** Storefront monthly quota. A missing store or conversation skips the check. */
+export function storefrontChatQuota(input: {
+  hasStoreUser: boolean;
+  hasConversation: boolean;
+  rpcError: boolean;
+  allowed: boolean | null;
+}): 'skip' | 'allow' | 'refuse' | 'fail_open' {
+  if (!input.hasStoreUser || !input.hasConversation) return 'skip';
+  if (input.rpcError) return 'fail_open';
+  if (input.allowed === false) return 'refuse';
+  return 'allow';
+}
+
 /**
  * A call with no Origin is rejected, including a signed-in browser and a
  * native client. A header that claims to be the Capacitor app is not an

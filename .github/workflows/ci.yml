@@ -33,7 +33,7 @@ jobs:
         env:
           CI: 'true'
           VITE_SUPABASE_URL: https://example.supabase.co
-          VITE_SUPABASE_ANON_KEY: public-anon-placeholder
+          VITE_SUPABASE_ANON_KEY: ci-anon-key
 
   migrations:
     runs-on: ubuntu-24.04

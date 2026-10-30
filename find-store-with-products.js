@@ -1,3 +1,12 @@
+function requireAnonKey() {
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) {
+    console.error("Set SUPABASE_ANON_KEY to your project's anon key from the dashboard.");
+    process.exit(1);
+  }
+  return key;
+}
+
 /**
  * Find stores with products
  */
@@ -6,7 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   'https://yzlniqwzqlsftxrtapdl.supabase.co',
-  'public-anon-placeholder'
+  requireAnonKey()
 );
 
 async function findStoresWithProducts() {

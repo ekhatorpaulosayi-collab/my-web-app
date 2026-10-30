@@ -26,7 +26,7 @@ export default defineConfig({
     timeout: 120000,
     env: {
       VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://example.supabase.co',
-      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'public-anon-placeholder',
+      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'ci-anon-key',
     },
   },
 });

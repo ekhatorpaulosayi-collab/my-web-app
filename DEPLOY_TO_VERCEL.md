@@ -56,7 +56,7 @@ After deployment, add your Supabase credentials:
 
 ```
 VITE_SUPABASE_URL = https://yzlniqwzqlsftxrtapdl.supabase.co
-VITE_SUPABASE_ANON_KEY = public-anon-placeholder
+VITE_SUPABASE_ANON_KEY = paste your project's anon key from the dashboard
 ```
 
 5. Click **Save**
@@ -70,7 +70,7 @@ vercel env add VITE_SUPABASE_URL production
 # Paste: https://yzlniqwzqlsftxrtapdl.supabase.co
 
 vercel env add VITE_SUPABASE_ANON_KEY production
-# Paste: public-anon-placeholder
+# Paste: paste your project's anon key from the dashboard
 
 # Redeploy
 vercel --prod

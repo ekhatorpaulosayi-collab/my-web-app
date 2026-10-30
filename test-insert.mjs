@@ -2,9 +2,18 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+function requireAnonKey() {
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) {
+    console.error("Set SUPABASE_ANON_KEY to your project's anon key from the dashboard.");
+    process.exit(1);
+  }
+  return key;
+}
+
 // Use ANON key to test RLS policies
 const SUPABASE_URL = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const SUPABASE_ANON_KEY = 'public-anon-placeholder';
+const SUPABASE_ANON_KEY = requireAnonKey();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

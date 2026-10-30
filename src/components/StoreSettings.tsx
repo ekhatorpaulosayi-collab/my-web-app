@@ -12,6 +12,7 @@ import { useAutoSave, getSaveStatusMessage, getSaveStatusColor } from '../hooks/
 import { showFriendlyError } from '../utils/friendlyErrors';
 import { validateTikTokUrl, normalizeTikTokUrl } from '../utils/socialShare';
 import { provisionSubdomain } from '../utils/provisionSubdomain';
+import { provisioningReaderText } from '../utils/provisionStatus.js';
 import { buildStorefrontUrl, storefrontUrlPrefix } from '../utils/storefrontUrl';
 import { validateStoreSlug } from '../utils/storeSlug';
 import { storeHealthFlags } from '../utils/storeHealth';
@@ -119,6 +120,7 @@ export const StoreSettings: React.FC = () => {
   const [aboutUs, setAboutUs] = useState('');
   const [returnPolicy, setReturnPolicy] = useState('');
   const [allowStaffPriceChange, setAllowStaffPriceChange] = useState(false);
+  const [provisionStatus, setProvisionStatus] = useState<string | null>(null);
 
   // Slug normalization function
   const normalizeSlug = (s: string): string => {
@@ -216,6 +218,18 @@ export const StoreSettings: React.FC = () => {
     setAboutUs(data.aboutUs || '');
     setReturnPolicy(data.returnPolicy || '');
     setAllowStaffPriceChange(store.allow_staff_price_change === true);
+    let stop = false;
+    void (async () => {
+      const { data: provisionRow } = await supabase
+        .from('store_provisioning')
+        .select('status')
+        .eq('store_id', store.id)
+        .maybeSingle();
+      if (!stop) setProvisionStatus(provisionRow?.status || null);
+    })();
+    return () => {
+      stop = true;
+    };
   }, [store]);
 
   // Check slug availability (Supabase)
@@ -488,10 +502,16 @@ export const StoreSettings: React.FC = () => {
       // place (no charge, harmless stale cert).
       const newSubdomain = (updatedStore?.subdomain ?? null) as string | null;
       let provisionNote = '';
-      if (newSubdomain && newSubdomain !== previousSubdomain && updatedStore?.id) {
+      const needsProvision = Boolean(
+        newSubdomain && updatedStore?.id && (
+          newSubdomain !== previousSubdomain || provisionStatus !== 'active'
+        ),
+      );
+      if (needsProvision && newSubdomain && updatedStore?.id) {
         const provision = await provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
+        setProvisionStatus(provision.state);
         if (provision.state !== 'active') {
-          provisionNote = 'Store settings were saved. The storehouse.ng link is not confirmed yet. Save the slug again to retry registration.';
+          provisionNote = provisioningReaderText(provision.state);
         }
       }
 
@@ -685,6 +705,9 @@ export const StoreSettings: React.FC = () => {
           )}
         </div>
         {slugError && <span className="error-text">{slugError}</span>}
+        {provisioningReaderText(provisionStatus) && (
+          <p role="status">{provisioningReaderText(provisionStatus)}</p>
+        )}
         {slugAvailable === false && !slugError && (
           <span className="error-text">This URL is already taken</span>
         )}

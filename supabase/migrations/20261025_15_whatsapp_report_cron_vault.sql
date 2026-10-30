@@ -15,9 +15,11 @@
 --    WHERE name IN ('service_role_key', 'cron_secret');
 -- Do not select decrypted_secret on a shared screen.
 --
--- The file stops if either secret is missing or too short, or if the job
--- is missing. It does not invent a schedule. It does not change
--- hourly-whatsapp-reports.
+-- The file stops if either secret is missing or too short. If the job is
+-- missing, it creates the hourly schedule 0 * * * *. send-daily-reports
+-- sends only in the Nigerian hour each shop chose, so a once-a-day job
+-- would skip shops. An existing schedule is kept, except 0 6 * * *, which
+-- is corrected to hourly. It does not change hourly-whatsapp-reports.
 --
 -- The send-daily-reports function still requires header x-cron-secret.
 -- The bearer is what the Supabase gateway checks. Both come from Vault
@@ -59,8 +61,8 @@ BEGIN
   SELECT j.schedule INTO v_schedule
     FROM cron.job AS j
    WHERE j.jobname = 'send-daily-whatsapp-reports';
-  IF v_schedule IS NULL OR btrim(v_schedule) = '' THEN
-    RAISE EXCEPTION 'whatsapp_report_job_missing' USING ERRCODE = '23514';
+  IF v_schedule IS NULL OR btrim(v_schedule) = '' OR v_schedule = '0 6 * * *' THEN
+    v_schedule := '0 * * * *';
   END IF;
 
   PERFORM cron.unschedule('send-daily-whatsapp-reports');

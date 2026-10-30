@@ -59,8 +59,8 @@ test('underpaid, wrong currency, and a failed order are not fulfilled', async ()
   const wrong = `ord_usd_${storeId.slice(0, 8)}`;
   const failed = `ord_failed_${storeId.slice(0, 8)}`;
   await sql(
-    `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, $2, $3, $3)`,
-    [storeId, 'owner-pay', `pay-${storeId.slice(0, 8)}`],
+    `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number) VALUES ($1, $2, 'Shop', $3, $3, '08030000000')`,
+    [storeId, `pay-${storeId.slice(0, 8)}`, `pay-${storeId.slice(0, 8)}`],
   );
   await sql(
     `INSERT INTO public.orders (id, paystack_reference, primary_store_id, status, total_amount_kobo, customer_email, customer_phone)
@@ -106,7 +106,7 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
   const paidRef = `ord_paid_${storeId.slice(0, 8)}`;
   const retryRef = `ord_retry_${storeId.slice(0, 8)}`;
   await sql(
-    `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, $2, $3, $3)`,
+    `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number) VALUES ($1, $2, 'Shop', $3, $3, '08030000000')`,
     [storeId, owner, slug],
   );
   await sql(
@@ -120,8 +120,8 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
     [paidOrder, paidRef, storeId],
   );
   await sql(
-    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name)
-     VALUES ($1, $2, $3, $4, 1, 'Bowl')`,
+    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name, unit_price_kobo, total_price_kobo)
+     VALUES ($1, $2, $3, $4, 1, 'Bowl', 1000, 1000)`,
     [randomUUID(), paidOrder, storeId, productId],
   );
 
@@ -145,8 +145,8 @@ test('inventory apply is idempotent and a queued failure retries once', async ()
     [retryOrder, retryRef, storeId],
   );
   await sql(
-    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name)
-     VALUES ($1, $2, $3, $4, 2, 'Bowl')`,
+    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name, unit_price_kobo, total_price_kobo)
+     VALUES ($1, $2, $3, $4, 2, 'Bowl', 1000, 2000)`,
     [randomUUID(), retryOrder, storeId, productId],
   );
   await sql(
@@ -168,6 +168,7 @@ test('parallel commissions record once and parallel refunds deduct once', async 
   const affiliateId = randomUUID();
   const customerId = randomUUID();
   const reference = `aff_${affiliateId.slice(0, 8)}`;
+  await sql(`INSERT INTO auth.users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [customerId]);
   await sql(
     `INSERT INTO public.affiliates (
        id, user_id, affiliate_code, bank_account_number, bank_name, account_name,
@@ -234,11 +235,11 @@ test('a full refund restocks once and a dispute is recorded', async () => {
   const reference = `ord_refund_${storeId.slice(0, 8)}`;
   const disputeRef = `ord_dispute_${storeId.slice(0, 8)}`;
   await sql(
-    `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, $2, $3, $3)`,
+    `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number) VALUES ($1, $2, 'Shop', $3, $3, '08030000000')`,
     [storeId, owner, `ref-${storeId.slice(0, 8)}`],
   );
   await sql(
-    `INSERT INTO public.products (id, user_id, name, quantity) VALUES ($1, $2, 'Cup', 2)`,
+    `INSERT INTO public.products (id, user_id, name, selling_price, quantity) VALUES ($1, $2, 'Cup', 1000, 2)`,
     [productId, owner],
   );
   const orderId = randomUUID();
@@ -248,8 +249,8 @@ test('a full refund restocks once and a dispute is recorded', async () => {
     [orderId, reference, storeId],
   );
   await sql(
-    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name)
-     VALUES ($1, $2, $3, $4, 1, 'Cup')`,
+    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name, unit_price_kobo, total_price_kobo)
+     VALUES ($1, $2, $3, $4, 1, 'Cup', 500, 500)`,
     [randomUUID(), orderId, storeId, productId],
   );
   await sql(`INSERT INTO public.storefront_fulfillments (paystack_reference) VALUES ($1)`, [reference]);
@@ -330,7 +331,7 @@ test('a cashier cannot create a manager PIN and an expired session is not the ow
   assert.equal(ownerRole.rows[0].role, null);
   await sql(
     `INSERT INTO public.staff_members (id, store_owner_uid, role, is_active, name, pin)
-     VALUES ($1, $2, 'manager', true, 'Owner made', 'hash')`,
+     VALUES ($1, $2, 'manager', true, 'Owner made', 'hash2')`,
     [randomUUID(), owner],
   );
 });
@@ -339,7 +340,7 @@ test('an owner cannot set platform flags and a privileged change is audited', as
   const storeId = randomUUID();
   const owner = randomUUID();
   await sql(
-    `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, $2, $3, $3)`,
+    `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number) VALUES ($1, $2, 'Shop', $3, $3, '08030000000')`,
     [storeId, owner, `flg-${storeId.slice(0, 8)}`],
   );
   await sql(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [owner]);
@@ -363,6 +364,7 @@ test('an owner cannot set platform flags and a privileged change is audited', as
 test('an owner cannot write affiliate earnings', async () => {
   const affiliateId = randomUUID();
   const userId = randomUUID();
+  await sql(`INSERT INTO auth.users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [userId]);
   await sql(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [userId]);
   await sql(`SELECT set_config('request.jwt.claim.role', 'authenticated', false)`);
   await sql(
@@ -389,8 +391,9 @@ test('a slug collision is recorded and both shop URLs remain', async () => {
   await sql(`ALTER TABLE public.stores DISABLE TRIGGER stores_reserve_names`);
   try {
     await sql(
-      `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, 'a', $2, $3), ($4, 'b', $5, $3)`,
-      [a, `${shared}-a`, shared, b, `${shared}-b`],
+      `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number)
+       VALUES ($1::uuid, $1::text, 'Shop A', $2, $3, '08030000001'), ($4::uuid, $4::text, 'Shop B', $5, $2, '08030000002')`,
+      [a, shared, `${shared}-a`, b, `${shared}-b`],
     );
   } finally {
     await sql(`ALTER TABLE public.stores ENABLE TRIGGER stores_guard_slug`);
@@ -424,8 +427,8 @@ test('an expired staff session cannot delete a sale', async () => {
   await sql(`SELECT set_config('request.jwt.claim.role', '', false)`);
   await sql(`SELECT set_config('request.jwt.claims', '{}', false)`);
   await sql(
-    `INSERT INTO public.staff_members (id, store_owner_uid, role, is_active, name)
-     VALUES ($1, $2, 'cashier', true, 'Ada')`,
+    `INSERT INTO public.staff_members (id, store_owner_uid, role, is_active, name, pin)
+     VALUES ($1, $2, 'cashier', true, 'Ada', 'hash')`,
     [cashierId, owner],
   );
   await sql(
@@ -434,7 +437,8 @@ test('an expired staff session cannot delete a sale', async () => {
     [owner, session, cashierId],
   );
   await sql(
-    `INSERT INTO public.sales (id, user_id, discount_amount) VALUES ($1, $2, 0)`,
+    `INSERT INTO public.sales (id, user_id, product_name, product_id, quantity, unit_price, total_amount, final_amount, discount_amount)
+     VALUES ($1, $2, 'Bowl', 'bowl', 1, 1000, 1000, 1000, 0)`,
     [saleId, owner],
   );
   await sql(`GRANT SELECT, DELETE ON public.sales TO authenticated`);
@@ -469,11 +473,11 @@ test('a refund cancels queued stock and a dispute is allowed by the status check
   const productId = randomUUID();
   const reference = `ord_q_${storeId.slice(0, 8)}`;
   await sql(
-    `INSERT INTO public.stores (id, user_id, store_slug, subdomain) VALUES ($1, $2, $3, $3)`,
+    `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number) VALUES ($1, $2, 'Shop', $3, $3, '08030000000')`,
     [storeId, owner, `q-${storeId.slice(0, 8)}`],
   );
   await sql(
-    `INSERT INTO public.products (id, user_id, name, quantity) VALUES ($1, $2, 'Plate', 8)`,
+    `INSERT INTO public.products (id, user_id, name, selling_price, quantity) VALUES ($1, $2, 'Plate', 1000, 8)`,
     [productId, owner],
   );
   const orderId = randomUUID();
@@ -483,8 +487,8 @@ test('a refund cancels queued stock and a dispute is allowed by the status check
     [orderId, reference, storeId],
   );
   await sql(
-    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name)
-     VALUES ($1, $2, $3, $4, 4, 'Plate')`,
+    `INSERT INTO public.order_items (id, order_id, store_id, product_id, quantity, product_name, unit_price_kobo, total_price_kobo)
+     VALUES ($1, $2, $3, $4, 4, 'Plate', 200, 800)`,
     [randomUUID(), orderId, storeId, productId],
   );
   await sql(
@@ -568,6 +572,7 @@ test('a refund cancels queued stock and a dispute is allowed by the status check
 test('a forged affiliate insert is stored with a zero balance', async () => {
   const affiliateId = randomUUID();
   const userId = randomUUID();
+  await sql(`INSERT INTO auth.users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [userId]);
   await sql(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [userId]);
   await sql(`SELECT set_config('request.jwt.claim.role', 'authenticated', false)`);
   await sql(
@@ -597,11 +602,45 @@ test('a closed-order charge writes an alert and the report job checks the vault'
     `SELECT count(*)::int AS n FROM public.operator_alerts WHERE paystack_reference = $1`,
     [alertRef],
   );
-  assert.equal(alert.rows[0].n, 1);
-  const job = await sql(
-    `SELECT command FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports'`,
+  await sql(
+    `SELECT public.note_storefront_payment_alert($1, 'closed_order_charge', 'money taken on a failed order')`,
+    [alertRef],
   );
+  assert.equal(alert.rows[0].n, 1);
+  const again = await sql(
+    `SELECT count(*)::int AS n FROM public.operator_alerts WHERE paystack_reference = $1`,
+    [alertRef],
+  );
+  assert.equal(again.rows[0].n, 1);
+  const job = await sql(
+    `SELECT schedule, command FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports'`,
+  );
+  assert.equal(job.rows[0].schedule, '0 * * * *');
   assert.match(job.rows[0].command, /cron_secret_missing/);
+});
+
+test('a blocked store link is not retried and a pending one is', async () => {
+  const storeId = randomUUID();
+  const slug = `prov-${storeId.slice(0, 8)}`;
+  await sql(`SELECT set_config('request.jwt.claim.role', '', false)`);
+  await sql(`SELECT set_config('request.jwt.claim.sub', '', false)`);
+  await sql(
+    `INSERT INTO public.stores (id, user_id, business_name, store_slug, subdomain, whatsapp_number) VALUES ($1, $2, 'Shop', $3, $3, '08030000000')`,
+    [storeId, `owner-${storeId.slice(0, 8)}`, slug],
+  );
+  await sql(
+    `SELECT public.record_store_provisioning($1, $2, 'blocked', 409, 'domain_already_in_use')`,
+    [storeId, slug],
+  );
+  const blocked = await sql(`SELECT count(*)::int AS n FROM public.claim_store_provisioning_retries(20) WHERE store_id = $1`, [storeId]);
+  assert.equal(blocked.rows[0].n, 0);
+  await sql(
+    `SELECT public.record_store_provisioning($1, $2, 'pending', 201, 'registered')`,
+    [storeId, slug],
+  );
+  await sql(`UPDATE public.store_provisioning SET next_retry_at = now() - interval '1 minute' WHERE store_id = $1`, [storeId]);
+  const due = await sql(`SELECT status FROM public.claim_store_provisioning_retries(20) WHERE store_id = $1`, [storeId]);
+  assert.equal(due.rows[0].status, 'pending');
 });
 
 test('the retry queue is scheduled and platform_config exists', async () => {

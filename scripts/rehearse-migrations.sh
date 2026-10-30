@@ -24,4 +24,6 @@ for file in "${files[@]}"; do
   echo "APPLY $base"
   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
 done
+echo "APPLY ci-live-constraints.sql"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$ROOT/scripts/ci-live-constraints.sql"
 echo "MIGRATIONS_APPLIED ${#files[@]}"

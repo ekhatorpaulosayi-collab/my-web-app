@@ -16,7 +16,7 @@ import {
   type StoreContext,
 } from './store-context.ts';
 import { cachedOpenAICall } from './cache-helper.ts';
-import { aiSpendGate, chatCallAllowed, customDomainIsVerified, isBuiltInChatOrigin, originsForVerifiedDomain } from '../_shared/moneyPolicies.ts';
+import { aiSpendGate, chatCallAllowed, customDomainIsVerified, isBuiltInChatOrigin, loggedInChatQuota, originsForVerifiedDomain, storefrontChatQuota } from '../_shared/moneyPolicies.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -957,7 +957,13 @@ serve(async (req) => {
         p_context_type: contextType, // Pass context type for quota tracking
       }).single();
 
-      if (quotaError) {
+      const decision = loggedInChatQuota({
+        hasUser: true,
+        isVisitor: false,
+        rpcError: Boolean(quotaError),
+        allowed: quota?.allowed ?? null,
+      });
+      if (decision === 'fail_open') {
         console.error('[ai-chat] Quota check error:', quotaError);
         // On error, allow the chat (fail open, not closed)
         quotaInfo = null;
@@ -965,7 +971,7 @@ serve(async (req) => {
         quotaInfo = quota;
 
         // Block if not allowed (limit exceeded)
-        if (!quota?.allowed) {
+        if (decision === 'refuse') {
           return jsonResponse({
             error: quota?.message || 'Chat limit exceeded',
             chatsUsed: quota?.chats_used,
@@ -3004,11 +3010,17 @@ Supported languages: English, Pidgin, Igbo, Hausa, Yoruba, French. If unsure, de
       const { data: quotaResult, error: quotaError } = await supabase
         .rpc('check_ai_chat_quota', { p_user_id: storeUserId ? storeUserId.toString() : null });
 
+      const decision = storefrontChatQuota({
+        hasStoreUser: true,
+        hasConversation: true,
+        rpcError: Boolean(quotaError),
+        allowed: quotaResult?.allowed ?? null,
+      });
       // FAIL-OPEN: If quota check fails, allow the message (don't block customers)
-      if (quotaError) {
+      if (decision === 'fail_open') {
         console.error('[StorefrontChat] Quota check failed, allowing message:', quotaError);
         // Continue with the chat - don't block on quota check errors
-      } else if (quotaResult && !quotaResult.allowed) {
+      } else if (decision === 'refuse') {
       const whatsappNumber = storeContext?.profile?.whatsappNumber || '';
       const storeName = storeContext?.profile?.businessName || 'this store';
       const address = storeContext?.profile?.address || '';

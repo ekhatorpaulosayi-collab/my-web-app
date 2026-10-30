@@ -1,7 +1,16 @@
+function requireAnonKey() {
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) {
+    console.error("Set SUPABASE_ANON_KEY to your project's anon key from the dashboard.");
+    process.exit(1);
+  }
+  return key;
+}
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-const supabaseKey = 'public-anon-placeholder';
+const supabaseKey = requireAnonKey();
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

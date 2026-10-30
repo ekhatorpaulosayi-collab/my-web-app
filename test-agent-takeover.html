@@ -89,7 +89,7 @@
 
         // Get Supabase credentials from environment
         const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://yzlniqwzqlsftxrtapdl.supabase.co';
-        const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'public-anon-placeholder';
+        const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || (sessionStorage.getItem('storehouse_anon_key') || (() => { throw new Error("Set sessionStorage storehouse_anon_key to your project's anon key from the dashboard."); })());
 
         const supabase = createClient(supabaseUrl, supabaseKey);
 

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS cron.job (
   command text
 );
 INSERT INTO cron.job (jobname, schedule)
-SELECT 'send-daily-whatsapp-reports', '0 6 * * *'
+SELECT 'send-daily-whatsapp-reports', '0 * * * *'
 WHERE NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports');
 CREATE OR REPLACE FUNCTION cron.unschedule(p_jobname text) RETURNS void
 LANGUAGE plpgsql AS $$
@@ -209,12 +209,14 @@ ALTER TABLE public.affiliates ALTER COLUMN bank_name SET NOT NULL;
 ALTER TABLE public.affiliates ALTER COLUMN account_name SET NOT NULL;
 ALTER TABLE public.affiliates ALTER COLUMN affiliate_code SET NOT NULL;
 CREATE TABLE IF NOT EXISTS public.user_subscriptions (
-  user_id uuid PRIMARY KEY,
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid,
   tier_id text,
   ai_chats_used_this_month integer DEFAULT 0,
   ai_chats_reset_at timestamptz,
   grandfathered boolean DEFAULT false,
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT user_subscriptions_user_id_key UNIQUE (user_id)
 );
 CREATE TABLE IF NOT EXISTS public.staff_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -297,3 +299,124 @@ CREATE TABLE IF NOT EXISTS public.paystack_split_transactions (
   CONSTRAINT split_tx_amount_invariant
     CHECK (amount_total_kobo = amount_paystack_kobo + amount_storehouse_kobo + amount_vendor_kobo)
 );
+
+-- Columns and keys the live catalogue has on the tables these tests write.
+-- The October files widen status checks; they do not create these.
+ALTER TABLE public.stores ADD COLUMN IF NOT EXISTS whatsapp_number text;
+ALTER TABLE public.stores ALTER COLUMN business_name SET NOT NULL;
+ALTER TABLE public.stores ALTER COLUMN whatsapp_number SET NOT NULL;
+ALTER TABLE public.stores ALTER COLUMN user_id SET NOT NULL;
+ALTER TABLE public.stores ALTER COLUMN store_slug SET NOT NULL;
+ALTER TABLE public.stores DROP CONSTRAINT IF EXISTS stores_slug_format;
+ALTER TABLE public.stores ADD CONSTRAINT stores_slug_format
+  CHECK (store_slug ~ '^[a-z0-9-]{3,50}$');
+ALTER TABLE public.stores DROP CONSTRAINT IF EXISTS subdomain_format;
+ALTER TABLE public.stores ADD CONSTRAINT subdomain_format
+  CHECK (subdomain IS NULL OR subdomain ~ '^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$');
+ALTER TABLE public.stores DROP CONSTRAINT IF EXISTS stores_store_slug_key;
+ALTER TABLE public.stores ADD CONSTRAINT stores_store_slug_key UNIQUE (store_slug);
+ALTER TABLE public.stores DROP CONSTRAINT IF EXISTS stores_subdomain_key;
+ALTER TABLE public.stores ADD CONSTRAINT stores_subdomain_key UNIQUE (subdomain);
+ALTER TABLE public.stores DROP CONSTRAINT IF EXISTS one_store_per_user;
+ALTER TABLE public.stores ADD CONSTRAINT one_store_per_user UNIQUE (user_id);
+ALTER TABLE public.stores DROP CONSTRAINT IF EXISTS stores_kyc_status_check;
+ALTER TABLE public.stores ADD CONSTRAINT stores_kyc_status_check
+  CHECK (kyc_status IS NULL OR kyc_status IN ('not_started', 'submitted', 'approved', 'rejected', 'frozen'));
+
+ALTER TABLE public.products ALTER COLUMN user_id SET NOT NULL;
+ALTER TABLE public.products ALTER COLUMN name SET NOT NULL;
+ALTER TABLE public.products ALTER COLUMN selling_price SET NOT NULL;
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_positive_price;
+ALTER TABLE public.products ADD CONSTRAINT products_positive_price CHECK (selling_price > 0);
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_positive_quantity;
+ALTER TABLE public.products ADD CONSTRAINT products_positive_quantity CHECK (quantity >= 0);
+
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS unit_price_kobo bigint;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS total_price_kobo bigint;
+ALTER TABLE public.order_items ALTER COLUMN order_id SET NOT NULL;
+ALTER TABLE public.order_items ALTER COLUMN store_id SET NOT NULL;
+ALTER TABLE public.order_items ALTER COLUMN product_name SET NOT NULL;
+ALTER TABLE public.order_items ALTER COLUMN quantity SET NOT NULL;
+ALTER TABLE public.order_items ALTER COLUMN unit_price_kobo SET NOT NULL;
+ALTER TABLE public.order_items ALTER COLUMN total_price_kobo SET NOT NULL;
+ALTER TABLE public.order_items DROP CONSTRAINT IF EXISTS order_items_quantity_check;
+ALTER TABLE public.order_items ADD CONSTRAINT order_items_quantity_check CHECK (quantity > 0);
+ALTER TABLE public.order_items DROP CONSTRAINT IF EXISTS order_items_unit_price_kobo_check;
+ALTER TABLE public.order_items ADD CONSTRAINT order_items_unit_price_kobo_check CHECK (unit_price_kobo >= 0);
+ALTER TABLE public.order_items DROP CONSTRAINT IF EXISTS order_items_total_price_kobo_check;
+ALTER TABLE public.order_items ADD CONSTRAINT order_items_total_price_kobo_check CHECK (total_price_kobo >= 0);
+ALTER TABLE public.order_items DROP CONSTRAINT IF EXISTS order_items_order_id_fkey;
+ALTER TABLE public.order_items ADD CONSTRAINT order_items_order_id_fkey
+  FOREIGN KEY (order_id) REFERENCES public.orders(id);
+ALTER TABLE public.order_items DROP CONSTRAINT IF EXISTS order_items_store_id_fkey;
+ALTER TABLE public.order_items ADD CONSTRAINT order_items_store_id_fkey
+  FOREIGN KEY (store_id) REFERENCES public.stores(id);
+ALTER TABLE public.order_items DROP CONSTRAINT IF EXISTS order_items_product_id_fkey;
+ALTER TABLE public.order_items ADD CONSTRAINT order_items_product_id_fkey
+  FOREIGN KEY (product_id) REFERENCES public.products(id);
+
+ALTER TABLE public.orders ALTER COLUMN paystack_reference SET NOT NULL;
+ALTER TABLE public.orders ALTER COLUMN status SET NOT NULL;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_order_type_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_order_type_check
+  CHECK (order_type IS NULL OR order_type IN ('storefront', 'marketplace'));
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_storefront_requires_store;
+ALTER TABLE public.orders ADD CONSTRAINT orders_storefront_requires_store
+  CHECK ((order_type = 'storefront' AND primary_store_id IS NOT NULL) OR order_type = 'marketplace');
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_paystack_reference_key;
+ALTER TABLE public.orders ADD CONSTRAINT orders_paystack_reference_key UNIQUE (paystack_reference);
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_primary_store_id_fkey;
+ALTER TABLE public.orders ADD CONSTRAINT orders_primary_store_id_fkey
+  FOREIGN KEY (primary_store_id) REFERENCES public.stores(id);
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_total_amount_kobo_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_total_amount_kobo_check CHECK (total_amount_kobo > 0);
+
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS product_name text;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS quantity integer;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS unit_price bigint;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS total_amount bigint;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS final_amount bigint;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS product_id text;
+ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS sale_channel text;
+ALTER TABLE public.sales ALTER COLUMN user_id SET NOT NULL;
+ALTER TABLE public.sales ALTER COLUMN product_name SET NOT NULL;
+ALTER TABLE public.sales ALTER COLUMN quantity SET NOT NULL;
+ALTER TABLE public.sales ALTER COLUMN unit_price SET NOT NULL;
+ALTER TABLE public.sales ALTER COLUMN total_amount SET NOT NULL;
+ALTER TABLE public.sales ALTER COLUMN product_id SET NOT NULL;
+ALTER TABLE public.sales DROP CONSTRAINT IF EXISTS sales_positive_quantity;
+ALTER TABLE public.sales ADD CONSTRAINT sales_positive_quantity CHECK (quantity > 0);
+ALTER TABLE public.sales DROP CONSTRAINT IF EXISTS sales_non_negative_amounts;
+ALTER TABLE public.sales ADD CONSTRAINT sales_non_negative_amounts
+  CHECK (total_amount >= 0 AND final_amount >= 0);
+ALTER TABLE public.sales DROP CONSTRAINT IF EXISTS valid_sale_channel;
+ALTER TABLE public.sales ADD CONSTRAINT valid_sale_channel
+  CHECK (sale_channel IS NULL OR sale_channel IN ('in-person', 'online-store', 'wholesale', 'social-media', 'offline-sync'));
+
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS role text;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+ALTER TABLE public.staff_members ALTER COLUMN name SET NOT NULL;
+ALTER TABLE public.staff_members ALTER COLUMN role SET NOT NULL;
+ALTER TABLE public.staff_members ALTER COLUMN pin SET NOT NULL;
+ALTER TABLE public.staff_members ALTER COLUMN store_owner_uid SET NOT NULL;
+ALTER TABLE public.staff_members DROP CONSTRAINT IF EXISTS staff_members_role_check;
+ALTER TABLE public.staff_members ADD CONSTRAINT staff_members_role_check
+  CHECK (role IN ('manager', 'cashier'));
+
+ALTER TABLE public.affiliates DROP CONSTRAINT IF EXISTS affiliates_affiliate_code_key;
+ALTER TABLE public.affiliates ADD CONSTRAINT affiliates_affiliate_code_key UNIQUE (affiliate_code);
+ALTER TABLE public.affiliates DROP CONSTRAINT IF EXISTS affiliates_user_id_fkey;
+ALTER TABLE public.affiliates ADD CONSTRAINT affiliates_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.paystack_split_transactions ADD COLUMN IF NOT EXISTS review_status text DEFAULT 'not_required';
+ALTER TABLE public.paystack_split_transactions DROP CONSTRAINT IF EXISTS paystack_split_transactions_review_status_check;
+ALTER TABLE public.paystack_split_transactions ADD CONSTRAINT paystack_split_transactions_review_status_check
+  CHECK (review_status IN ('not_required', 'pending', 'approved', 'rejected'));
+ALTER TABLE public.paystack_split_transactions DROP CONSTRAINT IF EXISTS paystack_split_transactions_order_id_fkey;
+ALTER TABLE public.paystack_split_transactions ADD CONSTRAINT paystack_split_transactions_order_id_fkey
+  FOREIGN KEY (order_id) REFERENCES public.orders(id);
+ALTER TABLE public.paystack_split_transactions DROP CONSTRAINT IF EXISTS paystack_split_transactions_store_id_fkey;
+ALTER TABLE public.paystack_split_transactions ADD CONSTRAINT paystack_split_transactions_store_id_fkey
+  FOREIGN KEY (store_id) REFERENCES public.stores(id);

@@ -56,6 +56,21 @@ Smoke test: a paid order updated to `disputed`, and a split row updated to `reve
 
 Apply `20261030_02` (version `2026103002`) before deploying `initiate-storefront-payment` or `complete-storefront-order`. Apply `20261030_03` (version `2026103003`) after staff sessions and `record_sale`. Do not re-run `20261025_06` afterwards. Do not `db push`.
 
+## 8. Daily report cron (OPS-02)
+
+The report job `send-daily-whatsapp-reports` must stay hourly (`0 * * * *`). `send-daily-reports` sends a shop only when the Nigerian hour matches `report_settings.deliveryTime`. The shop with reports on is set to 23:00. File `20261030_05` keeps that hourly cadence and fails the job when a vault secret is missing. It does not set `0 6 * * *`.
+
+What you still do, on a staging project first:
+
+1. Create vault secrets `service_role_key` and `cron_secret` (names only; do not paste the values here). `cron_secret` is the same string as the edge secret `CRON_SECRET`.
+2. Apply `20261025_15`, then `20261025_24` so `pg_net` is installed. Step 24 removes the duplicate job `hourly-whatsapp-reports`. It does not change `send-daily-whatsapp-reports` off hourly.
+3. Apply `20261030_05` after `20261030_04`. Confirm `SELECT schedule FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports'` is `0 * * * *`.
+4. Deploy `send-daily-reports` only when you mean to. The Supabase gateway must accept the bearer from the vault service-role key (`verify_jwt` stays on for this function). The function itself also checks `x-cron-secret`. A missing secret must not return 200.
+5. Deploy `retry-store-provisioning` with `--no-verify-jwt` when you want store-link retries, then read the flag back. It checks `x-cron-secret` in code. Do not deploy it from this branch.
+6. After one hourly run, confirm the 23:00 shop is still waiting during other hours and is eligible at 23:00. This agent did not fire the live job and did not install `pg_net` on production.
+
+Rollback for file 05 is `scripts/rollback-20261030-05.sql`. Re-applying `20261025_15` recreates the hourly job if you removed it. Re-applying `20261025_09` does not overwrite the staff functions from `20261030_04`.
+
 ## Fallback
 
 If `20261030_01` or `20261030_04` blocks a legitimate owner profile save, the failure text will be `platform_field_locked`. Ordinary columns are not in that trigger. A name that already belongs to two shops is listed in `store_name_collisions` and both shop URLs stay. Do not delete a shop URL.

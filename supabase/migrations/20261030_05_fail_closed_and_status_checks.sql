@@ -291,6 +291,20 @@ CREATE TRIGGER orders_cancel_queued_stock
   FOR EACH ROW
   EXECUTE FUNCTION public.cancel_queued_stock_on_close();
 
+CREATE TABLE IF NOT EXISTS public.operator_reviewers (
+  user_id uuid PRIMARY KEY
+);
+INSERT INTO public.operator_reviewers (user_id)
+VALUES ('dffba89b-869d-422a-a542-2e2494850b44')
+ON CONFLICT (user_id) DO NOTHING;
+ALTER TABLE public.operator_reviewers ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.operator_reviewers FROM PUBLIC, anon, authenticated;
+DROP POLICY IF EXISTS operator_reviewers_self ON public.operator_reviewers;
+CREATE POLICY operator_reviewers_self ON public.operator_reviewers
+  FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+GRANT SELECT ON public.operator_reviewers TO authenticated;
+
 CREATE TABLE IF NOT EXISTS public.operator_alerts (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   kind text NOT NULL,
@@ -299,13 +313,27 @@ CREATE TABLE IF NOT EXISTS public.operator_alerts (
   created_at timestamptz NOT NULL DEFAULT now(),
   seen_at timestamptz
 );
+CREATE UNIQUE INDEX IF NOT EXISTS operator_alerts_open_ref
+  ON public.operator_alerts (kind, paystack_reference)
+  WHERE seen_at IS NULL AND paystack_reference IS NOT NULL;
 ALTER TABLE public.operator_alerts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.operator_alerts FROM PUBLIC, anon, authenticated;
 DROP POLICY IF EXISTS operator_alerts_reviewer ON public.operator_alerts;
 CREATE POLICY operator_alerts_reviewer ON public.operator_alerts
   FOR SELECT TO authenticated
-  USING (auth.uid() = 'dffba89b-869d-422a-a542-2e2494850b44'::uuid);
-GRANT SELECT ON public.operator_alerts TO authenticated;
+  USING (EXISTS (
+    SELECT 1 FROM public.operator_reviewers r WHERE r.user_id = auth.uid()
+  ));
+DROP POLICY IF EXISTS operator_alerts_reviewer_seen ON public.operator_alerts;
+CREATE POLICY operator_alerts_reviewer_seen ON public.operator_alerts
+  FOR UPDATE TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.operator_reviewers r WHERE r.user_id = auth.uid()
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.operator_reviewers r WHERE r.user_id = auth.uid()
+  ));
+GRANT SELECT, UPDATE ON public.operator_alerts TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.note_storefront_payment_alert(
   p_reference text,
@@ -318,7 +346,8 @@ SET search_path = public, pg_temp
 AS $$
 BEGIN
   INSERT INTO public.operator_alerts (kind, paystack_reference, message)
-  VALUES (left(coalesce(p_kind, 'payment'), 40), p_reference, left(coalesce(p_message, ''), 500));
+  VALUES (left(coalesce(p_kind, 'payment'), 40), p_reference, left(coalesce(p_message, ''), 500))
+  ON CONFLICT (kind, paystack_reference) WHERE seen_at IS NULL AND paystack_reference IS NOT NULL DO NOTHING;
 END;
 $$;
 
@@ -403,7 +432,8 @@ BEGIN
       END IF;
       IF v_attempts >= 8 THEN
         INSERT INTO public.operator_alerts (kind, paystack_reference, message)
-        VALUES ('inventory_dead', r.paystack_reference, left(coalesce(v_err, 'inventory_dead'), 500));
+        VALUES ('inventory_dead', r.paystack_reference, left(coalesce(v_err, 'inventory_dead'), 500))
+        ON CONFLICT (kind, paystack_reference) WHERE seen_at IS NULL AND paystack_reference IS NOT NULL DO NOTHING;
         PERFORM pg_notify('storefront_inventory_dead', r.paystack_reference);
       END IF;
     END;
@@ -423,8 +453,13 @@ CREATE TABLE IF NOT EXISTS public.store_provisioning (
   http_status integer,
   detail text,
   attempts integer NOT NULL DEFAULT 0,
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  next_retry_at timestamptz
 );
+ALTER TABLE public.store_provisioning ADD COLUMN IF NOT EXISTS next_retry_at timestamptz;
+ALTER TABLE public.store_provisioning DROP CONSTRAINT IF EXISTS store_provisioning_status_check;
+ALTER TABLE public.store_provisioning ADD CONSTRAINT store_provisioning_status_check
+  CHECK (status IN ('pending', 'active', 'retryable_failure', 'blocked'));
 ALTER TABLE public.store_provisioning ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.store_provisioning FROM PUBLIC, anon, authenticated;
 DROP POLICY IF EXISTS store_provisioning_owner ON public.store_provisioning;
@@ -451,15 +486,37 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-  INSERT INTO public.store_provisioning (store_id, subdomain, status, http_status, detail, attempts, updated_at)
-  VALUES (p_store_id, p_subdomain, p_status, p_http_status, left(coalesce(p_detail, ''), 300), 1, now())
+  IF p_status NOT IN ('pending', 'active', 'retryable_failure', 'blocked') THEN
+    RAISE EXCEPTION 'bad_provision_status' USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO public.store_provisioning (
+    store_id, subdomain, status, http_status, detail, attempts, updated_at, next_retry_at
+  )
+  VALUES (
+    p_store_id,
+    p_subdomain,
+    p_status,
+    p_http_status,
+    left(coalesce(p_detail, ''), 300),
+    1,
+    now(),
+    CASE
+      WHEN p_status IN ('pending', 'retryable_failure') THEN now() + interval '5 minutes'
+      ELSE NULL
+    END
+  )
   ON CONFLICT (store_id) DO UPDATE
     SET subdomain = EXCLUDED.subdomain,
         status = EXCLUDED.status,
         http_status = EXCLUDED.http_status,
         detail = EXCLUDED.detail,
         attempts = public.store_provisioning.attempts + 1,
-        updated_at = now();
+        updated_at = now(),
+        next_retry_at = CASE
+          WHEN EXCLUDED.status IN ('active', 'blocked') THEN NULL
+          WHEN public.store_provisioning.attempts + 1 >= 8 THEN NULL
+          ELSE now() + make_interval(mins => LEAST(power(2, LEAST(public.store_provisioning.attempts + 1, 6))::int, 64))
+        END;
   IF p_status = 'retryable_failure' THEN
     INSERT INTO public.operator_alerts (kind, message)
     VALUES (
@@ -473,17 +530,52 @@ $$;
 REVOKE ALL ON FUNCTION public.record_store_provisioning(uuid, text, text, integer, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.record_store_provisioning(uuid, text, text, integer, text) TO service_role;
 
--- Daily report: a missing vault secret must fail the job, not post with an empty header.
-DO $$
+-- Rows the retry worker should attempt. Blocked and active rows stay put.
+CREATE OR REPLACE FUNCTION public.claim_store_provisioning_retries(p_limit integer DEFAULT 20)
+RETURNS SETOF public.store_provisioning
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 BEGIN
+  IF auth.role() IS NOT NULL AND auth.role() <> 'service_role' THEN
+    RAISE EXCEPTION 'not_allowed' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY
+  SELECT *
+    FROM public.store_provisioning
+   WHERE status IN ('pending', 'retryable_failure')
+     AND attempts < 8
+     AND (next_retry_at IS NULL OR next_retry_at <= now())
+   ORDER BY updated_at
+   LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 20), 50));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_store_provisioning_retries(integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_store_provisioning_retries(integer) TO service_role;
+
+-- Daily report stays hourly. send-daily-reports sends only when the Nigerian
+-- hour matches each shop's deliveryTime. A 06:00 job would skip a shop set
+-- to 23:00. A missing job, or that once-a-day value, becomes 0 * * * *.
+-- Any other existing cadence is kept. A missing vault secret fails the job.
+DO $cron$
+DECLARE
+  v_schedule text;
+BEGIN
+  SELECT j.schedule INTO v_schedule
+    FROM cron.job AS j
+   WHERE j.jobname = 'send-daily-whatsapp-reports';
+  IF v_schedule IS NULL OR btrim(v_schedule) = '' OR v_schedule = '0 6 * * *' THEN
+    v_schedule := '0 * * * *';
+  END IF;
   IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports') THEN
     PERFORM cron.unschedule('send-daily-whatsapp-reports');
   END IF;
-END $$;
-SELECT cron.schedule(
-  'send-daily-whatsapp-reports',
-  '0 6 * * *',
-  $cmd$
+  PERFORM cron.schedule(
+    'send-daily-whatsapp-reports',
+    v_schedule,
+    $cmd$
     DO $job$
     DECLARE
       v_key text;
@@ -507,18 +599,50 @@ SELECT cron.schedule(
       );
     END
     $job$;
-  $cmd$
-);
+    $cmd$
+  );
+
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'store-provisioning-retry') THEN
+    PERFORM cron.unschedule('store-provisioning-retry');
+  END IF;
+  PERFORM cron.schedule(
+    'store-provisioning-retry',
+    '*/15 * * * *',
+    $pcmd$
+      DO $job$
+      DECLARE
+        v_key text;
+        v_cron text;
+      BEGIN
+        SELECT decrypted_secret INTO v_key
+          FROM vault.decrypted_secrets WHERE name = 'service_role_key';
+        SELECT decrypted_secret INTO v_cron
+          FROM vault.decrypted_secrets WHERE name = 'cron_secret';
+        IF v_key IS NULL OR length(v_key) < 20 OR v_cron IS NULL OR length(v_cron) < 8 THEN
+          RAISE EXCEPTION 'cron_secret_missing' USING ERRCODE = '23514';
+        END IF;
+        PERFORM net.http_post(
+          url := 'https://yzlniqwzqlsftxrtapdl.supabase.co/functions/v1/retry-store-provisioning',
+          headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'Authorization', 'Bearer ' || v_key,
+            'x-cron-secret', v_cron
+          ),
+          body := '{}'::jsonb
+        );
+      END
+      $job$;
+    $pcmd$
+  );
+END
+$cron$;
 
 COMMIT;
 
--- ROLLBACK:
---   SELECT cron.unschedule('send-daily-whatsapp-reports');
---   Then re-apply 20261025_15 if the daily job should return, and 20261025_09
---   for the previous cashier policies. Do not leave the expired session as owner.
---   DROP FUNCTION IF EXISTS public.fulfill_legacy_storefront_lines(text, text, jsonb);
---   DROP FUNCTION IF EXISTS public.record_store_provisioning(uuid, text, text, integer, text);
---   DROP TABLE IF EXISTS public.store_provisioning;
---   DROP FUNCTION IF EXISTS public.note_storefront_payment_alert(text, text, text);
---   Re-apply 20261030_02 for the previous apply_storefront_inventory body
---   and 20261030_03 for the previous queue processor.
+-- ROLLBACK is scripts/rollback-20261030-05.sql. It drops the objects this
+-- file adds, restores the narrower status checks, and puts the hourly report
+-- job back so 20261025_15 can find it. Do not re-apply 20261025_09 in order
+-- to undo staff checks: 09 keeps 04's staff functions when expires_at is
+-- already there. Re-apply 20261030_02 and 20261030_03 for the previous
+-- inventory bodies, then 20261025_15 for the vault command on the hourly job.
+-- Skip this rollback if any order is already disputed or reversed.

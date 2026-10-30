@@ -32,7 +32,7 @@ These files are not applied by this pull request. Run them only after the 25 Oct
 2. `supabase/migrations/20261030_02_owned_inventory.sql` after `20261025_06`. Do not re-run `06` after this file.
 3. `supabase/migrations/20261030_03_names_discounts_queue.sql` after `20261025_09`, `20261025_12`, and `20261025_18`. A label that already belongs to two shops is recorded in `store_name_reservations`'s companion table `store_name_collisions`. Both shop URLs stay. The file does not abort.
 4. `supabase/migrations/20261030_04_flags_staff_affiliates_payments.sql` after step 3. Version `2026103004`, name `flags_staff_affiliates_payments`.
-4b. `supabase/migrations/20261030_05_fail_closed_and_status_checks.sql` after step 4. Version `2026103005`, name `fail_closed_and_status_checks`. This widens order and split status checks so a dispute and a reversal can be stored, keeps an expired staff session from reading or deleting sales, and makes the daily report job fail when a vault secret is missing.
+4b. `supabase/migrations/20261030_05_fail_closed_and_status_checks.sql` after step 4. Version `2026103005`, name `fail_closed_and_status_checks`. This widens order and split status checks so a dispute and a reversal can be stored, keeps an expired staff session from reading or deleting sales, and makes the daily report job fail when a vault secret is missing. The report job stays hourly (`0 * * * *`). `send-daily-reports` sends only when the Nigerian hour matches that shop's `report_settings.deliveryTime`. Do not set the job to `0 6 * * *`. Smoke test: `SELECT schedule FROM cron.job WHERE jobname = 'send-daily-whatsapp-reports'` is `0 * * * *`. Rollback is `scripts/rollback-20261030-05.sql`. Do not re-apply `20261025_09` to undo staff checks.
 5. Deploy `initiate-storefront-payment` and `complete-storefront-order` only after step 2. Deploy `paystack-webhook-router` only after step 4, because charge success now checks the amount and the currency. Do not deploy `whatsapp-webhook`.
 6. Record each file in `supabase_migrations.schema_migrations` yourself. Do not `db push`.
 
@@ -440,9 +440,9 @@ File: `supabase/migrations/20261025_15_whatsapp_report_cron_vault.sql`
 
 Version `2026102515`, name `whatsapp_report_cron_vault`.
 
-The live job `send-daily-whatsapp-reports` calls `send-daily-reports` with the old service-role key written into the schedule. This file keeps that job's schedule and replaces the command. The new command reads two Vault secrets when the job runs. It does not copy the secret into `cron.job`.
+The live job `send-daily-whatsapp-reports` calls `send-daily-reports` with the old service-role key written into the schedule. This file keeps that job's schedule and replaces the command. The schedule must stay hourly, `0 * * * *`. `send-daily-reports` sends a shop's report only when the current Nigerian hour equals `report_settings.deliveryTime` (the live shop with reports on is set to 23:00). A once-a-day job at 06:00 would never reach it. If the job is missing, this file creates the hourly one. If a previous copy of file 05 wrote `0 6 * * *`, this file puts the hourly cadence back. It does not copy the secret into `cron.job`.
 
-This file does not change `hourly-whatsapp-reports`. The daily command calls `net.http_post`, which needs `pg_net`. Step 24 installs that extension and removes the duplicate hourly job. Run step 24 as well.
+This file does not change `hourly-whatsapp-reports`. The daily command calls `net.http_post`, which needs `pg_net`. Step 24 installs that extension and removes the duplicate hourly job. Run step 24 as well. The daily job itself stays hourly. That is not the same job as `hourly-whatsapp-reports`.
 
 Before the file, create the secrets yourself in the SQL editor. Do not paste the values into this file, a ticket, or a screenshot.
 
@@ -456,7 +456,7 @@ SELECT name FROM vault.decrypted_secrets
  WHERE name IN ('service_role_key', 'cron_secret');
 ```
 
-That must return both names. If it does not, stop. The file also stops if the job is missing, so it cannot create a second schedule by guessing.
+That must return both names. If it does not, stop. If the job is missing, the file creates it on the hourly cadence. It does not guess a once-a-day hour.
 
 Smoke test. The command text is safe to read after this file: it names the Vault secrets and does not contain the key.
 
@@ -468,7 +468,7 @@ SELECT jobname, schedule,
  WHERE jobname = 'send-daily-whatsapp-reports';
 ```
 
-`reads_vault` is true and `has_legacy_jwt_marker` is false. `schedule` is the same value the job had before this file.
+`reads_vault` is true and `has_legacy_jwt_marker` is false. `schedule` is `0 * * * *` on the live database. If you had changed it to something else on purpose, and it was not `0 6 * * *`, this file keeps that other value.
 
 Rollback. This removes the job. Do not paste the old command back in. That command is where the old key was hardcoded.
 

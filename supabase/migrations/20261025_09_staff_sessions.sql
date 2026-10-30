@@ -66,7 +66,26 @@ CREATE TABLE IF NOT EXISTS public.staff_pin_attempts (
 ALTER TABLE public.staff_pin_attempts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.staff_pin_attempts FROM PUBLIC, anon, authenticated;
 
--- NULL means the signed-in session is the owner (no active staff lock).
+-- Re-applying this file after 04 must not put the pre-expiry bodies back.
+-- 04 adds staff_active_sessions.expires_at and acting_staff_role returns expired.
+DO $keep_staff$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'staff_active_sessions'
+       AND column_name = 'expires_at'
+  ) AND EXISTS (
+    SELECT 1 FROM pg_proc fn
+    JOIN pg_namespace n ON n.oid = fn.pronamespace
+    WHERE n.nspname = 'public'
+      AND fn.proname = 'acting_staff_role'
+      AND pg_get_functiondef(fn.oid) ILIKE '%expired%'
+  ) THEN
+    RAISE NOTICE 'keeping staff functions from 04';
+    RETURN;
+  END IF;
+  EXECUTE $stmt0$
 CREATE OR REPLACE FUNCTION public.acting_staff_role()
 RETURNS text
 LANGUAGE sql
@@ -80,10 +99,14 @@ AS $$
      AND s.session_id = NULLIF(auth.jwt()->>'session_id', '')::uuid
    LIMIT 1;
 $$;
-
+  $stmt0$;
+  EXECUTE $stmt1$
 REVOKE ALL ON FUNCTION public.acting_staff_role() FROM PUBLIC, anon;
+  $stmt1$;
+  EXECUTE $stmt2$
 GRANT EXECUTE ON FUNCTION public.acting_staff_role() TO authenticated, service_role;
-
+  $stmt2$;
+  EXECUTE $stmt3$
 CREATE OR REPLACE FUNCTION public.begin_staff_session(p_pin text)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -163,10 +186,14 @@ BEGIN
   RETURN jsonb_build_object('error', 'invalid_pin');
 END;
 $$;
-
+  $stmt3$;
+  EXECUTE $stmt4$
 REVOKE ALL ON FUNCTION public.begin_staff_session(text) FROM PUBLIC, anon;
+  $stmt4$;
+  EXECUTE $stmt5$
 GRANT EXECUTE ON FUNCTION public.begin_staff_session(text) TO authenticated;
-
+  $stmt5$;
+  EXECUTE $stmt6$
 CREATE OR REPLACE FUNCTION public.end_staff_session(p_password text)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -200,10 +227,14 @@ BEGIN
   RETURN jsonb_build_object('ok', true);
 END;
 $$;
-
+  $stmt6$;
+  EXECUTE $stmt7$
 REVOKE ALL ON FUNCTION public.end_staff_session(text) FROM PUBLIC, anon;
+  $stmt7$;
+  EXECUTE $stmt8$
 GRANT EXECUTE ON FUNCTION public.end_staff_session(text) TO authenticated;
-
+  $stmt8$;
+  EXECUTE $stmt9$
 CREATE OR REPLACE FUNCTION public.get_acting_staff()
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -232,9 +263,16 @@ BEGIN
   );
 END;
 $$;
-
+  $stmt9$;
+  EXECUTE $stmt10$
 REVOKE ALL ON FUNCTION public.get_acting_staff() FROM PUBLIC, anon;
+  $stmt10$;
+  EXECUTE $stmt11$
 GRANT EXECUTE ON FUNCTION public.get_acting_staff() TO authenticated;
+  $stmt11$;
+END
+$keep_staff$;
+
 
 -- PIN hashes must not travel to the browser. The new client lists staff
 -- without this column. Run this only after the frontend that omits `pin`
@@ -245,6 +283,19 @@ REVOKE SELECT (pin) ON public.staff_members FROM anon, authenticated;
 -- when acting_staff_role() is NULL (owner session).
 DO $$
 BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_policy pol
+      JOIN pg_class rel ON rel.oid = pol.polrelid
+      JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+     WHERE nsp.nspname = 'public'
+       AND pol.polname = 'sales_cashier_no_delete'
+       AND pg_get_expr(pol.polqual, pol.polrelid) ILIKE '%manager%'
+  ) THEN
+    RAISE NOTICE 'keeping fail-closed staff policies from 05';
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT 1 FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace

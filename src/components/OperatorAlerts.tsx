@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const REVIEWER_USER_ID = 'dffba89b-869d-422a-a542-2e2494850b44';
-
-/** Visible list of inventory and payment alerts for the reviewer account. */
+/** Unread payment and inventory alerts for whoever is in operator_reviewers. */
 export function OperatorAlerts() {
   const [messages, setMessages] = useState<{ id: number; message: string }[]>([]);
 
@@ -11,14 +9,26 @@ export function OperatorAlerts() {
     let stop = false;
     (async () => {
       const { data } = await supabase.auth.getUser();
-      if (stop || data.user?.id !== REVIEWER_USER_ID) return;
+      const userId = data.user?.id;
+      if (stop || !userId) return;
+      const { data: reviewer } = await supabase
+        .from('operator_reviewers')
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (stop || !reviewer) return;
       const { data: rows } = await supabase
         .from('operator_alerts')
         .select('id, message')
         .is('seen_at', null)
         .order('created_at', { ascending: false })
         .limit(5);
-      if (!stop && rows) setMessages(rows);
+      if (stop || !rows?.length) return;
+      setMessages(rows);
+      await supabase
+        .from('operator_alerts')
+        .update({ seen_at: new Date().toISOString() })
+        .in('id', rows.map((row) => row.id));
     })();
     return () => {
       stop = true;

@@ -203,7 +203,7 @@ if (path.startsWith('http')) {
 ```env
 # Supabase
 VITE_SUPABASE_URL=https://yzlniqwzqlsftxrtapdl.supabase.co
-VITE_SUPABASE_ANON_KEY=public-anon-placeholder
+VITE_SUPABASE_ANON_KEY=paste your project's anon key from the dashboard
 
 # ImageKit
 VITE_IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/onelove431212341234

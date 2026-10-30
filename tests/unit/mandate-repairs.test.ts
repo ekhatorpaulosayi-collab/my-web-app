@@ -6,7 +6,7 @@ import { adminCallAllowed } from '../../supabase/functions/_shared/adminGate.ts'
 import { decideAffiliateCommission } from '../../supabase/functions/_shared/affiliateDecision.ts';
 import { bindPaidOrder } from '../../supabase/functions/_shared/paidOrder.ts';
 import { historicHostTarget } from '../../src/utils/canonicalStoreUrl.js';
-import { interpretProvisionResponse } from '../../src/utils/provisionStatus.js';
+import { interpretProvisionResponse, provisioningReaderText } from '../../src/utils/provisionStatus.js';
 import { assessCharge, chargeEventStatus, inventoryFollowUp } from '../../supabase/functions/_shared/moneyPolicies.ts';
 
 const ankara = {
@@ -141,9 +141,22 @@ test('admin calls and subdomain registration do not trust a public key or a 200'
   assert.equal(interpretProvisionResponse(429, null).state, 'retryable_failure');
   assert.equal(interpretProvisionResponse(500, null).state, 'retryable_failure');
   assert.equal(interpretProvisionResponse(409, null).state, 'active');
+  assert.equal(interpretProvisionResponse(409, { status: 'blocked' }).state, 'blocked');
+  assert.equal(interpretProvisionResponse(409, { error: { code: 'domain_already_in_use' } }).state, 'blocked');
   assert.equal(interpretProvisionResponse(200, { status: 'already_registered' }).state, 'active');
   assert.equal(interpretProvisionResponse(200, { status: 'registered' }).state, 'pending');
   assert.equal(interpretProvisionResponse(0, null).state, 'retryable_failure');
+  assert.equal(provisioningReaderText('active'), '');
+  assert.match(provisioningReaderText('blocked'), /another site/);
+  assert.match(provisioningReaderText('pending'), /retried/);
+  const cron = readFileSync(new URL('../../supabase/migrations/20261030_05_fail_closed_and_status_checks.sql', import.meta.url), 'utf8');
+  assert.match(cron, /v_schedule := '0 \* \* \* \*'/);
+  assert.match(cron, /v_schedule = '0 6 \* \* \*'/);
+  assert.doesNotMatch(cron, /'send-daily-whatsapp-reports',\s*\n\s*'0 6 \* \* \*'/);
+  const staff = readFileSync(new URL('../../supabase/migrations/20261025_09_staff_sessions.sql', import.meta.url), 'utf8');
+  assert.match(staff, /keeping staff functions from 04/);
+  const vault = readFileSync(new URL('../../supabase/migrations/20261025_15_whatsapp_report_cron_vault.sql', import.meta.url), 'utf8');
+  assert.doesNotMatch(vault, /whatsapp_report_job_missing/);
 });
 
 test('an old subdomain label resolves to the current store host', () => {

@@ -172,11 +172,12 @@ serve(async (req) => {
     }
 
     const errCode = (lastBody as { error?: { code?: string } })?.error?.code;
-    if (
-      resp.status === 409 ||
-      errCode === 'domain_already_exists' ||
-      errCode === 'domain_already_in_use'
-    ) {
+    if (errCode === 'domain_already_in_use') {
+      console.log('[provision-subdomain] blocked, domain in use elsewhere', { name });
+      await remember('blocked', resp.status, 'domain_already_in_use');
+      return json({ ok: false, status: 'blocked', error: { code: 'domain_already_in_use' }, name }, 409);
+    }
+    if (resp.status === 409 || errCode === 'domain_already_exists') {
       console.log('[provision-subdomain] already registered', { name });
       await remember('active', resp.status, 'already_registered');
       return json({ ok: true, status: 'already_registered', name }, 200);

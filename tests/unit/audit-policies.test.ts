@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { friendlyAuthError } from '../../src/lib/authErrors.js';
 import { addCalendarDays, addCalendarMonths, businessDayKey } from '../../src/utils/businessDate.ts';
@@ -9,6 +10,8 @@ import { isPermanentSaleError } from '../../src/utils/saleSync.ts';
 import { scrubSentryEvent } from '../../src/lib/sentryScrub.ts';
 import {
   aiSpendGate,
+  loggedInChatQuota,
+  storefrontChatQuota,
   chargeSuccessOutcome,
   chatCallAllowed,
   customDomainIsVerified,
@@ -143,6 +146,25 @@ test('AI spend fails closed when the cap RPC is missing or the cap is used up', 
   assert.equal(aiSpendGate({ rpcMissing: true, reserved: true }), 'uninstalled');
   assert.equal(aiSpendGate({ rpcMissing: false, reserved: false }), 'capped');
   assert.equal(aiSpendGate({ rpcMissing: false, reserved: true }), 'ok');
+});
+
+test('logged-in and storefront chat quotas run and refuse a used-up allowance', () => {
+  assert.equal(loggedInChatQuota({ hasUser: false, isVisitor: false, rpcError: false, allowed: true }), 'skip');
+  assert.equal(loggedInChatQuota({ hasUser: true, isVisitor: true, rpcError: false, allowed: false }), 'skip');
+  assert.equal(loggedInChatQuota({ hasUser: true, isVisitor: false, rpcError: true, allowed: false }), 'fail_open');
+  assert.equal(loggedInChatQuota({ hasUser: true, isVisitor: false, rpcError: false, allowed: false }), 'refuse');
+  assert.equal(loggedInChatQuota({ hasUser: true, isVisitor: false, rpcError: false, allowed: null }), 'refuse');
+  assert.equal(loggedInChatQuota({ hasUser: true, isVisitor: false, rpcError: false, allowed: true }), 'allow');
+  assert.equal(storefrontChatQuota({ hasStoreUser: true, hasConversation: false, rpcError: false, allowed: false }), 'skip');
+  assert.equal(storefrontChatQuota({ hasStoreUser: true, hasConversation: true, rpcError: true, allowed: false }), 'fail_open');
+  assert.equal(storefrontChatQuota({ hasStoreUser: true, hasConversation: true, rpcError: false, allowed: false }), 'refuse');
+  assert.equal(storefrontChatQuota({ hasStoreUser: true, hasConversation: true, rpcError: false, allowed: true }), 'allow');
+  const source = readFileSync(new URL('../../supabase/functions/ai-chat/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /rpc\('check_chat_quota'/);
+  assert.match(source, /rpc\('check_ai_chat_quota'/);
+  assert.match(source, /loggedInChatQuota\(/);
+  assert.match(source, /storefrontChatQuota\(/);
+  assert.match(source, /return aiSpendGate\(/);
 });
 
 test('chat origins allow storehouse, localhost, and verified custom domains only', () => {
