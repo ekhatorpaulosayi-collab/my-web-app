@@ -1,6 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { adminCallAllowed } from '../_shared/adminGate.ts';
 
 Deno.serve(async (req) => {
+  if (!adminCallAllowed(Deno.env.get('STOREHOUSE_ADMIN_SECRET'), req.headers.get('x-storehouse-admin-secret'))) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     // Create Supabase admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

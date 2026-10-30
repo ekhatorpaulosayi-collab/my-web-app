@@ -8,6 +8,9 @@
 -- complete-storefront-order is deployed. Running 07 first breaks the old
 -- storefront client.
 --
+-- Superseded for stock movement by 20261030_02_owned_inventory.sql.
+-- If this file was already applied, run 20261030_02. Do not re-run this
+-- file after 20261030_02.
 -- Safe to run with Stage A. Does not touch chat policies.
 -- Products without a variant use decrement_product_quantity. That
 -- function is not on live, so this file creates it (service_role only)

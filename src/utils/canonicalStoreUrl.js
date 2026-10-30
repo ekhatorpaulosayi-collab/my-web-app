@@ -32,6 +32,14 @@ export function withProductQuery(baseUrl, productId) {
   return `${base}/?product=${encodeURIComponent(productId)}`;
 }
 
+export function historicHostTarget(currentLabel, resolvedSlug, productId) {
+  const current = String(currentLabel || '').trim().toLowerCase();
+  const next = String(resolvedSlug || '').trim().toLowerCase();
+  if (!next || next === current) return null;
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(next)) return null;
+  return canonicalStoreUrl(next, productId || undefined);
+}
+
 export function canonicalStoreUrl(slug, productId) {
   if (isLegalStoreSubdomain(slug)) {
     return withProductQuery(`https://${String(slug).toLowerCase()}.storehouse.ng`, productId);

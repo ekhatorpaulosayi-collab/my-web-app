@@ -10,7 +10,7 @@ import { Search, ShoppingBag, Phone, MapPin, ArrowLeft, Camera, X, ShoppingCart,
 import { currencyNGN } from '../utils/format';
 import { isValidStoreWhatsApp, whatsappDigits } from '../utils/ngPhone.js';
 import { normalizeSocialUrl } from '../utils/socialLinks.js';
-import { withProductQuery } from '../utils/canonicalStoreUrl.js';
+import { historicHostTarget, withProductQuery } from '../utils/canonicalStoreUrl.js';
 import type { StoreProfile, PaymentMethod } from '../types';
 import type { ProductVariant } from '../types/variants';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -191,6 +191,32 @@ function StorefrontContent() {
 
           storeData = result.data;
           storeError = result.error;
+        }
+
+        if (!storeData
+            && isStorehouseNg
+            && hostname !== 'storehouse.ng'
+            && labels.length >= 3
+            && !RESERVED_SUBDOMAINS.has(subdomainLabel)
+            && !NUMERIC_ONLY_LABEL.test(subdomainLabel)) {
+          const { data: redirectedId } = await supabase.rpc('resolve_store_redirect', {
+            p_slug: subdomainLabel.toLowerCase(),
+          });
+          if (redirectedId) {
+            const followed = await supabase
+              .from('stores')
+              .select(PUBLIC_STORE_COLUMNS)
+              .eq('id', redirectedId)
+              .eq('is_public', true)
+              .maybeSingle();
+            const nextLabel = followed.data?.subdomain || followed.data?.store_slug;
+            const params = new URLSearchParams(window.location.search);
+            const target = historicHostTarget(subdomainLabel, nextLabel, params.get('product'));
+            if (target) {
+              window.location.replace(target);
+              return;
+            }
+          }
         }
 
         // Strategy 3: Path-based slug (e.g., /store/myshop) - fallback for localhost and default domain

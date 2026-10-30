@@ -24,6 +24,18 @@ psql "$(cat ~/.supabase-paystack-dburl)" -v ON_ERROR_STOP=1 -f supabase/migratio
 
 `ON_ERROR_STOP=1` makes `psql` stop at the first error instead of continuing.
 
+## 30 Oct 2026 repairs
+
+These files are not applied by this pull request. Run them only after the 25 Oct files they name, and only after you approve them. Do not deploy `whatsapp-webhook`. Do not deploy the five one-off admin functions until you have set `STOREHOUSE_ADMIN_SECRET` or, preferably, delete them (see `audit-remediation/07_PRODUCTION_CONTAINMENT_PLAN.md`).
+
+1. `supabase/migrations/20261030_01_platform_flags_and_chat.sql` after `20261025_04` and `20261025_21`.
+2. `supabase/migrations/20261030_02_owned_inventory.sql` after `20261025_06`. Do not re-run `06` after this file.
+3. `supabase/migrations/20261030_03_names_discounts_queue.sql` after `20261025_09`, `20261025_12`, and `20261025_18`.
+4. Deploy `initiate-storefront-payment` and `complete-storefront-order` only after step 2. A checkout insert writes `order_items.variant_id`.
+5. Record each file in `supabase_migrations.schema_migrations` yourself. Do not `db push`.
+
+`20261025_17` and `20261025_18` stay one window. `17` no longer grants merchants `remember_store_slug`. If an older copy of `17` was already applied, run `18` before any shop traffic, then run step 3.
+
 After a file succeeds, record it so Supabase knows it was applied. Replace `VERSION` and `NAME` with the values in that step:
 
 ```bash

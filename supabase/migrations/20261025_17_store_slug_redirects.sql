@@ -23,13 +23,8 @@ CREATE TABLE IF NOT EXISTS public.store_slug_redirects (
 
 ALTER TABLE public.store_slug_redirects ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.store_slug_redirects FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.store_slug_redirects TO anon, authenticated;
 
 DROP POLICY IF EXISTS store_slug_redirects_read ON public.store_slug_redirects;
-CREATE POLICY store_slug_redirects_read ON public.store_slug_redirects
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
 
 CREATE OR REPLACE FUNCTION public.remember_store_slug(
   p_store_id uuid,
@@ -51,17 +46,23 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'not_store_owner' USING ERRCODE = '42501';
   END IF;
-  DELETE FROM public.store_slug_redirects WHERE old_slug = p_new;
   INSERT INTO public.store_slug_redirects (old_slug, store_id)
   VALUES (p_old, p_store_id)
-  ON CONFLICT (old_slug) DO UPDATE
-    SET store_id = EXCLUDED.store_id,
-        created_at = now();
+  ON CONFLICT (old_slug) DO NOTHING;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public.store_slug_redirects
+     WHERE old_slug = p_old
+       AND store_id IS DISTINCT FROM p_store_id
+  ) THEN
+    RAISE EXCEPTION 'slug_redirect_owned' USING ERRCODE = '23505';
+  END IF;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.remember_store_slug(uuid, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.remember_store_slug(uuid, text, text) TO authenticated;
+REVOKE ALL ON FUNCTION public.remember_store_slug(uuid, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.remember_store_slug(uuid, text, text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.generate_store_slug(business_name text)
 RETURNS text

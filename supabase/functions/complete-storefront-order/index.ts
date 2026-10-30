@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { bindPaidOrder } from '../_shared/paidOrder.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://www.storehouse.ng',
@@ -45,12 +46,16 @@ serve(async (req) => {
 
   const reference = String(body.reference || '').trim();
   if (!reference || reference.length > 100) return json({ error: 'missing_reference' }, 400);
-  if (reference.startsWith('ord_')) {
+  const early = bindPaidOrder({
+    reference,
+    paystackStatus: 'success',
+    paystackAmount: 0,
+    paystackCurrency: 'NGN',
+    order: null,
+  });
+  if (early.ok && early.mode === 'delegate') {
     return json({ ok: true, delegated: 'webhook' });
   }
-
-  const items = Array.isArray(body.items) ? body.items : [];
-  if (items.length === 0 || items.length > 50) return json({ error: 'bad_items' }, 400);
 
   const verifyResponse = await fetch(
     `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -58,40 +63,47 @@ serve(async (req) => {
   );
   const verifyData = await verifyResponse.json().catch(() => null);
   const transaction = verifyData?.data;
-  if (!verifyResponse.ok || !verifyData?.status || transaction?.status !== 'success') {
+  if (!verifyResponse.ok || !verifyData?.status || !transaction) {
     return json({ error: 'paystack_verify_failed' }, 400);
   }
 
   const admin = createClient(supabaseUrl, serviceKey);
+  const { data: order, error: orderError } = await admin
+    .from('orders')
+    .select('id, status, total_amount_kobo, primary_store_id, customer_name, customer_phone, customer_email')
+    .eq('paystack_reference', reference)
+    .maybeSingle();
+  if (orderError) return json({ error: 'order_lookup_failed' }, 500);
 
-  const lines = items.map((it) => {
-    const quantity = Number(it.quantity);
-    const productId = String(it.product_id || '').trim();
-    if (!productId || !Number.isInteger(quantity) || quantity <= 0 || quantity > 10000) {
-      return null;
-    }
-    return {
-      product_id: productId,
-      variant_id: it.variant_id ? String(it.variant_id) : null,
-      quantity,
-    };
+  const decision = bindPaidOrder({
+    reference,
+    paystackStatus: String(transaction.status || ''),
+    paystackAmount: Number(transaction.amount),
+    paystackCurrency: String(transaction.currency || ''),
+    order: order
+      ? {
+        status: String(order.status || ''),
+        total_amount_kobo: Number(order.total_amount_kobo),
+        primary_store_id: String(order.primary_store_id || ''),
+      }
+      : null,
   });
-  if (lines.some((line) => line === null)) {
-    return json({ error: 'bad_quantity' }, 400);
-  }
+  if (!decision.ok) return json({ error: decision.error }, 400);
 
-  const productIds = lines.map((line) => line!.product_id);
-  const { data: products, error: productError } = await admin
-    .from('products')
-    .select('id, user_id')
-    .in('id', productIds);
-  if (productError || !products || products.length !== new Set(productIds).size) {
-    return json({ error: 'unknown_product' }, 400);
-  }
-  const owner = String(products[0].user_id);
-  if (products.some((p) => String(p.user_id) !== owner)) {
-    return json({ error: 'mixed_store' }, 400);
-  }
+  const { data: store, error: storeError } = await admin
+    .from('stores')
+    .select('user_id')
+    .eq('id', order.primary_store_id)
+    .maybeSingle();
+  if (storeError || !store?.user_id) return json({ error: 'missing_store' }, 400);
+
+  const { data: orderItems, error: itemsError } = await admin
+    .from('order_items')
+    .select('product_id, variant_id, quantity, store_id')
+    .eq('order_id', order.id);
+  if (itemsError) return json({ error: 'items_lookup_failed' }, 500);
+  const lines = (orderItems || []).filter((line) => String(line.store_id) === String(order.primary_store_id));
+  if (lines.length === 0) return json({ error: 'missing_order_lines' }, 400);
 
   const { data: claimed, error: claimError } = await admin
     .from('storefront_fulfillments')
@@ -100,67 +112,32 @@ serve(async (req) => {
     .maybeSingle();
 
   if (claimError && claimError.code !== '23505') {
-    // Table may not exist until migration 06. Do not write stock twice on retry
-    // by continuing without a claim.
-    console.error('[complete-storefront-order] claim failed', claimError.message);
+    console.error('[complete-storefront-order] claim failed', claimError.code || 'error');
     return json({ error: 'fulfillment_table_missing' }, 500);
   }
   if (!claimed) return json({ ok: true, already_applied: true });
 
-  // One database call. A shortfall on a later line rolls back the earlier
-  // lines, and the claim is removed so a retry starts from the same stock.
-  const { error: stockError } = await admin.rpc('decrement_storefront_lines', {
-    p_lines: lines,
+  const { error: stockError } = await admin.rpc('decrement_owned_lines', {
+    p_owner_user_id: String(store.user_id),
+    p_lines: lines.map((line) => ({
+      product_id: line.product_id,
+      variant_id: line.variant_id,
+      quantity: line.quantity,
+    })),
   });
   if (stockError) {
     await admin.from('storefront_fulfillments').delete().eq('paystack_reference', reference);
     return json({ error: 'stock_failed' }, 500);
   }
 
-  const customer = body.customer || {};
   await admin.rpc('upsert_customer', {
-    p_user_id: owner,
-    p_customer_name: String(customer.name || '').slice(0, 200),
-    p_customer_phone: String(customer.phone || '').slice(0, 32),
-    p_customer_email: customer.email ? String(customer.email).slice(0, 320) : null,
+    p_user_id: String(store.user_id),
+    p_customer_name: String(order.customer_name || '').slice(0, 200),
+    p_customer_phone: String(order.customer_phone || '').slice(0, 32),
+    p_customer_email: order.customer_email ? String(order.customer_email).slice(0, 320) : null,
     p_order_amount: Number(transaction.amount) || 0,
     p_order_date: new Date().toISOString().slice(0, 10),
   });
-
-  if (body.promo_code_id) {
-    const { data: promo } = await admin
-      .from('promo_codes')
-      .select('id, user_id, discount_type, discount_value, is_active, used_count')
-      .eq('id', body.promo_code_id)
-      .maybeSingle();
-    if (promo && String(promo.user_id) === owner && promo.is_active !== false) {
-      const orderTotal = items.reduce(
-        (sum: number, it: { unit_price_kobo?: number; quantity?: number }) =>
-          sum + Number(it.unit_price_kobo || 0) * Number(it.quantity || 0),
-        0,
-      );
-      const discount = promo.discount_type === 'percentage'
-        ? Math.round((orderTotal * Number(promo.discount_value)) / 100)
-        : Number(promo.discount_value) * 100;
-      const finalTotal = orderTotal - discount;
-      if (discount >= 0 && discount <= orderTotal && finalTotal === orderTotal - discount) {
-        const { error: promoError } = await admin.from('promo_code_usage').insert({
-          promo_code_id: promo.id,
-          order_total: orderTotal,
-          discount_amount: discount,
-          final_total: finalTotal,
-          customer_name: String(customer.name || '').slice(0, 200),
-          customer_phone: String(customer.phone || '').slice(0, 32),
-        });
-        if (!promoError) {
-          await admin
-            .from('promo_codes')
-            .update({ used_count: (promo.used_count || 0) + 1 })
-            .eq('id', promo.id);
-        }
-      }
-    }
-  }
 
   return json({ ok: true });
 });

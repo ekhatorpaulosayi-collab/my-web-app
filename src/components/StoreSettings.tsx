@@ -487,14 +487,18 @@ export const StoreSettings: React.FC = () => {
       // new value with Vercel. The previous Vercel domain is left in
       // place (no charge, harmless stale cert).
       const newSubdomain = (updatedStore?.subdomain ?? null) as string | null;
+      let provisionNote = '';
       if (newSubdomain && newSubdomain !== previousSubdomain && updatedStore?.id) {
-        provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
+        const provision = await provisionSubdomain({ subdomain: newSubdomain, storeId: String(updatedStore.id) });
+        if (provision.state !== 'active') {
+          provisionNote = 'Store settings were saved. The storehouse.ng link is not confirmed yet. Save the slug again to retry registration.';
+        }
       }
 
       const priceNote = allowStaffPriceChange && !Object.prototype.hasOwnProperty.call(store, 'allow_staff_price_change')
         ? 'The rest of your settings were saved. Staff till prices stay on the catalogue price until the database update that adds that setting.'
         : '';
-      alert(domainNote || priceNote || 'Store settings saved successfully!');
+      alert(domainNote || priceNote || provisionNote || 'Store settings saved successfully!');
 
     } catch (error: any) {
       console.error('[StoreSettings] Save error:', error);

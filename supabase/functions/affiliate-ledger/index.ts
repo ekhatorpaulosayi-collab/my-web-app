@@ -17,6 +17,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { decideAffiliateCommission } from '../_shared/affiliateDecision.ts';
 import { markSignupAction } from '../_shared/moneyPolicies.ts';
 
 const corsHeaders = {
@@ -85,10 +86,13 @@ serve(async (req) => {
     if (!affiliateCode) return json({ error: 'missing_code' }, 400);
     const { data: affiliate } = await admin
       .from('affiliates')
-      .select('id')
+      .select('id, user_id')
       .eq('affiliate_code', affiliateCode)
       .maybeSingle();
     if (!affiliate) return json({ error: 'unknown_code' }, 404);
+    if (affiliate.user_id && affiliate.user_id === user.id) {
+      return json({ ok: true, counted: false, reason: 'self_referral' });
+    }
 
     // One attribution per customer. Repeating mark_signup must not inflate
     // total_signups. attribute_affiliate_signup inserts once (migration 11).
@@ -175,38 +179,61 @@ serve(async (req) => {
       const amountKobo = Number(transaction.amount);
       if (!Number.isInteger(amountKobo) || amountKobo <= 0) return json({ error: 'bad_amount' }, 400);
 
-      const affiliateCode = String(body.affiliate_code || '').trim();
-      const { data: affiliate } = await admin
-        .from('affiliates')
-        .select('id, total_conversions')
-        .eq('affiliate_code', affiliateCode)
-        .maybeSingle();
-      if (!affiliate) return json({ error: 'unknown_code' }, 404);
-
       const { data: existing } = await admin
         .from('affiliate_sales')
         .select('id')
         .eq('subscription_id', reference)
         .maybeSingle();
-      if (existing) return json({ ok: true, already_recorded: true });
 
-      const commissionKobo = Math.floor(amountKobo * 0.30);
+      const planCode = transaction.metadata?.plan_code || transaction.plan?.plan_code || null;
+      const { data: attribution } = await admin
+        .from('affiliate_attributions')
+        .select('affiliate_id, created_at')
+        .eq('customer_id', user.id)
+        .maybeSingle();
+      const { data: affiliate } = attribution?.affiliate_id
+        ? await admin
+          .from('affiliates')
+          .select('id, user_id, is_active')
+          .eq('id', attribution.affiliate_id)
+          .maybeSingle()
+        : { data: null };
+      const paidAtMs = Date.parse(String(transaction.paid_at || '')) || Date.now();
+      const decision = decideAffiliateCommission({
+        buyerUserId: user.id,
+        affiliateUserId: affiliate?.user_id ? String(affiliate.user_id) : null,
+        affiliateActive: Boolean(affiliate) && affiliate.is_active !== false,
+        paymentStatus: String(transaction.status || ''),
+        amountKobo,
+        currency: String(transaction.currency || ''),
+        reference,
+        planCode: planCode ? String(planCode) : null,
+        attributedAffiliateId: attribution?.affiliate_id ? String(attribution.affiliate_id) : null,
+        affiliateId: affiliate?.id ? String(affiliate.id) : null,
+        alreadyRecorded: Boolean(existing),
+        attributedAtMs: attribution?.created_at ? Date.parse(String(attribution.created_at)) : null,
+        paidAtMs,
+      });
+      if (!decision.record || !affiliate) {
+        return json({ ok: true, commission_kobo: 0, reason: decision.reason });
+      }
+
       const { error: saleError } = await admin.from('affiliate_sales').insert({
         affiliate_id: affiliate.id,
         customer_id: user.id,
         customer_email: user.email,
         customer_name: body.customer_name ? String(body.customer_name).slice(0, 200) : null,
         subscription_id: reference,
-        plan_name: String(body.plan_name || 'subscription').slice(0, 80),
+        plan_name: String(planCode).slice(0, 80),
         sale_amount_kobo: amountKobo,
-        commission_amount_kobo: commissionKobo,
+        commission_amount_kobo: decision.commissionKobo,
         status: 'pending',
       });
       if (saleError) return json({ error: 'sale_insert_failed' }, 500);
 
       await admin.rpc('increment_affiliate_conversion', {
         p_affiliate_id: affiliate.id,
-        p_commission_kobo: commissionKobo,
+        p_commission_kobo: decision.commissionKobo,
       });
 
       const { data: click } = await admin
@@ -224,7 +251,7 @@ serve(async (req) => {
           .eq('id', click.id);
       }
 
-      return json({ ok: true, commission_kobo: commissionKobo });
+      return json({ ok: true, commission_kobo: decision.commissionKobo });
     }
 
     const refunded = transaction.status === 'reversed' || transaction.status === 'abandoned';

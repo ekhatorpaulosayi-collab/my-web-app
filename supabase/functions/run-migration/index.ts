@@ -1,7 +1,14 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { adminCallAllowed } from '../_shared/adminGate.ts';
 
 serve(async (req) => {
+  if (!adminCallAllowed(Deno.env.get('STOREHOUSE_ADMIN_SECRET'), req.headers.get('x-storehouse-admin-secret'))) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseKey = (Deno.env.get('EDGE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) ?? '';
@@ -24,20 +31,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: false,
-        message: 'Cannot execute DDL via REST API. Please run the SQL manually in Supabase Dashboard.',
-        instructions: `
-1. Go to: https://supabase.com/dashboard/project/yzlniqwzqlsftxrtapdl/sql/new
-2. Paste this SQL:
-
-ALTER TABLE products
-ADD COLUMN IF NOT EXISTS specifications JSONB DEFAULT '{}'::jsonb;
-
-CREATE INDEX IF NOT EXISTS idx_products_specifications
-ON products USING gin(specifications);
-
-3. Click "RUN"
-        `,
-        error: testError.message
+        message: 'This function cannot change the database.',
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
