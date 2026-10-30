@@ -58,9 +58,8 @@ body {
 }
 
 .landing-nav.glassmorphism {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(229, 231, 235, 0.3);
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
@@ -1542,6 +1541,10 @@ body {
   opacity: 0.3;
   z-index: 0;
   pointer-events: none;
+}
+
+.landing-page > .blob {
+  z-index: 0;
 }
 
 .blob-1 {

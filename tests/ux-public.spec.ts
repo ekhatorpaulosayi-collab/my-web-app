@@ -38,6 +38,13 @@ for (const [name, path] of routes) {
     if (name === 'login') {
       await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     }
+    if (name === 'home') {
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      await page.addStyleTag({
+        content: '.landing-nav{position:relative!important;background:#fff!important;backdrop-filter:none!important}.blob{display:none!important}',
+      });
+    }
 
     const width = page.viewportSize()?.width ?? 0;
     const sizeLabel = width <= 400 ? '390x844' : '1440x900';
