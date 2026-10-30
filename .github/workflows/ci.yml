@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply release migrations on a fresh database
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/storehouse
+          DATABASE_URL: postgresql://postgres@localhost:5432/storehouse
           PGPASSWORD: postgres
         run: |
           sudo apt-get update
